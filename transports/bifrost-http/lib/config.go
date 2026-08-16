@@ -161,6 +161,61 @@ type ServerConfig struct {
 	PluginDownloadPrivateAllowlist []string `json:"plugin_download_private_allowlist,omitempty"`
 }
 
+const (
+	HumeProsodyPromptScopeLatestUser      = "latest_user"
+	HumeProsodyPromptScopeAllUserMessages = "all_user_messages"
+	DefaultHumeMaxEmotions                = 3
+)
+
+// HumeConfig controls the Hume EVI custom language model integration.
+type HumeConfig struct {
+	DefaultModel  string                   `json:"default_model,omitempty"`
+	ProsodyPrompt *HumeProsodyPromptConfig `json:"prosody_prompt,omitempty"`
+}
+
+// HumeProsodyPromptConfig controls conversion of Hume prosody scores into prompt text.
+type HumeProsodyPromptConfig struct {
+	Enabled     bool   `json:"enabled,omitempty"`
+	Scope       string `json:"scope,omitempty"`
+	MaxEmotions *int   `json:"max_emotions,omitempty"`
+}
+
+// NewDefaultHumeConfig returns a Hume configuration with safe, non-mutating defaults.
+func NewDefaultHumeConfig() *HumeConfig {
+	maxEmotions := DefaultHumeMaxEmotions
+	return &HumeConfig{
+		ProsodyPrompt: &HumeProsodyPromptConfig{
+			Scope:       HumeProsodyPromptScopeLatestUser,
+			MaxEmotions: &maxEmotions,
+		},
+	}
+}
+
+// CheckAndSetDefaults validates a Hume configuration and fills omitted values.
+func (c *HumeConfig) CheckAndSetDefaults() error {
+	if c == nil {
+		return nil
+	}
+	c.DefaultModel = strings.TrimSpace(c.DefaultModel)
+	if c.ProsodyPrompt == nil {
+		c.ProsodyPrompt = NewDefaultHumeConfig().ProsodyPrompt
+		return nil
+	}
+	if c.ProsodyPrompt.Scope == "" {
+		c.ProsodyPrompt.Scope = HumeProsodyPromptScopeLatestUser
+	}
+	if c.ProsodyPrompt.Scope != HumeProsodyPromptScopeLatestUser && c.ProsodyPrompt.Scope != HumeProsodyPromptScopeAllUserMessages {
+		return fmt.Errorf("hume.prosody_prompt.scope must be %q or %q", HumeProsodyPromptScopeLatestUser, HumeProsodyPromptScopeAllUserMessages)
+	}
+	if c.ProsodyPrompt.MaxEmotions == nil {
+		maxEmotions := DefaultHumeMaxEmotions
+		c.ProsodyPrompt.MaxEmotions = &maxEmotions
+	} else if *c.ProsodyPrompt.MaxEmotions < 0 {
+		return errors.New("hume.prosody_prompt.max_emotions must be greater than or equal to 0")
+	}
+	return nil
+}
+
 // ConfigData represents the configuration data for the Bifrost HTTP transport.
 // It contains the client configuration, provider configurations, MCP configuration,
 // vector store configuration, config store configuration, and logs store configuration.
@@ -195,6 +250,7 @@ type ConfigData struct {
 	Plugins           []*schemas.PluginConfig               `json:"plugins,omitempty"`
 	WebSocket         *schemas.WebSocketConfig              `json:"websocket,omitempty"`
 	FeatureFlags      *FeatureFlagsFileConfig               `json:"feature_flags,omitempty"`
+	Hume              *HumeConfig                           `json:"hume,omitempty"`
 
 	presentSections           map[string]bool
 	presentGovernanceSections map[string]bool
@@ -453,6 +509,7 @@ func (cd *ConfigData) UnmarshalJSON(data []byte) error {
 		Plugins           []*schemas.PluginConfig               `json:"plugins,omitempty"`
 		WebSocket         *schemas.WebSocketConfig              `json:"websocket,omitempty"`
 		FeatureFlags      *FeatureFlagsFileConfig               `json:"feature_flags,omitempty"`
+		Hume              *HumeConfig                           `json:"hume,omitempty"`
 		SkillsRegistry    *SkillsRegistryConfig                 `json:"skills_registry,omitempty"`
 	}
 
@@ -477,6 +534,7 @@ func (cd *ConfigData) UnmarshalJSON(data []byte) error {
 	cd.Plugins = temp.Plugins
 	cd.WebSocket = temp.WebSocket
 	cd.FeatureFlags = temp.FeatureFlags
+	cd.Hume = temp.Hume
 	cd.presentGovernanceSections = nil
 	if rawGovernance, ok := raw["governance"]; ok && len(rawGovernance) > 0 {
 		var rawGovernanceFields map[string]json.RawMessage
@@ -655,6 +713,8 @@ type Config struct {
 	StreamingDecompressThreshold int64
 	// WebSocket configuration for WS gateway features (Responses WS mode, Realtime API).
 	WebSocketConfig *schemas.WebSocketConfig
+	// HumeConfig is immutable startup configuration for the Hume EVI adapter.
+	HumeConfig *HumeConfig
 
 	// Precompiled header matcher for header filtering. Rebuilt on config change.
 	headerMatcher atomic.Pointer[HeaderMatcher]
@@ -942,6 +1002,13 @@ func LoadConfig(ctx context.Context, configDirPath string) (*Config, error) {
 			applyV1Compat(&configData)
 		}
 	}
+	if configData.Hume == nil {
+		configData.Hume = NewDefaultHumeConfig()
+	}
+	if err := configData.Hume.CheckAndSetDefaults(); err != nil {
+		return nil, fmt.Errorf("invalid Hume configuration: %w", err)
+	}
+	config.HumeConfig = configData.Hume
 
 	// 1. Encryption (before stores so BeforeSave hooks work correctly)
 	if err := initEncryption(&configData); err != nil {
@@ -5283,6 +5350,14 @@ func (c *Config) ShouldAllowDirectKeys() bool {
 // if not configured. Resolves env var references automatically.
 func (c *Config) GetMCPExternalClientURL() string {
 	return c.ClientConfig.MCPExternalClientURL.GetValue()
+}
+
+// GetHumeConfig returns immutable startup configuration for the Hume EVI adapter.
+func (c *Config) GetHumeConfig() *HumeConfig {
+	if c == nil || c.HumeConfig == nil {
+		return NewDefaultHumeConfig()
+	}
+	return c.HumeConfig
 }
 
 // GetHeaderMatcher returns the precompiled header matcher for header filtering.
