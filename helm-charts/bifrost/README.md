@@ -11,6 +11,7 @@ Official Helm charts for deploying [Bifrost](https://github.com/maximhq/bifrost)
 ### Upcoming
 
 - Added `bifrost.plugins.splunk` — the Splunk HTTP Event Collector (HEC) observability connector (Enterprise): one flattened event per request to `events_index` plus the derived metric set to `metrics_index`, with TLS (`ca_cert` / `insecure_skip_verify`), a content toggle (`disable_content_logging`), request-header capture, and indexer acknowledgement (`indexer_ack`, `ack_poll_interval_ms`, `ack_timeout_ms`, `max_ack_attempts`). Renders into the `splunk` plugin config.
+- Added `bifrost.hume` configuration for the Hume EVI custom-language-model adapter. `defaultModel` supplies the provider/model when Hume omits its identifier, while `prosodyPrompt` controls optional vocal-expression prompt injection. Renders into top-level `hume` configuration.
 
 ### 2.1.36
 
@@ -799,6 +800,15 @@ vectorStore:
 | `bifrost.logLevel`      | Log level                         | `info`    |
 | `bifrost.logStyle`      | Log format: `json` or `text`      | `json`    |
 | `bifrost.encryptionKey` | Encryption key for sensitive data | `""`      |
+
+### Hume EVI Configuration
+
+| Parameter                                  | Description                                                                                     | Default          |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------- | ---------------- |
+| `bifrost.hume.defaultModel`                | Optional provider/model or catalog-resolvable name used when Hume omits its model identifier    | Unset            |
+| `bifrost.hume.prosodyPrompt.enabled`       | Add Hume vocal-expression confidence scores to selected user messages                           | `false`          |
+| `bifrost.hume.prosodyPrompt.scope`         | Select the latest scored user message or all scored user messages                               | `latest_user`    |
+| `bifrost.hume.prosodyPrompt.maxEmotions`   | Maximum expressions injected per selected message; `0` includes every expression                | `3`              |
 
 ### Provider Configuration
 
