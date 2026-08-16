@@ -445,6 +445,7 @@
               "integrations/litellm-sdk",
               "integrations/langchain-sdk",
               "integrations/pydanticai-sdk",
+              "integrations/hume-evi",
               "integrations/passthrough"
             ]
           },
