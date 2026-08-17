@@ -3,6 +3,7 @@
 package lib
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -197,6 +198,9 @@ func (c *HumeConfig) CheckAndSetDefaults() error {
 		return nil
 	}
 	c.DefaultModel = strings.TrimSpace(c.DefaultModel)
+	if c.DefaultModel == "" {
+		return errors.New("hume.default_model must contain at least one non-whitespace character")
+	}
 	if c.ProsodyPrompt == nil {
 		c.ProsodyPrompt = NewDefaultHumeConfig().ProsodyPrompt
 		return nil
@@ -509,7 +513,7 @@ func (cd *ConfigData) UnmarshalJSON(data []byte) error {
 		Plugins           []*schemas.PluginConfig               `json:"plugins,omitempty"`
 		WebSocket         *schemas.WebSocketConfig              `json:"websocket,omitempty"`
 		FeatureFlags      *FeatureFlagsFileConfig               `json:"feature_flags,omitempty"`
-		Hume              *HumeConfig                           `json:"hume,omitempty"`
+		Hume              json.RawMessage                       `json:"hume,omitempty"`
 		SkillsRegistry    *SkillsRegistryConfig                 `json:"skills_registry,omitempty"`
 	}
 
@@ -534,7 +538,14 @@ func (cd *ConfigData) UnmarshalJSON(data []byte) error {
 	cd.Plugins = temp.Plugins
 	cd.WebSocket = temp.WebSocket
 	cd.FeatureFlags = temp.FeatureFlags
-	cd.Hume = temp.Hume
+	cd.Hume = nil
+	if len(temp.Hume) > 0 {
+		decoder := json.NewDecoder(bytes.NewReader(temp.Hume))
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&cd.Hume); err != nil {
+			return fmt.Errorf("failed to unmarshal Hume config: %w", err)
+		}
+	}
 	cd.presentGovernanceSections = nil
 	if rawGovernance, ok := raw["governance"]; ok && len(rawGovernance) > 0 {
 		var rawGovernanceFields map[string]json.RawMessage
@@ -1004,8 +1015,7 @@ func LoadConfig(ctx context.Context, configDirPath string) (*Config, error) {
 	}
 	if configData.Hume == nil {
 		configData.Hume = NewDefaultHumeConfig()
-	}
-	if err := configData.Hume.CheckAndSetDefaults(); err != nil {
+	} else if err := configData.Hume.CheckAndSetDefaults(); err != nil {
 		return nil, fmt.Errorf("invalid Hume configuration: %w", err)
 	}
 	config.HumeConfig = configData.Hume
