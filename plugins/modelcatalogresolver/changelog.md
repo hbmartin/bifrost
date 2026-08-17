@@ -1,0 +1,1 @@
+- fix: prefer OpenAI when resolving unprefixed models for the Hume integration
