@@ -129832,6 +129832,67 @@
       ]
     },
     {
+      "name": "52. Hume EVI serial tool streaming",
+      "description": "Pins the Hume transport and core serial-tool policy together. A forced single function call must survive OpenAI-compatible SSE conversion with Chat Completions tool index 0 and a normal [DONE] terminator.",
+      "item": [
+        {
+          "name": "openai/gpt-4o-mini Hume serial tool stream",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if ([401, 403, 429, 500, 502, 503, 504].indexOf(pm.response.code) !== -1) { return; }",
+                  "pm.test('Hume emits one valid tool call and completes the SSE stream', function () {",
+                  "  var body = pm.response.text() || '';",
+                  "  pm.expect((pm.response.headers.get('content-type') || '').toLowerCase()).to.include('text/event-stream');",
+                  "  pm.expect(body, 'Hume converter returned a sanitized mid-stream failure: ' + body).to.not.include('internal server error');",
+                  "  pm.expect(body).to.include('tool_calls');",
+                  "  pm.expect(body).to.include('emit_status');",
+                  "  pm.expect(body).to.include('\\\"index\\\":0');",
+                  "  pm.expect(body).to.not.include('\\\"index\\\":1');",
+                  "  pm.expect(body).to.include('data: [DONE]');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"openai/gpt-4o-mini\",\n  \"stream\": true,\n  \"max_tokens\": 64,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Call emit_status exactly once with status ready.\"\n    }\n  ],\n  \"tools\": [\n    {\n      \"type\": \"function\",\n      \"function\": {\n        \"name\": \"emit_status\",\n        \"description\": \"Emit one status.\",\n        \"parameters\": {\n          \"type\": \"object\",\n          \"properties\": {\n            \"status\": {\n              \"type\": \"string\"\n            }\n          },\n          \"required\": [\n            \"status\"\n          ]\n        }\n      }\n    }\n  ],\n  \"tool_choice\": {\n    \"type\": \"function\",\n    \"function\": {\n      \"name\": \"emit_status\"\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/hume/v1/chat/completions?custom_session_id=harness-hume-serial-tool",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "hume",
+                "v1",
+                "chat",
+                "completions"
+              ],
+              "query": [
+                {
+                  "key": "custom_session_id",
+                  "value": "harness-hume-serial-tool"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "52. Object-store & remote URL file sources x media type",
       "description": "Pins how a URL-sourced file reaches the provider, which depends on the scheme AND the target model family - not the scheme alone.\n\ngs:// on the Gemini family is forwarded as fileData.fileUri: it is the documented form (the v1 aiplatform discovery doc defines fileUri as \"The URI of the file in Google Cloud Storage\"), it resolves under the caller's own project IAM with no crawler involved, and it keeps large media out of bifrost's 25 MiB inline path - which is what makes video input viable at all. Regression guarded: gs:// used to be handed to the http fetcher and died with 'unsupported URL scheme \"gs\" (only http/https allowed)'.\n\ngs:// on the Anthropic family is downloaded from Cloud Storage with the request key's Google credentials and inlined, because Claude on Google Cloud accepts base64 sources only (\"Input sources (URL sources for images and documents, Files API)\" is listed under Features not supported).\n\nhttps stays inlined for every family. Forwarding it was measured here and Vertex rejected all six 47.10 endpoint shapes with \"Cannot fetch content from the provided URL ... Status: URL_REJECTED-REJECTED_FC_TOO_MANY_PENDING\" after ~59s each.\n\nA scheme bifrost cannot download is forwarded verbatim rather than rejected here: bifrost inlines only what it can fetch, and whether a source is usable is the provider's call - an answer that stays correct as provider capabilities change. So s3:// reaches Vertex and Vertex rejects it, while on Bedrock Converse it IS resolvable and travels as the s3Location union member of DocumentSource/ImageSource. These rows assert only that the rejection comes from the provider, never from a bifrost-side scheme guard.\n\nMedia types are chosen per model: Gemini covers document/image/audio/video, Claude only document/image. Images use an image_url block, because a file block maps to an Anthropic document block whose source accepts application/pdf only.",
       "item": [
