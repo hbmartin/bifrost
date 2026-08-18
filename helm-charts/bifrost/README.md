@@ -14,7 +14,7 @@ Official Helm charts for deploying [Bifrost](https://github.com/maximhq/bifrost)
 - Added `bifrost.plugins.otel.config.semaphore_size` and `inject_timeout` (plugin-level, both legacy and `profiles` wrapper shapes, default `10000` / `5`) — cap on concurrent in-flight trace injects and the timeout for a single inject call, so a hung collector can't hold its concurrency slot indefinitely. Renders into `semaphore_size` / `inject_timeout`. `bifrost.plugins.logging.config` accepts the same two keys (`inject_timeout` as a duration string, e.g. `"5s"`), passed through as-is.
 - Added `postgresql.primary.nodeSelector`, `postgresql.primary.tolerations`, and `postgresql.primary.affinity` to the hosted PostgreSQL deployment. Previously only the Bifrost pod itself could be steered (top-level `nodeSelector`/`tolerations`/`affinity`), so on clusters that mix long-lived services with ephemeral autoscaled workloads the hosted database could not be kept off nodes that scale in — and draining the single-replica Postgres takes the gateway down with it. All three default to empty, so rendering is unchanged unless set.
 - Added `storage.logsStore.postgres` to point the logs store at a **separate external PostgreSQL** (different host and/or database) than the config store, instead of forcing both onto the shared top-level `postgresql` connection. Only applies when the logs store resolves to postgres; `enabled: false` (default) preserves existing behavior. Fields mirror `postgresql.external` (`host`, `port`, `user`, `password`, `passwordCommand`, `database`, `sslMode`, `connMaxLifetime`, `existingSecret`, `passwordKey`); with `existingSecret` the password is injected as `BIFROST_LOGS_POSTGRES_PASSWORD`. Renders into `logs_store.config`.
-- Added `bifrost.hume` configuration for the Hume EVI custom-language-model adapter. When the section is present, `defaultModel` is required and supplies the provider/model when Hume omits its identifier; `prosodyPrompt` controls optional vocal-expression prompt injection. Renders into top-level `hume` configuration.
+- Added `bifrost.hume` configuration for the Hume EVI custom-language-model adapter. `defaultModel` optionally supplies the provider/model when Hume omits its identifier; `prosodyPrompt` controls optional vocal-expression prompt injection. Renders into top-level `hume` configuration.
 
 ### 2.1.36
 
@@ -850,7 +850,7 @@ vectorStore:
 
 | Parameter                                  | Description                                                                                     | Default          |
 | ------------------------------------------ | ----------------------------------------------------------------------------------------------- | ---------------- |
-| `bifrost.hume.defaultModel`                | Required when `bifrost.hume` exists; used when Hume omits its model identifier                   | Unset            |
+| `bifrost.hume.defaultModel`                | Optional fallback used when Hume omits its model identifier                                      | Unset            |
 | `bifrost.hume.prosodyPrompt.enabled`       | Add Hume vocal-expression confidence scores to selected user messages                           | `false`          |
 | `bifrost.hume.prosodyPrompt.scope`         | Select the latest scored user message or all scored user messages                               | `latest_user`    |
 | `bifrost.hume.prosodyPrompt.maxEmotions`   | Maximum expressions injected per selected message; `0` includes every expression                | `3`              |
