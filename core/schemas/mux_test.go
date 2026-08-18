@@ -1449,7 +1449,6 @@ func TestToBifrostResponsesStreamResponse_ReasoningOpensThinkingBlock(t *testing
 	}
 }
 
-
 // responseFormatAsMap reads a converted chat response_format regardless of its
 // representation. The Responses to Chat conversion emits raw JSON (the same
 // representation the chat wire decode produces), so tests read it through the
@@ -1470,4 +1469,48 @@ func nestedMap(t *testing.T, parent map[string]interface{}, key string) map[stri
 		t.Fatalf("expected %q to be an object, got %T", key, parent[key])
 	}
 	return om.ToMap()
+}
+
+func TestResponsesToChatStreamUsesDenseToolCallIndexes(t *testing.T) {
+	state := &ResponsesToChatStreamState{}
+	functionType := ResponsesMessageTypeFunctionCall
+
+	firstAdded := (&BifrostResponsesStreamResponse{
+		Type:        ResponsesStreamResponseTypeOutputItemAdded,
+		OutputIndex: Ptr(2), // reasoning and message items came first
+		Item: &ResponsesMessage{
+			Type: &functionType,
+			ResponsesToolMessage: &ResponsesToolMessage{
+				CallID: Ptr("call-1"),
+				Name:   Ptr("first_tool"),
+			},
+		},
+	}).ToBifrostChatResponseWithState(state)
+	if got := firstAdded.Choices[0].ChatStreamResponseChoice.Delta.ToolCalls[0].Index; got != 0 {
+		t.Fatalf("first tool-call index = %d, want 0", got)
+	}
+
+	firstArgs := (&BifrostResponsesStreamResponse{
+		Type:        ResponsesStreamResponseTypeFunctionCallArgumentsDelta,
+		OutputIndex: Ptr(2),
+		Delta:       Ptr(`{"value":1}`),
+	}).ToBifrostChatResponseWithState(state)
+	if got := firstArgs.Choices[0].ChatStreamResponseChoice.Delta.ToolCalls[0].Index; got != 0 {
+		t.Fatalf("first tool-call argument index = %d, want 0", got)
+	}
+
+	secondAdded := (&BifrostResponsesStreamResponse{
+		Type:        ResponsesStreamResponseTypeOutputItemAdded,
+		OutputIndex: Ptr(3),
+		Item: &ResponsesMessage{
+			Type: &functionType,
+			ResponsesToolMessage: &ResponsesToolMessage{
+				CallID: Ptr("call-2"),
+				Name:   Ptr("second_tool"),
+			},
+		},
+	}).ToBifrostChatResponseWithState(state)
+	if got := secondAdded.Choices[0].ChatStreamResponseChoice.Delta.ToolCalls[0].Index; got != 1 {
+		t.Fatalf("second tool-call index = %d, want 1", got)
+	}
 }
