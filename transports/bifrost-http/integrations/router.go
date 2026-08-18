@@ -402,10 +402,10 @@ type ShortCircuit func(ctx *fasthttp.RequestCtx, bifrostCtx *schemas.BifrostCont
 
 // StreamConfig defines streaming-specific configuration for an integration.
 // A response converter returns ("", nil, nil) to skip a chunk. Converter errors
-// are fatal by default: the router emits a sanitized integration-specific error,
-// cancels and drains the upstream stream, and terminates without a success marker.
-// Routes that can safely continue after a conversion failure may opt in with
-// SkipConverterErrors.
+// are warn-logged and skipped by default. Routes whose conversion is part of a
+// downstream protocol invariant may opt into fatal handling: the router emits a
+// sanitized integration-specific error, cancels and drains the upstream stream,
+// and terminates without a success marker.
 //
 // SSE FORMAT BEHAVIOR:
 //
@@ -434,7 +434,7 @@ type StreamConfig struct {
 	ImageGenerationStreamResponseConverter ImageGenerationStreamResponseConverter // Function to convert BifrostImageGenerationStreamResponse to streaming format
 	ErrorConverter                         StreamErrorConverter                   // Function to convert BifrostError to streaming error format
 	HeartbeatFraming                       lib.SSEHeartbeatFraming                // Wire framing for no-op SSE heartbeat comments
-	SkipConverterErrors                    bool                                   // Log and skip response converter failures instead of terminating the stream
+	FatalConverterErrors                   bool                                   // Emit an error and terminate the stream when response conversion fails
 }
 
 type RouteConfigType string
@@ -3002,7 +3002,7 @@ func (g *GenericRouter) handleStreaming(ctx *fasthttp.RequestCtx, bifrostCtx *sc
 
 				if err != nil {
 					g.logger.Warn("Failed to convert streaming response: %v", err)
-					if !config.StreamConfig.SkipConverterErrors {
+					if config.StreamConfig.FatalConverterErrors {
 						sendConvertedStreamError(newBifrostErrorWithCode(nil, lib.ClientSafeInternalErrorMessage, fasthttp.StatusInternalServerError))
 						cancel()
 						for range streamChan {
