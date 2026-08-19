@@ -5523,7 +5523,12 @@ func recoverFromTerminalError(
 	snapProvider := originalErr.ExtraFields.Provider
 	snapOriginalModel := originalErr.ExtraFields.OriginalModelRequested
 	snapResolvedModel := originalErr.ExtraFields.ResolvedModelUsed
-	snapRouting := originalErr.ExtraFields.RoutingInfo
+	// Deep copy: RoutingInfo's pointer fields would otherwise be shared with the
+	// value the hooks can reach, letting an in-place write tamper with the
+	// snapshot meant to undo it. PopulateRoutingInfo re-derives ResolvedModelUsed
+	// from snapRouting.ResolvedKeyAlias, so a shallow copy would propagate the
+	// tampering through the restore itself.
+	snapRouting := originalErr.ExtraFields.RoutingInfo.Clone()
 
 	resp, postHookErr := pipeline.RunPostLLMHooks(ctx, nil, originalErr, preCount)
 	if postHookErr == nil && resp == nil {
