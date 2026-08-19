@@ -19,7 +19,12 @@
           "value": "env.OPENAI_API_KEY",
           "weight": 1,
           "models": ["*"],
-          "use_for_batch_api": true
+          "use_for_batch_api": true,
+          "aliases": {
+            "bifrost-harness-serial-alias": {
+              "model_id": "o3-mini"
+            }
+          }
         }
       ],
       "network_config": {
