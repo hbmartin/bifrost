@@ -42,7 +42,7 @@ jobs:
       - name: Verify public image release gate
         env:
           GH_TOKEN: ${{ github.token }}
-        run: bash .github/workflows/scripts/verify-deployment-release.sh v1.6.12
+        run: bash .github/workflows/scripts/verify-deployment-release.sh
 
       - name: Publish generated branch
         env:

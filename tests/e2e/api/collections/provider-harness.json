@@ -129518,6 +129518,7 @@
                   "// the request with its serial-tool message (inverse of the catalog-absent forwarding row).",
                   "if ([401, 403, 429, 500, 502, 503, 504].indexOf(pm.response.code) !== -1) { return; }",
                   "pm.test('all-digit Vertex endpoint is rejected by the Bifrost serial-tool policy', function () {",
+                  "  pm.expect(pm.response.code, 'Bifrost must reject this request itself, with a 4xx').to.be.within(400, 499);",
                   "  var body = pm.response.text() || '';",
                   "  pm.expect(body, 'expected the Bifrost serial-tool rejection: ' + body).to.include('cannot guarantee serial tool execution');",
                   "});"
@@ -129571,10 +129572,14 @@
                   "// OpenAI key in tests/integrations/python/config.json.",
                   "if ([401, 403, 429, 500, 502, 503, 504].indexOf(pm.response.code) !== -1) { return; }",
                   "pm.test('key alias resolving to a serial-incapable model is rejected', function () {",
+                  "  pm.expect(pm.response.code, 'Bifrost must reject this request itself, with a 4xx').to.be.within(400, 499);",
                   "  var body = pm.response.text() || '';",
                   "  pm.expect(body, 'expected the Bifrost serial-tool rejection: ' + body).to.include('cannot guarantee serial tool execution');",
-                  "  // Alias-detail line: delete if the serial-tool enforcement ever drops the alias detail.",
+                  "  // Alias-detail lines: delete if the serial-tool enforcement ever drops the alias detail.",
                   "  pm.expect(body, 'expected the alias-resolution detail: ' + body).to.include('key alias resolves to');",
+                  "  // The detail must name the alias target, not just any alias: o3-mini is what the",
+                  "  // selected key resolves to (quotes are backslash-escaped in the raw JSON body).",
+                  "  pm.expect(body, 'expected the alias target o3-mini in the detail: ' + body).to.include('o3-mini');",
                   "});"
                 ]
               }
