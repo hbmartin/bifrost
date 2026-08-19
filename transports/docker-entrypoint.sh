@@ -10,6 +10,8 @@ RUN_AS_GID=${BIFROST_RUN_AS_GID:-}
 # previous root-owned run left inside it, and the create-directory probe below
 # cannot see them: it creates a new directory and never touches the existing
 # databases. Both the ownership repair and the probe walk these explicitly.
+# Literal names, never patterns: they are split with pathname expansion on, and a
+# name carrying a glob character would expand somewhere it was never meant to.
 DATA_WRITE_ENTRIES=". config.db logs.db logs"
 # Globs, relative to APP_DIR, for the entries whose names are not fixed. SQLite
 # leaves -wal and -shm sidecars beside every database it opens in WAL mode, and
@@ -21,7 +23,8 @@ DATA_WRITE_ENTRIES=". config.db logs.db logs"
 # mounts a root-owned lost+found that Bifrost never touches, and demanding it be
 # writable would refuse a perfectly good volume on every platform that provides
 # one. One list, used by both the ownership repair and the probe, so the two
-# cannot drift apart.
+# cannot drift apart. Every reader splits it with pathname expansion off; see the
+# probe for what happens when it does not.
 DATA_WRITE_GLOBS="config.db-* logs.db-* logs/*"
 # config.json is only read. Deployments legitimately mount it read-only, so it
 # is never required to be writable and never triggers an ownership repair.
@@ -159,11 +162,21 @@ APP_DIR_PROBE='
             exit 1
         fi
     done
+    # $write_globs holds patterns, so splitting it needs pathname expansion off.
+    # Split unquoted, each word is itself expanded against the working directory
+    # before the anchored expansion below ever runs: a logs/ directory beside the
+    # process turns "logs/*" into the entries of that directory, and the loop then
+    # asks APP_DIR for those names instead of for whatever its own logs/ holds. The
+    # positional parameters are free to reuse; they were read into the four
+    # variables above.
+    set -f
+    set -- $write_globs
+    set +f
     # $pattern stays unquoted so it expands as a glob; the quoted "$app_dir"/
     # prefix is what keeps that expansion anchored. A glob matching nothing stays
     # literal and unusable_for_write skips what does not exist, so an empty logs/
     # or a database with no sidecars costs nothing here.
-    for pattern in $write_globs; do
+    for pattern in "$@"; do
         for path in "$app_dir"/$pattern; do
             if unusable_for_write "$path"; then
                 printf %s "$path"
@@ -204,8 +217,13 @@ misowned_data_paths() {
     for _entry in $DATA_WRITE_ENTRIES; do
         report_if_misowned "$APP_DIR/$_entry"
     done
-    # Unquoted $_pattern, quoted "$APP_DIR"/ prefix: see the probe above.
-    for _pattern in $DATA_WRITE_GLOBS; do
+    # Split with pathname expansion off, then expand each pattern anchored to
+    # "$APP_DIR"/: see the probe above for why each half is written this way.
+    set -f
+    # shellcheck disable=SC2086 # A list of patterns to split, not a single path.
+    set -- $DATA_WRITE_GLOBS
+    set +f
+    for _pattern in "$@"; do
         for _path in "$APP_DIR"/$_pattern; do
             report_if_misowned "$_path"
         done
@@ -271,8 +289,13 @@ repair_data_paths() {
             _repair_status=1
         fi
     done
-    # Unquoted $_pattern, quoted "$APP_DIR"/ prefix: see the probe above.
-    for _pattern in $DATA_WRITE_GLOBS; do
+    # Split with pathname expansion off, then expand each pattern anchored to
+    # "$APP_DIR"/: see the probe above for why each half is written this way.
+    set -f
+    # shellcheck disable=SC2086 # A list of patterns to split, not a single path.
+    set -- $DATA_WRITE_GLOBS
+    set +f
+    for _pattern in "$@"; do
         for _path in "$APP_DIR"/$_pattern; do
             if ! repair_data_path "$_path"; then
                 _repair_status=1
