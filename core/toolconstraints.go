@@ -45,49 +45,6 @@ func enforceSerialToolConstraintOnAttempt(
 	return nil
 }
 
-// serialToolCandidateModels returns every model identifier the request may
-// actually reach the provider under. Key aliases are resolved per key by the
-// worker after this policy runs, and an alias replaces the requested name
-// outright (see the req.SetModel call in the retry closure), so the requested
-// name is only a candidate when some eligible key would send it unaliased.
-func (bifrost *Bifrost) serialToolCandidateModels(ctx *schemas.BifrostContext, provider schemas.ModelProvider, model string) []string {
-	if bifrost == nil || bifrost.account == nil {
-		return []string{model}
-	}
-	var keys []schemas.Key
-	if directKey, ok := ctx.Value(schemas.BifrostContextKeyDirectKey).(schemas.Key); ok {
-		keys = []schemas.Key{directKey}
-	} else if providerKeys, err := bifrost.account.GetKeysForProvider(ctx, provider); err == nil {
-		keys = providerKeys
-	}
-	var candidates []string
-	eligible := 0
-	for _, key := range keys {
-		if key.Enabled != nil && !*key.Enabled {
-			continue
-		}
-		if !key.Models.IsAllowed(model) || key.BlacklistedModels.IsBlocked(model) {
-			continue
-		}
-		eligible++
-		candidate := model
-		if aliasConfig := key.Aliases.ResolveConfig(model); aliasConfig != nil && aliasConfig.ModelID != "" {
-			candidate = aliasConfig.ModelID
-		}
-		if !slices.Contains(candidates, candidate) {
-			candidates = append(candidates, candidate)
-		}
-	}
-	// No eligible key means the routing target is unknown here: the key lookup
-	// failed, the pool is empty, or the request is served outside the account key
-	// pool. Fall back to the requested name so an unknown route keeps the
-	// conservative check instead of silently passing every model.
-	if eligible == 0 || len(candidates) == 0 {
-		return []string{model}
-	}
-	return candidates
-}
-
 func providerSupportsSingleToolControl(ctx *schemas.BifrostContext, provider, baseProvider schemas.ModelProvider, model string) bool {
 	// Anthropic's Messages wire format expresses the inverse setting as
 	// tool_choice.disable_parallel_tool_use. These providers all use the shared
