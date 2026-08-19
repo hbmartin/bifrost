@@ -290,6 +290,57 @@ if [ "$CONFIG_METADATA" != "1000:0 600" ]; then
   exit 1
 fi
 
+# Mixed ownership: /app/data itself is already 1000:0 from the first start, but
+# a database inside it is root-owned, exactly as an upgrade from a root-only
+# release leaves it. Repairing only on a top-level mismatch would skip these and
+# leave Bifrost to fail opening them, and the create-directory probe cannot see
+# them either.
+MISOWNED_FILES=$(docker exec --user 0:0 "${PRIVDROP_CONTAINER_NAME}" sh -c '
+  files=$(find /app/data -maxdepth 1 -type f ! -name config.json)
+  [ -n "$files" ] || exit 1
+  for file in $files; do
+    chown 0:0 "$file" || exit 1
+    chmod 0600 "$file" || exit 1
+  done
+  printf %s "$files"
+')
+if [ -z "$MISOWNED_FILES" ]; then
+  echo "ERROR: no data files to misown; the mixed-ownership repair case is untested"
+  exit 1
+fi
+echo "Misowned data files for the repair check:"
+echo "${MISOWNED_FILES}"
+
+DATA_DIR_OWNER=$(docker exec --user 0:0 "${PRIVDROP_CONTAINER_NAME}" stat -c '%u:%g' /app/data)
+if [ "$DATA_DIR_OWNER" != "1000:0" ]; then
+  echo "ERROR: /app/data is ${DATA_DIR_OWNER}; the mixed-ownership case needs a correctly owned parent"
+  exit 1
+fi
+
+docker restart "${PRIVDROP_CONTAINER_NAME}" >/dev/null
+ELAPSED=0
+while [ $ELAPSED -lt $MAX_WAIT ]; do
+  if curl -sf "http://localhost:${PRIVDROP_TEST_PORT}/health" >/dev/null 2>&1; then
+    break
+  fi
+  sleep 2
+  ELAPSED=$((ELAPSED + 2))
+done
+if [ $ELAPSED -ge $MAX_WAIT ]; then
+  echo "ERROR: container did not recover from root-owned data files inside a correctly owned /app/data"
+  docker logs "${PRIVDROP_CONTAINER_NAME}" 2>&1 | tail -100 || true
+  exit 1
+fi
+
+while IFS= read -r misowned_file; do
+  [ -n "$misowned_file" ] || continue
+  FILE_OWNER=$(docker exec --user 0:0 "${PRIVDROP_CONTAINER_NAME}" stat -c '%u:%g' "$misowned_file")
+  if [ "$FILE_OWNER" != "1000:0" ]; then
+    echo "ERROR: ${misowned_file} is owned by ${FILE_OWNER} after the repair, expected 1000:0"
+    exit 1
+  fi
+done <<<"$MISOWNED_FILES"
+
 docker stop "${PRIVDROP_CONTAINER_NAME}" >/dev/null
 docker rm "${PRIVDROP_CONTAINER_NAME}" >/dev/null
 docker volume rm "${PRIVDROP_VOLUME_NAME}" >/dev/null
