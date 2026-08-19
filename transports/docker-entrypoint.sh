@@ -229,15 +229,30 @@ report_if_misowned() {
     fi
 }
 
-# repair_data_paths hands APP_DIR and everything inside it to the target
-# identity, with one exception: config.json. That exception is the whole point.
-# config.json is only ever read, so deployments legitimately mount it read-only —
-# and on a read-only mount chown fails, which would make a repair that fixed
-# every path that actually needed fixing report itself as having failed.
+# repair_data_path hands one path and everything below it to the target
+# identity. A path that does not exist is not a failure: the entries are a fixed
+# list and a deployment legitimately has no logs.db yet.
+repair_data_path() {
+    if [ ! -e "$1" ]; then
+        return 0
+    fi
+    chown -R "$TARGET_UID:$TARGET_GID" "$1" 2>/dev/null && chmod -R u+rwX "$1" 2>/dev/null
+}
+
+# repair_data_paths repairs APP_DIR and the paths Bifrost actually opens: the
+# same DATA_WRITE_ENTRIES and DATA_WRITE_GLOBS the probe and misowned_data_paths
+# walk, so what gets repaired cannot drift from what gets checked. The sidecars
+# that once justified a wider walk are covered by the globs.
 #
-# Nothing else is excluded. SQLite leaves -wal and -shm sidecars beside its
-# databases, and a root-owned sidecar stops Bifrost just as dead as a root-owned
-# database does, so the children are still repaired recursively.
+# Not every immediate child of APP_DIR. A volume carries entries Bifrost never
+# opens — an ext4-backed one mounts a root-owned lost+found — and a single
+# misowned database would otherwise hand all of them to the target identity
+# recursively, on a volume the probe deliberately does not require to be
+# writable. config.json is outside the write list for the reason it is never
+# required to be writable: deployments legitimately mount it read-only, chown
+# fails on a read-only mount, and a repair that fixed every path that needed
+# fixing would report itself as having failed. Any other foreign entry would
+# fail the same way, for the same wrong reason.
 repair_data_paths() {
     _repair_status=0
 
@@ -245,16 +260,24 @@ repair_data_paths() {
         _repair_status=1
     fi
 
-    for _path in "$APP_DIR"/*; do
-        if [ ! -e "$_path" ]; then
+    for _entry in $DATA_WRITE_ENTRIES; do
+        # "." is APP_DIR itself, repaired non-recursively just above; recursing
+        # from here would sweep in exactly the entries this list exists to leave
+        # alone.
+        if [ "$_entry" = "." ]; then
             continue
         fi
-        if [ "$_path" = "$APP_DIR/config.json" ]; then
-            continue
-        fi
-        if ! chown -R "$TARGET_UID:$TARGET_GID" "$_path" 2>/dev/null || ! chmod -R u+rwX "$_path" 2>/dev/null; then
+        if ! repair_data_path "$APP_DIR/$_entry"; then
             _repair_status=1
         fi
+    done
+    # Unquoted $_pattern, quoted "$APP_DIR"/ prefix: see the probe above.
+    for _pattern in $DATA_WRITE_GLOBS; do
+        for _path in "$APP_DIR"/$_pattern; do
+            if ! repair_data_path "$_path"; then
+                _repair_status=1
+            fi
+        done
     done
 
     return "$_repair_status"
