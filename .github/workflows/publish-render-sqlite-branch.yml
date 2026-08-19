@@ -35,10 +35,17 @@ jobs:
       # force-pushes what it checks out to a branch a public deploy button reads
       # directly. Refuse anything but main, and check main out by the SHA that
       # triggered the run rather than by name.
+      #
+      # The ref reaches the shell through the environment, never through
+      # expression interpolation: an interpolated `github.ref` is pasted into
+      # the script before bash parses it, so a shell-significant branch name
+      # would run before this guard could reject it.
       - name: Require main
+        env:
+          WORKFLOW_REF: ${{ github.ref }}
         run: |
-          if [ "${{ github.ref }}" != "refs/heads/main" ]; then
-            echo "::error::publish-render-sqlite-branch may only run from refs/heads/main (got ${{ github.ref }})"
+          if [ "$WORKFLOW_REF" != "refs/heads/main" ]; then
+            echo "::error::publish-render-sqlite-branch may only run from refs/heads/main (got $WORKFLOW_REF)"
             exit 1
           fi
 
