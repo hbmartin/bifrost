@@ -209,7 +209,10 @@ def one_click_targets() -> list[dict[str, Any]]:
                 "label": f"Render {name}",
                 "doc": render_docs,
                 "url": entry["button_url"],
-                "verified": bool(entry["last_verified"]),
+                # A missing button URL means there is no link to publish, and an
+                # empty one is a substring of every document — treating it as
+                # verified would satisfy the link check below against nothing.
+                "verified": bool(entry["button_url"]) and bool(entry["last_verified"]),
                 "evidence": "deploy/render/blueprint-verification.json",
             }
         )
