@@ -246,6 +246,45 @@ func TestEnforceSerialToolConstraintOnAttempt(t *testing.T) {
 		assert.Equal(t, schemas.Ptr(false), req.ChatRequest.Params.ParallelToolCalls)
 	})
 
+	t.Run("opaque alias wire id is gated on the alias's canonical model name", func(t *testing.T) {
+		// The wire ModelID is a deployment id the catalog has never heard of, so a
+		// lookup on it alone finds nothing and would wave the request through. The
+		// alias's ModelName names the model that actually serves the request, and
+		// that model has no parallel_tool_calls support.
+		aliasCtx := withAlias(&schemas.ResolvedAlias{Key: "voice", Config: &schemas.AliasConfig{
+			ModelID:   "prod-deployment-42",
+			ModelName: schemas.Ptr("o3-mini"),
+		}})
+		req := newRequest(schemas.OpenAI, "voice")
+		err := enforceSerialToolConstraintOnAttempt(aliasCtx, schemas.OpenAI, schemas.OpenAI, "voice", "prod-deployment-42", req)
+		require.NotNil(t, err)
+		assert.Contains(t, err.Error.Message, `key alias resolves to "prod-deployment-42"`)
+		assert.Equal(t, schemas.Ptr(400), err.StatusCode)
+		assert.Nil(t, req.ChatRequest.Params.ParallelToolCalls)
+	})
+
+	t.Run("opaque alias wire id with a supported canonical name is constrained", func(t *testing.T) {
+		aliasCtx := withAlias(&schemas.ResolvedAlias{Key: "fast", Config: &schemas.AliasConfig{
+			ModelID:   "prod-deployment-7",
+			ModelName: schemas.Ptr("gpt-4o-mini"),
+		}})
+		req := newRequest(schemas.OpenAI, "fast")
+		require.Nil(t, enforceSerialToolConstraintOnAttempt(aliasCtx, schemas.OpenAI, schemas.OpenAI, "fast", "prod-deployment-7", req))
+		assert.Equal(t, schemas.Ptr(false), req.ChatRequest.Params.ParallelToolCalls)
+	})
+
+	t.Run("opaque alias wire id with a catalog-absent canonical name is constrained", func(t *testing.T) {
+		// Neither tier is in the catalog: this is the self-hosted/custom-provider
+		// case the absent-entry allowance exists for, and it must keep passing.
+		aliasCtx := withAlias(&schemas.ResolvedAlias{Key: "local", Config: &schemas.AliasConfig{
+			ModelID:   "prod-deployment-9",
+			ModelName: schemas.Ptr("local-model"),
+		}})
+		req := newRequest(schemas.OpenAI, "local")
+		require.Nil(t, enforceSerialToolConstraintOnAttempt(aliasCtx, schemas.OpenAI, schemas.OpenAI, "local", "prod-deployment-9", req))
+		assert.Equal(t, schemas.Ptr(false), req.ChatRequest.Params.ParallelToolCalls)
+	})
+
 	t.Run("alias model_family gemini routes to the Gemini builder and is rejected", func(t *testing.T) {
 		// The alias's explicit family tier outranks any substring match on the
 		// wire model id: an opaque ModelID with model_family gemini uses the

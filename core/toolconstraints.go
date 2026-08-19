@@ -59,13 +59,34 @@ func providerSupportsSingleToolControl(ctx *schemas.BifrostContext, provider, ba
 		return false
 	}
 
-	modelInfo := ctx.GetModelInfo(provider, model)
-	if modelInfo == nil && baseProvider != provider {
-		modelInfo = ctx.GetModelInfo(baseProvider, model)
+	// Capability gating runs against the canonical model, not the wire model. An
+	// alias's ModelID can be an opaque deployment or fine-tuned endpoint id that
+	// is absent from the catalog even though the alias's admin-configured
+	// ModelName names a model whose parameter support is known — without this,
+	// aliasing an unsupported model behind an opaque id silently defeats the
+	// policy. ResolveCanonicalModel returns model unchanged when ctx carries no
+	// resolved alias, so the unaliased path is untouched.
+	canonical := schemas.ResolveCanonicalModel(ctx, model)
+	modelInfo := lookupModelInfo(ctx, provider, baseProvider, canonical)
+	if modelInfo == nil && canonical != model {
+		modelInfo = lookupModelInfo(ctx, provider, baseProvider, model)
 	}
 	// An absent catalog entry is common for self-hosted and custom providers.
 	// Their OpenAI-compatible wire still supports parallel_tool_calls=false.
 	return modelInfo == nil || slices.Contains(modelInfo.SupportedParameters, "parallel_tool_calls")
+}
+
+// lookupModelInfo resolves a catalog entry for model under the concrete
+// provider, falling back to the base provider so custom providers inherit the
+// capabilities of the built-in type they wrap.
+func lookupModelInfo(ctx *schemas.BifrostContext, provider, baseProvider schemas.ModelProvider, model string) *schemas.Model {
+	if modelInfo := ctx.GetModelInfo(provider, model); modelInfo != nil {
+		return modelInfo
+	}
+	if baseProvider != provider {
+		return ctx.GetModelInfo(baseProvider, model)
+	}
+	return nil
 }
 
 func usesParallelToolCallsWire(ctx *schemas.BifrostContext, provider schemas.ModelProvider, model string) bool {
