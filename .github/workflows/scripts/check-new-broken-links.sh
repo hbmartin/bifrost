@@ -23,7 +23,10 @@ BASE_TREE=$(mktemp -d)
 
 cleanup() {
   git -C "$REPO_ROOT" worktree remove --force "$BASE_TREE" >/dev/null 2>&1 || true
-  rm -rf "$BASE_TREE"
+  # The two reports are siblings of BASE_TREE rather than children of it, because
+  # `git worktree add` wants that directory to itself. Remove them here as well,
+  # or every run leaves a pair behind on any runner not discarded after the job.
+  rm -rf "$BASE_TREE" "$BASE_TREE.base" "$BASE_TREE.head"
 }
 trap cleanup EXIT
 
