@@ -148,7 +148,7 @@ ensure_app_dir() {
         DATA_UID=$(stat -c '%u' "$APP_DIR" 2>/dev/null)
         DATA_GID=$(stat -c '%g' "$APP_DIR" 2>/dev/null)
         if [ "$BIFROST_SKIP_WRITE_CHECK" = "1" ]; then
-            echo "Warning: $APP_DIR is not writable by UID:GID $CURRENT_UID:$CURRENT_GID (owned by $DATA_UID:$DATA_GID)"
+            echo "Warning: $APP_DIR is not writable by UID:GID $TARGET_UID:$TARGET_GID (owned by $DATA_UID:$DATA_GID)"
             echo "  BIFROST_SKIP_WRITE_CHECK=1 set; continuing without a writable APP_DIR."
             echo "  Only safe for read-only deployments backed by external stores (e.g. Postgres)."
         else
