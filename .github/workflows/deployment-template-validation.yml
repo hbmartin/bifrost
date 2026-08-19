@@ -19,6 +19,7 @@ on:
       - ".github/workflows/deployment-template-validation.yml"
       - ".github/workflows/scripts/validate-deployment-templates.py"
       - ".github/workflows/scripts/verify-deployment-release.sh"
+      - ".github/workflows/scripts/smoke-test-published-image.sh"
   push:
     branches: ["main"]
     paths:
@@ -38,6 +39,7 @@ on:
       - ".github/workflows/deployment-template-validation.yml"
       - ".github/workflows/scripts/validate-deployment-templates.py"
       - ".github/workflows/scripts/verify-deployment-release.sh"
+      - ".github/workflows/scripts/smoke-test-published-image.sh"
 
 permissions:
   contents: read
