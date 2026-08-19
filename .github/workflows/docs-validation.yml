@@ -4,10 +4,14 @@ on:
   pull_request:
     paths:
       - "docs/**"
+      - ".github/workflows/docs-validation.yml"
+      - ".github/workflows/scripts/check-new-broken-links.sh"
   push:
     branches: ["main"]
     paths:
       - "docs/**"
+      - ".github/workflows/docs-validation.yml"
+      - ".github/workflows/scripts/check-new-broken-links.sh"
 
 permissions:
   contents: read
@@ -59,4 +63,6 @@ jobs:
           fi
 
       - name: Check for newly broken links
-        run: bash .github/workflows/scripts/check-new-broken-links.sh "${{ steps.base.outputs.ref }}"
+        env:
+          COMPARE_REF: ${{ steps.base.outputs.ref }}
+        run: bash .github/workflows/scripts/check-new-broken-links.sh "$COMPARE_REF"
