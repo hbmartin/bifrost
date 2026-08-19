@@ -117,19 +117,27 @@ grep -q "must hold a complete inline config.json document" "$TEST_ROOT/garbage-c
 # non-blank character decides.
 INDENTED_CONFIG_DIR="$TEST_ROOT/indented-config"
 mkdir -p "$INDENTED_CONFIG_DIR"
+INDENTED_CONFIG='
+  {"source_of_truth":"split"}
+'
 set +e
 APP_DIR="$INDENTED_CONFIG_DIR" \
 APP_PORT=8080 \
 APP_HOST=127.0.0.1 \
 LOG_LEVEL=info \
 LOG_STYLE=json \
-BIFROST_CONFIG='
-  {"source_of_truth":"split"}
-' \
+BIFROST_CONFIG="$INDENTED_CONFIG" \
     sh "$ENTRYPOINT" >"$TEST_ROOT/indented-config.out" 2>&1
 set -e
 
+# Every case here ends in `exec /app/main`, which exists only inside the image,
+# so no run in this suite exits zero and no assertion may ask for it. Assert
+# what a rejection would change instead: the leading newline and the indentation
+# did not stop the document being materialized whole, and the diagnostic the
+# reject path prints never appeared.
 [ -f "$INDENTED_CONFIG_DIR/config.json" ] || fail "an indented BIFROST_CONFIG was rejected"
+[ "$(cat "$INDENTED_CONFIG_DIR/config.json")" = "$(printf '%s' "$INDENTED_CONFIG")" ] || fail "indented config content changed"
+! grep -q "must hold a complete inline config.json document" "$TEST_ROOT/indented-config.out" || fail "an indented BIFROST_CONFIG was rejected"
 
 # A database left behind by an earlier root-owned run sits inside an APP_DIR
 # whose own ownership is already correct, so the create-directory probe passes
