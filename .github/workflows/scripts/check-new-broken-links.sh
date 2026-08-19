@@ -36,10 +36,16 @@ collect() {
     echo "ERROR: mintlify broken-links produced no output in $docs_dir (exit $status)" >&2
     return 1
   fi
+  # Normalize with one sed program rather than a grep filter: grep exits 1 when
+  # it selects nothing, and under `set -o pipefail` that fails the collection.
+  # A report holding nothing but the tally — the shape of a docs tree with no
+  # broken links at all — would then turn the cleanest possible result into a
+  # red check with no diagnostic.
   printf '%s\n' "$output" \
-    | sed -e 's/\x1b\[[0-9;]*m//g' -e 's/[[:space:]]*$//' \
-    | grep -viE '^[[:space:]]*[0-9]+ broken' \
-    | sed '/^[[:space:]]*$/d' \
+    | sed -e 's/\x1b\[[0-9;]*m//g' \
+          -e 's/[[:space:]]*$//' \
+          -e '/^[[:space:]]*[0-9][0-9]* broken/Id' \
+          -e '/^[[:space:]]*$/d' \
     | sort -u
 }
 
