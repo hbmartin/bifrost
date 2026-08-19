@@ -170,4 +170,24 @@ chmod 644 "$READONLY_CONFIG_DIR/config.json"
 
 ! grep -q "is not usable" "$TEST_ROOT/readonly-config.out" || fail "a read-only config.json was rejected"
 
+# Read and write permission is not enough for a directory: without search
+# permission Bifrost cannot create the log database inside logs/, and the probe
+# cannot even stat what the directory already holds.
+NO_TRAVERSE_DIR="$TEST_ROOT/no-traverse-logs"
+mkdir -p "$NO_TRAVERSE_DIR/logs"
+chmod 600 "$NO_TRAVERSE_DIR/logs"
+set +e
+APP_DIR="$NO_TRAVERSE_DIR" \
+APP_PORT=8080 \
+APP_HOST=127.0.0.1 \
+LOG_LEVEL=info \
+LOG_STYLE=json \
+    sh "$ENTRYPOINT" >"$TEST_ROOT/no-traverse-logs.out" 2>&1
+NO_TRAVERSE_EXIT=$?
+set -e
+chmod 700 "$NO_TRAVERSE_DIR/logs"
+
+[ "$NO_TRAVERSE_EXIT" -ne 0 ] || fail "a logs directory without search permission was accepted"
+grep -q "$NO_TRAVERSE_DIR/logs is not usable" "$TEST_ROOT/no-traverse-logs.out" || fail "logs directory without search permission was not named"
+
 echo "docker-entrypoint tests passed"

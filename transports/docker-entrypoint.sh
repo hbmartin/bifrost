@@ -127,9 +127,21 @@ APP_DIR_PROBE='
     fi
     rmdir "$probe_dir" 2>/dev/null || true
 
+    # Read and write alone do not make a directory usable: without search
+    # permission Bifrost can neither traverse it nor create the log database
+    # inside it, and the glob below cannot even stat what it holds. Only
+    # directories are asked for it — a data file is never executable.
+    unusable_for_write() {
+        [ -e "$1" ] || return 1
+        if [ ! -r "$1" ] || [ ! -w "$1" ]; then
+            return 0
+        fi
+        [ -d "$1" ] && [ ! -x "$1" ]
+    }
+
     for entry in $write_entries; do
         path="$app_dir/$entry"
-        if [ -e "$path" ] && { [ ! -r "$path" ] || [ ! -w "$path" ]; }; then
+        if unusable_for_write "$path"; then
             printf %s "$path"
             exit 1
         fi
@@ -137,7 +149,7 @@ APP_DIR_PROBE='
     # Log databases roll over into logs/, so a root-owned file can sit inside a
     # correctly owned directory. Cover its immediate children, not a full walk.
     for path in "$app_dir"/logs/*; do
-        if [ -e "$path" ] && { [ ! -r "$path" ] || [ ! -w "$path" ]; }; then
+        if unusable_for_write "$path"; then
             printf %s "$path"
             exit 1
         fi
@@ -197,6 +209,37 @@ report_if_misowned() {
     fi
 }
 
+# repair_data_paths hands APP_DIR and everything inside it to the target
+# identity, with one exception: config.json. That exception is the whole point.
+# config.json is only ever read, so deployments legitimately mount it read-only —
+# and on a read-only mount chown fails, which would make a repair that fixed
+# every path that actually needed fixing report itself as having failed.
+#
+# Nothing else is excluded. SQLite leaves -wal and -shm sidecars beside its
+# databases, and a root-owned sidecar stops Bifrost just as dead as a root-owned
+# database does, so the children are still repaired recursively.
+repair_data_paths() {
+    _repair_status=0
+
+    if ! chown "$TARGET_UID:$TARGET_GID" "$APP_DIR" 2>/dev/null || ! chmod u+rwX "$APP_DIR" 2>/dev/null; then
+        _repair_status=1
+    fi
+
+    for _path in "$APP_DIR"/*; do
+        if [ ! -e "$_path" ]; then
+            continue
+        fi
+        if [ "$_path" = "$APP_DIR/config.json" ]; then
+            continue
+        fi
+        if ! chown -R "$TARGET_UID:$TARGET_GID" "$_path" 2>/dev/null || ! chmod -R u+rwX "$_path" 2>/dev/null; then
+            _repair_status=1
+        fi
+    done
+
+    return "$_repair_status"
+}
+
 # Ensure APP_DIR exists when possible, but do not require CAP_CHOWN at startup.
 ensure_app_dir() {
     mkdir -p "$APP_DIR" 2>/dev/null || true
@@ -218,7 +261,7 @@ ensure_app_dir() {
         chown "$RUN_AS_UID:$RUN_AS_GID" "$APP_DIR/logs" 2>/dev/null || true
     fi
 
-    # Ownership repair only works as root (needs CAP_CHOWN). Walk APP_DIR *and*
+    # Ownership repair only works as root (needs CAP_CHOWN). Repair APP_DIR *and*
     # the entries inside it: a volume whose top level was fixed by an earlier
     # run can still hold root-owned databases, and repairing only on a top-level
     # mismatch leaves Bifrost to fail opening them later.
@@ -227,7 +270,7 @@ ensure_app_dir() {
         if [ -n "$MISOWNED_PATHS" ]; then
             echo "Fixing permissions on $APP_DIR (setting to $TARGET_UID:$TARGET_GID); currently misowned:"
             printf '%s\n' "$MISOWNED_PATHS" | sed 's/^/  /'
-            if chown -R "$TARGET_UID:$TARGET_GID" "$APP_DIR" 2>/dev/null && chmod -R u+rwX "$APP_DIR" 2>/dev/null; then
+            if repair_data_paths; then
                 echo "Successfully updated permissions on $APP_DIR"
             else
                 echo "Warning: Could not update permissions on $APP_DIR"
