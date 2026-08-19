@@ -1620,3 +1620,78 @@ func TestResponsesToChatStreamNilOutputIndexOnItemAddedAllocatesFreshOrdinal(t *
 		}
 	})
 }
+
+// A stream that omits output_index on output_item.added but supplies it on the
+// following argument deltas must still land both on one tool call: the header
+// carries the name and ID, the deltas carry the arguments, and a chat consumer
+// that sees them under different indexes gets an unnamed call plus an
+// argument-less one. The item_id/call_id shared by both events is the join.
+func TestResponsesToChatStreamItemIDJoinsIndexlessHeaderToIndexedDeltas(t *testing.T) {
+	functionType := ResponsesMessageTypeFunctionCall
+	added := func(state *ResponsesToChatStreamState, itemID, callID string, outputIndex *int) uint16 {
+		resp := (&BifrostResponsesStreamResponse{
+			Type:        ResponsesStreamResponseTypeOutputItemAdded,
+			OutputIndex: outputIndex,
+			Item: &ResponsesMessage{
+				ID:   Ptr(itemID),
+				Type: &functionType,
+				ResponsesToolMessage: &ResponsesToolMessage{
+					CallID: Ptr(callID),
+					Name:   Ptr("tool_" + callID),
+				},
+			},
+		}).ToBifrostChatResponseWithState(state)
+		return resp.Choices[0].ChatStreamResponseChoice.Delta.ToolCalls[0].Index
+	}
+	argsDelta := func(state *ResponsesToChatStreamState, itemID *string, outputIndex *int) uint16 {
+		resp := (&BifrostResponsesStreamResponse{
+			Type:        ResponsesStreamResponseTypeFunctionCallArgumentsDelta,
+			OutputIndex: outputIndex,
+			ItemID:      itemID,
+			Delta:       Ptr(`{"value":1}`),
+		}).ToBifrostChatResponseWithState(state)
+		return resp.Choices[0].ChatStreamResponseChoice.Delta.ToolCalls[0].Index
+	}
+
+	t.Run("index-less header, indexed deltas", func(t *testing.T) {
+		state := &ResponsesToChatStreamState{}
+		if got := added(state, "fc-1", "call-1", nil); got != 0 {
+			t.Fatalf("index-less header tool-call index = %d, want 0", got)
+		}
+		if got := argsDelta(state, Ptr("fc-1"), Ptr(3)); got != 0 {
+			t.Fatalf("argument delta for fc-1 got index %d, want 0 (same call as its header)", got)
+		}
+		// A later delta carrying only the provider's output_index must stay on
+		// the same tool call.
+		if got := argsDelta(state, nil, Ptr(3)); got != 0 {
+			t.Fatalf("trailing argument delta got index %d, want 0", got)
+		}
+
+		if got := added(state, "fc-2", "call-2", nil); got != 1 {
+			t.Fatalf("second index-less header tool-call index = %d, want 1", got)
+		}
+		if got := argsDelta(state, Ptr("fc-2"), Ptr(4)); got != 1 {
+			t.Fatalf("argument delta for fc-2 got index %d, want 1", got)
+		}
+		if got := argsDelta(state, Ptr("fc-1"), Ptr(3)); got != 0 {
+			t.Fatalf("interleaved argument delta for fc-1 got index %d, want 0", got)
+		}
+	})
+
+	// The in-spec shape must be unchanged by the item-id join.
+	t.Run("indexed header and deltas agree", func(t *testing.T) {
+		state := &ResponsesToChatStreamState{}
+		if got := added(state, "fc-1", "call-1", Ptr(2)); got != 0 {
+			t.Fatalf("first tool-call index = %d, want 0", got)
+		}
+		if got := argsDelta(state, Ptr("fc-1"), Ptr(2)); got != 0 {
+			t.Fatalf("first argument delta got index %d, want 0", got)
+		}
+		if got := added(state, "fc-2", "call-2", Ptr(3)); got != 1 {
+			t.Fatalf("second tool-call index = %d, want 1", got)
+		}
+		if got := argsDelta(state, Ptr("fc-2"), Ptr(3)); got != 1 {
+			t.Fatalf("second argument delta got index %d, want 1", got)
+		}
+	})
+}
