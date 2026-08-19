@@ -2,6 +2,7 @@ package bifrost
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -23,6 +24,23 @@ func (s *humeModelCatalogStub) GetModelInfo(provider schemas.ModelProvider, mode
 
 func (s *humeModelCatalogStub) CalculateRequestCost(_ *schemas.BifrostContext, _ *schemas.BifrostResponse) float64 {
 	return 0
+}
+
+// assertSerialToolCallBody reads the outgoing request as JSON rather than matching
+// its serialized spelling: the wire encoding is the provider's to choose (it has
+// been both indented and compact), while what these tests pin is that serial-tool
+// enforcement reached the upstream call on the resolved model.
+func assertSerialToolCallBody(t *testing.T, body, wantModel string) {
+	t.Helper()
+	var sent struct {
+		Model             string `json:"model"`
+		ParallelToolCalls *bool  `json:"parallel_tool_calls"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(body), &sent), "outgoing request body must be valid JSON")
+	assert.Equal(t, wantModel, sent.Model)
+	if assert.NotNil(t, sent.ParallelToolCalls, "parallel_tool_calls must be sent") {
+		assert.False(t, *sent.ParallelToolCalls, "serial tool calling must disable parallel tool calls")
+	}
 }
 
 type humeConstraintTracer struct {
@@ -531,8 +549,7 @@ func TestSerialConstraintPinnedKeyIgnoresOtherAliases(t *testing.T) {
 		mu.Lock()
 		defer mu.Unlock()
 		require.Len(t, recordedBodies, 1)
-		assert.Contains(t, recordedBodies[0], `"parallel_tool_calls": false`)
-		assert.Contains(t, recordedBodies[0], `"model": "gpt-4o-mini"`)
+		assertSerialToolCallBody(t, recordedBodies[0], "gpt-4o-mini")
 	})
 
 	t.Run("pin on a key with an unsupported alias target is rejected", func(t *testing.T) {
@@ -603,8 +620,7 @@ func TestSerialConstraintDirectKeyAliasIsChecked(t *testing.T) {
 		mu.Lock()
 		defer mu.Unlock()
 		require.Len(t, recordedBodies, 1)
-		assert.Contains(t, recordedBodies[0], `"parallel_tool_calls": false`)
-		assert.Contains(t, recordedBodies[0], `"model": "gpt-4o-mini"`)
+		assertSerialToolCallBody(t, recordedBodies[0], "gpt-4o-mini")
 	})
 
 	t.Run("unsupported target is rejected", func(t *testing.T) {
