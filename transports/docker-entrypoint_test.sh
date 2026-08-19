@@ -254,4 +254,58 @@ chmod 700 "$UNRELATED_DIR/lost+found"
 
 ! grep -q "is not usable" "$TEST_ROOT/unrelated-entry.out" || fail "an unrelated unusable entry was rejected"
 
+# The ownership repair only runs as root with CAP_CHOWN, which this suite does
+# not assume, so exercise its path selection directly: lift the repair functions
+# and the lists they walk out of the entrypoint, shadow chown and chmod with
+# recorders, and check which paths they are asked for. This is the counterpart
+# of the lost+found case above — an entry Bifrost never opens must not be
+# refused at startup, and must not be handed to the target identity either.
+REPAIR_DIR="$TEST_ROOT/repair-scope"
+mkdir -p "$REPAIR_DIR/logs" "$REPAIR_DIR/lost+found"
+: >"$REPAIR_DIR/config.db"
+: >"$REPAIR_DIR/config.db-wal"
+: >"$REPAIR_DIR/logs.db"
+: >"$REPAIR_DIR/logs/2026-01-01.db"
+: >"$REPAIR_DIR/config.json"
+: >"$REPAIR_DIR/lost+found/#12345"
+
+REPAIR_SOURCE="$TEST_ROOT/repair-source.sh"
+sed -n \
+    -e '/^DATA_WRITE_ENTRIES=/p' \
+    -e '/^DATA_WRITE_GLOBS=/p' \
+    -e '/^repair_data_path() {/,/^}$/p' \
+    -e '/^repair_data_paths() {/,/^}$/p' \
+    "$ENTRYPOINT" >"$REPAIR_SOURCE"
+grep -q '^repair_data_paths() {' "$REPAIR_SOURCE" || fail "the repair functions could not be lifted from the entrypoint"
+
+REPAIR_CALLS="$TEST_ROOT/repair-calls.txt"
+: >"$REPAIR_CALLS"
+# shellcheck disable=SC2016 # The inner shell expands its own environment.
+APP_DIR="$REPAIR_DIR" REPAIR_SOURCE="$REPAIR_SOURCE" REPAIR_CALLS="$REPAIR_CALLS" sh -c '
+    set -e
+    TARGET_UID=1000
+    TARGET_GID=0
+    record() {
+        for _arg in "$@"; do
+            case "$_arg" in
+                -R|u+rwX|1000:0) continue ;;
+            esac
+            printf "%s\n" "$_arg" >>"$REPAIR_CALLS"
+        done
+    }
+    chown() { record "$@"; }
+    chmod() { record "$@"; }
+    . "$REPAIR_SOURCE"
+    repair_data_paths
+' || fail "the repair reported a failure on a directory it could fully repair"
+
+# The paths handed over directly. What sits inside logs/ rides along with the
+# recursive repair of logs itself, so asserting on its contents here would pin
+# which of the two covers them rather than that they are covered.
+for REPAIRED in "" /config.db /config.db-wal /logs.db /logs; do
+    grep -qx "$REPAIR_DIR$REPAIRED" "$REPAIR_CALLS" || fail "the repair skipped $REPAIR_DIR$REPAIRED"
+done
+! grep -q 'lost+found' "$REPAIR_CALLS" || fail "the repair reached an entry Bifrost never opens"
+! grep -qx "$REPAIR_DIR/config.json" "$REPAIR_CALLS" || fail "the repair reached a config.json a deployment may mount read-only"
+
 echo "docker-entrypoint tests passed"
