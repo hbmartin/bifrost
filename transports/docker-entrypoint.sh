@@ -5,6 +5,16 @@ APP_DIR=${APP_DIR:-/app/data}
 RUN_AS_UID=${BIFROST_RUN_AS_UID:-}
 RUN_AS_GID=${BIFROST_RUN_AS_GID:-}
 
+# Paths under APP_DIR that Bifrost opens at startup, relative to it ("." is
+# APP_DIR itself). A correctly owned APP_DIR says nothing about entries a
+# previous root-owned run left inside it, and the create-directory probe below
+# cannot see them: it creates a new directory and never touches the existing
+# databases. Both the ownership repair and the probe walk these explicitly.
+DATA_WRITE_ENTRIES=". config.db logs.db logs"
+# config.json is only read. Deployments legitimately mount it read-only, so it
+# is never required to be writable and never triggers an ownership repair.
+DATA_READ_ENTRIES="config.json"
+
 validate_run_as_config() {
     if { [ -n "$RUN_AS_UID" ] && [ -z "$RUN_AS_GID" ]; } || { [ -z "$RUN_AS_UID" ] && [ -n "$RUN_AS_GID" ]; }; then
         echo "Error: BIFROST_RUN_AS_UID and BIFROST_RUN_AS_GID must be set together"
@@ -53,6 +63,25 @@ materialize_inline_config() {
         exit 1
     fi
 
+    # BIFROST_CONFIG carries the config.json document itself, not a path to one;
+    # deployments that mount a file leave it unset. Writing a path here would
+    # produce a config.json whose contents are the literal path string and start
+    # Bifrost on invalid JSON, so reject anything that is not a JSON object and
+    # name the mistake. Only the first non-blank character is ever echoed.
+    CONFIG_FIRST_CHAR=$(printf '%s' "$BIFROST_CONFIG" | tr -d '[:space:]' | cut -c1)
+    if [ "$CONFIG_FIRST_CHAR" != "{" ]; then
+        echo "Error: BIFROST_CONFIG must hold a complete inline config.json document"
+        if [ "$CONFIG_FIRST_CHAR" = "/" ]; then
+            echo "  The value looks like a filesystem path, which this variable does not accept."
+            echo "  Mount that file at $APP_DIR/config.json and leave BIFROST_CONFIG unset,"
+            echo "  or set BIFROST_CONFIG to the JSON document itself."
+        else
+            echo "  Expected a value beginning with '{'. Set it to the JSON document itself,"
+            echo "  or leave it unset and mount a config.json at $APP_DIR/config.json."
+        fi
+        exit 1
+    fi
+
     CONFIG_PATH="$APP_DIR/config.json"
     if ! CONFIG_TMP=$(umask 077 && mktemp "$APP_DIR/.config.json.tmp.XXXXXX"); then
         echo "Error: Could not create a temporary config file in $APP_DIR"
@@ -78,34 +107,94 @@ materialize_inline_config() {
     unset BIFROST_CONFIG
 }
 
+# The probe runs under the identity Bifrost will actually use and prints the
+# first path that identity cannot open, so the caller can name it. Creating a
+# new directory proves nothing about a root-owned config.db already sitting in a
+# correctly owned APP_DIR, so the existing entries are checked one by one.
+# shellcheck disable=SC2016 # The inner shell expands its own positional parameters.
+APP_DIR_PROBE='
+    app_dir="$1"
+    write_entries="$2"
+    read_entries="$3"
+
+    probe_dir="$app_dir/.bifrost-write-test.$$"
+    if [ -e "$probe_dir" ]; then
+        probe_dir="$probe_dir.$(date +%s)"
+    fi
+    if ! mkdir "$probe_dir" 2>/dev/null; then
+        printf %s "$app_dir"
+        exit 1
+    fi
+    rmdir "$probe_dir" 2>/dev/null || true
+
+    for entry in $write_entries; do
+        path="$app_dir/$entry"
+        if [ -e "$path" ] && { [ ! -r "$path" ] || [ ! -w "$path" ]; }; then
+            printf %s "$path"
+            exit 1
+        fi
+    done
+    # Log databases roll over into logs/, so a root-owned file can sit inside a
+    # correctly owned directory. Cover its immediate children, not a full walk.
+    for path in "$app_dir"/logs/*; do
+        if [ -e "$path" ] && { [ ! -r "$path" ] || [ ! -w "$path" ]; }; then
+            printf %s "$path"
+            exit 1
+        fi
+    done
+    for entry in $read_entries; do
+        path="$app_dir/$entry"
+        if [ -e "$path" ] && [ ! -r "$path" ]; then
+            printf %s "$path"
+            exit 1
+        fi
+    done
+    exit 0
+'
+
+# UNUSABLE_PATH names the path that failed the most recent probe.
+UNUSABLE_PATH=""
+
 app_dir_writable() {
     if [ -n "$RUN_AS_UID" ]; then
-        # shellcheck disable=SC2016 # The inner shell expands its own positional parameters.
-        su-exec "$RUN_AS_UID:$RUN_AS_GID" sh -c '
-            probe_dir="$1/.bifrost-write-test.$$"
-            if [ -e "$probe_dir" ]; then
-                probe_dir="$probe_dir.$(date +%s)"
-            fi
-            if mkdir "$probe_dir" 2>/dev/null; then
-                rmdir "$probe_dir" 2>/dev/null || true
-                exit 0
-            fi
-            exit 1
-        ' sh "$APP_DIR"
+        UNUSABLE_PATH=$(su-exec "$RUN_AS_UID:$RUN_AS_GID" sh -c "$APP_DIR_PROBE" sh \
+            "$APP_DIR" "$DATA_WRITE_ENTRIES" "$DATA_READ_ENTRIES")
+        return $?
+    fi
+
+    UNUSABLE_PATH=$(sh -c "$APP_DIR_PROBE" sh \
+        "$APP_DIR" "$DATA_WRITE_ENTRIES" "$DATA_READ_ENTRIES")
+    return $?
+}
+
+# misowned_data_paths prints every data path whose ownership differs from the
+# target identity, one per line, and nothing when they all match. config.json is
+# excluded: it is only read, and a read-only mount of it must not force a chown
+# on every start.
+misowned_data_paths() {
+    for _entry in $DATA_WRITE_ENTRIES; do
+        report_if_misowned "$APP_DIR/$_entry"
+    done
+    for _path in "$APP_DIR"/logs/*; do
+        report_if_misowned "$_path"
+    done
+}
+
+report_if_misowned() {
+    if [ ! -e "$1" ]; then
         return
     fi
-
-    PROBE_DIR="$APP_DIR/.bifrost-write-test.$$"
-    if [ -e "$PROBE_DIR" ]; then
-        PROBE_DIR="$PROBE_DIR.$(date +%s)"
+    # `|| true`: a failing stat must not abort the caller under `set -e`, and an
+    # ownership we cannot read is not evidence of a mismatch — the probe below
+    # still refuses to start on a path the target identity cannot open.
+    _uid=$(stat -c '%u' "$1" 2>/dev/null || true)
+    _gid=$(stat -c '%g' "$1" 2>/dev/null || true)
+    if [ -z "$_uid" ] || [ -z "$_gid" ]; then
+        return
     fi
-
-    if mkdir "$PROBE_DIR" 2>/dev/null; then
-        rmdir "$PROBE_DIR" 2>/dev/null || true
-        return 0
+    if [ "$_uid:$_gid" != "$TARGET_UID:$TARGET_GID" ]; then
+        printf '%s (%s:%s)\n' "$1" "$_uid" "$_gid"
     fi
-
-    return 1
 }
 
 # Ensure APP_DIR exists when possible, but do not require CAP_CHOWN at startup.
@@ -129,13 +218,15 @@ ensure_app_dir() {
         chown "$RUN_AS_UID:$RUN_AS_GID" "$APP_DIR/logs" 2>/dev/null || true
     fi
 
-    # Ownership repair only works as root (needs CAP_CHOWN). Stat the data dir
-    # here, inside the branch that actually uses the values.
+    # Ownership repair only works as root (needs CAP_CHOWN). Walk APP_DIR *and*
+    # the entries inside it: a volume whose top level was fixed by an earlier
+    # run can still hold root-owned databases, and repairing only on a top-level
+    # mismatch leaves Bifrost to fail opening them later.
     if [ "$CURRENT_UID" = "0" ]; then
-        DATA_UID=$(stat -c '%u' "$APP_DIR" 2>/dev/null)
-        DATA_GID=$(stat -c '%g' "$APP_DIR" 2>/dev/null)
-        if [ "$DATA_UID:$DATA_GID" != "$TARGET_UID:$TARGET_GID" ]; then
-            echo "Fixing permissions on $APP_DIR (was $DATA_UID:$DATA_GID, setting to $TARGET_UID:$TARGET_GID)"
+        MISOWNED_PATHS=$(misowned_data_paths)
+        if [ -n "$MISOWNED_PATHS" ]; then
+            echo "Fixing permissions on $APP_DIR (setting to $TARGET_UID:$TARGET_GID); currently misowned:"
+            printf '%s\n' "$MISOWNED_PATHS" | sed 's/^/  /'
             if chown -R "$TARGET_UID:$TARGET_GID" "$APP_DIR" 2>/dev/null && chmod -R u+rwX "$APP_DIR" 2>/dev/null; then
                 echo "Successfully updated permissions on $APP_DIR"
             else
@@ -145,14 +236,19 @@ ensure_app_dir() {
     fi
 
     if ! app_dir_writable; then
-        DATA_UID=$(stat -c '%u' "$APP_DIR" 2>/dev/null)
-        DATA_GID=$(stat -c '%g' "$APP_DIR" 2>/dev/null)
+        UNUSABLE_PATH=${UNUSABLE_PATH:-$APP_DIR}
+        # `|| true`: under `set -e` a failing stat here would abort the script
+        # before it printed the diagnostic this branch exists to print.
+        DATA_UID=$(stat -c '%u' "$UNUSABLE_PATH" 2>/dev/null || true)
+        DATA_GID=$(stat -c '%g' "$UNUSABLE_PATH" 2>/dev/null || true)
+        DATA_UID=${DATA_UID:-unknown}
+        DATA_GID=${DATA_GID:-unknown}
         if [ "$BIFROST_SKIP_WRITE_CHECK" = "1" ]; then
-            echo "Warning: $APP_DIR is not writable by UID:GID $TARGET_UID:$TARGET_GID (owned by $DATA_UID:$DATA_GID)"
+            echo "Warning: $UNUSABLE_PATH is not usable by UID:GID $TARGET_UID:$TARGET_GID (owned by $DATA_UID:$DATA_GID)"
             echo "  BIFROST_SKIP_WRITE_CHECK=1 set; continuing without a writable APP_DIR."
             echo "  Only safe for read-only deployments backed by external stores (e.g. Postgres)."
         else
-            echo "Error: $APP_DIR is not writable by UID:GID $TARGET_UID:$TARGET_GID (owned by $DATA_UID:$DATA_GID)"
+            echo "Error: $UNUSABLE_PATH is not usable by UID:GID $TARGET_UID:$TARGET_GID (owned by $DATA_UID:$DATA_GID)"
             echo "  Bifrost needs a writable APP_DIR for config.db and logs.db before startup."
             echo "  On vanilla Kubernetes, set podSecurityContext.fsGroup (for example, 1000)."
             echo "  On OpenShift (restricted-v2), leave fsGroup unset/null so the SCC assigns an in-range GID."
