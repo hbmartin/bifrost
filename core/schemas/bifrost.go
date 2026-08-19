@@ -1790,6 +1790,36 @@ type RoutingInfo struct {
 	ServerSideFallbackModel *string `json:"server_side_fallback_model,omitempty"`
 }
 
+// Clone returns a deep copy of ri.
+//
+// RoutingInfo is passed by value but carries pointers into the worker's
+// per-attempt state, so a plain value copy shares those pointees. Anywhere a
+// copy is kept as a snapshot across code that may mutate the original — most of
+// all the post-hook anti-tamper restore in recoverFromTerminalError — the copy
+// must be deep, or an in-place write through a shared pointer corrupts the
+// snapshot and the live value together.
+func (ri RoutingInfo) Clone() RoutingInfo {
+	clone := ri
+	if ri.ResolvedKeyAlias != nil {
+		alias := *ri.ResolvedKeyAlias
+		alias.ModelName = clonePtr(ri.ResolvedKeyAlias.ModelName)
+		alias.ModelFamily = clonePtr(ri.ResolvedKeyAlias.ModelFamily)
+		clone.ResolvedKeyAlias = &alias
+	}
+	clone.PrimaryProvider = clonePtr(ri.PrimaryProvider)
+	clone.PrimaryModel = clonePtr(ri.PrimaryModel)
+	clone.ServerSideFallbackModel = clonePtr(ri.ServerSideFallbackModel)
+	return clone
+}
+
+// clonePtr copies the pointee, preserving nil.
+func clonePtr[T any](p *T) *T {
+	if p == nil {
+		return nil
+	}
+	return Ptr(*p)
+}
+
 type ResolvedKeyAlias struct {
 	ModelID     string       `json:"model_id"`               // wire model identifier actually sent to the provider
 	ModelName   *string      `json:"model_name,omitempty"`   // canonical name (used for pricing/logs)
