@@ -136,7 +136,11 @@ set -e
 # did not stop the document being materialized whole, and the diagnostic the
 # reject path prints never appeared.
 [ -f "$INDENTED_CONFIG_DIR/config.json" ] || fail "an indented BIFROST_CONFIG was rejected"
-[ "$(cat "$INDENTED_CONFIG_DIR/config.json")" = "$(printf '%s' "$INDENTED_CONFIG")" ] || fail "indented config content changed"
+# cmp, not two command substitutions: `$(...)` strips trailing newlines from
+# both sides, so the comparison it makes would pass on a config.json that lost
+# the document's own trailing newline. The expected bytes go to a file instead.
+printf '%s' "$INDENTED_CONFIG" >"$TEST_ROOT/indented-config.expected"
+cmp -s "$TEST_ROOT/indented-config.expected" "$INDENTED_CONFIG_DIR/config.json" || fail "indented config content changed"
 ! grep -q "must hold a complete inline config.json document" "$TEST_ROOT/indented-config.out" || fail "an indented BIFROST_CONFIG was rejected"
 
 # A database left behind by an earlier root-owned run sits inside an APP_DIR
