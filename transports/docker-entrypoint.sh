@@ -234,6 +234,13 @@ report_if_misowned() {
     if [ ! -e "$1" ]; then
         return
     fi
+    # A symlink is never reported, because repair_data_path never follows one.
+    # stat reads through the link, so reporting it would name the ownership of
+    # something outside the data directory and then announce a repair that
+    # deliberately does not happen.
+    if [ -L "$1" ]; then
+        return
+    fi
     # `|| true`: a failing stat must not abort the caller under `set -e`, and an
     # ownership we cannot read is not evidence of a mismatch — the probe below
     # still refuses to start on a path the target identity cannot open.
@@ -250,8 +257,20 @@ report_if_misowned() {
 # repair_data_path hands one path and everything below it to the target
 # identity. A path that does not exist is not a failure: the entries are a fixed
 # list and a deployment legitimately has no logs.db yet.
+#
+# A symlink is skipped rather than followed. chmod dereferences a symlink handed
+# to it as an operand even under -R, where it skips the ones it meets during the
+# walk, so passing a glob match like logs/link would change the mode of the
+# link's target — a path outside APP_DIR entirely. GNU coreutils does exactly
+# this and BusyBox does not, which is the worst kind of difference to carry
+# between two runtime images. Bifrost never creates a symlink here, so one that
+# appears is not ours to repair, and if its target really is unusable the probe
+# still refuses to start and names it.
 repair_data_path() {
     if [ ! -e "$1" ]; then
+        return 0
+    fi
+    if [ -L "$1" ]; then
         return 0
     fi
     chown -R "$TARGET_UID:$TARGET_GID" "$1" 2>/dev/null && chmod -R u+rwX "$1" 2>/dev/null
@@ -323,7 +342,10 @@ ensure_app_dir() {
 
     materialize_inline_config
     mkdir -p "$APP_DIR/logs" 2>/dev/null || true
-    if [ "$(id -u)" = "0" ] && [ -n "$RUN_AS_UID" ]; then
+    # mkdir just created this directory, or it was already there. A symlink is
+    # left alone for the same reason repair_data_path leaves one alone: chown
+    # reads through it, and what it points at is outside APP_DIR.
+    if [ "$(id -u)" = "0" ] && [ -n "$RUN_AS_UID" ] && [ ! -L "$APP_DIR/logs" ]; then
         chown "$RUN_AS_UID:$RUN_AS_GID" "$APP_DIR/logs" 2>/dev/null || true
     fi
 
