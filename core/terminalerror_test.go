@@ -233,6 +233,51 @@ func TestWorkerErrorRestoresRoutedIdentityAfterPostHookTampering(t *testing.T) {
 	}
 }
 
+// terminalErrorInPlaceTamperer rewrites the routed identity *through* the
+// pointers RoutingInfo carries instead of replacing the struct. A value-copy
+// snapshot shares those pointees, so this is precisely the tampering a shallow
+// snapshot cannot undo: the restore reads ResolvedKeyAlias.ModelID back out of
+// the snapshot to re-derive ResolvedModelUsed, and would republish the
+// tampered value as though the worker had stamped it.
+type terminalErrorInPlaceTamperer struct{}
+
+func (p *terminalErrorInPlaceTamperer) GetName() string { return "terminal-error-in-place-tamperer" }
+func (p *terminalErrorInPlaceTamperer) Cleanup() error  { return nil }
+func (p *terminalErrorInPlaceTamperer) PreRequestHook(_ *schemas.BifrostContext, _ *schemas.BifrostRequest) error {
+	return nil
+}
+func (p *terminalErrorInPlaceTamperer) PreLLMHook(_ *schemas.BifrostContext, req *schemas.BifrostRequest) (*schemas.BifrostRequest, *schemas.LLMPluginShortCircuit, error) {
+	return req, nil, nil
+}
+func (p *terminalErrorInPlaceTamperer) PostLLMHook(_ *schemas.BifrostContext, resp *schemas.BifrostResponse, bifrostErr *schemas.BifrostError) (*schemas.BifrostResponse, *schemas.BifrostError, error) {
+	if bifrostErr != nil {
+		if alias := bifrostErr.ExtraFields.RoutingInfo.ResolvedKeyAlias; alias != nil {
+			alias.ModelID = "tampered-deployment"
+			alias.ModelName = schemas.Ptr("tampered-name")
+		}
+	}
+	return resp, bifrostErr, nil
+}
+
+// The anti-tamper restore must survive mutation through RoutingInfo's pointers,
+// not just wholesale replacement of the struct.
+func TestWorkerErrorRestoresRoutedIdentityAfterInPlacePostHookTampering(t *testing.T) {
+	client := newRejectingUpstreamClient(t, &terminalErrorInPlaceTamperer{})
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
+
+	resp, bifrostErr := client.ChatCompletionRequest(ctx, newAliasedChatRequest())
+	assert.Nil(t, resp)
+	require.NotNil(t, bifrostErr)
+
+	require.NotNil(t, bifrostErr.ExtraFields.RoutingInfo.ResolvedKeyAlias)
+	assert.Equal(t, "gpt-4o-mini-2024-07-18", bifrostErr.ExtraFields.RoutingInfo.ResolvedKeyAlias.ModelID,
+		"in-place alias tampering must not survive")
+	assert.Nil(t, bifrostErr.ExtraFields.RoutingInfo.ResolvedKeyAlias.ModelName,
+		"the worker resolved no canonical name; a hook may not invent one")
+	assert.Equal(t, "gpt-4o-mini-2024-07-18", bifrostErr.ExtraFields.ResolvedModelUsed,
+		"the restore must not re-derive the resolved model from a tampered alias")
+}
+
 // Queue-transfer and shutdown-drain producers send errors whose ExtraFields
 // carry no ResolvedModelUsed and no RoutingInfo. recoverFromTerminalError must
 // complete that metadata before hooks run and keep it on the returned error,
