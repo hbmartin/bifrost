@@ -268,15 +268,6 @@ chmod 700 "$UNRELATED_DIR/lost+found"
 # recorders, and check which paths they are asked for. This is the counterpart
 # of the lost+found case above — an entry Bifrost never opens must not be
 # refused at startup, and must not be handed to the target identity either.
-REPAIR_DIR="$TEST_ROOT/repair-scope"
-mkdir -p "$REPAIR_DIR/logs" "$REPAIR_DIR/lost+found"
-: >"$REPAIR_DIR/config.db"
-: >"$REPAIR_DIR/config.db-wal"
-: >"$REPAIR_DIR/logs.db"
-: >"$REPAIR_DIR/logs/2026-01-01.db"
-: >"$REPAIR_DIR/config.json"
-: >"$REPAIR_DIR/lost+found/#12345"
-
 REPAIR_SOURCE="$TEST_ROOT/repair-source.sh"
 sed -n \
     -e '/^DATA_WRITE_ENTRIES=/p' \
@@ -286,26 +277,53 @@ sed -n \
     "$ENTRYPOINT" >"$REPAIR_SOURCE"
 grep -q '^repair_data_paths() {' "$REPAIR_SOURCE" || fail "the repair functions could not be lifted from the entrypoint"
 
+# record_repair_calls <app_dir> <calls_file> <cwd>: run the lifted repair over
+# <app_dir> from <cwd> and record every path chown and chmod are asked for. The
+# working directory is a parameter because the glob list expands relative to it
+# unless it is split with pathname expansion off.
+record_repair_calls() {
+    : >"$2"
+    # shellcheck disable=SC2016 # The inner shell expands its own environment.
+    APP_DIR="$1" REPAIR_SOURCE="$REPAIR_SOURCE" REPAIR_CALLS="$2" sh -c '
+        set -e
+        cd "$1" || exit 1
+        TARGET_UID=1000
+        TARGET_GID=0
+        record() {
+            for _arg in "$@"; do
+                case "$_arg" in
+                    -R|u+rwX|1000:0) continue ;;
+                esac
+                printf "%s\n" "$_arg" >>"$REPAIR_CALLS"
+            done
+        }
+        chown() { record "$@"; }
+        chmod() { record "$@"; }
+        . "$REPAIR_SOURCE"
+        repair_data_paths
+    ' sh "$3"
+}
+
+REPAIR_DIR="$TEST_ROOT/repair-scope"
+mkdir -p "$REPAIR_DIR/logs" "$REPAIR_DIR/lost+found"
+: >"$REPAIR_DIR/config.db"
+: >"$REPAIR_DIR/config.db-wal"
+: >"$REPAIR_DIR/logs.db"
+: >"$REPAIR_DIR/logs/2026-01-01.db"
+: >"$REPAIR_DIR/config.json"
+: >"$REPAIR_DIR/lost+found/#12345"
+# A symlink inside logs/ is matched by the glob, so it would reach chmod as an
+# operand — and chmod follows an operand symlink even under -R, where it skips
+# the ones it meets during the walk. Following it would put a path outside
+# APP_DIR under a recursive mode change.
+OUTSIDE_DIR="$TEST_ROOT/outside-the-data-dir"
+mkdir -p "$OUTSIDE_DIR"
+: >"$OUTSIDE_DIR/out-of-tree"
+ln -s "$OUTSIDE_DIR" "$REPAIR_DIR/logs/foreign-link"
+
 REPAIR_CALLS="$TEST_ROOT/repair-calls.txt"
-: >"$REPAIR_CALLS"
-# shellcheck disable=SC2016 # The inner shell expands its own environment.
-APP_DIR="$REPAIR_DIR" REPAIR_SOURCE="$REPAIR_SOURCE" REPAIR_CALLS="$REPAIR_CALLS" sh -c '
-    set -e
-    TARGET_UID=1000
-    TARGET_GID=0
-    record() {
-        for _arg in "$@"; do
-            case "$_arg" in
-                -R|u+rwX|1000:0) continue ;;
-            esac
-            printf "%s\n" "$_arg" >>"$REPAIR_CALLS"
-        done
-    }
-    chown() { record "$@"; }
-    chmod() { record "$@"; }
-    . "$REPAIR_SOURCE"
-    repair_data_paths
-' || fail "the repair reported a failure on a directory it could fully repair"
+record_repair_calls "$REPAIR_DIR" "$REPAIR_CALLS" "$TEST_ROOT" \
+    || fail "the repair reported a failure on a directory it could fully repair"
 
 # The paths handed over directly. What sits inside logs/ rides along with the
 # recursive repair of logs itself, so asserting on its contents here would pin
@@ -315,5 +333,73 @@ for REPAIRED in "" /config.db /config.db-wal /logs.db /logs; do
 done
 ! grep -q 'lost+found' "$REPAIR_CALLS" || fail "the repair reached an entry Bifrost never opens"
 ! grep -qx "$REPAIR_DIR/config.json" "$REPAIR_CALLS" || fail "the repair reached a config.json a deployment may mount read-only"
+! grep -qx "$REPAIR_DIR/logs/foreign-link" "$REPAIR_CALLS" || fail "the repair handed a symlink to a recursive chown and chmod"
+
+# The recorder proves the symlink never reaches chmod. It cannot prove why that
+# matters, because it never runs the real chmod — so run it. The repair target
+# here is this user, so chown succeeds and chmod actually executes. GNU
+# coreutils follows the operand and would take the out-of-tree file from 000 to
+# 600; BSD chmod defaults to -P and leaves it alone either way, so this case
+# does its real work on the Linux runner CI uses.
+LINK_REPAIR_DIR="$TEST_ROOT/link-repair"
+mkdir -p "$LINK_REPAIR_DIR/logs"
+LINK_TARGET_DIR="$TEST_ROOT/link-target"
+mkdir -p "$LINK_TARGET_DIR"
+: >"$LINK_TARGET_DIR/out-of-tree"
+chmod 000 "$LINK_TARGET_DIR/out-of-tree"
+ln -s "$LINK_TARGET_DIR" "$LINK_REPAIR_DIR/logs/foreign-link"
+
+# shellcheck disable=SC2016 # The inner shell expands its own environment.
+APP_DIR="$LINK_REPAIR_DIR" REPAIR_SOURCE="$REPAIR_SOURCE" sh -c '
+    set -e
+    TARGET_UID=$(id -u)
+    TARGET_GID=$(id -g)
+    . "$REPAIR_SOURCE"
+    repair_data_paths
+' || fail "the repair reported a failure on a directory it could fully repair"
+
+OUT_OF_TREE_MODE=$(stat -c '%a' "$LINK_TARGET_DIR/out-of-tree" 2>/dev/null || stat -f '%Lp' "$LINK_TARGET_DIR/out-of-tree")
+chmod 600 "$LINK_TARGET_DIR/out-of-tree"
+[ "$OUT_OF_TREE_MODE" = "0" ] || fail "the repair followed a symlink and changed the mode of a path outside APP_DIR (now $OUT_OF_TREE_MODE)"
+[ -L "$LINK_REPAIR_DIR/logs/foreign-link" ] || fail "the repair replaced a symlink inside logs/ instead of leaving it alone"
+
+# The glob list holds patterns, not paths. Split with pathname expansion on,
+# those patterns expand against the working directory before anything anchors
+# them to APP_DIR: a logs/ directory beside the process quietly becomes the
+# thing "logs/*" refers to. Both the probe and the repair read that list, so
+# both are run from exactly such a directory.
+DECOY_CWD="$TEST_ROOT/decoy-cwd"
+mkdir -p "$DECOY_CWD/logs"
+: >"$DECOY_CWD/logs/decoy.db"
+: >"$DECOY_CWD/config.db-decoy"
+
+DECOY_APP_DIR="$TEST_ROOT/decoy-app-dir"
+mkdir -p "$DECOY_APP_DIR/logs"
+: >"$DECOY_APP_DIR/logs/2026-01-01.db"
+chmod 000 "$DECOY_APP_DIR/logs/2026-01-01.db"
+set +e
+(
+    cd "$DECOY_CWD" || exit 1
+    APP_DIR="$DECOY_APP_DIR" \
+    APP_PORT=8080 \
+    APP_HOST=127.0.0.1 \
+    LOG_LEVEL=info \
+    LOG_STYLE=json \
+        sh "$ENTRYPOINT"
+) >"$TEST_ROOT/decoy-cwd.out" 2>&1
+DECOY_EXIT=$?
+set -e
+chmod 600 "$DECOY_APP_DIR/logs/2026-01-01.db"
+
+[ "$DECOY_EXIT" -ne 0 ] || fail "an unusable log database was accepted because the working directory held a logs/ of its own"
+grep -q "$DECOY_APP_DIR/logs/2026-01-01.db is not usable" "$TEST_ROOT/decoy-cwd.out" || fail "the unusable log database was not named"
+
+# The repair reads the same list and would get it wrong the same way. config.db-wal
+# is reachable only through a glob, so a config.db-* decoy beside the process
+# takes its place if the patterns are expanded before they are anchored.
+DECOY_REPAIR_CALLS="$TEST_ROOT/decoy-repair-calls.txt"
+record_repair_calls "$REPAIR_DIR" "$DECOY_REPAIR_CALLS" "$DECOY_CWD" \
+    || fail "the repair reported a failure on a directory it could fully repair"
+grep -qx "$REPAIR_DIR/config.db-wal" "$DECOY_REPAIR_CALLS" || fail "the repair skipped a sidecar because the working directory held a config.db-* of its own"
 
 echo "docker-entrypoint tests passed"
