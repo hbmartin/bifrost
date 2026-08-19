@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+script_dir=$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+
 repository=${BIFROST_IMAGE_REPOSITORY:-docker.io/maximhq/bifrost}
 github_repository=${BIFROST_GITHUB_REPOSITORY:-maximhq/bifrost}
 # The release that first carried the deployment runtime contract the one-click
@@ -116,5 +118,35 @@ echo "$latest_image and $release_image resolve to $release_digest with linux/amd
 # published modules, while the smoke tests build Dockerfile.local from the
 # workspace — different builds of different module graphs. Test the digest that
 # actually ships before letting a public button consume it.
-script_dir=$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
-bash "${script_dir}/smoke-test-published-image.sh" "${repository}@${release_digest}"
+#
+# The manifest-list digest above is not that artifact: `docker run` resolves it
+# to whichever platform the host is, so this gate on an amd64 runner has never
+# executed an arm64 byte. The two platforms are separately built on their own
+# native runners and merged into the list, so an arm64 runtime stage can break
+# on its own. Test the per-platform digest, and let each required platform be
+# covered by its own run of this gate.
+host_arch=$(docker version --format '{{.Server.Arch}}')
+smoke_platform="linux/${host_arch}"
+
+# A caller that states the platform it expects to cover gets an error rather
+# than silent coverage loss: a matrix entry retargeted to a different runner
+# would otherwise re-test the platform its sibling already did, and the gate
+# would still report success for both.
+expected_platform=${BIFROST_SMOKE_PLATFORM:-}
+if [[ -n "$expected_platform" && "$expected_platform" != "$smoke_platform" ]]; then
+  echo "ERROR: BIFROST_SMOKE_PLATFORM asks for $expected_platform but this host runs $smoke_platform." >&2
+  echo "  A smoke test only covers the platform it executes natively; run this gate on a $expected_platform runner." >&2
+  exit 1
+fi
+
+if ! platform_digest=$(jq -er --arg platform "$smoke_platform" '
+  (.manifests // [])[]
+  | select((.platform.os + "/" + .platform.architecture) == $platform)
+  | .digest
+' <<<"$release_manifest" | head -n 1) || [[ -z "$platform_digest" ]]; then
+  echo "ERROR: $release_image publishes no $smoke_platform manifest for this runner to smoke-test" >&2
+  exit 1
+fi
+
+bash "${script_dir}/smoke-test-published-image.sh" "${repository}@${platform_digest}" "$smoke_platform"
+echo "Release gate passed on $smoke_platform. Each required platform is covered only by its own run of this gate."
