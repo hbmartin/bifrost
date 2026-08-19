@@ -2423,9 +2423,11 @@ func (state *ResponsesToChatStreamState) bindOutputIndex(outputIndex int, idx ui
 
 // bindItemKeys records the identities an output item was announced under, so a
 // later chunk naming the same item resolves to the ordinal allocated for it.
-// Only output_item.added binds, and the newest binding wins: if a provider ever
-// re-announces an identity, its deltas must follow the header the consumer just
-// saw rather than the ordinal of the item that closed.
+// Only output_item.added binds, and the newest binding wins, which can only
+// widen a known item's identity set: toolCallIndexForNewItem resolves an
+// already-bound identity to the ordinal it holds, so a re-announced item rebinds
+// its keys to that same ordinal and picks up any identity the first header
+// omitted.
 func (state *ResponsesToChatStreamState) bindItemKeys(idx uint16, itemKeys ...*string) {
 	for _, key := range itemKeys {
 		if key == nil || *key == "" {
@@ -2455,21 +2457,43 @@ func (state *ResponsesToChatStreamState) itemKeyIndex(itemKeys ...*string) (uint
 // toolCallIndexForNewItem maps an output_item.added chunk. An added event
 // always names a NEW output item, so a nil output_index (out-of-spec
 // third-party SSE; in-tree providers always set it) still allocates the next
-// dense ordinal instead of reusing the previous item's. The item's identities
-// are remembered either way so its argument deltas find the same ordinal.
+// dense ordinal instead of reusing the previous item's. An output_index another
+// item already holds allocates a fresh ordinal for the same reason: a provider
+// that stamps one index on every item (the same out-of-spec class) must not
+// merge two tool calls into one. The earlier item keeps the index binding, so
+// its remaining deltas still resolve to the ordinal it is streaming into. Only
+// a re-announced identity keeps its ordinal, so a duplicated header stays
+// idempotent instead of opening an argument-less second tool call. The item's
+// identities are remembered either way so its argument deltas find the same
+// ordinal.
 func (state *ResponsesToChatStreamState) toolCallIndexForNewItem(outputIndex *int, itemKeys ...*string) uint16 {
 	if state == nil {
 		return legacyToolCallIndex(outputIndex)
 	}
 	var idx uint16
-	if outputIndex == nil {
-		idx = state.nextToolIndex
-		state.nextToolIndex++
+	switch known, isKnown := state.itemKeyIndex(itemKeys...); {
+	case isKnown:
+		idx = known
 		state.lastToolIndex = idx
-	} else {
-		idx = state.toolCallIndexFor(*outputIndex)
+	case outputIndex == nil:
+		idx = state.allocateToolIndex()
+	default:
+		if _, taken := state.toolCallIndexes[*outputIndex]; taken {
+			idx = state.allocateToolIndex()
+		} else {
+			idx = state.toolCallIndexFor(*outputIndex)
+		}
 	}
 	state.bindItemKeys(idx, itemKeys...)
+	return idx
+}
+
+// allocateToolIndex hands out the next dense ordinal without binding it to an
+// output_index, for an item whose index is absent or already spoken for.
+func (state *ResponsesToChatStreamState) allocateToolIndex() uint16 {
+	idx := state.nextToolIndex
+	state.nextToolIndex++
+	state.lastToolIndex = idx
 	return idx
 }
 
