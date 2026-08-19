@@ -36,9 +36,17 @@ echo "Smoke-testing $IMAGE_REF"
 # The Blueprints hand Bifrost its configuration through BIFROST_CONFIG and drop
 # privileges on platform volumes through su-exec. A release without either
 # cannot serve them, however it was tagged.
-if ! docker run --rm --entrypoint sh "$IMAGE_REF" -c '
+#
+# su-exec is run, not merely located: a binary that is present but cannot execute
+# in the published image — stale linkage against a bumped musl, a runtime stage
+# that lost a library — satisfies `command -v` and still leaves every deployment
+# that drops privileges refusing to start. Dropping privileges needs root, and
+# the image declares USER 1000:0, so this check asks for it explicitly.
+if ! docker run --rm --user 0:0 --entrypoint sh "$IMAGE_REF" -c '
   set -e
   command -v su-exec >/dev/null 2>&1 || { echo "su-exec is not installed"; exit 1; }
+  dropped=$(su-exec 1000:0 id -u) || { echo "su-exec is installed but could not execute"; exit 1; }
+  [ "$dropped" = "1000" ] || { echo "su-exec dropped to UID $dropped, expected 1000"; exit 1; }
   grep -q "materialize_inline_config" /app/docker-entrypoint.sh || { echo "entrypoint does not materialize BIFROST_CONFIG"; exit 1; }
   grep -q "BIFROST_RUN_AS_UID" /app/docker-entrypoint.sh || { echo "entrypoint does not support privilege dropping"; exit 1; }
 '; then
@@ -46,12 +54,20 @@ if ! docker run --rm --entrypoint sh "$IMAGE_REF" -c '
   exit 1
 fi
 
+# Start the container the way the Railway SQLite template does: as root
+# (RAILWAY_RUN_UID=0), handing the entrypoint the unprivileged identity to drop
+# to. That is the only configuration in which the entrypoint hands what it
+# materializes to the target identity, so the ownership asserted below is
+# evidence the privilege-drop path ran, not a property of the image.
 docker volume create "$VOLUME" >/dev/null
 docker run -d --name "$CONTAINER" \
+  --user 0:0 \
   -v "$VOLUME:/app/data" \
   -e APP_HOST=127.0.0.1 \
   -e APP_PORT=8080 \
   -e BIFROST_CONFIG="$INLINE_CONFIG" \
+  -e BIFROST_RUN_AS_UID=1000 \
+  -e BIFROST_RUN_AS_GID=0 \
   "$IMAGE_REF" >/dev/null
 
 # Read the result out of the volume rather than the container: the entrypoint
@@ -59,9 +75,10 @@ docker run -d --name "$CONTAINER" \
 # starts, exits, or is still booting.
 materialized=""
 for _ in $(seq 1 30); do
-  if materialized=$(docker run --rm -v "$VOLUME:/app/data" --entrypoint sh "$IMAGE_REF" -c '
+  if materialized=$(docker run --rm --user 0:0 -v "$VOLUME:/app/data" --entrypoint sh "$IMAGE_REF" -c '
     [ -f /app/data/config.json ] || exit 1
-    printf "%s %s" "$(stat -c "%a" /app/data/config.json)" "$(cat /app/data/config.json)"
+    printf "%s %s %s" "$(stat -c "%u:%g" /app/data/config.json)" \
+      "$(stat -c "%a" /app/data/config.json)" "$(cat /app/data/config.json)"
   ' 2>/dev/null); then
     break
   fi
@@ -75,10 +92,10 @@ if [ -z "$materialized" ]; then
   exit 1
 fi
 
-expected="600 $INLINE_CONFIG"
+expected="1000:0 600 $INLINE_CONFIG"
 if [ "$materialized" != "$expected" ]; then
   echo "ERROR: $IMAGE_REF materialized '$materialized', expected '$expected'" >&2
   exit 1
 fi
 
-echo "$IMAGE_REF materializes BIFROST_CONFIG at mode 0600 and supports privilege dropping"
+echo "$IMAGE_REF materializes BIFROST_CONFIG as 1000:0 at mode 0600 and drops privileges through su-exec"
