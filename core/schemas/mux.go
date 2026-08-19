@@ -2352,7 +2352,12 @@ func (cr *BifrostChatResponse) ToBifrostResponsesStreamResponse(state *ChatToRes
 // consumer goroutine, so it carries no lock.
 type ResponsesToChatStreamState struct {
 	toolCallIndexes map[int]uint16
-	nextToolIndex   uint16
+	// toolCallItemKeys maps a Responses item identity (its item id and call id)
+	// to the ordinal that item already received. It is what keeps a header and
+	// its argument deltas on one tool call when the two events disagree about
+	// output_index — including when the header carried none at all.
+	toolCallItemKeys map[string]uint16
+	nextToolIndex    uint16
 	// lastToolIndex is the ordinal handed out most recently. Argument deltas
 	// that omit output_index cannot name a new item, so they continue this tool
 	// call; an output_item.added without one still opens a new item.
@@ -2373,45 +2378,97 @@ func legacyToolCallIndex(outputIndex *int) uint16 {
 // toolCallIndexFor looks up or allocates the dense tool-call ordinal for a
 // concrete output_index.
 func (state *ResponsesToChatStreamState) toolCallIndexFor(outputIndex int) uint16 {
-	if state.toolCallIndexes == nil {
-		state.toolCallIndexes = make(map[int]uint16)
-	}
 	if idx, ok := state.toolCallIndexes[outputIndex]; ok {
 		state.lastToolIndex = idx
 		return idx
 	}
 	idx := state.nextToolIndex
-	state.toolCallIndexes[outputIndex] = idx
+	state.bindOutputIndex(outputIndex, idx)
 	state.nextToolIndex++
 	state.lastToolIndex = idx
 	return idx
 }
 
+// bindOutputIndex points an output_index at an already-allocated ordinal. The
+// first binding wins: a provider that reuses an index across items must not
+// re-target the ordinal an earlier item is still streaming into.
+func (state *ResponsesToChatStreamState) bindOutputIndex(outputIndex int, idx uint16) {
+	if state.toolCallIndexes == nil {
+		state.toolCallIndexes = make(map[int]uint16)
+	}
+	if _, ok := state.toolCallIndexes[outputIndex]; !ok {
+		state.toolCallIndexes[outputIndex] = idx
+	}
+}
+
+// bindItemKeys records the identities an output item was announced under, so a
+// later chunk naming the same item resolves to the ordinal allocated for it.
+// Only output_item.added binds, and the newest binding wins: if a provider ever
+// re-announces an identity, its deltas must follow the header the consumer just
+// saw rather than the ordinal of the item that closed.
+func (state *ResponsesToChatStreamState) bindItemKeys(idx uint16, itemKeys ...*string) {
+	for _, key := range itemKeys {
+		if key == nil || *key == "" {
+			continue
+		}
+		if state.toolCallItemKeys == nil {
+			state.toolCallItemKeys = make(map[string]uint16)
+		}
+		state.toolCallItemKeys[*key] = idx
+	}
+}
+
+// itemKeyIndex resolves the ordinal an earlier chunk bound to any of these
+// identities.
+func (state *ResponsesToChatStreamState) itemKeyIndex(itemKeys ...*string) (uint16, bool) {
+	for _, key := range itemKeys {
+		if key == nil || *key == "" {
+			continue
+		}
+		if idx, ok := state.toolCallItemKeys[*key]; ok {
+			return idx, true
+		}
+	}
+	return 0, false
+}
+
 // toolCallIndexForNewItem maps an output_item.added chunk. An added event
 // always names a NEW output item, so a nil output_index (out-of-spec
 // third-party SSE; in-tree providers always set it) still allocates the next
-// dense ordinal instead of reusing the previous item's.
-func (state *ResponsesToChatStreamState) toolCallIndexForNewItem(outputIndex *int) uint16 {
+// dense ordinal instead of reusing the previous item's. The item's identities
+// are remembered either way so its argument deltas find the same ordinal.
+func (state *ResponsesToChatStreamState) toolCallIndexForNewItem(outputIndex *int, itemKeys ...*string) uint16 {
 	if state == nil {
 		return legacyToolCallIndex(outputIndex)
 	}
+	var idx uint16
 	if outputIndex == nil {
-		idx := state.nextToolIndex
+		idx = state.nextToolIndex
 		state.nextToolIndex++
 		state.lastToolIndex = idx
-		return idx
+	} else {
+		idx = state.toolCallIndexFor(*outputIndex)
 	}
-	return state.toolCallIndexFor(*outputIndex)
+	state.bindItemKeys(idx, itemKeys...)
+	return idx
 }
 
 // toolCallIndexForContinuation maps a function_call_arguments.delta chunk. A
 // delta cannot name a new item, so nil continues the open tool call.
-// Limitation (unobserved in-tree): a stream that omits output_index on
-// output_item.added but supplies it on the following deltas would need
-// item-ID keyed state to associate them.
-func (state *ResponsesToChatStreamState) toolCallIndexForContinuation(outputIndex *int) uint16 {
+// The delta's item_id wins over its output_index: it names the item the header
+// already opened, which is the only way to stay consistent with a header that
+// omitted output_index (out-of-spec third-party SSE) while its deltas carry one.
+func (state *ResponsesToChatStreamState) toolCallIndexForContinuation(outputIndex *int, itemKeys ...*string) uint16 {
 	if state == nil {
 		return legacyToolCallIndex(outputIndex)
+	}
+	if idx, ok := state.itemKeyIndex(itemKeys...); ok {
+		if outputIndex != nil {
+			// Later deltas may carry only the index; point it at the same call.
+			state.bindOutputIndex(*outputIndex, idx)
+		}
+		state.lastToolIndex = idx
+		return idx
 	}
 	if outputIndex == nil {
 		return state.lastToolIndex
@@ -2522,7 +2579,7 @@ func (rsr *BifrostResponsesStreamResponse) ToBifrostChatResponseWithState(state 
 				return resp
 			}
 			funcType := "function"
-			idx := state.toolCallIndexForNewItem(rsr.OutputIndex)
+			idx := state.toolCallIndexForNewItem(rsr.OutputIndex, rsr.Item.ID, rsr.ItemID, rsr.Item.ResponsesToolMessage.CallID)
 			resp.Choices = []BifrostResponseChoice{
 				{
 					Index: 0,
@@ -2584,7 +2641,7 @@ func (rsr *BifrostResponsesStreamResponse) ToBifrostChatResponseWithState(state 
 			}
 			return resp
 		}
-		idx := state.toolCallIndexForContinuation(rsr.OutputIndex)
+		idx := state.toolCallIndexForContinuation(rsr.OutputIndex, rsr.ItemID)
 
 		resp.Choices = []BifrostResponseChoice{
 			{
