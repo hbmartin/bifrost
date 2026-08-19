@@ -2,6 +2,7 @@
 set -euo pipefail
 
 script_dir=$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+repo_root=$(CDPATH='' cd -- "${script_dir}/../../.." && pwd -P)
 
 repository=${BIFROST_IMAGE_REPOSITORY:-docker.io/maximhq/bifrost}
 github_repository=${BIFROST_GITHUB_REPOSITORY:-maximhq/bifrost}
@@ -9,7 +10,12 @@ github_repository=${BIFROST_GITHUB_REPOSITORY:-maximhq/bifrost}
 # templates depend on. It is a floor, not a pin: the gate resolves the newest
 # published transports release so it keeps passing as releases advance, but it
 # must never accept a release older than the contract.
-minimum_release_tag=${BIFROST_MINIMUM_RELEASE_TAG:-v1.6.12}
+#
+# Read from deploy/runtime-contract.json rather than written here, because
+# validate-deployment-templates.py enforces the same floor on the verifications
+# recorded for the public buttons. Two copies would let a bump raise the bar for
+# the image while the recorded verifications still pointed below it.
+minimum_release_tag=${BIFROST_MINIMUM_RELEASE_TAG:-$(jq -er '.minimum_release_tag' "${repo_root}/deploy/runtime-contract.json")}
 
 # resolve_latest_release_tag prints the newest final transports/v* release tag,
 # without its module prefix. The repository publishes one release per module, so
