@@ -9,13 +9,14 @@
     "platform": { "const": "railway" },
     "template": {
       "type": "object",
-      "required": ["name", "slug", "owner", "visibility"],
+      "required": ["name", "slug", "owner", "visibility", "last_verified", "verified_release"],
       "properties": {
         "name": { "type": "string", "minLength": 1 },
         "slug": { "type": ["string", "null"], "minLength": 1 },
         "owner": { "type": "string", "minLength": 1 },
         "visibility": { "const": "public" },
-        "last_verified": { "type": ["string", "null"], "format": "date" }
+        "last_verified": { "type": ["string", "null"], "format": "date" },
+        "verified_release": { "type": ["string", "null"], "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+$" }
       },
       "additionalProperties": false
     },

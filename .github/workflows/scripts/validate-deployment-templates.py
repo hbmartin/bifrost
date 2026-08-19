@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -15,11 +17,66 @@ from jsonschema import Draft201909Validator, Draft202012Validator, FormatChecker
 REPO_ROOT = Path(__file__).resolve().parents[3]
 BIFROST_SCHEMA = json.loads((REPO_ROOT / "transports/config.schema.json").read_text())
 RAILWAY_SCHEMA = json.loads((REPO_ROOT / "deploy/railway/template-contract.schema.json").read_text())
+RENDER_VERIFICATION_SCHEMA = json.loads(
+    (REPO_ROOT / "deploy/render/blueprint-verification.schema.json").read_text()
+)
+# Shared with the release gate in verify-deployment-release.sh, which refuses to
+# qualify anything older. Read from one file so a bump cannot land in the gate
+# and leave the recorded verifications accepting the release it just retired.
+MINIMUM_RELEASE_TAG = json.loads((REPO_ROOT / "deploy/runtime-contract.json").read_text())["minimum_release_tag"]
+RELEASE_TAG_PATTERN = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
 HOSTED_ONE_CLICK_HEADING = "## Hosted one-click choices"
 
 
 def fail(message: str) -> None:
     raise AssertionError(message)
+
+
+def release_tuple(tag: str) -> tuple[int, ...] | None:
+    """The ordering key for a release tag, or None if it is not one."""
+    match = RELEASE_TAG_PATTERN.match(tag)
+    return tuple(int(part) for part in match.groups()) if match else None
+
+
+def verification_recorded(record: dict[str, Any], label: str) -> bool:
+    """Whether `record` carries a complete, well-formed verification.
+
+    Nothing in this repository can inspect a live Render Blueprint or Railway
+    template, so a published button rests entirely on what is written here. That
+    makes the shape of the record the only thing standing between a real
+    deployment and a claim about one, and a truthiness test is not enough: it
+    reads "soon" as a date and accepts an entry naming no release at all.
+
+    A half-filled or malformed record fails rather than quietly counting as
+    unverified. It was written by someone recording a verification, so treating
+    it as an absent one would hide the mistake and, through the both-directions
+    check below, report it as a missing documentation link instead.
+    """
+    last_verified = record.get("last_verified")
+    verified_release = record.get("verified_release")
+
+    if last_verified is None and verified_release is None:
+        return False
+    if last_verified is None or verified_release is None:
+        fail(
+            f"{label} records half a verification: last_verified and verified_release "
+            f"are set together or not at all"
+        )
+
+    try:
+        date.fromisoformat(last_verified)
+    except ValueError:
+        fail(f"{label} last_verified must be an ISO-8601 date, got {last_verified!r}")
+
+    version = release_tuple(verified_release)
+    if version is None:
+        fail(f"{label} verified_release must be a release tag like {MINIMUM_RELEASE_TAG}, got {verified_release!r}")
+    if version < release_tuple(MINIMUM_RELEASE_TAG):
+        fail(
+            f"{label} verified_release {verified_release} predates {MINIMUM_RELEASE_TAG}, the release "
+            f"that carries the deployment runtime contract. Re-verify against a qualified release."
+        )
+    return True
 
 
 def validate_json_schema(instance: Any, schema: dict[str, Any], label: str, draft: type) -> None:
@@ -198,22 +255,28 @@ def one_click_targets() -> list[dict[str, Any]]:
     enforced in both directions so that verifying a template and publishing its
     button cannot drift apart.
     """
-    render = json.loads((REPO_ROOT / "deploy/render/blueprint-verification.json").read_text())
+    render_evidence = "deploy/render/blueprint-verification.json"
+    render = json.loads((REPO_ROOT / render_evidence).read_text())
+    validate_json_schema(render, RENDER_VERIFICATION_SCHEMA, render_evidence, Draft202012Validator)
     render_docs = REPO_ROOT / "docs/deployment-guides/platforms/render.mdx"
     railway_docs = REPO_ROOT / "docs/deployment-guides/platforms/railway.mdx"
 
     targets: list[dict[str, Any]] = []
     for name, entry in render["blueprints"].items():
+        label = f"Render {name}"
+        # Evaluated before the button URL is considered: a malformed record is a
+        # mistake worth reporting whether or not its button is published yet.
+        recorded = verification_recorded(entry, f"{label} in {render_evidence}")
         targets.append(
             {
-                "label": f"Render {name}",
+                "label": label,
                 "doc": render_docs,
                 "url": entry["button_url"],
                 # A missing button URL means there is no link to publish, and an
                 # empty one is a substring of every document — treating it as
                 # verified would satisfy the link check below against nothing.
-                "verified": bool(entry["button_url"]) and bool(entry["last_verified"]),
-                "evidence": "deploy/render/blueprint-verification.json",
+                "verified": bool(entry["button_url"]) and recorded,
+                "evidence": render_evidence,
             }
         )
 
@@ -221,14 +284,15 @@ def one_click_targets() -> list[dict[str, Any]]:
         evidence = f"deploy/railway/{filename}.template-contract.json"
         template = json.loads((REPO_ROOT / evidence).read_text())["template"]
         slug = template["slug"]
+        recorded = verification_recorded(template, f"Railway {name} in {evidence}")
         targets.append(
             {
                 "label": f"Railway {name}",
                 "doc": railway_docs,
                 "url": f"https://railway.com/new/template/{slug}" if slug else None,
                 # An unassigned slug means the template is not published at all,
-                # so it can never be verified regardless of the date recorded.
-                "verified": bool(slug) and bool(template["last_verified"]),
+                # so it can never be verified regardless of what is recorded.
+                "verified": bool(slug) and recorded,
                 "evidence": evidence,
             }
         )
@@ -247,7 +311,7 @@ def validate_documentation_links() -> None:
             fail(
                 f"{doc_label} publishes the {target['label']} one-click button while "
                 f"{target['evidence']} records no verification. Verify the live template and record "
-                f"last_verified, or remove the button."
+                f"last_verified and verified_release, or remove the button."
             )
 
     # The overview advertises the hosted one-click choices as a group. It may do
@@ -264,6 +328,15 @@ def validate_documentation_links() -> None:
 
 
 def main() -> int:
+    # The floor is hand-edited and shared with the release gate, which reads the
+    # same file. A malformed value here would otherwise surface as a comparison
+    # TypeError from deep inside a verification check.
+    if release_tuple(MINIMUM_RELEASE_TAG) is None:
+        fail(
+            f"deploy/runtime-contract.json minimum_release_tag must be a release tag "
+            f"like v1.6.12, got {MINIMUM_RELEASE_TAG!r}"
+        )
+
     validate_render(REPO_ROOT / "render.yaml", "postgres")
     validate_render(REPO_ROOT / "deploy/render/render-sqlite.yaml", "sqlite")
     validate_railway(REPO_ROOT / "deploy/railway/postgres.template-contract.json", "postgres")
