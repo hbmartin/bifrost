@@ -31,9 +31,21 @@ jobs:
             production.cloudflare.docker.com:443
             registry-1.docker.io:443
 
+      # workflow_dispatch accepts any ref the caller selects, and this job
+      # force-pushes what it checks out to a branch a public deploy button reads
+      # directly. Refuse anything but main, and check main out by the SHA that
+      # triggered the run rather than by name.
+      - name: Require main
+        run: |
+          if [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            echo "::error::publish-render-sqlite-branch may only run from refs/heads/main (got ${{ github.ref }})"
+            exit 1
+          fi
+
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          ref: ${{ github.sha }}
           fetch-depth: 0
 
       # Hard release gate: the public deploy button consumes this branch directly,
