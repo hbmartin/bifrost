@@ -11,6 +11,18 @@ RUN_AS_GID=${BIFROST_RUN_AS_GID:-}
 # cannot see them: it creates a new directory and never touches the existing
 # databases. Both the ownership repair and the probe walk these explicitly.
 DATA_WRITE_ENTRIES=". config.db logs.db logs"
+# Globs, relative to APP_DIR, for the entries whose names are not fixed. SQLite
+# leaves -wal and -shm sidecars beside every database it opens in WAL mode, and
+# a root-owned sidecar stops Bifrost opening the database just as dead as a
+# root-owned database does; log databases roll over into logs/, so a stale file
+# can sit inside a correctly owned directory.
+#
+# Globbed rather than "every immediate child of APP_DIR": an ext4-backed volume
+# mounts a root-owned lost+found that Bifrost never touches, and demanding it be
+# writable would refuse a perfectly good volume on every platform that provides
+# one. One list, used by both the ownership repair and the probe, so the two
+# cannot drift apart.
+DATA_WRITE_GLOBS="config.db-* logs.db-* logs/*"
 # config.json is only read. Deployments legitimately mount it read-only, so it
 # is never required to be writable and never triggers an ownership repair.
 DATA_READ_ENTRIES="config.json"
@@ -115,7 +127,8 @@ materialize_inline_config() {
 APP_DIR_PROBE='
     app_dir="$1"
     write_entries="$2"
-    read_entries="$3"
+    write_globs="$3"
+    read_entries="$4"
 
     probe_dir="$app_dir/.bifrost-write-test.$$"
     if [ -e "$probe_dir" ]; then
@@ -146,13 +159,17 @@ APP_DIR_PROBE='
             exit 1
         fi
     done
-    # Log databases roll over into logs/, so a root-owned file can sit inside a
-    # correctly owned directory. Cover its immediate children, not a full walk.
-    for path in "$app_dir"/logs/*; do
-        if unusable_for_write "$path"; then
-            printf %s "$path"
-            exit 1
-        fi
+    # $pattern stays unquoted so it expands as a glob; the quoted "$app_dir"/
+    # prefix is what keeps that expansion anchored. A glob matching nothing stays
+    # literal and unusable_for_write skips what does not exist, so an empty logs/
+    # or a database with no sidecars costs nothing here.
+    for pattern in $write_globs; do
+        for path in "$app_dir"/$pattern; do
+            if unusable_for_write "$path"; then
+                printf %s "$path"
+                exit 1
+            fi
+        done
     done
     for entry in $read_entries; do
         path="$app_dir/$entry"
@@ -170,12 +187,12 @@ UNUSABLE_PATH=""
 app_dir_writable() {
     if [ -n "$RUN_AS_UID" ]; then
         UNUSABLE_PATH=$(su-exec "$RUN_AS_UID:$RUN_AS_GID" sh -c "$APP_DIR_PROBE" sh \
-            "$APP_DIR" "$DATA_WRITE_ENTRIES" "$DATA_READ_ENTRIES")
+            "$APP_DIR" "$DATA_WRITE_ENTRIES" "$DATA_WRITE_GLOBS" "$DATA_READ_ENTRIES")
         return $?
     fi
 
     UNUSABLE_PATH=$(sh -c "$APP_DIR_PROBE" sh \
-        "$APP_DIR" "$DATA_WRITE_ENTRIES" "$DATA_READ_ENTRIES")
+        "$APP_DIR" "$DATA_WRITE_ENTRIES" "$DATA_WRITE_GLOBS" "$DATA_READ_ENTRIES")
     return $?
 }
 
@@ -187,8 +204,11 @@ misowned_data_paths() {
     for _entry in $DATA_WRITE_ENTRIES; do
         report_if_misowned "$APP_DIR/$_entry"
     done
-    for _path in "$APP_DIR"/logs/*; do
-        report_if_misowned "$_path"
+    # Unquoted $_pattern, quoted "$APP_DIR"/ prefix: see the probe above.
+    for _pattern in $DATA_WRITE_GLOBS; do
+        for _path in "$APP_DIR"/$_pattern; do
+            report_if_misowned "$_path"
+        done
     done
 }
 
