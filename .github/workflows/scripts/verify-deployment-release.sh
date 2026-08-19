@@ -109,3 +109,12 @@ for required_platform in linux/amd64 linux/arm64; do
 done
 
 echo "$latest_image and $release_image resolve to $release_digest with linux/amd64 and linux/arm64"
+
+# Digest equality proves latest and the release tag are the same artifact; it
+# does not prove that artifact is the one the deployment tests exercised. The
+# release image is built from transports/Dockerfile with GOWORK=off against the
+# published modules, while the smoke tests build Dockerfile.local from the
+# workspace — different builds of different module graphs. Test the digest that
+# actually ships before letting a public button consume it.
+script_dir=$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+bash "${script_dir}/smoke-test-published-image.sh" "${repository}@${release_digest}"
