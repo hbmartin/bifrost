@@ -25,6 +25,7 @@ ARCH=$(echo "$PLATFORM" | cut -d'/' -f2)
 IMAGE_TAG="bifrost-test:ci-${GITHUB_SHA:-local}-${ARCH}"
 CONTAINER_NAME="bifrost-test-${ARCH}"
 PRIVDROP_CONTAINER_NAME="${CONTAINER_NAME}-privdrop"
+RO_CONFIG_CONTAINER_NAME="${CONTAINER_NAME}-ro-config"
 PRIVDROP_VOLUME_NAME="${CONTAINER_NAME}-root-volume"
 TEST_PORT=8080
 PRIVDROP_TEST_PORT=8081
@@ -46,6 +47,8 @@ cleanup() {
   docker rm "${CONTAINER_NAME}" > /dev/null 2>&1 || true
   docker stop "${PRIVDROP_CONTAINER_NAME}" > /dev/null 2>&1 || true
   docker rm "${PRIVDROP_CONTAINER_NAME}" > /dev/null 2>&1 || true
+  docker stop "${RO_CONFIG_CONTAINER_NAME}" > /dev/null 2>&1 || true
+  docker rm "${RO_CONFIG_CONTAINER_NAME}" > /dev/null 2>&1 || true
   docker volume rm "${PRIVDROP_VOLUME_NAME}" > /dev/null 2>&1 || true
   
   # Stop docker-compose services
@@ -343,6 +346,86 @@ done <<<"$MISOWNED_FILES"
 
 docker stop "${PRIVDROP_CONTAINER_NAME}" >/dev/null
 docker rm "${PRIVDROP_CONTAINER_NAME}" >/dev/null
+
+# Same repair, but with config.json mounted read-only — the shape a platform
+# produces when it projects the document out of a secret store. config.json is
+# only ever read, so the repair must reach the writable data paths without
+# recursing over it: chown fails on a read-only mount, and a repair that fixed
+# everything it was supposed to would then announce itself as failed and send an
+# operator hunting a problem that does not exist.
+MOUNTED_CONFIG="$TEMP_DIR/mounted-config.json"
+printf '%s' "${INLINE_CONFIG}" > "$MOUNTED_CONFIG"
+chmod 0444 "$MOUNTED_CONFIG"
+
+MISOWNED_FILES=$(docker run --rm \
+  --platform "${PLATFORM}" \
+  --user 0:0 \
+  --entrypoint sh \
+  -v "${PRIVDROP_VOLUME_NAME}:/app/data" \
+  "${IMAGE_TAG}" \
+  -c '
+    files=$(find /app/data -maxdepth 1 -type f ! -name config.json)
+    [ -n "$files" ] || exit 1
+    for file in $files; do
+      chown 0:0 "$file" || exit 1
+    done
+    printf %s "$files"
+  ')
+if [ -z "$MISOWNED_FILES" ]; then
+  echo "ERROR: no data files to misown; the read-only config.json repair case is untested"
+  exit 1
+fi
+
+docker run -d \
+  --name "${RO_CONFIG_CONTAINER_NAME}" \
+  --platform "${PLATFORM}" \
+  --user 0:0 \
+  -e APP_PORT=8080 \
+  -e APP_HOST=0.0.0.0 \
+  -e BIFROST_ENCRYPTION_KEY=ci-test-encryption-key-32-bytes \
+  -e BIFROST_ADMIN_PASSWORD=ci-test-admin-password \
+  -e OPENAI_API_KEY=ci-test-provider-key \
+  -e BIFROST_RUN_AS_UID=1000 \
+  -e BIFROST_RUN_AS_GID=0 \
+  -v "${PRIVDROP_VOLUME_NAME}:/app/data" \
+  -v "${MOUNTED_CONFIG}:/app/data/config.json:ro" \
+  "${IMAGE_TAG}" >/dev/null
+
+REPAIR_LOGS=""
+ELAPSED=0
+while [ $ELAPSED -lt $MAX_WAIT ]; do
+  REPAIR_LOGS=$(docker logs "${RO_CONFIG_CONTAINER_NAME}" 2>&1)
+  if grep -qE '(Successfully updated|Could not update) permissions on /app/data' <<<"$REPAIR_LOGS"; then
+    break
+  fi
+  sleep 2
+  ELAPSED=$((ELAPSED + 2))
+done
+
+if ! grep -q 'Successfully updated permissions on /app/data' <<<"$REPAIR_LOGS"; then
+  echo "ERROR: the ownership repair did not report success alongside a read-only config.json"
+  echo "${REPAIR_LOGS}" | tail -50
+  exit 1
+fi
+
+while IFS= read -r misowned_file; do
+  [ -n "$misowned_file" ] || continue
+  FILE_OWNER=$(docker run --rm \
+    --platform "${PLATFORM}" \
+    --user 0:0 \
+    --entrypoint sh \
+    -v "${PRIVDROP_VOLUME_NAME}:/app/data" \
+    "${IMAGE_TAG}" \
+    -c "stat -c '%u:%g' '${misowned_file}'")
+  if [ "$FILE_OWNER" != "1000:0" ]; then
+    echo "ERROR: ${misowned_file} is owned by ${FILE_OWNER} after the repair, expected 1000:0"
+    echo "${REPAIR_LOGS}" | tail -50
+    exit 1
+  fi
+done <<<"$MISOWNED_FILES"
+
+docker stop "${RO_CONFIG_CONTAINER_NAME}" >/dev/null
+docker rm "${RO_CONFIG_CONTAINER_NAME}" >/dev/null
 docker volume rm "${PRIVDROP_VOLUME_NAME}" >/dev/null
 
 echo "Entrypoint runtime contract passed"
