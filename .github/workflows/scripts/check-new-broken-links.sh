@@ -13,6 +13,11 @@ set -euo pipefail
 # Usage: check-new-broken-links.sh <base-ref>
 
 BASE_REF=${1:?usage: check-new-broken-links.sh <base-ref>}
+# Pinned, not @latest: the two runs below are only comparable if they were
+# produced by the same tool, and resolving the tag twice leaves the check one
+# upstream publish away from diffing two different versions' output. A bump here
+# is a deliberate change with a diff to review, like any other dependency.
+MINTLIFY_VERSION=${MINTLIFY_VERSION:-4.2.810}
 REPO_ROOT=$(git rev-parse --show-toplevel)
 BASE_TREE=$(mktemp -d)
 
@@ -22,30 +27,55 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# mintlify ends a completed run with exactly one of these verdicts: the clean
+# one exits 0, the other exits 1. Both are dropped from the compared report —
+# the tally moves whenever the count does, which would otherwise register as a
+# finding on every change, including one that only fixes links.
+CLEAN_VERDICT='^success no broken links found$'
+BROKEN_VERDICT='^found [0-9]+ broken links? in [0-9]+ files?$'
+
 # Collect the broken-link report for one docs directory, normalized so two runs
-# are comparable: ANSI colour stripped, trailing space trimmed, blank lines and
-# the "N broken links" tally dropped (the tally differs whenever the count does,
-# which would otherwise register as a new finding every time).
+# are comparable.
 collect() {
   local docs_dir=$1 output status
   set +e
-  output=$(cd "$docs_dir" && npx --yes mintlify@latest broken-links 2>&1)
+  output=$(cd "$docs_dir" && npx --yes "mintlify@${MINTLIFY_VERSION}" broken-links 2>&1)
   status=$?
   set -e
-  if [ "$status" -ne 0 ] && [ -z "$output" ]; then
-    echo "ERROR: mintlify broken-links produced no output in $docs_dir (exit $status)" >&2
+
+  # Strip every CSI escape sequence, not just the colour ones: the progress
+  # spinner repaints with cursor-movement codes (ESC[2K, ESC[1A, ESC[G) and its
+  # last repaint shares a line with the verdict, so a colour-only filter leaves
+  # control bytes glued to the front of the one line that has to be recognized.
+  # Then drop the spinner frames themselves — how many a run emits depends on
+  # how long it took, so they differ between two runs of the same docs tree.
+  output=$(printf '%s\n' "$output" \
+    | sed -E -e 's/\x1b\[[0-9;?]*[A-Za-z]//g' \
+             -e 's/[[:space:]]*$//' \
+             -e '/checking for broken links/d')
+
+  # A difference between two reports only means something if both sides are
+  # reports. An invocation that fails the same way twice — an incompatible
+  # release, a failed install, a crash — normalizes to two identical outputs
+  # with no links in them, which compares equal and passes the check without
+  # anything having been checked. Require the verdict only a completed run
+  # prints, and fail loudly when it is absent.
+  if ! printf '%s\n' "$output" | grep -Eq "$CLEAN_VERDICT|$BROKEN_VERDICT"; then
+    echo "ERROR: mintlify@${MINTLIFY_VERSION} broken-links did not complete in $docs_dir (exit $status)" >&2
+    echo "  Expected a run ending in 'success no broken links found' or 'found N broken links in M files'." >&2
+    printf '%s\n' "$output" | tail -20 | sed 's/^/  /' >&2
     return 1
   fi
+
   # Normalize with one sed program rather than a grep filter: grep exits 1 when
   # it selects nothing, and under `set -o pipefail` that fails the collection.
-  # A report holding nothing but the tally — the shape of a docs tree with no
+  # A report holding nothing but the verdict — the shape of a docs tree with no
   # broken links at all — would then turn the cleanest possible result into a
   # red check with no diagnostic.
   printf '%s\n' "$output" \
-    | sed -e 's/\x1b\[[0-9;]*m//g' \
-          -e 's/[[:space:]]*$//' \
-          -e '/^[[:space:]]*[0-9][0-9]* broken/Id' \
-          -e '/^[[:space:]]*$/d' \
+    | sed -E -e "/${CLEAN_VERDICT}/d" \
+             -e "/${BROKEN_VERDICT}/d" \
+             -e '/^[[:space:]]*$/d' \
     | sort -u
 }
 
