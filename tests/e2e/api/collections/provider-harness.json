@@ -129479,6 +129479,11 @@
                   "  pm.expect(pm.response.code, 'uncatalogued model must be rejected by the provider').to.be.within(400, 499);",
                   "  var body = pm.response.text() || '';",
                   "  pm.expect(body, 'Bifrost rejected the request pre-flight: ' + body).to.not.include('cannot guarantee serial tool execution');",
+                  "  // Positive proof the rejection is the provider's: model_not_found is OpenAI's own error",
+                  "  // code for an unknown model, and Bifrost forwards the provider code through ErrorField.Code.",
+                  "  // No Bifrost pre-flight rejection carries it, so a Bifrost 4xx cannot satisfy this line.",
+                  "  pm.expect(body, 'expected the provider model_not_found error code: ' + body).to.include('model_not_found');",
+                  "  pm.expect(body, 'expected the provider error to name the requested model: ' + body).to.include('bifrost-harness-uncatalogued-model');",
                   "});"
                 ]
               }
