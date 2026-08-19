@@ -167,6 +167,72 @@ func TestWorkerErrorKeepsOriginalErrorWhenPostHookReturnsNilNil(t *testing.T) {
 	}
 }
 
+// terminalErrorTamperer is the adversarial counterpart to
+// terminalErrorObserver: it rewrites every request-identity field on the error
+// a post-hook receives. Core snapshots those fields before hooks run and
+// restores them afterwards, so none of these values may reach the caller.
+type terminalErrorTamperer struct {
+	suppress bool
+}
+
+func (p *terminalErrorTamperer) GetName() string { return "terminal-error-tamperer" }
+func (p *terminalErrorTamperer) Cleanup() error  { return nil }
+func (p *terminalErrorTamperer) PreRequestHook(_ *schemas.BifrostContext, _ *schemas.BifrostRequest) error {
+	return nil
+}
+func (p *terminalErrorTamperer) PreLLMHook(_ *schemas.BifrostContext, req *schemas.BifrostRequest) (*schemas.BifrostRequest, *schemas.LLMPluginShortCircuit, error) {
+	return req, nil, nil
+}
+func (p *terminalErrorTamperer) PostLLMHook(_ *schemas.BifrostContext, resp *schemas.BifrostResponse, bifrostErr *schemas.BifrostError) (*schemas.BifrostResponse, *schemas.BifrostError, error) {
+	if bifrostErr != nil {
+		bifrostErr.ExtraFields.Provider = schemas.Anthropic
+		bifrostErr.ExtraFields.OriginalModelRequested = "tampered-original"
+		bifrostErr.ExtraFields.ResolvedModelUsed = "tampered-resolved"
+		bifrostErr.ExtraFields.RoutingInfo = schemas.RoutingInfo{
+			Provider: schemas.Anthropic,
+			Model:    "tampered-routing",
+		}
+	}
+	if p.suppress {
+		return nil, nil, nil
+	}
+	return resp, bifrostErr, nil
+}
+
+// A post-hook may not rewrite the routed identity of a terminal error, on
+// either the pass-through or the swallowed path: the caller must still see the
+// provider, requested model, alias-resolved model, and RoutingInfo the worker
+// stamped.
+func TestWorkerErrorRestoresRoutedIdentityAfterPostHookTampering(t *testing.T) {
+	for _, suppress := range []bool{false, true} {
+		name := "pass-through"
+		if suppress {
+			name = "swallow"
+		}
+		t.Run(name, func(t *testing.T) {
+			client := newRejectingUpstreamClient(t, &terminalErrorTamperer{suppress: suppress})
+			ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
+
+			resp, bifrostErr := client.ChatCompletionRequest(ctx, newAliasedChatRequest())
+			assert.Nil(t, resp)
+			require.NotNil(t, bifrostErr, "a tampering post-hook must not make the error disappear")
+
+			assert.Equal(t, schemas.OpenAI, bifrostErr.ExtraFields.Provider,
+				"post-hook provider tampering must not survive")
+			assert.Equal(t, "fast", bifrostErr.ExtraFields.OriginalModelRequested,
+				"post-hook requested-model tampering must not survive")
+			assert.Equal(t, "gpt-4o-mini-2024-07-18", bifrostErr.ExtraFields.ResolvedModelUsed,
+				"post-hook resolved-model tampering must not survive")
+			assert.Equal(t, schemas.OpenAI, bifrostErr.ExtraFields.RoutingInfo.Provider)
+			assert.Equal(t, "fast", bifrostErr.ExtraFields.RoutingInfo.Model,
+				"post-hook RoutingInfo tampering must not survive")
+			require.NotNil(t, bifrostErr.ExtraFields.RoutingInfo.ResolvedKeyAlias,
+				"the worker's alias resolution must be restored with RoutingInfo")
+			assert.Equal(t, "gpt-4o-mini-2024-07-18", bifrostErr.ExtraFields.RoutingInfo.ResolvedKeyAlias.ModelID)
+		})
+	}
+}
+
 // Queue-transfer and shutdown-drain producers send errors whose ExtraFields
 // carry no ResolvedModelUsed and no RoutingInfo. recoverFromTerminalError must
 // complete that metadata before hooks run and keep it on the returned error,
