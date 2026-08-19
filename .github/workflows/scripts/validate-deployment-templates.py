@@ -203,7 +203,11 @@ def validate_documentation_links() -> None:
 
     sqlite_contract = json.loads((REPO_ROOT / "deploy/railway/sqlite.template-contract.json").read_text())
     sqlite_slug = sqlite_contract["template"]["slug"]
-    if sqlite_slug and f"https://railway.com/new/template/{sqlite_slug}" not in railway_docs:
+    if not sqlite_slug:
+        # The contract exists before the template is published. Say so out loud:
+        # a silent pass here reads as "the SQLite button is verified".
+        print("::notice::deploy/railway/sqlite.template-contract.json has no slug yet; the Railway SQLite button is unverified.")
+    elif f"https://railway.com/new/template/{sqlite_slug}" not in railway_docs:
         fail("Railway SQLite template slug is not linked from its documentation")
 
 
