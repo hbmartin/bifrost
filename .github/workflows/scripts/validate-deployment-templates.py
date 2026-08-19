@@ -15,6 +15,7 @@ from jsonschema import Draft201909Validator, Draft202012Validator, FormatChecker
 REPO_ROOT = Path(__file__).resolve().parents[3]
 BIFROST_SCHEMA = json.loads((REPO_ROOT / "transports/config.schema.json").read_text())
 RAILWAY_SCHEMA = json.loads((REPO_ROOT / "deploy/railway/template-contract.schema.json").read_text())
+HOSTED_ONE_CLICK_HEADING = "## Hosted one-click choices"
 
 
 def fail(message: str) -> None:
@@ -187,28 +188,76 @@ def validate_railway(path: Path, storage: str) -> None:
             fail(f"{label} must disable overlap for the single-writer SQLite volume")
 
 
-def validate_documentation_links() -> None:
-    render_docs = (REPO_ROOT / "docs/deployment-guides/platforms/render.mdx").read_text()
-    railway_docs = (REPO_ROOT / "docs/deployment-guides/platforms/railway.mdx").read_text()
-    expected_render_links = (
-        "https://render.com/deploy?repo=https://github.com/maximhq/bifrost/tree/main",
-        "https://render.com/deploy?repo=https://github.com/maximhq/bifrost/tree/render-sqlite",
-    )
-    for link in expected_render_links:
-        if link not in render_docs:
-            fail(f"Render documentation is missing branch-bound button {link}")
-    railway_postgres = "https://railway.com/new/template/blue-dark"
-    if railway_postgres not in railway_docs:
-        fail("Railway documentation is missing the blue-dark PostgreSQL button")
+def one_click_targets() -> list[dict[str, Any]]:
+    """Every one-click button, paired with the evidence that it may be published.
 
-    sqlite_contract = json.loads((REPO_ROOT / "deploy/railway/sqlite.template-contract.json").read_text())
-    sqlite_slug = sqlite_contract["template"]["slug"]
-    if not sqlite_slug:
-        # The contract exists before the template is published. Say so out loud:
-        # a silent pass here reads as "the SQLite button is verified".
-        print("::notice::deploy/railway/sqlite.template-contract.json has no slug yet; the Railway SQLite button is unverified.")
-    elif f"https://railway.com/new/template/{sqlite_slug}" not in railway_docs:
-        fail("Railway SQLite template slug is not linked from its documentation")
+    A live button is a public claim that the artifact behind it was deployed and
+    checked. Nothing in this repository can inspect a live Render Blueprint or
+    Railway template, so the claim rests on a recorded verification — and a
+    button whose record is empty must not be advertised. The relationship is
+    enforced in both directions so that verifying a template and publishing its
+    button cannot drift apart.
+    """
+    render = json.loads((REPO_ROOT / "deploy/render/blueprint-verification.json").read_text())
+    render_docs = REPO_ROOT / "docs/deployment-guides/platforms/render.mdx"
+    railway_docs = REPO_ROOT / "docs/deployment-guides/platforms/railway.mdx"
+
+    targets: list[dict[str, Any]] = []
+    for name, entry in render["blueprints"].items():
+        targets.append(
+            {
+                "label": f"Render {name}",
+                "doc": render_docs,
+                "url": entry["button_url"],
+                "verified": bool(entry["last_verified"]),
+                "evidence": "deploy/render/blueprint-verification.json",
+            }
+        )
+
+    for name, filename in (("PostgreSQL", "postgres"), ("SQLite", "sqlite")):
+        evidence = f"deploy/railway/{filename}.template-contract.json"
+        template = json.loads((REPO_ROOT / evidence).read_text())["template"]
+        slug = template["slug"]
+        targets.append(
+            {
+                "label": f"Railway {name}",
+                "doc": railway_docs,
+                "url": f"https://railway.com/new/template/{slug}" if slug else None,
+                # An unassigned slug means the template is not published at all,
+                # so it can never be verified regardless of the date recorded.
+                "verified": bool(slug) and bool(template["last_verified"]),
+                "evidence": evidence,
+            }
+        )
+    return targets
+
+
+def validate_documentation_links() -> None:
+    targets = one_click_targets()
+    for target in targets:
+        docs = target["doc"].read_text()
+        doc_label = str(target["doc"].relative_to(REPO_ROOT))
+        if target["verified"]:
+            if target["url"] not in docs:
+                fail(f"{target['label']} is verified in {target['evidence']} but {doc_label} does not link {target['url']}")
+        elif target["url"] and target["url"] in docs:
+            fail(
+                f"{doc_label} publishes the {target['label']} one-click button while "
+                f"{target['evidence']} records no verification. Verify the live template and record "
+                f"last_verified, or remove the button."
+            )
+
+    # The overview advertises the hosted one-click choices as a group. It may do
+    # so only while at least one of them is actually published.
+    overview = (REPO_ROOT / "docs/deployment-guides/overview.mdx").read_text()
+    verified = [target["label"] for target in targets if target["verified"]]
+    if verified and HOSTED_ONE_CLICK_HEADING not in overview:
+        fail(f"docs/deployment-guides/overview.mdx must list the published one-click choices ({', '.join(verified)})")
+    if not verified and HOSTED_ONE_CLICK_HEADING in overview:
+        fail(
+            "docs/deployment-guides/overview.mdx advertises hosted one-click choices while no template "
+            "is verified. Remove the section until a button is published."
+        )
 
 
 def main() -> int:
