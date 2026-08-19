@@ -27,7 +27,7 @@ set -e
 
 [ -f "$CONFIG_DIR/config.json" ] || fail "BIFROST_CONFIG was not materialized"
 [ "$(cat "$CONFIG_DIR/config.json")" = '{"source_of_truth":"split"}' ] || fail "materialized config content changed"
-[ "$(stat -f '%Lp' "$CONFIG_DIR/config.json" 2>/dev/null || stat -c '%a' "$CONFIG_DIR/config.json")" = "600" ] || fail "materialized config mode is not 0600"
+[ "$(stat -c '%a' "$CONFIG_DIR/config.json" 2>/dev/null || stat -f '%Lp' "$CONFIG_DIR/config.json")" = "600" ] || fail "materialized config mode is not 0600"
 
 PAIR_DIR="$TEST_ROOT/pair"
 mkdir -p "$PAIR_DIR"
