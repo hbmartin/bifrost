@@ -1699,3 +1699,83 @@ func TestResponsesToChatStreamItemIDJoinsIndexlessHeaderToIndexedDeltas(t *testi
 		}
 	})
 }
+
+// An output_item.added always names a new item, so a provider that stamps one
+// output_index on every item (the same out-of-spec class as one that omits the
+// index) must not have its tool calls merged onto a single chat ordinal. The
+// first item keeps the index binding, so the deltas that carry only that index
+// still reach the call they belong to, while a re-announced identity resolves
+// to the ordinal it already holds instead of opening an argument-less duplicate.
+func TestResponsesToChatStreamReusedOutputIndexOnItemAddedAllocatesFreshOrdinal(t *testing.T) {
+	functionType := ResponsesMessageTypeFunctionCall
+	added := func(state *ResponsesToChatStreamState, itemID, callID string, outputIndex *int) uint16 {
+		resp := (&BifrostResponsesStreamResponse{
+			Type:        ResponsesStreamResponseTypeOutputItemAdded,
+			OutputIndex: outputIndex,
+			Item: &ResponsesMessage{
+				ID:   Ptr(itemID),
+				Type: &functionType,
+				ResponsesToolMessage: &ResponsesToolMessage{
+					CallID: Ptr(callID),
+					Name:   Ptr("tool_" + callID),
+				},
+			},
+		}).ToBifrostChatResponseWithState(state)
+		return resp.Choices[0].ChatStreamResponseChoice.Delta.ToolCalls[0].Index
+	}
+	argsDelta := func(state *ResponsesToChatStreamState, itemID *string, outputIndex *int) uint16 {
+		resp := (&BifrostResponsesStreamResponse{
+			Type:        ResponsesStreamResponseTypeFunctionCallArgumentsDelta,
+			OutputIndex: outputIndex,
+			ItemID:      itemID,
+			Delta:       Ptr(`{"value":1}`),
+		}).ToBifrostChatResponseWithState(state)
+		return resp.Choices[0].ChatStreamResponseChoice.Delta.ToolCalls[0].Index
+	}
+
+	t.Run("distinct items share one output index", func(t *testing.T) {
+		state := &ResponsesToChatStreamState{}
+		if got := added(state, "fc-1", "call-1", Ptr(0)); got != 0 {
+			t.Fatalf("first tool-call index = %d, want 0", got)
+		}
+		if got := added(state, "fc-2", "call-2", Ptr(0)); got != 1 {
+			t.Fatalf("second header on the reused output index got %d, want 1 (a new item must not share an ordinal)", got)
+		}
+		if got := argsDelta(state, Ptr("fc-2"), Ptr(0)); got != 1 {
+			t.Fatalf("argument delta for fc-2 got index %d, want 1", got)
+		}
+		if got := argsDelta(state, Ptr("fc-1"), Ptr(0)); got != 0 {
+			t.Fatalf("argument delta for fc-1 got index %d, want 0", got)
+		}
+		// The first item keeps the index binding, so an identity-less delta on
+		// the shared index continues the call that claimed it.
+		if got := argsDelta(state, nil, Ptr(0)); got != 0 {
+			t.Fatalf("identity-less delta on the shared index got %d, want 0", got)
+		}
+		// A third item on the same index keeps allocating.
+		if got := added(state, "fc-3", "call-3", Ptr(0)); got != 2 {
+			t.Fatalf("third header on the reused output index got %d, want 2", got)
+		}
+	})
+
+	t.Run("re-announced item keeps its ordinal", func(t *testing.T) {
+		state := &ResponsesToChatStreamState{}
+		if got := added(state, "fc-1", "call-1", Ptr(0)); got != 0 {
+			t.Fatalf("first tool-call index = %d, want 0", got)
+		}
+		if got := added(state, "fc-2", "call-2", Ptr(1)); got != 1 {
+			t.Fatalf("second tool-call index = %d, want 1", got)
+		}
+		// A duplicated header must be idempotent, not open a second call that
+		// never receives arguments.
+		if got := added(state, "fc-1", "call-1", Ptr(0)); got != 0 {
+			t.Fatalf("re-announced fc-1 got index %d, want 0", got)
+		}
+		if got := argsDelta(state, Ptr("fc-1"), Ptr(0)); got != 0 {
+			t.Fatalf("argument delta after the duplicate header got index %d, want 0", got)
+		}
+		if got := added(state, "fc-3", "call-3", Ptr(2)); got != 2 {
+			t.Fatalf("next new item got index %d, want 2 (the duplicate must not consume an ordinal)", got)
+		}
+	})
+}
