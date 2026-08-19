@@ -16,9 +16,74 @@ permissions:
   contents: write
 
 jobs:
+  # Hard release gate: the public deploy button consumes the published branch
+  # directly, so it must never advance before maximhq/bifrost:latest resolves to
+  # the qualified release. Re-run via workflow_dispatch after the release ships.
+  #
+  # Once per required platform, because the published release is two artifacts:
+  # linux/amd64 and linux/arm64 are built on their own native runners and merged
+  # into one manifest list. `docker run` resolves that list to whatever the host
+  # is, so a single runner can only ever execute one of them, and an arm64
+  # runtime stage that cannot start would pass a gate that only proved its
+  # manifest exists. Native runners rather than emulation — a release gate that
+  # flakes gets bypassed.
+  release-gate:
+    name: Release Gate (${{ matrix.platform }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            platform: linux/amd64
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
+        with:
+          egress-policy: block
+          allowed-endpoints: >
+            api.github.com:443
+            auth.docker.io:443
+            github.com:443
+            production.cloudflare.docker.com:443
+            registry-1.docker.io:443
+
+      # This workflow force-pushes to a branch a public deploy button reads
+      # directly, and workflow_dispatch accepts any ref the caller selects, so
+      # every job refuses anything but main. See the publish job below for why
+      # the ref travels through the environment.
+      - name: Require main
+        env:
+          WORKFLOW_REF: ${{ github.ref }}
+        run: |
+          if [ "$WORKFLOW_REF" != "refs/heads/main" ]; then
+            echo "::error::publish-render-sqlite-branch may only run from refs/heads/main (got $WORKFLOW_REF)"
+            exit 1
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Verify public image release gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BIFROST_SMOKE_PLATFORM: ${{ matrix.platform }}
+        run: bash .github/workflows/scripts/verify-deployment-release.sh
+
   publish:
+    needs: release-gate
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: write
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
@@ -54,14 +119,6 @@ jobs:
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
-
-      # Hard release gate: the public deploy button consumes this branch directly,
-      # so it must never advance before maximhq/bifrost:latest resolves to the
-      # qualified release. Re-run via workflow_dispatch after the release ships.
-      - name: Verify public image release gate
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: bash .github/workflows/scripts/verify-deployment-release.sh
 
       - name: Publish generated branch
         env:

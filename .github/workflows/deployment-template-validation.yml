@@ -90,23 +90,6 @@ jobs:
           shellcheck transports/docker-entrypoint.sh transports/docker-entrypoint_test.sh
           sh transports/docker-entrypoint_test.sh
 
-      # The strict gate lives in publish-render-sqlite-branch.yml, which refuses to
-      # publish the public one-click branch before the qualified release exists. Here
-      # it only warns on pull requests: the PR that introduces the gated runtime
-      # contract necessarily precedes the release that satisfies it.
-      - name: Verify public image release gate
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          if bash .github/workflows/scripts/verify-deployment-release.sh; then
-            exit 0
-          fi
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            echo "::warning::maximhq/bifrost:latest does not resolve to the qualified release yet; do not publish or update the public one-click templates until it does."
-            exit 0
-          fi
-          exit 1
-
       - name: Validate Render Blueprints
         env:
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
@@ -118,3 +101,60 @@ jobs:
           fi
           render blueprints validate --workspace "$RENDER_WORKSPACE_ID" render.yaml
           render blueprints validate --workspace "$RENDER_WORKSPACE_ID" deploy/render/render-sqlite.yaml
+
+  # The published release is two artifacts: linux/amd64 and linux/arm64 are built
+  # on their own native runners and merged into one manifest list. `docker run`
+  # resolves that list to whatever the host is, so a single runner can only ever
+  # execute one of them, and an arm64 runtime stage that cannot start would pass
+  # a gate that only proved its manifest exists. Run the gate once per required
+  # platform, on a runner that executes it natively rather than under emulation —
+  # a release gate that flakes gets bypassed.
+  release-gate:
+    name: Release Gate (${{ matrix.platform }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            platform: linux/amd64
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
+        with:
+          egress-policy: block
+          allowed-endpoints: >
+            api.github.com:443
+            auth.docker.io:443
+            github.com:443
+            production.cloudflare.docker.com:443
+            registry-1.docker.io:443
+
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      # The strict gate lives in publish-render-sqlite-branch.yml, which refuses to
+      # publish the public one-click branch before the qualified release exists. Here
+      # it only warns on pull requests: the PR that introduces the gated runtime
+      # contract necessarily precedes the release that satisfies it.
+      - name: Verify public image release gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BIFROST_SMOKE_PLATFORM: ${{ matrix.platform }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if bash .github/workflows/scripts/verify-deployment-release.sh; then
+            exit 0
+          fi
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            echo "::warning::maximhq/bifrost:latest does not resolve to the qualified release on $BIFROST_SMOKE_PLATFORM yet; do not publish or update the public one-click templates until it does."
+            exit 0
+          fi
+          exit 1
