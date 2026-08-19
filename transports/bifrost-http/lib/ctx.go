@@ -391,10 +391,14 @@ func ConvertToBifrostContext(ctx *fasthttp.RequestCtx, store HandlerStore) (*sch
 		}
 		// MCP control headers (include-only filtering)
 		if labelName, ok := strings.CutPrefix(keyStr, "x-bf-mcp-"); ok {
+			var contextKey schemas.BifrostContextKey
 			switch labelName {
 			case "include-clients":
-				fallthrough
+				contextKey = schemas.MCPContextKeyIncludeClients
 			case "include-tools":
+				contextKey = schemas.MCPContextKeyIncludeTools
+			}
+			if contextKey != "" {
 				// Parse comma-separated values. An explicitly present header with
 				// no usable names is an empty allow-list: store a non-nil empty
 				// slice so downstream nil-vs-empty checks read it as "admit
@@ -407,7 +411,7 @@ func ConvertToBifrostContext(ctx *fasthttp.RequestCtx, store HandlerStore) (*sch
 						parsedValues = append(parsedValues, trimmed)
 					}
 				}
-				bifrostCtx.SetValue(schemas.BifrostContextKey("mcp-"+labelName), parsedValues)
+				bifrostCtx.SetValue(contextKey, parsedValues)
 				return true
 			}
 		}
