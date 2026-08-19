@@ -17,9 +17,33 @@ set -euo pipefail
 # that flakes gets bypassed. The entrypoint materializes BIFROST_CONFIG before
 # it execs Bifrost, so the volume tells us the whole story either way.
 #
-# Usage: smoke-test-published-image.sh <image-ref>
+# One invocation covers one platform. `docker run` resolves a multi-platform
+# reference to the host's architecture, so the caller passes the platform it
+# means to test and the image ref for it; every required platform needs its own
+# run, preferably on a runner that executes it natively.
+#
+# Usage: smoke-test-published-image.sh <image-ref> [platform]
 
-IMAGE_REF=${1:?usage: smoke-test-published-image.sh <image-ref>}
+IMAGE_REF=${1:?usage: smoke-test-published-image.sh <image-ref> [platform]}
+PLATFORM=${2:-}
+
+# The expected machine name closes the loop on the platform argument: --platform
+# alone would silently fall back to emulation, or to the host architecture for a
+# single-platform reference, and a smoke test that quietly tested amd64 twice
+# reads exactly like one that covered both.
+PLATFORM_ARGS=()
+EXPECTED_MACHINE=""
+if [ -n "$PLATFORM" ]; then
+  PLATFORM_ARGS=(--platform "$PLATFORM")
+  case "$PLATFORM" in
+    linux/amd64) EXPECTED_MACHINE=x86_64 ;;
+    linux/arm64) EXPECTED_MACHINE=aarch64 ;;
+    *)
+      echo "ERROR: unsupported platform $PLATFORM (expected linux/amd64 or linux/arm64)" >&2
+      exit 1
+      ;;
+  esac
+fi
 
 CONTAINER="bifrost-release-smoke-$$"
 VOLUME="bifrost-release-smoke-volume-$$"
@@ -31,7 +55,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-echo "Smoke-testing $IMAGE_REF"
+echo "Smoke-testing $IMAGE_REF${PLATFORM:+ for $PLATFORM}"
 
 # The Blueprints hand Bifrost its configuration through BIFROST_CONFIG and drop
 # privileges on platform volumes through su-exec. A release without either
@@ -42,15 +66,20 @@ echo "Smoke-testing $IMAGE_REF"
 # that lost a library — satisfies `command -v` and still leaves every deployment
 # that drops privileges refusing to start. Dropping privileges needs root, and
 # the image declares USER 1000:0, so this check asks for it explicitly.
-if ! docker run --rm --user 0:0 --entrypoint sh "$IMAGE_REF" -c '
+if ! docker run --rm --user 0:0 "${PLATFORM_ARGS[@]}" \
+  -e EXPECTED_MACHINE="$EXPECTED_MACHINE" --entrypoint sh "$IMAGE_REF" -c '
   set -e
+  if [ -n "$EXPECTED_MACHINE" ] && [ "$(uname -m)" != "$EXPECTED_MACHINE" ]; then
+    echo "image runs as $(uname -m), expected $EXPECTED_MACHINE"
+    exit 1
+  fi
   command -v su-exec >/dev/null 2>&1 || { echo "su-exec is not installed"; exit 1; }
   dropped=$(su-exec 1000:0 id -u) || { echo "su-exec is installed but could not execute"; exit 1; }
   [ "$dropped" = "1000" ] || { echo "su-exec dropped to UID $dropped, expected 1000"; exit 1; }
   grep -q "materialize_inline_config" /app/docker-entrypoint.sh || { echo "entrypoint does not materialize BIFROST_CONFIG"; exit 1; }
   grep -q "BIFROST_RUN_AS_UID" /app/docker-entrypoint.sh || { echo "entrypoint does not support privilege dropping"; exit 1; }
 '; then
-  echo "ERROR: $IMAGE_REF does not carry the deployment runtime contract" >&2
+  echo "ERROR: $IMAGE_REF${PLATFORM:+ ($PLATFORM)} does not carry the deployment runtime contract" >&2
   exit 1
 fi
 
@@ -61,7 +90,7 @@ fi
 # evidence the privilege-drop path ran, not a property of the image.
 docker volume create "$VOLUME" >/dev/null
 docker run -d --name "$CONTAINER" \
-  --user 0:0 \
+  --user 0:0 "${PLATFORM_ARGS[@]}" \
   -v "$VOLUME:/app/data" \
   -e APP_HOST=127.0.0.1 \
   -e APP_PORT=8080 \
@@ -75,7 +104,7 @@ docker run -d --name "$CONTAINER" \
 # starts, exits, or is still booting.
 materialized=""
 for _ in $(seq 1 30); do
-  if materialized=$(docker run --rm --user 0:0 -v "$VOLUME:/app/data" --entrypoint sh "$IMAGE_REF" -c '
+  if materialized=$(docker run --rm --user 0:0 "${PLATFORM_ARGS[@]}" -v "$VOLUME:/app/data" --entrypoint sh "$IMAGE_REF" -c '
     [ -f /app/data/config.json ] || exit 1
     printf "%s %s %s" "$(stat -c "%u:%g" /app/data/config.json)" \
       "$(stat -c "%a" /app/data/config.json)" "$(cat /app/data/config.json)"
@@ -98,4 +127,4 @@ if [ "$materialized" != "$expected" ]; then
   exit 1
 fi
 
-echo "$IMAGE_REF materializes BIFROST_CONFIG as 1000:0 at mode 0600 and drops privileges through su-exec"
+echo "$IMAGE_REF${PLATFORM:+ ($PLATFORM)} materializes BIFROST_CONFIG as 1000:0 at mode 0600 and drops privileges through su-exec"
