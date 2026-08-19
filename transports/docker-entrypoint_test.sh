@@ -190,4 +190,68 @@ chmod 700 "$NO_TRAVERSE_DIR/logs"
 [ "$NO_TRAVERSE_EXIT" -ne 0 ] || fail "a logs directory without search permission was accepted"
 grep -q "$NO_TRAVERSE_DIR/logs is not usable" "$TEST_ROOT/no-traverse-logs.out" || fail "logs directory without search permission was not named"
 
+# SQLite opens its databases in WAL mode, so it leaves -wal and -shm sidecars
+# beside them. A sidecar the target identity cannot open stops Bifrost exactly
+# like an unusable database does, and it can outlive a correctly owned database:
+# a root-owned run killed mid-flight leaves the sidecar behind, and repairing
+# only the paths with fixed names would never look at it.
+#
+# These cases exercise the probe. The ownership repair reads the same glob list,
+# but only runs as root with CAP_CHOWN, which this suite does not assume.
+SIDECAR_DIR="$TEST_ROOT/unusable-sidecar"
+mkdir -p "$SIDECAR_DIR"
+: >"$SIDECAR_DIR/config.db"
+: >"$SIDECAR_DIR/config.db-wal"
+chmod 000 "$SIDECAR_DIR/config.db-wal"
+set +e
+APP_DIR="$SIDECAR_DIR" \
+APP_PORT=8080 \
+APP_HOST=127.0.0.1 \
+LOG_LEVEL=info \
+LOG_STYLE=json \
+    sh "$ENTRYPOINT" >"$TEST_ROOT/unusable-sidecar.out" 2>&1
+SIDECAR_EXIT=$?
+set -e
+chmod 600 "$SIDECAR_DIR/config.db-wal"
+
+[ "$SIDECAR_EXIT" -ne 0 ] || fail "an unusable config.db-wal was accepted"
+grep -q "$SIDECAR_DIR/config.db-wal is not usable" "$TEST_ROOT/unusable-sidecar.out" || fail "unusable config.db-wal was not named"
+
+LOG_SIDECAR_DIR="$TEST_ROOT/unusable-log-sidecar"
+mkdir -p "$LOG_SIDECAR_DIR"
+: >"$LOG_SIDECAR_DIR/logs.db"
+: >"$LOG_SIDECAR_DIR/logs.db-shm"
+chmod 000 "$LOG_SIDECAR_DIR/logs.db-shm"
+set +e
+APP_DIR="$LOG_SIDECAR_DIR" \
+APP_PORT=8080 \
+APP_HOST=127.0.0.1 \
+LOG_LEVEL=info \
+LOG_STYLE=json \
+    sh "$ENTRYPOINT" >"$TEST_ROOT/unusable-log-sidecar.out" 2>&1
+LOG_SIDECAR_EXIT=$?
+set -e
+chmod 600 "$LOG_SIDECAR_DIR/logs.db-shm"
+
+[ "$LOG_SIDECAR_EXIT" -ne 0 ] || fail "an unusable logs.db-shm was accepted"
+grep -q "$LOG_SIDECAR_DIR/logs.db-shm is not usable" "$TEST_ROOT/unusable-log-sidecar.out" || fail "unusable logs.db-shm was not named"
+
+# The counterpart to the glob: a volume may carry entries Bifrost never opens.
+# ext4-backed volumes mount a root-owned lost+found, and requiring it to be
+# usable would refuse a perfectly good disk on every platform that provides one.
+UNRELATED_DIR="$TEST_ROOT/unrelated-entry"
+mkdir -p "$UNRELATED_DIR/lost+found"
+chmod 000 "$UNRELATED_DIR/lost+found"
+set +e
+APP_DIR="$UNRELATED_DIR" \
+APP_PORT=8080 \
+APP_HOST=127.0.0.1 \
+LOG_LEVEL=info \
+LOG_STYLE=json \
+    sh "$ENTRYPOINT" >"$TEST_ROOT/unrelated-entry.out" 2>&1
+set -e
+chmod 700 "$UNRELATED_DIR/lost+found"
+
+! grep -q "is not usable" "$TEST_ROOT/unrelated-entry.out" || fail "an unrelated unusable entry was rejected"
+
 echo "docker-entrypoint tests passed"
