@@ -501,6 +501,12 @@ func TestSerialConstraintPinnedKeyIgnoresOtherAliases(t *testing.T) {
 		ctx.SetValue(schemas.BifrostContextKeyRequireSerialToolCalls, true)
 		ctx.SetValue(schemas.BifrostContextKeyAPIKeyID, "bad")
 
+		// Count what upstream has already seen instead of assuming the sibling
+		// subtest above ran: this subtest asserts only that it adds nothing.
+		mu.Lock()
+		before := len(recordedBodies)
+		mu.Unlock()
+
 		resp, bifrostErr := client.ChatCompletionRequest(ctx, newSerialConstraintChatRequest(schemas.OpenAI, "voice"))
 		assert.Nil(t, resp)
 		require.NotNil(t, bifrostErr)
@@ -508,7 +514,7 @@ func TestSerialConstraintPinnedKeyIgnoresOtherAliases(t *testing.T) {
 
 		mu.Lock()
 		defer mu.Unlock()
-		assert.Len(t, recordedBodies, 1, "the rejected request must never reach the upstream")
+		assert.Len(t, recordedBodies, before, "the rejected request must never reach the upstream")
 	})
 }
 
