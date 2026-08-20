@@ -389,7 +389,12 @@ ensure_app_dir() {
         fi
     fi
 
-    chmod g+rwX "$APP_DIR/logs" 2>/dev/null || true
+    # Preserve group-write access for the standard and arbitrary-UID images, but
+    # never hand chmod a symlink operand: chmod would apply the mode change to
+    # its target, which may be a directory outside APP_DIR.
+    if [ ! -L "$APP_DIR/logs" ]; then
+        chmod g+rwX "$APP_DIR/logs" 2>/dev/null || true
+    fi
 }
 
 # Prepare the app directory before starting the application
