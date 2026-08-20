@@ -9,6 +9,11 @@ fail() {
     exit 1
 }
 
+# Permission assertions in this suite deliberately exercise the identity that
+# invokes the entrypoint. Root bypasses several read/write checks even on mode
+# 000 paths, so running as root would make those cases meaningless.
+[ "$(id -u)" -ne 0 ] || fail "docker-entrypoint tests must run as a non-root user"
+
 # Appending a non-newline sentinel before command substitution preserves any
 # trailing newlines in the file, unlike a bare $(cat ...), while avoiding cmp:
 # UBI Minimal does not include that utility in the runtime image.
@@ -181,6 +186,31 @@ set -e
 grep -q "APP_DIR must not be a symlink" "$TEST_ROOT/app-dir-link.out" || fail "a symlinked APP_DIR did not fail clearly"
 APP_DIR_LINK_LOGS_MODE=$(file_mode "$APP_DIR_LINK_TARGET/logs")
 [ "$APP_DIR_LINK_LOGS_MODE" = "700" ] || fail "a symlinked APP_DIR changed an out-of-tree logs directory (now $APP_DIR_LINK_LOGS_MODE)"
+
+# Database entries are files, not directories. If a symlink points into a
+# writable directory, SQLite can create a missing target through it; treating
+# every dangling write-path symlink like an unmaterializable logs/ directory
+# would reject a valid way to place the databases on another volume.
+CREATABLE_LINK_DIR="$TEST_ROOT/creatable-db-links"
+CREATABLE_LINK_TARGET_DIR="$TEST_ROOT/creatable-db-targets"
+mkdir -p "$CREATABLE_LINK_DIR" "$CREATABLE_LINK_TARGET_DIR"
+for DB_NAME in config.db logs.db; do
+    ln -s "$CREATABLE_LINK_TARGET_DIR/$DB_NAME" "$CREATABLE_LINK_DIR/$DB_NAME"
+done
+set +e
+APP_DIR="$CREATABLE_LINK_DIR" \
+APP_PORT=8080 \
+APP_HOST=127.0.0.1 \
+LOG_LEVEL=info \
+LOG_STYLE=json \
+    sh "$ENTRYPOINT" >"$TEST_ROOT/creatable-db-links.out" 2>&1
+set -e
+
+! grep -q "is not usable" "$TEST_ROOT/creatable-db-links.out" || fail "a creatable database symlink was rejected"
+for DB_NAME in config.db logs.db; do
+    : >"$CREATABLE_LINK_DIR/$DB_NAME"
+    [ -f "$CREATABLE_LINK_TARGET_DIR/$DB_NAME" ] || fail "a missing $DB_NAME target could not be created through its symlink"
+done
 
 # A database left behind by an earlier root-owned run sits inside an APP_DIR
 # whose own ownership is already correct, so the create-directory probe passes
@@ -543,12 +573,13 @@ set -e
 
 [ "$DANGLING_EXIT" -ne 0 ] || fail "a dangling logs symlink was accepted"
 grep -q "$DANGLING_DIR/logs is not usable" "$TEST_ROOT/dangling-logs.out" || fail "the dangling logs symlink was not named"
-grep -q "symlink to a target that does not exist" "$TEST_ROOT/dangling-logs.out" || fail "the dangling logs symlink was not called one"
+grep -q "target does not exist or cannot be resolved" "$TEST_ROOT/dangling-logs.out" || fail "the dangling logs symlink did not explain the unresolved target"
+grep -q "every parent is searchable" "$TEST_ROOT/dangling-logs.out" || fail "the dangling logs symlink did not explain the permission alternative"
 
 # When a logs symlink points at a target the runtime identity cannot write, the
-# failure must name the symlink. The generic volume-ownership advice cannot fix
-# it — the ownership repair deliberately never follows symlinks — and the owner
-# in the message is the target's, a path outside APP_DIR.
+# failure must name the symlink. The entrypoint cannot apply its generic repair
+# through that link; the operator must configure the target or its mounted
+# volume directly, and the owner in the message must be the target's.
 SYMLOG_DIR="$TEST_ROOT/symlinked-logs"
 mkdir -p "$SYMLOG_DIR"
 SYMLOG_TARGET_DIR="$TEST_ROOT/symlinked-logs-target"
@@ -569,7 +600,33 @@ chmod 700 "$SYMLOG_TARGET_DIR"
 [ "$SYMLOG_EXIT" -ne 0 ] || fail "a logs symlink to an unwritable target was accepted"
 grep -q "$SYMLOG_DIR/logs is not usable" "$TEST_ROOT/symlinked-logs.out" || fail "the unwritable logs symlink was not named"
 grep -q "This path is a symlink" "$TEST_ROOT/symlinked-logs.out" || fail "the failure did not name the symlink as the cause"
+grep -q "target owned by" "$TEST_ROOT/symlinked-logs.out" || fail "the failure labeled the symlink owner as the target owner"
 ! grep -q "set podSecurityContext.fsGroup" "$TEST_ROOT/symlinked-logs.out" || fail "a symlinked logs failure still gave volume-ownership advice that cannot fix it"
+
+# -e cannot distinguish a missing target from one below a parent the runtime
+# identity cannot search. The target here exists, so the diagnostic must not
+# tell the operator to create it; it must name both existence and permissions.
+UNRESOLVABLE_DIR="$TEST_ROOT/unresolvable-logs"
+mkdir -p "$UNRESOLVABLE_DIR"
+UNRESOLVABLE_PARENT="$TEST_ROOT/unresolvable-parent"
+mkdir -p "$UNRESOLVABLE_PARENT/logs"
+ln -s "$UNRESOLVABLE_PARENT/logs" "$UNRESOLVABLE_DIR/logs"
+chmod 000 "$UNRESOLVABLE_PARENT"
+set +e
+APP_DIR="$UNRESOLVABLE_DIR" \
+APP_PORT=8080 \
+APP_HOST=127.0.0.1 \
+LOG_LEVEL=info \
+LOG_STYLE=json \
+    sh "$ENTRYPOINT" >"$TEST_ROOT/unresolvable-logs.out" 2>&1
+UNRESOLVABLE_EXIT=$?
+set -e
+chmod 700 "$UNRESOLVABLE_PARENT"
+
+[ "$UNRESOLVABLE_EXIT" -ne 0 ] || fail "a logs symlink below a non-searchable parent was accepted"
+grep -q "$UNRESOLVABLE_DIR/logs is not usable" "$TEST_ROOT/unresolvable-logs.out" || fail "the unresolvable logs symlink was not named"
+grep -q "does not exist or cannot be resolved" "$TEST_ROOT/unresolvable-logs.out" || fail "an unresolvable target was incorrectly called nonexistent"
+grep -q "every parent is searchable" "$TEST_ROOT/unresolvable-logs.out" || fail "an unresolvable target did not name missing search permission"
 
 # The pattern list contains logs/*. Split with pathname expansion on, that word
 # expands against the working directory before anything anchors it to APP_DIR:
