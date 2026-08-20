@@ -2,6 +2,11 @@
 set -e
 
 APP_DIR=${APP_DIR:-/app/data}
+# Normalize trailing separators so a value such as /app/data/ cannot hide a
+# final-component symlink from the guard in ensure_app_dir.
+while [ "$APP_DIR" != "/" ] && [ "${APP_DIR%/}" != "$APP_DIR" ]; do
+    APP_DIR=${APP_DIR%/}
+done
 RUN_AS_UID=${BIFROST_RUN_AS_UID:-}
 RUN_AS_GID=${BIFROST_RUN_AS_GID:-}
 
@@ -12,12 +17,13 @@ RUN_AS_GID=${BIFROST_RUN_AS_GID:-}
 # databases. Both the ownership repair and the probe walk these explicitly.
 # Literal names, never patterns: they are split with pathname expansion on, and a
 # name carrying a glob character would expand somewhere it was never meant to.
-DATA_WRITE_ENTRIES=". config.db logs.db logs"
-# Globs, relative to APP_DIR, for the entries whose names are not fixed. SQLite
-# leaves -wal and -shm sidecars beside every database it opens in WAL mode, and
-# a root-owned sidecar stops Bifrost opening the database just as dead as a
-# root-owned database does; log databases roll over into logs/, so a stale file
-# can sit inside a correctly owned directory.
+DATA_WRITE_ENTRIES=". config.db config.db-wal config.db-shm config.db-journal logs.db logs.db-wal logs.db-shm logs.db-journal logs"
+# Pattern, relative to APP_DIR, for rolled log databases whose names are not
+# fixed. The SQLite WAL sidecars and rollback journals above are exact literal
+# names: a hot -journal file may need recovery before SQLite can switch the
+# database back to WAL mode. Do not use config.db-* or logs.db-* here; those
+# patterns also match backups and other operator-owned files Bifrost never
+# opens.
 #
 # Globbed rather than "every immediate child of APP_DIR": an ext4-backed volume
 # mounts a root-owned lost+found that Bifrost never touches, and demanding it be
@@ -25,7 +31,7 @@ DATA_WRITE_ENTRIES=". config.db logs.db logs"
 # one. One list, used by both the ownership repair and the probe, so the two
 # cannot drift apart. Every reader splits it with pathname expansion off; see the
 # probe for what happens when it does not.
-DATA_WRITE_GLOBS="config.db-* logs.db-* logs/*"
+DATA_WRITE_GLOBS="logs/*"
 # config.json is only read. Deployments legitimately mount it read-only, so it
 # is never required to be writable and never triggers an ownership repair.
 DATA_READ_ENTRIES="config.json"
@@ -224,6 +230,13 @@ misowned_data_paths() {
     set -- $DATA_WRITE_GLOBS
     set +f
     for _pattern in "$@"; do
+        # Expanding logs/* would traverse a top-level logs symlink before
+        # report_if_misowned could apply its final-component symlink guard. The
+        # repair deliberately leaves such a symlink alone; the write probe still
+        # checks the target because that is where Bifrost itself would write.
+        if [ "$_pattern" = "logs/*" ] && [ -L "$APP_DIR/logs" ]; then
+            continue
+        fi
         for _path in "$APP_DIR"/$_pattern; do
             report_if_misowned "$_path"
         done
@@ -278,8 +291,11 @@ repair_data_path() {
 
 # repair_data_paths repairs APP_DIR and the paths Bifrost actually opens: the
 # same DATA_WRITE_ENTRIES and DATA_WRITE_GLOBS the probe and misowned_data_paths
-# walk, so what gets repaired cannot drift from what gets checked. The sidecars
-# that once justified a wider walk are covered by the globs.
+# walk, so what gets repaired cannot drift from what gets checked. The exact
+# sidecar paths are repaired directly. logs/* is already covered by the one
+# recursive repair of the literal logs directory, so expanding it again would
+# repeat the full chown/chmod once per child and would traverse a logs symlink
+# before repair_data_path could reject the resulting descendant.
 #
 # Not every immediate child of APP_DIR. A volume carries entries Bifrost never
 # opens — an ext4-backed one mounts a root-owned lost+found — and a single
@@ -315,6 +331,9 @@ repair_data_paths() {
     set -- $DATA_WRITE_GLOBS
     set +f
     for _pattern in "$@"; do
+        if [ "$_pattern" = "logs/*" ]; then
+            continue
+        fi
         for _path in "$APP_DIR"/$_pattern; do
             if ! repair_data_path "$_path"; then
                 _repair_status=1
@@ -327,6 +346,14 @@ repair_data_paths() {
 
 # Ensure APP_DIR exists when possible, but do not require CAP_CHOWN at startup.
 ensure_app_dir() {
+    # APP_DIR is the root of the privileged ownership-repair boundary. Checking
+    # only its children is insufficient when APP_DIR itself is a symlink: every
+    # apparently anchored chown/chmod would then resolve outside that boundary.
+    if [ -L "$APP_DIR" ]; then
+        echo "Error: APP_DIR must not be a symlink: $APP_DIR"
+        exit 1
+    fi
+
     mkdir -p "$APP_DIR" 2>/dev/null || true
 
     if [ ! -d "$APP_DIR" ]; then
