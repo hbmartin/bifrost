@@ -154,6 +154,13 @@ APP_DIR_PROBE='
     # inside it, and the glob below cannot even stat what it holds. Only
     # directories are asked for it — a data file is never executable.
     unusable_for_write() {
+        # A dangling symlink is unusable, not absent. -e follows the link and
+        # reports the missing target, which would skip the entry here while
+        # Bifrost still fails to write through it later — mkdir -p already
+        # tried and failed to materialize the target, silently.
+        if [ -L "$1" ] && [ ! -e "$1" ]; then
+            return 0
+        fi
         [ -e "$1" ] || return 1
         if [ ! -r "$1" ] || [ ! -w "$1" ]; then
             return 0
@@ -408,9 +415,24 @@ ensure_app_dir() {
         else
             echo "Error: $UNUSABLE_PATH is not usable by UID:GID $TARGET_UID:$TARGET_GID (owned by $DATA_UID:$DATA_GID)"
             echo "  Bifrost needs a writable APP_DIR for config.db and logs.db before startup."
-            echo "  On vanilla Kubernetes, set podSecurityContext.fsGroup (for example, 1000)."
-            echo "  On OpenShift (restricted-v2), leave fsGroup unset/null so the SCC assigns an in-range GID."
-            echo "  Or mount a volume writable by GID 0, matching the image's group-0 ownership."
+            # Volume-ownership advice cannot fix a symlink: the ownership repair
+            # deliberately never follows one, so fsGroup and friends would send
+            # the operator to a dead end while the real cause goes unnamed.
+            if [ -L "$UNUSABLE_PATH" ]; then
+                if [ -e "$UNUSABLE_PATH" ]; then
+                    echo "  This path is a symlink, and the ownership shown above is its target's."
+                    echo "  The automatic ownership repair never follows symlinks, so no volume or"
+                    echo "  fsGroup setting can fix this. Replace the symlink with a real directory,"
+                    echo "  or make its target usable by UID:GID $TARGET_UID:$TARGET_GID yourself."
+                else
+                    echo "  This path is a symlink to a target that does not exist. Replace it with"
+                    echo "  a real directory, or create the directory it points to."
+                fi
+            else
+                echo "  On vanilla Kubernetes, set podSecurityContext.fsGroup (for example, 1000)."
+                echo "  On OpenShift (restricted-v2), leave fsGroup unset/null so the SCC assigns an in-range GID."
+                echo "  Or mount a volume writable by GID 0, matching the image's group-0 ownership."
+            fi
             echo "  Set BIFROST_SKIP_WRITE_CHECK=1 to bypass for read-only deployments with external stores."
             exit 1
         fi
