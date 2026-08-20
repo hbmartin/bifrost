@@ -19,13 +19,9 @@ The contracts use the container runtime introduced in Bifrost `v1.6.12` and were
 
 ### PostgreSQL
 
-<Warning>
-The one-click button for this template is not published yet. The checked-in contract records what the template must contain, and nothing in this repository can read back what the live template currently serves; the button is enabled only once the live template has been inspected against that contract and the verification recorded.
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/new/template/blue-dark?utm_medium=integration&utm_source=button&utm_campaign=bifrost)
 
-Until then, reproduce the template manually from `deploy/railway/postgres.template-contract.json`.
-</Warning>
-
-Once verified, the Maxim-owned `blue-dark` template provisions Bifrost and PostgreSQL 18. Both stores require TLS, configuration and logs persist in PostgreSQL, and the Bifrost service has no unnecessary volume or root-user override.
+The Maxim-owned `blue-dark` template provisions Bifrost and PostgreSQL 18. Both stores require TLS, configuration and logs persist in PostgreSQL, and the Bifrost service has no unnecessary volume or root-user override.
 
 The auditable dashboard contract is checked in at `deploy/railway/postgres.template-contract.json`. Railway templates are published from its dashboard because `railway.json` describes only one service and cannot create this complete multi-service template.
 
