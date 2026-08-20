@@ -1,0 +1,1 @@
+- **One-Click Render and Railway Deployments** - Added validated platform templates, release gates, inline runtime configuration, and safe arbitrary-UID startup for persistent volumes (thanks [@hbmartin](https://github.com/hbmartin)!)

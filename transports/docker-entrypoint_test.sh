@@ -9,6 +9,13 @@ fail() {
     exit 1
 }
 
+# Appending a non-newline sentinel before command substitution preserves any
+# trailing newlines in the file, unlike a bare $(cat ...), while avoiding cmp:
+# UBI Minimal does not include that utility in the runtime image.
+file_content_matches() {
+    [ "$(cat "$1"; printf x)" = "${2}x" ]
+}
+
 TEST_ROOT=$(mktemp -d)
 trap 'rm -rf "$TEST_ROOT"' EXIT
 
@@ -26,8 +33,7 @@ BIFROST_CONFIG='{"source_of_truth":"split"}' \
 set -e
 
 [ -f "$CONFIG_DIR/config.json" ] || fail "BIFROST_CONFIG was not materialized"
-printf '%s' '{"source_of_truth":"split"}' >"$TEST_ROOT/materialized-config.expected"
-cmp -s "$TEST_ROOT/materialized-config.expected" "$CONFIG_DIR/config.json" || fail "materialized config content changed"
+file_content_matches "$CONFIG_DIR/config.json" '{"source_of_truth":"split"}' || fail "materialized config content changed"
 [ "$(stat -c '%a' "$CONFIG_DIR/config.json" 2>/dev/null || stat -f '%Lp' "$CONFIG_DIR/config.json")" = "600" ] || fail "materialized config mode is not 0600"
 
 PAIR_DIR="$TEST_ROOT/pair"
@@ -137,12 +143,31 @@ set -e
 # did not stop the document being materialized whole, and the diagnostic the
 # reject path prints never appeared.
 [ -f "$INDENTED_CONFIG_DIR/config.json" ] || fail "an indented BIFROST_CONFIG was rejected"
-# cmp, not two command substitutions: `$(...)` strips trailing newlines from
-# both sides, so the comparison it makes would pass on a config.json that lost
-# the document's own trailing newline. The expected bytes go to a file instead.
-printf '%s' "$INDENTED_CONFIG" >"$TEST_ROOT/indented-config.expected"
-cmp -s "$TEST_ROOT/indented-config.expected" "$INDENTED_CONFIG_DIR/config.json" || fail "indented config content changed"
+file_content_matches "$INDENTED_CONFIG_DIR/config.json" "$INDENTED_CONFIG" || fail "indented config content changed"
 ! grep -q "must hold a complete inline config.json document" "$TEST_ROOT/indented-config.out" || fail "an indented BIFROST_CONFIG was rejected"
+
+# APP_DIR is the root of every anchored repair path. A trailing slash must not
+# hide that APP_DIR itself is a symlink, or the final logs chmod and any
+# root-started ownership repair would operate through it.
+APP_DIR_LINK_TARGET="$TEST_ROOT/app-dir-link-target"
+mkdir -p "$APP_DIR_LINK_TARGET/logs"
+chmod 700 "$APP_DIR_LINK_TARGET/logs"
+APP_DIR_LINK="$TEST_ROOT/app-dir-link"
+ln -s "$APP_DIR_LINK_TARGET" "$APP_DIR_LINK"
+set +e
+APP_DIR="$APP_DIR_LINK/" \
+APP_PORT=8080 \
+APP_HOST=127.0.0.1 \
+LOG_LEVEL=info \
+LOG_STYLE=json \
+    sh "$ENTRYPOINT" >"$TEST_ROOT/app-dir-link.out" 2>&1
+APP_DIR_LINK_EXIT=$?
+set -e
+
+[ "$APP_DIR_LINK_EXIT" -ne 0 ] || fail "a symlinked APP_DIR was accepted"
+grep -q "APP_DIR must not be a symlink" "$TEST_ROOT/app-dir-link.out" || fail "a symlinked APP_DIR did not fail clearly"
+APP_DIR_LINK_LOGS_MODE=$(stat -c '%a' "$APP_DIR_LINK_TARGET/logs" 2>/dev/null || stat -f '%Lp' "$APP_DIR_LINK_TARGET/logs")
+[ "$APP_DIR_LINK_LOGS_MODE" = "700" ] || fail "a symlinked APP_DIR changed an out-of-tree logs directory (now $APP_DIR_LINK_LOGS_MODE)"
 
 # A database left behind by an earlier root-owned run sits inside an APP_DIR
 # whose own ownership is already correct, so the create-directory probe passes
@@ -249,6 +274,45 @@ chmod 600 "$LOG_SIDECAR_DIR/logs.db-shm"
 [ "$LOG_SIDECAR_EXIT" -ne 0 ] || fail "an unusable logs.db-shm was accepted"
 grep -q "$LOG_SIDECAR_DIR/logs.db-shm is not usable" "$TEST_ROOT/unusable-log-sidecar.out" || fail "unusable logs.db-shm was not named"
 
+# A hot rollback journal can predate the configured WAL mode. SQLite must read
+# it during recovery before opening the database, so it is part of the same
+# exact startup write set without widening the match to arbitrary backups.
+JOURNAL_DIR="$TEST_ROOT/unusable-journal"
+mkdir -p "$JOURNAL_DIR"
+: >"$JOURNAL_DIR/config.db-journal"
+chmod 000 "$JOURNAL_DIR/config.db-journal"
+set +e
+APP_DIR="$JOURNAL_DIR" \
+APP_PORT=8080 \
+APP_HOST=127.0.0.1 \
+LOG_LEVEL=info \
+LOG_STYLE=json \
+    sh "$ENTRYPOINT" >"$TEST_ROOT/unusable-journal.out" 2>&1
+JOURNAL_EXIT=$?
+set -e
+chmod 600 "$JOURNAL_DIR/config.db-journal"
+
+[ "$JOURNAL_EXIT" -ne 0 ] || fail "an unusable config.db-journal was accepted"
+grep -q "$JOURNAL_DIR/config.db-journal is not usable" "$TEST_ROOT/unusable-journal.out" || fail "unusable config.db-journal was not named"
+
+LOG_JOURNAL_DIR="$TEST_ROOT/unusable-log-journal"
+mkdir -p "$LOG_JOURNAL_DIR"
+: >"$LOG_JOURNAL_DIR/logs.db-journal"
+chmod 000 "$LOG_JOURNAL_DIR/logs.db-journal"
+set +e
+APP_DIR="$LOG_JOURNAL_DIR" \
+APP_PORT=8080 \
+APP_HOST=127.0.0.1 \
+LOG_LEVEL=info \
+LOG_STYLE=json \
+    sh "$ENTRYPOINT" >"$TEST_ROOT/unusable-log-journal.out" 2>&1
+LOG_JOURNAL_EXIT=$?
+set -e
+chmod 600 "$LOG_JOURNAL_DIR/logs.db-journal"
+
+[ "$LOG_JOURNAL_EXIT" -ne 0 ] || fail "an unusable logs.db-journal was accepted"
+grep -q "$LOG_JOURNAL_DIR/logs.db-journal is not usable" "$TEST_ROOT/unusable-log-journal.out" || fail "unusable logs.db-journal was not named"
+
 # The counterpart to the glob: a volume may carry entries Bifrost never opens.
 # ext4-backed volumes mount a root-owned lost+found, and requiring it to be
 # usable would refuse a perfectly good disk on every platform that provides one.
@@ -313,7 +377,14 @@ REPAIR_DIR="$TEST_ROOT/repair-scope"
 mkdir -p "$REPAIR_DIR/logs" "$REPAIR_DIR/lost+found"
 : >"$REPAIR_DIR/config.db"
 : >"$REPAIR_DIR/config.db-wal"
+: >"$REPAIR_DIR/config.db-shm"
+: >"$REPAIR_DIR/config.db-journal"
+: >"$REPAIR_DIR/config.db-backup"
 : >"$REPAIR_DIR/logs.db"
+: >"$REPAIR_DIR/logs.db-wal"
+: >"$REPAIR_DIR/logs.db-shm"
+: >"$REPAIR_DIR/logs.db-journal"
+: >"$REPAIR_DIR/logs.db-backup"
 : >"$REPAIR_DIR/logs/2026-01-01.db"
 : >"$REPAIR_DIR/config.json"
 : >"$REPAIR_DIR/lost+found/#12345"
@@ -330,15 +401,18 @@ REPAIR_CALLS="$TEST_ROOT/repair-calls.txt"
 record_repair_calls "$REPAIR_DIR" "$REPAIR_CALLS" "$TEST_ROOT" \
     || fail "the repair reported a failure on a directory it could fully repair"
 
-# The paths handed over directly. What sits inside logs/ rides along with the
-# recursive repair of logs itself, so asserting on its contents here would pin
-# which of the two covers them rather than that they are covered.
-for REPAIRED in "" /config.db /config.db-wal /logs.db /logs; do
+# The paths handed over directly. What sits inside logs/ must ride along with
+# the recursive repair of logs itself; handing a child over separately repeats
+# a recursive chown and chmod for every direct entry.
+for REPAIRED in "" /config.db /config.db-wal /config.db-shm /config.db-journal /logs.db /logs.db-wal /logs.db-shm /logs.db-journal /logs; do
     grep -qx "$REPAIR_DIR$REPAIRED" "$REPAIR_CALLS" || fail "the repair skipped $REPAIR_DIR$REPAIRED"
 done
 ! grep -q 'lost+found' "$REPAIR_CALLS" || fail "the repair reached an entry Bifrost never opens"
 ! grep -qx "$REPAIR_DIR/config.json" "$REPAIR_CALLS" || fail "the repair reached a config.json a deployment may mount read-only"
+! grep -qx "$REPAIR_DIR/config.db-backup" "$REPAIR_CALLS" || fail "the repair treated config.db-backup as a SQLite sidecar"
+! grep -qx "$REPAIR_DIR/logs.db-backup" "$REPAIR_CALLS" || fail "the repair treated logs.db-backup as a SQLite sidecar"
 ! grep -qx "$REPAIR_DIR/logs/foreign-link" "$REPAIR_CALLS" || fail "the repair handed a symlink to a recursive chown and chmod"
+! grep -qx "$REPAIR_DIR/logs/2026-01-01.db" "$REPAIR_CALLS" || fail "the repair traversed a log file twice instead of relying on the recursive logs repair"
 
 # The recorder proves the symlink never reaches chmod. It cannot prove why that
 # matters, because it never runs the real chmod — so run it. The repair target
@@ -367,6 +441,31 @@ OUT_OF_TREE_MODE=$(stat -c '%a' "$LINK_TARGET_DIR/out-of-tree" 2>/dev/null || st
 chmod 600 "$LINK_TARGET_DIR/out-of-tree"
 [ "$OUT_OF_TREE_MODE" = "0" ] || fail "the repair followed a symlink and changed the mode of a path outside APP_DIR (now $OUT_OF_TREE_MODE)"
 [ -L "$LINK_REPAIR_DIR/logs/foreign-link" ] || fail "the repair replaced a symlink inside logs/ instead of leaving it alone"
+
+# A final-component symlink guard is not enough for logs/*: pathname expansion
+# follows a symlink in the logs position and hands its ordinary descendants to
+# repair_data_path. Prove the repair never expands through that parent symlink.
+PARENT_LINK_REPAIR_DIR="$TEST_ROOT/parent-link-repair"
+mkdir -p "$PARENT_LINK_REPAIR_DIR"
+PARENT_LINK_TARGET_DIR="$TEST_ROOT/parent-link-target"
+mkdir -p "$PARENT_LINK_TARGET_DIR"
+: >"$PARENT_LINK_TARGET_DIR/out-of-tree"
+chmod 000 "$PARENT_LINK_TARGET_DIR/out-of-tree"
+ln -s "$PARENT_LINK_TARGET_DIR" "$PARENT_LINK_REPAIR_DIR/logs"
+
+# shellcheck disable=SC2016 # The inner shell expands its own environment.
+APP_DIR="$PARENT_LINK_REPAIR_DIR" REPAIR_SOURCE="$REPAIR_SOURCE" sh -c '
+    set -e
+    TARGET_UID=$(id -u)
+    TARGET_GID=$(id -g)
+    . "$REPAIR_SOURCE"
+    repair_data_paths
+' || fail "the repair reported a failure while skipping a top-level logs symlink"
+
+PARENT_LINK_TARGET_MODE=$(stat -c '%a' "$PARENT_LINK_TARGET_DIR/out-of-tree" 2>/dev/null || stat -f '%Lp' "$PARENT_LINK_TARGET_DIR/out-of-tree")
+chmod 600 "$PARENT_LINK_TARGET_DIR/out-of-tree"
+[ "$PARENT_LINK_TARGET_MODE" = "0" ] || fail "the repair expanded through the logs symlink and changed a path outside APP_DIR (now $PARENT_LINK_TARGET_MODE)"
+[ -L "$PARENT_LINK_REPAIR_DIR/logs" ] || fail "the repair replaced the top-level logs symlink instead of leaving it alone"
 
 # repair_data_paths is not the only place that changes permissions: ensure_app_dir
 # applies a final group-write chmod to logs/. Run the full entrypoint so that
@@ -410,15 +509,13 @@ set -e
 ENSURE_REAL_MODE=$(stat -c '%a' "$ENSURE_REAL_DIR/logs" 2>/dev/null || stat -f '%Lp' "$ENSURE_REAL_DIR/logs")
 [ "$ENSURE_REAL_MODE" = "770" ] || fail "ensure_app_dir did not preserve group-write setup for a real logs directory (now $ENSURE_REAL_MODE)"
 
-# The glob list holds patterns, not paths. Split with pathname expansion on,
-# those patterns expand against the working directory before anything anchors
-# them to APP_DIR: a logs/ directory beside the process quietly becomes the
-# thing "logs/*" refers to. Both the probe and the repair read that list, so
-# both are run from exactly such a directory.
+# The pattern list contains logs/*. Split with pathname expansion on, that word
+# expands against the working directory before anything anchors it to APP_DIR:
+# a logs/ directory beside the process quietly becomes the thing "logs/*"
+# refers to. Exercise both the probe and repair from exactly such a directory.
 DECOY_CWD="$TEST_ROOT/decoy-cwd"
 mkdir -p "$DECOY_CWD/logs"
 : >"$DECOY_CWD/logs/decoy.db"
-: >"$DECOY_CWD/config.db-decoy"
 
 DECOY_APP_DIR="$TEST_ROOT/decoy-app-dir"
 mkdir -p "$DECOY_APP_DIR/logs"
@@ -441,12 +538,16 @@ chmod 600 "$DECOY_APP_DIR/logs/2026-01-01.db"
 [ "$DECOY_EXIT" -ne 0 ] || fail "an unusable log database was accepted because the working directory held a logs/ of its own"
 grep -q "$DECOY_APP_DIR/logs/2026-01-01.db is not usable" "$TEST_ROOT/decoy-cwd.out" || fail "the unusable log database was not named"
 
-# The repair reads the same list and would get it wrong the same way. config.db-wal
-# is reachable only through a glob, so a config.db-* decoy beside the process
-# takes its place if the patterns are expanded before they are anchored.
+# The repair reads the same list. The exact sidecar must still be included, and
+# the logs/* word must remain intact long enough for repair_data_paths to skip
+# it in favor of the single recursive logs repair. If it expands while being
+# split, logs/decoy.db becomes an ordinary-looking pattern and is repaired a
+# second time when that same name exists under APP_DIR.
+: >"$REPAIR_DIR/logs/decoy.db"
 DECOY_REPAIR_CALLS="$TEST_ROOT/decoy-repair-calls.txt"
 record_repair_calls "$REPAIR_DIR" "$DECOY_REPAIR_CALLS" "$DECOY_CWD" \
     || fail "the repair reported a failure on a directory it could fully repair"
-grep -qx "$REPAIR_DIR/config.db-wal" "$DECOY_REPAIR_CALLS" || fail "the repair skipped a sidecar because the working directory held a config.db-* of its own"
+grep -qx "$REPAIR_DIR/config.db-wal" "$DECOY_REPAIR_CALLS" || fail "the repair skipped an exact SQLite sidecar"
+! grep -qx "$REPAIR_DIR/logs/decoy.db" "$DECOY_REPAIR_CALLS" || fail "the repair expanded logs/* against the working directory and repaired a log twice"
 
 echo "docker-entrypoint tests passed"
