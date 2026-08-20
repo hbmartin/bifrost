@@ -43,7 +43,7 @@ BROKEN_VERDICT='^found [0-9]+ broken links? in [0-9]+ files?$'
 # Collect the broken-link report for one docs directory, normalized so two runs
 # are comparable.
 collect() {
-  local docs_dir=$1 stderr_file=$2 output status
+  local docs_dir=$1 stderr_file=$2 output status report
   set +e
   # Mintlify's report and verdict are stdout. Keep npm/install diagnostics on
   # stderr out of the normalized link set: a warning that appears on only one
@@ -85,11 +85,30 @@ collect() {
   # A report holding nothing but the verdict — the shape of a docs tree with no
   # broken links at all — would then turn the cleanest possible result into a
   # red check with no diagnostic.
-  printf '%s\n' "$output" \
+  report=$(printf '%s\n' "$output" \
     | sed -E -e "/${CLEAN_VERDICT}/d" \
              -e "/${BROKEN_VERDICT}/d" \
              -e '/^[[:space:]]*$/d' \
-    | sort -u
+    | sort -u)
+
+  # The verdict proves the run completed; it does not prove the link lines were
+  # captured. A release that moved the per-link report to stderr would leave
+  # both runs' normalized reports empty, comparing equal and passing the check
+  # with nothing checked — so a verdict that counts broken links must come with
+  # the lines it counted.
+  if [ -z "$report" ] && printf '%s\n' "$output" | grep -Eq "$BROKEN_VERDICT"; then
+    echo "ERROR: mintlify@${MINTLIFY_VERSION} said '$(printf '%s\n' "$output" | grep -E "$BROKEN_VERDICT" | head -1)' in $docs_dir, but no link lines were captured" >&2
+    echo "  The report format may have changed with this version (e.g. link lines now on stderr)." >&2
+    if [ -s "$stderr_file" ]; then
+      echo "  stderr:" >&2
+      tail -20 "$stderr_file" | sed 's/^/    /' >&2
+    fi
+    return 1
+  fi
+
+  if [ -n "$report" ]; then
+    printf '%s\n' "$report"
+  fi
 }
 
 echo "Collecting broken links at ${BASE_REF}..."
