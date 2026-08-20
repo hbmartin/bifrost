@@ -16,6 +16,19 @@ file_content_matches() {
     [ "$(cat "$1"; printf x)" = "${2}x" ]
 }
 
+# Permission bits of one path, low three octal digits only. Under a setgid
+# TMPDIR every directory made here inherits g+s, and GNU chmod with a plain
+# octal mode deliberately preserves a directory's setuid/setgid bits, so GNU
+# stat %a prints '2700' where this suite means '700'. BSD %Lp already reports
+# only the permission bits.
+file_mode() {
+    _mode=$(stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1")
+    while [ "${#_mode}" -gt 3 ]; do
+        _mode=${_mode#?}
+    done
+    printf '%s' "$_mode"
+}
+
 TEST_ROOT=$(mktemp -d)
 trap 'rm -rf "$TEST_ROOT"' EXIT
 
@@ -34,7 +47,7 @@ set -e
 
 [ -f "$CONFIG_DIR/config.json" ] || fail "BIFROST_CONFIG was not materialized"
 file_content_matches "$CONFIG_DIR/config.json" '{"source_of_truth":"split"}' || fail "materialized config content changed"
-[ "$(stat -c '%a' "$CONFIG_DIR/config.json" 2>/dev/null || stat -f '%Lp' "$CONFIG_DIR/config.json")" = "600" ] || fail "materialized config mode is not 0600"
+[ "$(file_mode "$CONFIG_DIR/config.json")" = "600" ] || fail "materialized config mode is not 0600"
 
 PAIR_DIR="$TEST_ROOT/pair"
 mkdir -p "$PAIR_DIR"
@@ -166,7 +179,7 @@ set -e
 
 [ "$APP_DIR_LINK_EXIT" -ne 0 ] || fail "a symlinked APP_DIR was accepted"
 grep -q "APP_DIR must not be a symlink" "$TEST_ROOT/app-dir-link.out" || fail "a symlinked APP_DIR did not fail clearly"
-APP_DIR_LINK_LOGS_MODE=$(stat -c '%a' "$APP_DIR_LINK_TARGET/logs" 2>/dev/null || stat -f '%Lp' "$APP_DIR_LINK_TARGET/logs")
+APP_DIR_LINK_LOGS_MODE=$(file_mode "$APP_DIR_LINK_TARGET/logs")
 [ "$APP_DIR_LINK_LOGS_MODE" = "700" ] || fail "a symlinked APP_DIR changed an out-of-tree logs directory (now $APP_DIR_LINK_LOGS_MODE)"
 
 # A database left behind by an earlier root-owned run sits inside an APP_DIR
@@ -437,7 +450,7 @@ APP_DIR="$LINK_REPAIR_DIR" REPAIR_SOURCE="$REPAIR_SOURCE" sh -c '
     repair_data_paths
 ' || fail "the repair reported a failure on a directory it could fully repair"
 
-OUT_OF_TREE_MODE=$(stat -c '%a' "$LINK_TARGET_DIR/out-of-tree" 2>/dev/null || stat -f '%Lp' "$LINK_TARGET_DIR/out-of-tree")
+OUT_OF_TREE_MODE=$(file_mode "$LINK_TARGET_DIR/out-of-tree")
 chmod 600 "$LINK_TARGET_DIR/out-of-tree"
 [ "$OUT_OF_TREE_MODE" = "0" ] || fail "the repair followed a symlink and changed the mode of a path outside APP_DIR (now $OUT_OF_TREE_MODE)"
 [ -L "$LINK_REPAIR_DIR/logs/foreign-link" ] || fail "the repair replaced a symlink inside logs/ instead of leaving it alone"
@@ -462,7 +475,7 @@ APP_DIR="$PARENT_LINK_REPAIR_DIR" REPAIR_SOURCE="$REPAIR_SOURCE" sh -c '
     repair_data_paths
 ' || fail "the repair reported a failure while skipping a top-level logs symlink"
 
-PARENT_LINK_TARGET_MODE=$(stat -c '%a' "$PARENT_LINK_TARGET_DIR/out-of-tree" 2>/dev/null || stat -f '%Lp' "$PARENT_LINK_TARGET_DIR/out-of-tree")
+PARENT_LINK_TARGET_MODE=$(file_mode "$PARENT_LINK_TARGET_DIR/out-of-tree")
 chmod 600 "$PARENT_LINK_TARGET_DIR/out-of-tree"
 [ "$PARENT_LINK_TARGET_MODE" = "0" ] || fail "the repair expanded through the logs symlink and changed a path outside APP_DIR (now $PARENT_LINK_TARGET_MODE)"
 [ -L "$PARENT_LINK_REPAIR_DIR/logs" ] || fail "the repair replaced the top-level logs symlink instead of leaving it alone"
@@ -487,7 +500,7 @@ LOG_STYLE=json \
     sh "$ENTRYPOINT" >"$TEST_ROOT/link-ensure.out" 2>&1
 set -e
 
-ENSURE_LINK_TARGET_MODE=$(stat -c '%a' "$ENSURE_LINK_TARGET_DIR" 2>/dev/null || stat -f '%Lp' "$ENSURE_LINK_TARGET_DIR")
+ENSURE_LINK_TARGET_MODE=$(file_mode "$ENSURE_LINK_TARGET_DIR")
 chmod 700 "$ENSURE_LINK_TARGET_DIR"
 [ "$ENSURE_LINK_TARGET_MODE" = "700" ] || fail "ensure_app_dir followed the logs symlink and changed a directory outside APP_DIR (now $ENSURE_LINK_TARGET_MODE)"
 [ -L "$ENSURE_LINK_DIR/logs" ] || fail "ensure_app_dir replaced the logs symlink instead of leaving it alone"
@@ -506,8 +519,57 @@ LOG_STYLE=json \
     sh "$ENTRYPOINT" >"$TEST_ROOT/real-logs-ensure.out" 2>&1
 set -e
 
-ENSURE_REAL_MODE=$(stat -c '%a' "$ENSURE_REAL_DIR/logs" 2>/dev/null || stat -f '%Lp' "$ENSURE_REAL_DIR/logs")
+ENSURE_REAL_MODE=$(file_mode "$ENSURE_REAL_DIR/logs")
 [ "$ENSURE_REAL_MODE" = "770" ] || fail "ensure_app_dir did not preserve group-write setup for a real logs directory (now $ENSURE_REAL_MODE)"
+
+# A dangling logs symlink used to pass every check silently: mkdir -p failed
+# behind || true, the -L guards skipped the chown and chmod, and the probe's
+# -e test reported the missing target rather than the link. Bifrost then failed
+# to write its logs only after startup. The target sits under a plain file so
+# mkdir -p cannot materialize it no matter who runs the suite.
+DANGLING_DIR="$TEST_ROOT/dangling-logs"
+mkdir -p "$DANGLING_DIR"
+: >"$TEST_ROOT/dangling-target"
+ln -s "$TEST_ROOT/dangling-target/logs" "$DANGLING_DIR/logs"
+set +e
+APP_DIR="$DANGLING_DIR" \
+APP_PORT=8080 \
+APP_HOST=127.0.0.1 \
+LOG_LEVEL=info \
+LOG_STYLE=json \
+    sh "$ENTRYPOINT" >"$TEST_ROOT/dangling-logs.out" 2>&1
+DANGLING_EXIT=$?
+set -e
+
+[ "$DANGLING_EXIT" -ne 0 ] || fail "a dangling logs symlink was accepted"
+grep -q "$DANGLING_DIR/logs is not usable" "$TEST_ROOT/dangling-logs.out" || fail "the dangling logs symlink was not named"
+grep -q "symlink to a target that does not exist" "$TEST_ROOT/dangling-logs.out" || fail "the dangling logs symlink was not called one"
+
+# When a logs symlink points at a target the runtime identity cannot write, the
+# failure must name the symlink. The generic volume-ownership advice cannot fix
+# it — the ownership repair deliberately never follows symlinks — and the owner
+# in the message is the target's, a path outside APP_DIR.
+SYMLOG_DIR="$TEST_ROOT/symlinked-logs"
+mkdir -p "$SYMLOG_DIR"
+SYMLOG_TARGET_DIR="$TEST_ROOT/symlinked-logs-target"
+mkdir -p "$SYMLOG_TARGET_DIR"
+chmod 000 "$SYMLOG_TARGET_DIR"
+ln -s "$SYMLOG_TARGET_DIR" "$SYMLOG_DIR/logs"
+set +e
+APP_DIR="$SYMLOG_DIR" \
+APP_PORT=8080 \
+APP_HOST=127.0.0.1 \
+LOG_LEVEL=info \
+LOG_STYLE=json \
+    sh "$ENTRYPOINT" >"$TEST_ROOT/symlinked-logs.out" 2>&1
+SYMLOG_EXIT=$?
+set -e
+chmod 700 "$SYMLOG_TARGET_DIR"
+
+[ "$SYMLOG_EXIT" -ne 0 ] || fail "a logs symlink to an unwritable target was accepted"
+grep -q "$SYMLOG_DIR/logs is not usable" "$TEST_ROOT/symlinked-logs.out" || fail "the unwritable logs symlink was not named"
+grep -q "This path is a symlink" "$TEST_ROOT/symlinked-logs.out" || fail "the failure did not name the symlink as the cause"
+! grep -q "set podSecurityContext.fsGroup" "$TEST_ROOT/symlinked-logs.out" || fail "a symlinked logs failure still gave volume-ownership advice that cannot fix it"
 
 # The pattern list contains logs/*. Split with pathname expansion on, that word
 # expands against the working directory before anything anchors it to APP_DIR:
