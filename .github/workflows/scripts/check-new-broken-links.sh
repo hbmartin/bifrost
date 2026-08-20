@@ -19,14 +19,17 @@ BASE_REF=${1:?usage: check-new-broken-links.sh <base-ref>}
 # is a deliberate change with a diff to review, like any other dependency.
 MINTLIFY_VERSION=${MINTLIFY_VERSION:-4.2.810}
 REPO_ROOT=$(git rev-parse --show-toplevel)
-BASE_TREE=$(mktemp -d)
+TEMP_ROOT=$(mktemp -d)
+BASE_TREE="$TEMP_ROOT/base-tree"
+BASE_REPORT="$TEMP_ROOT/base-report"
+HEAD_REPORT="$TEMP_ROOT/head-report"
 
 cleanup() {
   git -C "$REPO_ROOT" worktree remove --force "$BASE_TREE" >/dev/null 2>&1 || true
-  # The two reports are siblings of BASE_TREE rather than children of it, because
-  # `git worktree add` wants that directory to itself. Remove them here as well,
-  # or every run leaves a pair behind on any runner not discarded after the job.
-  rm -rf "$BASE_TREE" "$BASE_TREE.base" "$BASE_TREE.head"
+  # Keep the worktree and reports under one private mktemp directory. Deriving
+  # sibling names from the worktree path would leave those report paths
+  # unreserved until redirection and make cleanup act on paths we did not create.
+  rm -rf "$TEMP_ROOT"
 }
 trap cleanup EXIT
 
@@ -40,9 +43,12 @@ BROKEN_VERDICT='^found [0-9]+ broken links? in [0-9]+ files?$'
 # Collect the broken-link report for one docs directory, normalized so two runs
 # are comparable.
 collect() {
-  local docs_dir=$1 output status
+  local docs_dir=$1 stderr_file=$2 output status
   set +e
-  output=$(cd "$docs_dir" && npx --yes "mintlify@${MINTLIFY_VERSION}" broken-links 2>&1)
+  # Mintlify's report and verdict are stdout. Keep npm/install diagnostics on
+  # stderr out of the normalized link set: a warning that appears on only one
+  # run is not a broken documentation link and must not become a false diff.
+  output=$(cd "$docs_dir" && npx --yes "mintlify@${MINTLIFY_VERSION}" broken-links 2>"$stderr_file")
   status=$?
   set -e
 
@@ -67,6 +73,10 @@ collect() {
     echo "ERROR: mintlify@${MINTLIFY_VERSION} broken-links did not complete in $docs_dir (exit $status)" >&2
     echo "  Expected a run ending in 'success no broken links found' or 'found N broken links in M files'." >&2
     printf '%s\n' "$output" | tail -20 | sed 's/^/  /' >&2
+    if [ -s "$stderr_file" ]; then
+      echo "  stderr:" >&2
+      tail -20 "$stderr_file" | sed 's/^/    /' >&2
+    fi
     return 1
   fi
 
@@ -84,13 +94,13 @@ collect() {
 
 echo "Collecting broken links at ${BASE_REF}..."
 git -C "$REPO_ROOT" worktree add --detach "$BASE_TREE" "$BASE_REF" >/dev/null
-collect "$BASE_TREE/docs" > "$BASE_TREE.base" || exit 1
+collect "$BASE_TREE/docs" "$TEMP_ROOT/base-stderr" > "$BASE_REPORT" || exit 1
 
 echo "Collecting broken links at HEAD..."
-collect "$REPO_ROOT/docs" > "$BASE_TREE.head" || exit 1
+collect "$REPO_ROOT/docs" "$TEMP_ROOT/head-stderr" > "$HEAD_REPORT" || exit 1
 
-NEW_LINKS=$(comm -13 "$BASE_TREE.base" "$BASE_TREE.head" || true)
-FIXED_LINKS=$(comm -23 "$BASE_TREE.base" "$BASE_TREE.head" || true)
+NEW_LINKS=$(comm -13 "$BASE_REPORT" "$HEAD_REPORT" || true)
+FIXED_LINKS=$(comm -23 "$BASE_REPORT" "$HEAD_REPORT" || true)
 
 if [ -n "$FIXED_LINKS" ]; then
   echo "Links this change fixes:"
@@ -103,5 +113,5 @@ if [ -n "$NEW_LINKS" ]; then
   exit 1
 fi
 
-PRE_EXISTING=$(wc -l < "$BASE_TREE.base" | tr -d ' ')
+PRE_EXISTING=$(wc -l < "$BASE_REPORT" | tr -d ' ')
 echo "✅ No new broken links (${PRE_EXISTING} pre-existing, unchanged by this change)"
