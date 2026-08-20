@@ -26,7 +26,8 @@ BIFROST_CONFIG='{"source_of_truth":"split"}' \
 set -e
 
 [ -f "$CONFIG_DIR/config.json" ] || fail "BIFROST_CONFIG was not materialized"
-[ "$(cat "$CONFIG_DIR/config.json")" = '{"source_of_truth":"split"}' ] || fail "materialized config content changed"
+printf '%s' '{"source_of_truth":"split"}' >"$TEST_ROOT/materialized-config.expected"
+cmp -s "$TEST_ROOT/materialized-config.expected" "$CONFIG_DIR/config.json" || fail "materialized config content changed"
 [ "$(stat -c '%a' "$CONFIG_DIR/config.json" 2>/dev/null || stat -f '%Lp' "$CONFIG_DIR/config.json")" = "600" ] || fail "materialized config mode is not 0600"
 
 PAIR_DIR="$TEST_ROOT/pair"
@@ -366,6 +367,48 @@ OUT_OF_TREE_MODE=$(stat -c '%a' "$LINK_TARGET_DIR/out-of-tree" 2>/dev/null || st
 chmod 600 "$LINK_TARGET_DIR/out-of-tree"
 [ "$OUT_OF_TREE_MODE" = "0" ] || fail "the repair followed a symlink and changed the mode of a path outside APP_DIR (now $OUT_OF_TREE_MODE)"
 [ -L "$LINK_REPAIR_DIR/logs/foreign-link" ] || fail "the repair replaced a symlink inside logs/ instead of leaving it alone"
+
+# repair_data_paths is not the only place that changes permissions: ensure_app_dir
+# applies a final group-write chmod to logs/. Run the full entrypoint so that
+# bootstrap path is covered too, and prove a top-level logs symlink cannot carry
+# that chmod to a directory outside APP_DIR.
+ENSURE_LINK_DIR="$TEST_ROOT/link-ensure"
+mkdir -p "$ENSURE_LINK_DIR"
+ENSURE_LINK_TARGET_DIR="$TEST_ROOT/link-ensure-target"
+mkdir -p "$ENSURE_LINK_TARGET_DIR"
+chmod 700 "$ENSURE_LINK_TARGET_DIR"
+ln -s "$ENSURE_LINK_TARGET_DIR" "$ENSURE_LINK_DIR/logs"
+
+set +e
+APP_DIR="$ENSURE_LINK_DIR" \
+APP_PORT=8080 \
+APP_HOST=127.0.0.1 \
+LOG_LEVEL=info \
+LOG_STYLE=json \
+    sh "$ENTRYPOINT" >"$TEST_ROOT/link-ensure.out" 2>&1
+set -e
+
+ENSURE_LINK_TARGET_MODE=$(stat -c '%a' "$ENSURE_LINK_TARGET_DIR" 2>/dev/null || stat -f '%Lp' "$ENSURE_LINK_TARGET_DIR")
+chmod 700 "$ENSURE_LINK_TARGET_DIR"
+[ "$ENSURE_LINK_TARGET_MODE" = "700" ] || fail "ensure_app_dir followed the logs symlink and changed a directory outside APP_DIR (now $ENSURE_LINK_TARGET_MODE)"
+[ -L "$ENSURE_LINK_DIR/logs" ] || fail "ensure_app_dir replaced the logs symlink instead of leaving it alone"
+
+# The symlink guard must not remove the group-write setup for a real logs
+# directory; arbitrary-UID images rely on that permission surviving restarts.
+ENSURE_REAL_DIR="$TEST_ROOT/real-logs-ensure"
+mkdir -p "$ENSURE_REAL_DIR/logs"
+chmod 700 "$ENSURE_REAL_DIR/logs"
+set +e
+APP_DIR="$ENSURE_REAL_DIR" \
+APP_PORT=8080 \
+APP_HOST=127.0.0.1 \
+LOG_LEVEL=info \
+LOG_STYLE=json \
+    sh "$ENTRYPOINT" >"$TEST_ROOT/real-logs-ensure.out" 2>&1
+set -e
+
+ENSURE_REAL_MODE=$(stat -c '%a' "$ENSURE_REAL_DIR/logs" 2>/dev/null || stat -f '%Lp' "$ENSURE_REAL_DIR/logs")
+[ "$ENSURE_REAL_MODE" = "770" ] || fail "ensure_app_dir did not preserve group-write setup for a real logs directory (now $ENSURE_REAL_MODE)"
 
 # The glob list holds patterns, not paths. Split with pathname expansion on,
 # those patterns expand against the working directory before anything anchors
