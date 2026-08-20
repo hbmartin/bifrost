@@ -154,13 +154,6 @@ APP_DIR_PROBE='
     # inside it, and the glob below cannot even stat what it holds. Only
     # directories are asked for it — a data file is never executable.
     unusable_for_write() {
-        # A dangling symlink is unusable, not absent. -e follows the link and
-        # reports the missing target, which would skip the entry here while
-        # Bifrost still fails to write through it later — mkdir -p already
-        # tried and failed to materialize the target, silently.
-        if [ -L "$1" ] && [ ! -e "$1" ]; then
-            return 0
-        fi
         [ -e "$1" ] || return 1
         if [ ! -r "$1" ] || [ ! -w "$1" ]; then
             return 0
@@ -170,6 +163,16 @@ APP_DIR_PROBE='
 
     for entry in $write_entries; do
         path="$app_dir/$entry"
+        # A dangling logs symlink is unusable, not absent. -e follows the link
+        # and reports its missing or inaccessible target, which would otherwise
+        # skip the entry after mkdir -p already failed to materialize the target.
+        # Restrict this rule to logs/: the other entries are files, and SQLite
+        # can legitimately create a missing database target through a symlink
+        # when its parent directory is writable.
+        if [ "$entry" = "logs" ] && [ -L "$path" ] && [ ! -e "$path" ]; then
+            printf %s "$path"
+            exit 1
+        fi
         if unusable_for_write "$path"; then
             printf %s "$path"
             exit 1
@@ -255,9 +258,8 @@ report_if_misowned() {
         return
     fi
     # A symlink is never reported, because repair_data_path never follows one.
-    # stat reads through the link, so reporting it would name the ownership of
-    # something outside the data directory and then announce a repair that
-    # deliberately does not happen.
+    # Reporting either the link or its out-of-tree target here would announce an
+    # ownership repair that deliberately does not happen.
     if [ -L "$1" ]; then
         return
     fi
@@ -404,29 +406,44 @@ ensure_app_dir() {
         UNUSABLE_PATH=${UNUSABLE_PATH:-$APP_DIR}
         # `|| true`: under `set -e` a failing stat here would abort the script
         # before it printed the diagnostic this branch exists to print.
-        DATA_UID=$(stat -c '%u' "$UNUSABLE_PATH" 2>/dev/null || true)
-        DATA_GID=$(stat -c '%g' "$UNUSABLE_PATH" 2>/dev/null || true)
+        OWNERSHIP_LABEL="owned by"
+        if [ -L "$UNUSABLE_PATH" ]; then
+            if [ -e "$UNUSABLE_PATH" ]; then
+                DATA_UID=$(stat -L -c '%u' "$UNUSABLE_PATH" 2>/dev/null || true)
+                DATA_GID=$(stat -L -c '%g' "$UNUSABLE_PATH" 2>/dev/null || true)
+                OWNERSHIP_LABEL="target owned by"
+            else
+                DATA_UID=$(stat -c '%u' "$UNUSABLE_PATH" 2>/dev/null || true)
+                DATA_GID=$(stat -c '%g' "$UNUSABLE_PATH" 2>/dev/null || true)
+                OWNERSHIP_LABEL="symlink owned by"
+            fi
+        else
+            DATA_UID=$(stat -c '%u' "$UNUSABLE_PATH" 2>/dev/null || true)
+            DATA_GID=$(stat -c '%g' "$UNUSABLE_PATH" 2>/dev/null || true)
+        fi
         DATA_UID=${DATA_UID:-unknown}
         DATA_GID=${DATA_GID:-unknown}
         if [ "$BIFROST_SKIP_WRITE_CHECK" = "1" ]; then
-            echo "Warning: $UNUSABLE_PATH is not usable by UID:GID $TARGET_UID:$TARGET_GID (owned by $DATA_UID:$DATA_GID)"
+            echo "Warning: $UNUSABLE_PATH is not usable by UID:GID $TARGET_UID:$TARGET_GID ($OWNERSHIP_LABEL $DATA_UID:$DATA_GID)"
             echo "  BIFROST_SKIP_WRITE_CHECK=1 set; continuing without a writable APP_DIR."
             echo "  Only safe for read-only deployments backed by external stores (e.g. Postgres)."
         else
-            echo "Error: $UNUSABLE_PATH is not usable by UID:GID $TARGET_UID:$TARGET_GID (owned by $DATA_UID:$DATA_GID)"
+            echo "Error: $UNUSABLE_PATH is not usable by UID:GID $TARGET_UID:$TARGET_GID ($OWNERSHIP_LABEL $DATA_UID:$DATA_GID)"
             echo "  Bifrost needs a writable APP_DIR for config.db and logs.db before startup."
-            # Volume-ownership advice cannot fix a symlink: the ownership repair
-            # deliberately never follows one, so fsGroup and friends would send
-            # the operator to a dead end while the real cause goes unnamed.
+            # The entrypoint's ownership repair deliberately never follows a
+            # symlink. Its target or the volume providing that target must be
+            # configured directly instead.
             if [ -L "$UNUSABLE_PATH" ]; then
                 if [ -e "$UNUSABLE_PATH" ]; then
-                    echo "  This path is a symlink, and the ownership shown above is its target's."
-                    echo "  The automatic ownership repair never follows symlinks, so no volume or"
-                    echo "  fsGroup setting can fix this. Replace the symlink with a real directory,"
-                    echo "  or make its target usable by UID:GID $TARGET_UID:$TARGET_GID yourself."
+                    echo "  This path is a symlink; the ownership shown above is its target's."
+                    echo "  Automatic ownership repair never follows symlinks. Replace it with a real"
+                    echo "  path of the expected type, or configure its target or mounted volume so"
+                    echo "  UID:GID $TARGET_UID:$TARGET_GID can use it."
                 else
-                    echo "  This path is a symlink to a target that does not exist. Replace it with"
-                    echo "  a real directory, or create the directory it points to."
+                    echo "  This path is a symlink whose target does not exist or cannot be resolved"
+                    echo "  or accessed by UID:GID $TARGET_UID:$TARGET_GID. Verify the target exists,"
+                    echo "  every parent is searchable, and the target is writable; or replace the"
+                    echo "  symlink with a real path of the expected type."
                 fi
             else
                 echo "  On vanilla Kubernetes, set podSecurityContext.fsGroup (for example, 1000)."
