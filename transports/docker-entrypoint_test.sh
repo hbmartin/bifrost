@@ -16,6 +16,19 @@ file_content_matches() {
     [ "$(cat "$1"; printf x)" = "${2}x" ]
 }
 
+# Permission bits of one path, low three octal digits only. Under a setgid
+# TMPDIR every directory made here inherits g+s, and GNU chmod with a plain
+# octal mode deliberately preserves a directory's setuid/setgid bits, so GNU
+# stat %a prints '2700' where this suite means '700'. BSD %Lp already reports
+# only the permission bits.
+file_mode() {
+    _mode=$(stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1")
+    while [ "${#_mode}" -gt 3 ]; do
+        _mode=${_mode#?}
+    done
+    printf '%s' "$_mode"
+}
+
 TEST_ROOT=$(mktemp -d)
 trap 'rm -rf "$TEST_ROOT"' EXIT
 
@@ -34,7 +47,7 @@ set -e
 
 [ -f "$CONFIG_DIR/config.json" ] || fail "BIFROST_CONFIG was not materialized"
 file_content_matches "$CONFIG_DIR/config.json" '{"source_of_truth":"split"}' || fail "materialized config content changed"
-[ "$(stat -c '%a' "$CONFIG_DIR/config.json" 2>/dev/null || stat -f '%Lp' "$CONFIG_DIR/config.json")" = "600" ] || fail "materialized config mode is not 0600"
+[ "$(file_mode "$CONFIG_DIR/config.json")" = "600" ] || fail "materialized config mode is not 0600"
 
 PAIR_DIR="$TEST_ROOT/pair"
 mkdir -p "$PAIR_DIR"
@@ -166,7 +179,7 @@ set -e
 
 [ "$APP_DIR_LINK_EXIT" -ne 0 ] || fail "a symlinked APP_DIR was accepted"
 grep -q "APP_DIR must not be a symlink" "$TEST_ROOT/app-dir-link.out" || fail "a symlinked APP_DIR did not fail clearly"
-APP_DIR_LINK_LOGS_MODE=$(stat -c '%a' "$APP_DIR_LINK_TARGET/logs" 2>/dev/null || stat -f '%Lp' "$APP_DIR_LINK_TARGET/logs")
+APP_DIR_LINK_LOGS_MODE=$(file_mode "$APP_DIR_LINK_TARGET/logs")
 [ "$APP_DIR_LINK_LOGS_MODE" = "700" ] || fail "a symlinked APP_DIR changed an out-of-tree logs directory (now $APP_DIR_LINK_LOGS_MODE)"
 
 # A database left behind by an earlier root-owned run sits inside an APP_DIR
@@ -437,7 +450,7 @@ APP_DIR="$LINK_REPAIR_DIR" REPAIR_SOURCE="$REPAIR_SOURCE" sh -c '
     repair_data_paths
 ' || fail "the repair reported a failure on a directory it could fully repair"
 
-OUT_OF_TREE_MODE=$(stat -c '%a' "$LINK_TARGET_DIR/out-of-tree" 2>/dev/null || stat -f '%Lp' "$LINK_TARGET_DIR/out-of-tree")
+OUT_OF_TREE_MODE=$(file_mode "$LINK_TARGET_DIR/out-of-tree")
 chmod 600 "$LINK_TARGET_DIR/out-of-tree"
 [ "$OUT_OF_TREE_MODE" = "0" ] || fail "the repair followed a symlink and changed the mode of a path outside APP_DIR (now $OUT_OF_TREE_MODE)"
 [ -L "$LINK_REPAIR_DIR/logs/foreign-link" ] || fail "the repair replaced a symlink inside logs/ instead of leaving it alone"
@@ -462,7 +475,7 @@ APP_DIR="$PARENT_LINK_REPAIR_DIR" REPAIR_SOURCE="$REPAIR_SOURCE" sh -c '
     repair_data_paths
 ' || fail "the repair reported a failure while skipping a top-level logs symlink"
 
-PARENT_LINK_TARGET_MODE=$(stat -c '%a' "$PARENT_LINK_TARGET_DIR/out-of-tree" 2>/dev/null || stat -f '%Lp' "$PARENT_LINK_TARGET_DIR/out-of-tree")
+PARENT_LINK_TARGET_MODE=$(file_mode "$PARENT_LINK_TARGET_DIR/out-of-tree")
 chmod 600 "$PARENT_LINK_TARGET_DIR/out-of-tree"
 [ "$PARENT_LINK_TARGET_MODE" = "0" ] || fail "the repair expanded through the logs symlink and changed a path outside APP_DIR (now $PARENT_LINK_TARGET_MODE)"
 [ -L "$PARENT_LINK_REPAIR_DIR/logs" ] || fail "the repair replaced the top-level logs symlink instead of leaving it alone"
@@ -487,7 +500,7 @@ LOG_STYLE=json \
     sh "$ENTRYPOINT" >"$TEST_ROOT/link-ensure.out" 2>&1
 set -e
 
-ENSURE_LINK_TARGET_MODE=$(stat -c '%a' "$ENSURE_LINK_TARGET_DIR" 2>/dev/null || stat -f '%Lp' "$ENSURE_LINK_TARGET_DIR")
+ENSURE_LINK_TARGET_MODE=$(file_mode "$ENSURE_LINK_TARGET_DIR")
 chmod 700 "$ENSURE_LINK_TARGET_DIR"
 [ "$ENSURE_LINK_TARGET_MODE" = "700" ] || fail "ensure_app_dir followed the logs symlink and changed a directory outside APP_DIR (now $ENSURE_LINK_TARGET_MODE)"
 [ -L "$ENSURE_LINK_DIR/logs" ] || fail "ensure_app_dir replaced the logs symlink instead of leaving it alone"
@@ -506,7 +519,7 @@ LOG_STYLE=json \
     sh "$ENTRYPOINT" >"$TEST_ROOT/real-logs-ensure.out" 2>&1
 set -e
 
-ENSURE_REAL_MODE=$(stat -c '%a' "$ENSURE_REAL_DIR/logs" 2>/dev/null || stat -f '%Lp' "$ENSURE_REAL_DIR/logs")
+ENSURE_REAL_MODE=$(file_mode "$ENSURE_REAL_DIR/logs")
 [ "$ENSURE_REAL_MODE" = "770" ] || fail "ensure_app_dir did not preserve group-write setup for a real logs directory (now $ENSURE_REAL_MODE)"
 
 # The pattern list contains logs/*. Split with pathname expansion on, that word
