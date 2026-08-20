@@ -522,6 +522,55 @@ set -e
 ENSURE_REAL_MODE=$(file_mode "$ENSURE_REAL_DIR/logs")
 [ "$ENSURE_REAL_MODE" = "770" ] || fail "ensure_app_dir did not preserve group-write setup for a real logs directory (now $ENSURE_REAL_MODE)"
 
+# A dangling logs symlink used to pass every check silently: mkdir -p failed
+# behind || true, the -L guards skipped the chown and chmod, and the probe's
+# -e test reported the missing target rather than the link. Bifrost then failed
+# to write its logs only after startup. The target sits under a plain file so
+# mkdir -p cannot materialize it no matter who runs the suite.
+DANGLING_DIR="$TEST_ROOT/dangling-logs"
+mkdir -p "$DANGLING_DIR"
+: >"$TEST_ROOT/dangling-target"
+ln -s "$TEST_ROOT/dangling-target/logs" "$DANGLING_DIR/logs"
+set +e
+APP_DIR="$DANGLING_DIR" \
+APP_PORT=8080 \
+APP_HOST=127.0.0.1 \
+LOG_LEVEL=info \
+LOG_STYLE=json \
+    sh "$ENTRYPOINT" >"$TEST_ROOT/dangling-logs.out" 2>&1
+DANGLING_EXIT=$?
+set -e
+
+[ "$DANGLING_EXIT" -ne 0 ] || fail "a dangling logs symlink was accepted"
+grep -q "$DANGLING_DIR/logs is not usable" "$TEST_ROOT/dangling-logs.out" || fail "the dangling logs symlink was not named"
+grep -q "symlink to a target that does not exist" "$TEST_ROOT/dangling-logs.out" || fail "the dangling logs symlink was not called one"
+
+# When a logs symlink points at a target the runtime identity cannot write, the
+# failure must name the symlink. The generic volume-ownership advice cannot fix
+# it — the ownership repair deliberately never follows symlinks — and the owner
+# in the message is the target's, a path outside APP_DIR.
+SYMLOG_DIR="$TEST_ROOT/symlinked-logs"
+mkdir -p "$SYMLOG_DIR"
+SYMLOG_TARGET_DIR="$TEST_ROOT/symlinked-logs-target"
+mkdir -p "$SYMLOG_TARGET_DIR"
+chmod 000 "$SYMLOG_TARGET_DIR"
+ln -s "$SYMLOG_TARGET_DIR" "$SYMLOG_DIR/logs"
+set +e
+APP_DIR="$SYMLOG_DIR" \
+APP_PORT=8080 \
+APP_HOST=127.0.0.1 \
+LOG_LEVEL=info \
+LOG_STYLE=json \
+    sh "$ENTRYPOINT" >"$TEST_ROOT/symlinked-logs.out" 2>&1
+SYMLOG_EXIT=$?
+set -e
+chmod 700 "$SYMLOG_TARGET_DIR"
+
+[ "$SYMLOG_EXIT" -ne 0 ] || fail "a logs symlink to an unwritable target was accepted"
+grep -q "$SYMLOG_DIR/logs is not usable" "$TEST_ROOT/symlinked-logs.out" || fail "the unwritable logs symlink was not named"
+grep -q "This path is a symlink" "$TEST_ROOT/symlinked-logs.out" || fail "the failure did not name the symlink as the cause"
+! grep -q "set podSecurityContext.fsGroup" "$TEST_ROOT/symlinked-logs.out" || fail "a symlinked logs failure still gave volume-ownership advice that cannot fix it"
+
 # The pattern list contains logs/*. Split with pathname expansion on, that word
 # expands against the working directory before anything anchors it to APP_DIR:
 # a logs/ directory beside the process quietly becomes the thing "logs/*"
