@@ -1,5 +1,7 @@
 ## ✨ Features
 
+- **Inline Container Configuration** - The standard container entrypoint accepts `BIFROST_CONFIG`, atomically writes it to `/app/data/config.json` with mode `0600` on every start, and removes the value from the Bifrost process environment.
+- **Secure Root-Owned Volume Bootstrap** - Paired `BIFROST_RUN_AS_UID` and `BIFROST_RUN_AS_GID` settings let a root-started entrypoint repair platform-mounted volume ownership before launching Bifrost as the requested non-root user with `su-exec`. Invalid and unsupported combinations fail before application startup.
 - **URL Sources Inlined for AWS-Hosted Claude** - URL-sourced images and documents are fetched and inlined on the native-Anthropic path, since Bedrock Mantle rejects `{"source":{"type":"url"}}`. Fetches go through the SSRF-safe dialer with a size cap, and a failed fetch aborts the request rather than silently dropping an attachment.
 - **Quarterly Budgets for Customers** - Quarterly budgets are now supported by the customer entity, and by virtual key provider configs.
 - **Fiscal Year Start in Budget Labels** - Budget UI labels surface the configured fiscal year start through a new `fiscalQuarterNote` helper, and `QuarterStartSelect` is relaid out to a horizontal label and preview row with a right-aligned select.
