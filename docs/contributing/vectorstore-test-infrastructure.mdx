@@ -1,0 +1,101 @@
+---
+title: "Vector-store test infrastructure"
+description: "Start and diagnose the local services required by framework vector-store tests."
+icon: "database"
+---
+
+The `framework/vectorstore` tests exercise real Redis, Qdrant, Weaviate, and Pinecone-compatible services. Start the repository's dedicated test stack before running the complete framework suite.
+
+<Warning>
+Use `tests/docker-compose.yml`, not `framework/docker-compose.yml`. The files bind overlapping host ports, but only the `tests` stack provides the Redis TLS and cluster variants, generated CA certificate, and pinned Weaviate network configuration expected by the tests.
+</Warning>
+
+## Start the services
+
+Run these commands from the repository root:
+
+```bash
+docker compose -f tests/docker-compose.yml config -q
+docker compose -f tests/docker-compose.yml up -d
+docker compose -f tests/docker-compose.yml ps
+```
+
+The stack provides:
+
+| Service | Host port | Test coverage |
+|---|---:|---|
+| Redis Stack | `6379` | Standalone Redis and vector search |
+| Redis with TLS | `6380` | Standalone TLS clients, including CA verification |
+| Redis Cluster | `7000` | Cluster clients |
+| Redis Cluster with TLS | `7100` | TLS cluster clients, including CA verification |
+| Qdrant | `6334` | Qdrant gRPC client |
+| Weaviate | `9000` | Weaviate HTTP client |
+| Pinecone Local | `5081` | Pinecone-compatible local index |
+| PostgreSQL | `5432` | Framework configuration and log-store tests |
+
+`redis-certs-init` writes the test CA and server certificate under `tests/redis-certs/`. The CA-backed Redis tests read `tests/redis-certs/ca.crt` directly.
+
+Not every image exposes a reliable Compose health check. Treat `docker compose ps` as a process-state summary, then inspect the relevant service logs or probe its listed port when a test still reports connection failures:
+
+```bash
+docker compose -f tests/docker-compose.yml logs --tail=100 <service>
+```
+
+Pinecone Local runs as `linux/amd64`; startup can be slower under emulation on an Arm-based development machine.
+
+## Run the framework tests
+
+Once the services are ready:
+
+```bash
+make test-framework
+```
+
+To run only the vector-store package:
+
+```bash
+cd framework
+go test -count=1 ./vectorstore/...
+```
+
+The package uses `testing.Short()` for many integration cases, but `-short` is not a substitute for the service stack because some configuration tests still connect to Redis.
+
+If you deliberately need a clean result from the rest of the framework without running vector-store tests, pass only the filtered package list to `go test`:
+
+```bash
+cd framework
+go list ./... | grep -v '/vectorstore$' | xargs go test
+```
+
+Do not prefix that command with `go test ./...`; doing so would include `framework/vectorstore` again.
+
+## Stop the services
+
+```bash
+docker compose -f tests/docker-compose.yml down
+```
+
+Add `-v` only when you also want to delete the stack's named test volumes. The generated files under `tests/redis-certs/` are host files and can be reused by later runs.
+
+## Diagnose connection failures
+
+The destination port normally identifies the missing service:
+
+| Port | Service |
+|---:|---|
+| `6379` | Redis Stack |
+| `6380` | Redis with TLS |
+| `7000` | Redis Cluster |
+| `7100` | Redis Cluster with TLS |
+| `6334` | Qdrant gRPC |
+| `5081` | Pinecone Local |
+| `9000` | Weaviate |
+| `5432` | PostgreSQL |
+
+A connection-refused error usually means the corresponding service is absent or still starting. Assertion failures, panics, schema mismatches, and dimension mismatches require ordinary test debugging rather than infrastructure setup.
+
+Before attributing a failure to the current branch, check whether the package changed:
+
+```bash
+git diff --quiet <base>...HEAD -- framework/vectorstore && echo "vectorstore unchanged"
+```
