@@ -105,41 +105,52 @@ func (h *WSResponsesHandler) handleUpgrade(ctx *fasthttp.RequestCtx) {
 	}
 }
 
+// headerPair is one captured request header, name lowercased.
+type headerPair struct {
+	key   string
+	value string
+}
+
 // authHeaders holds the request headers and query params captured during the
 // WS upgrade, so per-turn contexts can be built after the fasthttp request is
-// gone. headers preserves every value of repeated headers, keyed by lowercased
-// name; authorization is kept separately because the realtime path reads and
+// gone. headers preserves every value of repeated headers in wire order —
+// several header names can feed the same context value (e.g. the virtual key
+// from Authorization, x-api-key, or x-bf-vk), and on the HTTP path the
+// last-processed one wins, so replay order must match capture order for a WS
+// turn to resolve the same credentials as an equivalent HTTP request.
+// authorization is kept separately because the realtime path reads and
 // rewrites it (subprotocol API keys, ephemeral tokens).
 type authHeaders struct {
 	authorization string
-	headers       map[string][]string
+	headers       []headerPair
 	query         map[string]string
 }
 
 // setAuthorization overrides the captured Authorization header, keeping the
-// standalone field and the header map in agreement so the shared header→context
-// mapping sees the same value the realtime auth helpers do.
+// standalone field and the header list in agreement so the shared
+// header→context mapping sees the same value the realtime auth helpers do.
 func (ah *authHeaders) setAuthorization(value string) {
 	ah.authorization = value
-	if ah.headers == nil {
-		ah.headers = make(map[string][]string)
+	kept := ah.headers[:0]
+	for _, pair := range ah.headers {
+		if pair.key != "authorization" {
+			kept = append(kept, pair)
+		}
 	}
-	ah.headers["authorization"] = []string{value}
+	ah.headers = append(kept, headerPair{key: "authorization", value: value})
 }
 
 // captureAuthHeaders captures the upgrade request's headers and query params in
 // a single pass over each.
 func captureAuthHeaders(ctx *fasthttp.RequestCtx) *authHeaders {
-	ah := &authHeaders{
-		headers: make(map[string][]string),
-	}
+	ah := &authHeaders{}
 	for key, value := range ctx.Request.Header.All() {
 		k := strings.ToLower(string(key))
 		v := string(value)
 		if k == "authorization" && ah.authorization == "" {
 			ah.authorization = v
 		}
-		ah.headers[k] = append(ah.headers[k], v)
+		ah.headers = append(ah.headers, headerPair{key: k, value: v})
 	}
 	if queryArgs := ctx.Request.URI().QueryArgs(); queryArgs.Len() > 0 {
 		ah.query = make(map[string]string, queryArgs.Len())
@@ -680,11 +691,9 @@ func createBifrostContextFromAuth(handlerStore lib.HandlerStore, auth *authHeade
 	}
 
 	lib.ApplyHeaderValuesToBifrostContext(ctx, func(yield func(key, value []byte) bool) {
-		for k, values := range auth.headers {
-			for _, v := range values {
-				if !yield([]byte(k), []byte(v)) {
-					return
-				}
+		for _, pair := range auth.headers {
+			if !yield([]byte(pair.key), []byte(pair.value)) {
+				return
 			}
 		}
 	}, handlerStore)
