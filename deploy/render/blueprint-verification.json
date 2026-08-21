@@ -4,8 +4,8 @@
   "blueprints": {
     "postgres": {
       "blueprint": "render.yaml",
-      "branch": "dev",
-      "button_url": "https://render.com/deploy?repo=https://github.com/maximhq/bifrost/tree/dev",
+      "branch": "main",
+      "button_url": "https://render.com/deploy?repo=https://github.com/maximhq/bifrost/tree/main",
       "last_verified": null,
       "verified_release": null
     },
