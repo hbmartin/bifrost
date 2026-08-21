@@ -34,9 +34,11 @@ The stack provides:
 | Weaviate | `9000` | Weaviate HTTP client |
 | Pinecone Local | `5081` | Pinecone-compatible local index |
 | PostgreSQL | `5432` | Framework configuration and PostgreSQL log-store tests |
-| ClickHouse | `9001` (native), `8123` (HTTP) | ClickHouse log-store suites and the cross-backend log-store parity suite; these skip with a diagnostic (`t.Skipf` with the connection error) when nothing listens on `9001`, and the run still reports green |
+| ClickHouse | `9001` (native), `8123` (HTTP) | ClickHouse log-store suites and the cross-backend log-store parity suite; these skip only when nothing listens on `9001`. If the native endpoint is reachable, authentication, configuration, and migration failures fail the suite |
 
 `redis-certs-init` writes the test CA and server certificate under `tests/redis-certs/`. The CA-backed Redis tests read `tests/redis-certs/ca.crt` directly.
+
+The ClickHouse health check runs an authenticated `SELECT 1` over the native protocol with the same database and credentials as the tests. A healthy container therefore proves more than HTTP process liveness.
 
 Not every image exposes a reliable Compose health check. Treat `docker compose ps` as a process-state summary, then inspect the relevant service logs or probe its listed port when a test still reports connection failures:
 
@@ -54,10 +56,10 @@ Once the services are ready:
 USE_INFISICAL=0 PATH="$(go env GOPATH)/bin:$PATH" make test-framework
 ```
 
-Two Makefile traps make the plain `make test-framework` misleading on a fresh machine:
+Two setup details matter for `make test-framework` on a fresh machine:
 
-- Every test target sources secrets from the Infisical CLI by default and hard-aborts with `infisical CLI not found` before running a single test. Set `USE_INFISICAL=0` (or install and configure the CLI) — there is no automatic fallback.
-- The target runs tests through `gotestsum`, which installs to `$(go env GOPATH)/bin`. If that directory is not on `PATH`, the target can report success having run zero tests, so always check the reported test count.
+- `test-framework` sources secrets from the Infisical CLI by default and hard-aborts with `infisical CLI not found` before running a single test. Set `USE_INFISICAL=0` (or install and configure the CLI) — there is no automatic fallback. Other Makefile test targets differ; for example, `test` and `test-cli` do not source Infisical.
+- The target runs tests through `gotestsum`, which installs to `$(go env GOPATH)/bin`. If that directory is not on `PATH`, the target fails with `gotestsum: command not found` and cannot produce a useful report. Export the directory as shown above.
 
 `make test-all` chains `test-core test-framework test-plugins test-http-transport test test-cli` and stops at the first failing target. When `test-framework` fails on missing services, the four later suites never run at all — a red `make test-all` on a machine without this stack is a truncated run, not a verdict on those suites. Run the later targets individually before concluding anything about them.
 
@@ -74,11 +76,16 @@ If you deliberately need a clean result from the rest of the framework without r
 
 ```bash
 cd framework
-packages=$(go list ./... | grep -v '/vectorstore$')
-[ -n "$packages" ] && go test -count=1 $packages
+all_packages=$(go list ./...) || exit $?
+packages=$(printf '%s\n' "$all_packages" | grep -v '/vectorstore$' || true)
+if [ -z "$packages" ]; then
+  echo "no non-vectorstore framework packages found" >&2
+  exit 1
+fi
+go test -count=1 $packages
 ```
 
-The guard matters: piping straight into `xargs go test` exits green with zero tests executed when `go list` itself fails (GNU `xargs` runs a bare `go test` in the package-less `framework` root; BSD `xargs` runs nothing), and `xargs -r` is not portable to BSD/macOS.
+Listing and filtering are separate so a partial `go list` result cannot hide a package-loading failure. The non-empty guard also prevents a green run with zero selected packages; `xargs -r` is not portable to BSD/macOS.
 
 ## Stop the services
 

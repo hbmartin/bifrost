@@ -9,6 +9,7 @@ import sys
 from datetime import date
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qsl, urlsplit
 
 import yaml
 from jsonschema import Draft201909Validator, Draft202012Validator, FormatChecker
@@ -26,13 +27,13 @@ RENDER_VERIFICATION_SCHEMA = json.loads(
 MINIMUM_RELEASE_TAG = json.loads((REPO_ROOT / "deploy/runtime-contract.json").read_text())["minimum_release_tag"]
 RELEASE_TAG_PATTERN = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
 HOSTED_ONE_CLICK_HEADING = "## Hosted one-click choices"
-# Any one-click deploy link, whatever branch or slug it names. The per-target
-# link check compares only the exact recorded URL, so a button re-added with a
-# different branch (tree/dev vs tree/main) or an unrecorded template slug would
-# otherwise be published without a verification behind it.
-DEPLOY_BUTTON_URL_PATTERN = re.compile(
-    r"https://(?:render\.com/deploy|railway\.(?:app|com)/new/template)[^\s)\"'<>\]]*"
-)
+HTTP_URL_PATTERN = re.compile(r"https?://[^\s)\"'<>\]]+", re.IGNORECASE)
+RENDER_BRANCH_PATTERN = re.compile(r"^[A-Za-z0-9._/-]+$")
+RENDER_BLUEPRINT_PATHS = {
+    "postgres": "render.yaml",
+    "sqlite": "deploy/render/render-sqlite.yaml",
+}
+DeployButtonKey = tuple[str, str]
 
 
 def fail(message: str) -> None:
@@ -43,6 +44,107 @@ def release_tuple(tag: str) -> tuple[int, ...] | None:
     """The ordering key for a release tag, or None if it is not one."""
     match = RELEASE_TAG_PATTERN.match(tag)
     return tuple(int(part) for part in match.groups()) if match else None
+
+
+def validate_render_branch(branch: str, label: str) -> None:
+    """Require a Git branch that can be embedded in a deploy URL verbatim."""
+    components = branch.split("/")
+    if (
+        not RENDER_BRANCH_PATTERN.fullmatch(branch)
+        or ".." in branch
+        or any(
+            not component
+            or component.startswith(".")
+            or component.endswith(".")
+            or component.endswith(".lock")
+            for component in components
+        )
+    ):
+        fail(
+            f"{label} branch {branch!r} cannot be embedded safely as a Git ref; "
+            "use only letters, digits, '.', '_', '/', and '-', without empty, dot, or .lock components"
+        )
+
+
+def parse_deploy_button_url(url: str, label: str) -> DeployButtonKey | None:
+    """Return the semantic identity of a Render/Railway deploy button.
+
+    Hostnames and schemes are compared case-insensitively, while fragments,
+    credentials, ports, duplicate query parameters, and ambiguous nested URLs
+    are rejected. This makes the verification record bind to what the browser
+    actually sends to the deployment platform rather than to a string suffix.
+    """
+    try:
+        parsed = urlsplit(url)
+        host = (parsed.hostname or "").lower()
+    except ValueError as error:
+        fail(f"{label} contains an invalid URL {url!r}: {error}")
+
+    if host == "render.com" and parsed.path == "/deploy":
+        if parsed.scheme.lower() != "https" or parsed.netloc.lower() != "render.com" or parsed.fragment:
+            fail(f"{label} Render deploy URL must use canonical HTTPS with no credentials, port, or fragment: {url}")
+        query = parse_qsl(parsed.query, keep_blank_values=True)
+        if len(query) != 1 or query[0][0] != "repo" or not query[0][1]:
+            fail(f"{label} Render deploy URL must contain exactly one non-empty repo parameter: {url}")
+
+        repo_url = query[0][1]
+        try:
+            repo = urlsplit(repo_url)
+        except ValueError as error:
+            fail(f"{label} contains an invalid Render repo URL {repo_url!r}: {error}")
+        if (
+            repo.scheme.lower() != "https"
+            or (repo.hostname or "").lower() != "github.com"
+            or repo.netloc.lower() != "github.com"
+            or repo.query
+            or repo.fragment
+            or not re.fullmatch(r"/[^/]+/[^/]+/tree/.+", repo.path)
+        ):
+            fail(f"{label} Render repo parameter must be an unambiguous GitHub branch URL: {repo_url}")
+        return ("render", repo.path)
+
+    if host in {"railway.com", "railway.app"} and parsed.path.startswith("/new/template/"):
+        if (
+            parsed.scheme.lower() != "https"
+            or parsed.netloc.lower() != host
+            or parsed.query
+            or parsed.fragment
+        ):
+            fail(f"{label} Railway deploy URL must use canonical HTTPS with no credentials, port, query, or fragment: {url}")
+        slug = parsed.path.removeprefix("/new/template/")
+        if not slug or "/" in slug:
+            fail(f"{label} Railway deploy URL must name exactly one template slug: {url}")
+        return ("railway", slug)
+
+    return None
+
+
+def document_deploy_buttons(path: Path) -> list[tuple[str, DeployButtonKey]]:
+    """Return every one-click deploy URL in a documentation page."""
+    label = str(path.relative_to(REPO_ROOT))
+    buttons: list[tuple[str, DeployButtonKey]] = []
+    for match in HTTP_URL_PATTERN.finditer(path.read_text()):
+        url = match.group(0)
+        key = parse_deploy_button_url(url, label)
+        if key is not None:
+            buttons.append((url, key))
+    return buttons
+
+
+def deployment_document_paths() -> list[Path]:
+    """Every deployment guide, including future nested platform pages."""
+    return sorted((REPO_ROOT / "docs/deployment-guides").rglob("*.mdx"))
+
+
+def validate_render_blueprint_reference(name: str, blueprint: str, label: str) -> Path:
+    """Bind each verification slot to the Blueprint it is allowed to certify."""
+    expected = RENDER_BLUEPRINT_PATHS[name]
+    if blueprint != expected:
+        fail(f"{label} must name {expected!r}, got {blueprint!r}")
+    path = REPO_ROOT / expected
+    if not path.is_file():
+        fail(f"{label} expected blueprint {expected!r} is missing")
+    return path
 
 
 def verification_recorded(record: dict[str, Any], label: str) -> bool:
@@ -269,22 +371,29 @@ def one_click_targets() -> list[dict[str, Any]]:
     railway_docs = REPO_ROOT / "docs/deployment-guides/platforms/railway.mdx"
 
     targets: list[dict[str, Any]] = []
+    if set(render["blueprints"]) != set(RENDER_BLUEPRINT_PATHS):
+        fail(
+            f"{render_evidence} blueprints must be exactly "
+            f"{', '.join(sorted(RENDER_BLUEPRINT_PATHS))}"
+        )
     for name, entry in render["blueprints"].items():
         label = f"Render {name}"
         # The record must be internally consistent before it can vouch for a
-        # button: the named blueprint must exist in this repository — resolved
-        # and contained, so an absolute or ../ path cannot satisfy the check
-        # with a file outside the repo — and the button must deploy this
-        # repository at the branch the record claims was verified, since a
-        # suffix match alone would certify a button deploying someone else's
-        # repository.
-        blueprint_path = (REPO_ROOT / entry["blueprint"]).resolve()
-        if not blueprint_path.is_relative_to(REPO_ROOT) or not blueprint_path.is_file():
-            fail(f"{label} in {render_evidence} names blueprint {entry['blueprint']!r}, which is not a file inside the repository")
+        # button: each slot is bound to its exact canonical Blueprint, and the
+        # button must deploy this repository at the branch the record claims
+        # was verified.
+        validate_render_blueprint_reference(name, entry["blueprint"], f"{label} in {render_evidence}")
+        validate_render_branch(entry["branch"], f"{label} in {render_evidence}")
         expected_button_url = (
             f"https://render.com/deploy?repo=https://github.com/maximhq/bifrost/tree/{entry['branch']}"
         )
-        if entry["button_url"] and entry["button_url"] != expected_button_url:
+        expected_button_key = parse_deploy_button_url(expected_button_url, label)
+        button_key = (
+            parse_deploy_button_url(entry["button_url"], f"{label} in {render_evidence}")
+            if entry["button_url"]
+            else None
+        )
+        if entry["button_url"] and button_key != expected_button_key:
             fail(
                 f"{label} in {render_evidence} button_url must deploy the recorded branch of "
                 f"maximhq/bifrost, expected {expected_button_url}, got {entry['button_url']}"
@@ -297,6 +406,7 @@ def one_click_targets() -> list[dict[str, Any]]:
                 "label": label,
                 "doc": render_docs,
                 "url": entry["button_url"],
+                "key": button_key,
                 # A missing button URL means there is no link to publish, and an
                 # empty one is a substring of every document — treating it as
                 # verified would satisfy the link check below against nothing.
@@ -310,11 +420,13 @@ def one_click_targets() -> list[dict[str, Any]]:
         template = json.loads((REPO_ROOT / evidence).read_text())["template"]
         slug = template["slug"]
         recorded = verification_recorded(template, f"Railway {name} in {evidence}")
+        url = f"https://railway.com/new/template/{slug}" if slug else None
         targets.append(
             {
                 "label": f"Railway {name}",
                 "doc": railway_docs,
-                "url": f"https://railway.com/new/template/{slug}" if slug else None,
+                "url": url,
+                "key": parse_deploy_button_url(url, f"Railway {name} in {evidence}") if url else None,
                 # An unassigned slug means the template is not published at all,
                 # so it can never be verified regardless of what is recorded.
                 "verified": bool(slug) and recorded,
@@ -326,13 +438,14 @@ def one_click_targets() -> list[dict[str, Any]]:
 
 def validate_documentation_links() -> None:
     targets = one_click_targets()
+    buttons_by_doc = {path: document_deploy_buttons(path) for path in deployment_document_paths()}
     for target in targets:
-        docs = target["doc"].read_text()
         doc_label = str(target["doc"].relative_to(REPO_ROOT))
+        doc_button_keys = {key for _, key in buttons_by_doc[target["doc"]]}
         if target["verified"]:
-            if target["url"] not in docs:
+            if target["key"] not in doc_button_keys:
                 fail(f"{target['label']} is verified in {target['evidence']} but {doc_label} does not link {target['url']}")
-        elif target["url"] and target["url"] in docs:
+        elif target["key"] is not None and target["key"] in doc_button_keys:
             fail(
                 f"{doc_label} publishes the {target['label']} one-click button while "
                 f"{target['evidence']} records no verification. Verify the live template and record "
@@ -344,15 +457,14 @@ def validate_documentation_links() -> None:
     # must be the URL of a verified target. This also covers targets whose
     # recorded URL is None (an unassigned Railway slug), which the per-target
     # check skips entirely.
-    verified_urls = {target["url"] for target in targets if target["verified"]}
+    verified_keys = {target["key"] for target in targets if target["verified"]}
     overview_path = REPO_ROOT / "docs/deployment-guides/overview.mdx"
-    for doc in sorted({target["doc"] for target in targets} | {overview_path}):
-        text = doc.read_text()
+    for doc in deployment_document_paths():
         doc_label = str(doc.relative_to(REPO_ROOT))
-        for match in DEPLOY_BUTTON_URL_PATTERN.finditer(text):
-            if match.group(0) not in verified_urls:
+        for url, key in buttons_by_doc[doc]:
+            if key not in verified_keys:
                 fail(
-                    f"{doc_label} links the one-click deploy URL {match.group(0)}, which no "
+                    f"{doc_label} links the one-click deploy URL {url}, which no "
                     f"recorded verification covers. Verify the live template and record it, "
                     f"or remove the link."
                 )
