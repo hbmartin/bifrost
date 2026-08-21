@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"errors"
 	"net"
 	"testing"
@@ -18,6 +19,7 @@ import (
 
 type testWSHandlerStore struct {
 	matcher *lib.HeaderMatcher
+	kv      *kvstore.Store
 }
 
 func (s testWSHandlerStore) GetHeaderMatcher() *lib.HeaderMatcher {
@@ -37,7 +39,7 @@ func (s testWSHandlerStore) GetAsyncJobResultTTL() int {
 }
 
 func (s testWSHandlerStore) GetKVStore() *kvstore.Store {
-	return nil
+	return s.kv
 }
 
 func (s testWSHandlerStore) GetMCPHeaderCombinedAllowlist() schemas.WhiteList {
@@ -267,6 +269,53 @@ func TestCreateBifrostContextFromAuth_MatchesHTTPHeaderMapping(t *testing.T) {
 	assert.Equal(t, []string{"github"}, includeClients)
 }
 
+func TestCreateBifrostContextFromAuth_ClonesQueryForEveryTurn(t *testing.T) {
+	auth := &authHeaders{query: map[string]string{"team": "acme"}}
+
+	firstCtx, firstCancel := createBifrostContextFromAuth(testWSHandlerStore{}, auth)
+	defer firstCancel()
+	firstQuery := firstCtx.Value(schemas.BifrostContextKeyRequestQuery).(map[string]string)
+	firstQuery["team"] = "mutated"
+	firstQuery["injected"] = "value"
+
+	secondCtx, secondCancel := createBifrostContextFromAuth(testWSHandlerStore{}, auth)
+	defer secondCancel()
+	secondQuery := secondCtx.Value(schemas.BifrostContextKeyRequestQuery).(map[string]string)
+
+	assert.Equal(t, map[string]string{"team": "acme"}, auth.query)
+	assert.Equal(t, map[string]string{"team": "acme"}, secondQuery)
+}
+
+func TestCreateBifrostContextFromAuth_QueryMapsCanBeMutatedConcurrently(t *testing.T) {
+	auth := &authHeaders{query: map[string]string{"team": "acme"}}
+	firstCtx, firstCancel := createBifrostContextFromAuth(testWSHandlerStore{}, auth)
+	defer firstCancel()
+	secondCtx, secondCancel := createBifrostContextFromAuth(testWSHandlerStore{}, auth)
+	defer secondCancel()
+
+	firstQuery := firstCtx.Value(schemas.BifrostContextKeyRequestQuery).(map[string]string)
+	secondQuery := secondCtx.Value(schemas.BifrostContextKeyRequestQuery).(map[string]string)
+	done := make(chan struct{}, 2)
+	go func() {
+		for range 1000 {
+			firstQuery["turn"] = "first"
+		}
+		done <- struct{}{}
+	}()
+	go func() {
+		for range 1000 {
+			secondQuery["turn"] = "second"
+		}
+		done <- struct{}{}
+	}()
+	<-done
+	<-done
+
+	assert.Equal(t, "first", firstQuery["turn"])
+	assert.Equal(t, "second", secondQuery["turn"])
+	assert.NotContains(t, auth.query, "turn")
+}
+
 func TestCreateBifrostContextFromAuth_ConflictingCredentialsMatchHTTPPrecedence(t *testing.T) {
 	// Several header names can set the virtual key; on the HTTP path the
 	// last-processed one wins, so the WS replay must preserve wire order for
@@ -290,6 +339,55 @@ func TestCreateBifrostContextFromAuth_ConflictingCredentialsMatchHTTPPrecedence(
 
 	assert.NotEmpty(t, httpVK)
 	assert.Equal(t, httpVK, wsVK)
+}
+
+func TestRealtimeEphemeralMappingOverridesCompetingCredentialInBothContexts(t *testing.T) {
+	store, err := kvstore.New(kvstore.Config{})
+	if err != nil {
+		t.Fatalf("kvstore.New() error = %v", err)
+	}
+	defer store.Close()
+
+	payload, err := json.Marshal(realtimeEphemeralKeyMapping{
+		KeyID:      "mapped-key-id",
+		VirtualKey: "sk-bf-mapped-virtual-key",
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+	if err := store.SetWithTTL(buildRealtimeEphemeralKeyMappingKey("ek_first"), payload, time.Minute); err != nil {
+		t.Fatalf("store.SetWithTTL() error = %v", err)
+	}
+
+	auth := &authHeaders{
+		authorization: "Bearer ek_first",
+		headers: []headerPair{
+			{key: "authorization", value: "Bearer ek_first"},
+			{key: "x-bf-vk", value: "sk-bf-competing-virtual-key"},
+		},
+	}
+	resolved := resolveRealtimeWebSocketEphemeralMapping(store, auth)
+	if resolved == nil {
+		t.Fatal("expected ephemeral mapping to resolve")
+	}
+
+	for _, phase := range []string{"routing", "session"} {
+		t.Run(phase, func(t *testing.T) {
+			ctx, cancel := createBifrostContextFromAuth(testWSHandlerStore{}, auth)
+			defer cancel()
+			applyResolvedRealtimeEphemeralMapping(ctx, resolved)
+
+			virtualKey, _ := ctx.Value(schemas.BifrostContextKeyVirtualKey).(string)
+			keyID, _ := ctx.Value(schemas.BifrostContextKeyAPIKeyID).(string)
+			assert.Equal(t, "sk-bf-mapped-virtual-key", virtualKey)
+			assert.Equal(t, "mapped-key-id", keyID)
+		})
+	}
+}
+
+func TestResolveRealtimeWebSocketEphemeralMappingLeavesOrdinaryAuthorizationAlone(t *testing.T) {
+	auth := &authHeaders{authorization: "Bearer sk-bf-ordinary"}
+	assert.Nil(t, resolveRealtimeWebSocketEphemeralMapping(nil, auth))
 }
 
 func TestMergeWebSocketHeaders_ForwardedHeadersOverrideProviderHeadersAndPreserveValues(t *testing.T) {

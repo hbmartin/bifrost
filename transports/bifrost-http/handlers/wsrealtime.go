@@ -66,6 +66,30 @@ func (h *WSRealtimeHandler) Close() {
 	h.sessions.CloseAll()
 }
 
+// resolveRealtimeWebSocketEphemeralMapping resolves the upgrade credential
+// once so routing and the long-lived provider session cannot derive different
+// identities from competing credential header aliases.
+func resolveRealtimeWebSocketEphemeralMapping(kv schemas.KVStore, auth *authHeaders) *realtimeEphemeralKeyMapping {
+	if auth == nil {
+		return nil
+	}
+	token := extractRealtimeBearerTokenFromHeader(auth.authorization)
+	if !isRealtimeEphemeralToken(token) {
+		return nil
+	}
+	mapping, ok := lookupRealtimeEphemeralKeyMapping(kv, token)
+	if !ok {
+		return nil
+	}
+	return &mapping
+}
+
+func applyResolvedRealtimeEphemeralMapping(bifrostCtx *schemas.BifrostContext, mapping *realtimeEphemeralKeyMapping) {
+	if mapping != nil {
+		applyRealtimeEphemeralKeyMapping(bifrostCtx, *mapping)
+	}
+}
+
 func (h *WSRealtimeHandler) handleUpgrade(ctx *fasthttp.RequestCtx) {
 	path := string(ctx.Path())
 	modelParam := string(ctx.QueryArgs().Peek("model"))
@@ -78,6 +102,7 @@ func (h *WSRealtimeHandler) handleUpgrade(ctx *fasthttp.RequestCtx) {
 			auth.setAuthorization("Bearer " + token)
 		}
 	}
+	ephemeralMapping := resolveRealtimeWebSocketEphemeralMapping(h.handlerStore.GetKVStore(), auth)
 
 	providerKey, model, err := resolveRealtimeTarget(ctx, h.config, path, modelParam, deploymentParam)
 	if err != nil {
@@ -116,6 +141,7 @@ func (h *WSRealtimeHandler) handleUpgrade(ctx *fasthttp.RequestCtx) {
 	if realtimeDefaultProviderForPath(path) == schemas.OpenAI {
 		preReqCtx.SetValue(schemas.BifrostContextKeyIntegrationType, "openai")
 	}
+	applyResolvedRealtimeEphemeralMapping(preReqCtx, ephemeralMapping)
 	// createBifrostContextFromAuth already surfaced the full request headers and
 	// query params (via the shared lib.ApplyHeaderValuesToBifrostContext
 	// mapping), so governance CEL routing rules that read headers[...] /
@@ -190,7 +216,7 @@ func (h *WSRealtimeHandler) handleUpgrade(ctx *fasthttp.RequestCtx) {
 		}
 		defer h.sessions.Remove(conn)
 
-		h.runRealtimeSession(clientConn, session, auth, path, providerKey, model, middlewareContextValues)
+		h.runRealtimeSession(clientConn, session, auth, path, providerKey, model, middlewareContextValues, ephemeralMapping)
 	})
 	if err != nil {
 		logger.Warn("websocket upgrade failed for %s: %v", path, err)
@@ -223,6 +249,7 @@ func (h *WSRealtimeHandler) runRealtimeSession(
 	providerKey schemas.ModelProvider,
 	model string,
 	middlewareValues map[any]any,
+	ephemeralMapping *realtimeEphemeralKeyMapping,
 ) {
 	clientConn.startHeartbeat()
 	defer clientConn.stopHeartbeat()
@@ -239,15 +266,7 @@ func (h *WSRealtimeHandler) runRealtimeSession(
 	// routing engine logs, raw-storage header overrides, and other values set by
 	// HTTPTransportPreHook plugins (governance, prompts, etc.).
 	applyRealtimeMiddlewareValues(bifrostCtx, middlewareValues)
-
-	// Resolve ephemeral key mapping to restore virtual key context.
-	token := extractRealtimeBearerTokenFromHeader(auth.authorization)
-	if isRealtimeEphemeralToken(token) {
-		mapping, ok := lookupRealtimeEphemeralKeyMapping(h.handlerStore.GetKVStore(), token)
-		if ok {
-			applyRealtimeEphemeralKeyMapping(bifrostCtx, mapping)
-		}
-	}
+	applyResolvedRealtimeEphemeralMapping(bifrostCtx, ephemeralMapping)
 
 	bifrostCtx.SetValue(schemas.BifrostContextKeyHTTPRequestType, schemas.RealtimeRequest)
 	if strings.HasPrefix(path, "/openai") {
