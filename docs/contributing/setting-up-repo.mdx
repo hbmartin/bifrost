@@ -187,6 +187,8 @@ make clean-test-reports  # Clean test reports
 make generate-html-reports  # Convert XML to HTML reports
 ```
 
+Framework vector-store tests require local backing services. Follow [Vector-store test infrastructure](/contributing/vectorstore-test-infrastructure) before running `make test-framework` or the full `make test-all` chain.
+
 <Note>
 - **TESTCASE must use forward-slash separated nested path format** (e.g., `ParentTest/SubTest/SpecificTest`)
 - See the Makefile comment at line 311 for the expected format and additional examples
