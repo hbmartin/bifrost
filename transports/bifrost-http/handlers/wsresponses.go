@@ -105,32 +105,59 @@ func (h *WSResponsesHandler) handleUpgrade(ctx *fasthttp.RequestCtx) {
 	}
 }
 
-// authHeaders holds auth-related headers captured during the WS upgrade.
-type authHeaders struct {
-	authorization string
-	virtualKey    string
-	apiKey        string
-	googAPIKey    string
-	baggage       string
-	sessionID     string
-	headers       map[string][]string
+// headerPair is one captured request header, name lowercased.
+type headerPair struct {
+	key   string
+	value string
 }
 
-// captureAuthHeaders captures the auth headers from the request.
-func captureAuthHeaders(ctx *fasthttp.RequestCtx) *authHeaders {
-	ah := &authHeaders{
-		authorization: string(ctx.Request.Header.Peek("Authorization")),
-		virtualKey:    string(ctx.Request.Header.Peek("x-bf-vk")),
-		apiKey:        string(ctx.Request.Header.Peek("x-api-key")),
-		googAPIKey:    string(ctx.Request.Header.Peek("x-goog-api-key")),
-		baggage:       string(ctx.Request.Header.Peek("baggage")),
-		sessionID:     lib.ResolveSessionIDFromRequest(&ctx.Request.Header),
-		headers:       make(map[string][]string),
-	}
+// authHeaders holds the request headers and query params captured during the
+// WS upgrade, so per-turn contexts can be built after the fasthttp request is
+// gone. headers preserves every value of repeated headers in wire order —
+// several header names can feed the same context value (e.g. the virtual key
+// from Authorization, x-api-key, or x-bf-vk), and on the HTTP path the
+// last-processed one wins, so replay order must match capture order for a WS
+// turn to resolve the same credentials as an equivalent HTTP request.
+// authorization is kept separately because the realtime path reads and
+// rewrites it (subprotocol API keys, ephemeral tokens).
+type authHeaders struct {
+	authorization string
+	headers       []headerPair
+	query         map[string]string
+}
 
+// setAuthorization overrides the captured Authorization header, keeping the
+// standalone field and the header list in agreement so the shared
+// header→context mapping sees the same value the realtime auth helpers do.
+func (ah *authHeaders) setAuthorization(value string) {
+	ah.authorization = value
+	kept := ah.headers[:0]
+	for _, pair := range ah.headers {
+		if pair.key != "authorization" {
+			kept = append(kept, pair)
+		}
+	}
+	ah.headers = append(kept, headerPair{key: "authorization", value: value})
+}
+
+// captureAuthHeaders captures the upgrade request's headers and query params in
+// a single pass over each.
+func captureAuthHeaders(ctx *fasthttp.RequestCtx) *authHeaders {
+	ah := &authHeaders{}
 	for key, value := range ctx.Request.Header.All() {
 		k := strings.ToLower(string(key))
-		ah.headers[k] = append(ah.headers[k], string(value))
+		v := string(value)
+		if k == "authorization" && ah.authorization == "" {
+			ah.authorization = v
+		}
+		ah.headers = append(ah.headers, headerPair{key: k, value: v})
+	}
+	if queryArgs := ctx.Request.URI().QueryArgs(); queryArgs.Len() > 0 {
+		ah.query = make(map[string]string, queryArgs.Len())
+		queryArgs.All()(func(key, value []byte) bool {
+			ah.query[strings.ToLower(string(key))] = string(value)
+			return true
+		})
 	}
 	return ah
 }
@@ -775,87 +802,38 @@ func (h *WSResponsesHandler) convertEventToRequest(event *schemas.WebSocketRespo
 	}, nil
 }
 
-// createBifrostContextFromAuth builds a BifrostContext from the auth headers captured during upgrade.
+// createBifrostContextFromAuth builds a BifrostContext from the headers and
+// query params captured during upgrade, by replaying them through the same
+// lib.ApplyHeaderValuesToBifrostContext mapping the HTTP path uses. Every
+// header-driven context value — sticky session ID and TTL, virtual/direct keys,
+// governance request headers and query params, MCP filters, telemetry
+// dimensions, extra-header forwarding, raw-capture overrides — therefore
+// matches an equivalent HTTP request.
+//
+// Two HTTP-side values are deliberately not replicated: the per-request
+// x-request-id (each WS turn is its own request; core assigns IDs), and OTEL
+// trace attributes such as session.id, which the HTTP tracing middleware puts
+// on the upgrade request's own trace — per-turn traces are minted in core and
+// do not carry them.
 func createBifrostContextFromAuth(handlerStore lib.HandlerStore, auth *authHeaders) (*schemas.BifrostContext, context.CancelFunc) {
 	ctx, cancel := schemas.NewBifrostContextWithCancel(context.Background())
 	if auth == nil {
 		return ctx, cancel
 	}
 
-	// ResolveSessionIDFromRequest validates the upgrade headers once and stores
-	// only the small normalized identifier here. Every Responses and Realtime
-	// WebSocket context then receives the same sticky-key and tracing identity as
-	// an equivalent HTTP request, without retaining the fasthttp request.
-	if auth.sessionID != "" {
-		ctx.SetValue(schemas.BifrostContextKeySessionID, auth.sessionID)
-	}
-
-	if sessionID := lib.ParseSessionIDFromBaggage(auth.baggage); sessionID != "" {
-		ctx.SetValue(schemas.BifrostContextKeyParentRequestID, sessionID)
-	}
-
-	if auth.virtualKey != "" {
-		ctx.SetValue(schemas.BifrostContextKeyVirtualKey, auth.virtualKey)
-	}
-
-	// Handle Bearer token with sk-bf- prefix (virtual key via Authorization header)
-	if auth.authorization != "" {
-		if strings.HasPrefix(auth.authorization, "Bearer ") {
-			token := strings.TrimPrefix(auth.authorization, "Bearer ")
-			if strings.HasPrefix(token, "sk-bf-") {
-				ctx.SetValue(schemas.BifrostContextKeyVirtualKey, token)
+	lib.ApplyHeaderValuesToBifrostContext(ctx, func(yield func(key, value []byte) bool) {
+		for _, pair := range auth.headers {
+			if !yield([]byte(pair.key), []byte(pair.value)) {
+				return
 			}
 		}
-	}
-	if auth.apiKey != "" {
-		if strings.HasPrefix(auth.apiKey, "sk-bf-") {
-			ctx.SetValue(schemas.BifrostContextKeyVirtualKey, auth.apiKey)
-		}
-	}
-	if auth.googAPIKey != "" {
-		if strings.HasPrefix(auth.googAPIKey, "sk-bf-") {
-			ctx.SetValue(schemas.BifrostContextKeyVirtualKey, auth.googAPIKey)
-		}
-	}
+	}, handlerStore)
 
-	// Forward x-bf-* headers
-	matcher := (*lib.HeaderMatcher)(nil)
-	if handlerStore != nil {
-		matcher = handlerStore.GetHeaderMatcher()
-	}
-	extraHeaders := make(map[string][]string)
-	for k, values := range auth.headers {
-		for _, v := range values {
-			switch {
-			case k == "x-bf-vk":
-				// Already handled above
-			case k == "x-bf-api-key":
-				ctx.SetValue(schemas.BifrostContextKeyAPIKeyName, v)
-			case strings.HasPrefix(k, "x-bf-eh-"):
-				addForwardedHeader(extraHeaders, matcher, strings.TrimPrefix(k, "x-bf-eh-"), v)
-			case matcher != nil && matcher.HasAllowlist() && matcher.MatchesAllow(k):
-				if !strings.HasPrefix(k, "x-bf-") && !isSecurityDeniedExtraHeader(k) && !matcher.MatchesDeny(k) {
-					extraHeaders[k] = append(extraHeaders[k], v)
-				}
-			}
-		}
-	}
-	if len(extraHeaders) > 0 {
-		ctx.SetValue(schemas.BifrostContextKeyExtraHeaders, extraHeaders)
+	if len(auth.query) > 0 {
+		ctx.SetValue(schemas.BifrostContextKeyRequestQuery, auth.query)
 	}
 
 	return ctx, cancel
-}
-
-func addForwardedHeader(extraHeaders map[string][]string, matcher *lib.HeaderMatcher, name string, value string) {
-	name = strings.ToLower(strings.TrimSpace(name))
-	if name == "" || isSecurityDeniedExtraHeader(name) {
-		return
-	}
-	if matcher != nil && !matcher.ShouldAllow(name) {
-		return
-	}
-	extraHeaders[name] = append(extraHeaders[name], value)
 }
 
 func isSecurityDeniedExtraHeader(name string) bool {
