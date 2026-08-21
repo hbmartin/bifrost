@@ -22,7 +22,7 @@ The Blueprints use the container runtime contract introduced in Bifrost `v1.6.12
 <Warning>
 The one-click button for this Blueprint is not published yet. It is enabled only after the Blueprint has been deployed and verified against a qualified `maximhq/bifrost` release.
 
-Until then, copy this repository's root `render.yaml` into your own repository, then create and approve a Render Blueprint from that repository.
+Until then, copy this repository's root `render.yaml` into your own repository, replace `docker.io/maximhq/bifrost:latest` with an immutable release tag or digest that you have qualified against the runtime contract, then create and approve a Render Blueprint from that repository. Do not deploy the manual copy while it still references `latest`.
 </Warning>
 
 Once published, the button is explicitly bound to the `main` branch and its root `render.yaml`. It provisions one Free web service and one private Free PostgreSQL 18 database. Both Bifrost stores use TLS-required PostgreSQL connections, so configuration and logs survive web-service replacement without a Bifrost disk.
@@ -34,7 +34,7 @@ Treat this as a 30-day evaluation. Upgrade the database before its expiry date t
 <Warning>
 The one-click button for this Blueprint is not published yet. It is enabled only after the generated `render-sqlite` branch exists and its Blueprint has been deployed and verified against a qualified `maximhq/bifrost` release.
 
-Until then, copy `deploy/render/render-sqlite.yaml` into your own repository as the root `render.yaml`, then create a Render Blueprint from it.
+Until then, copy `deploy/render/render-sqlite.yaml` into your own repository as the root `render.yaml`, replace `docker.io/maximhq/bifrost:latest` with an immutable release tag or digest that you have qualified against the runtime contract, then create a Render Blueprint from it. Do not deploy the manual copy while it still references `latest`.
 </Warning>
 
 Once published, the button is explicitly bound to the generated `render-sqlite` branch. It provisions one Starter web service and mounts a 1 GB persistent disk at `/app/data`. Bifrost's SQLite configuration and logs survive restarts and redeploys.
