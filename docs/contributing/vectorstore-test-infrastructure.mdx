@@ -7,7 +7,9 @@ icon: "database"
 The `framework/vectorstore` tests exercise real Redis, Qdrant, Weaviate, and Pinecone-compatible services. Start the repository's dedicated test stack before running the complete framework suite.
 
 <Warning>
-Use `tests/docker-compose.yml`, not `framework/docker-compose.yml`. The files bind overlapping host ports, but only the `tests` stack provides the Redis TLS and cluster variants, generated CA certificate, and pinned Weaviate network configuration expected by the tests.
+Use `tests/docker-compose.yml`, not `framework/docker-compose.yml`. Only the `tests` stack provides the Redis TLS and cluster variants, generated CA certificate, and pinned Weaviate network configuration expected by the tests.
+
+The two files bind overlapping host ports, so they cannot run at the same time. If the framework stack is running (or ever was — its containers restart with Docker), stop it first with `docker compose -f framework/docker-compose.yml down`; otherwise `up -d` fails with `port is already allocated` on ports such as `9000`, `6379`, `6334`, or `5081`.
 </Warning>
 
 ## Start the services
@@ -26,12 +28,13 @@ The stack provides:
 |---|---:|---|
 | Redis Stack | `6379` | Standalone Redis and vector search |
 | Redis with TLS | `6380` | Standalone TLS clients, including CA verification |
-| Redis Cluster | `7000` | Cluster clients |
-| Redis Cluster with TLS | `7100` | TLS cluster clients, including CA verification |
+| Redis Cluster | `7000` | No test defaults to this port; the integration tests dial it only when `REDIS_ADDR=localhost:7000` and `REDIS_CLUSTER_MODE=true` are set |
+| Redis Cluster with TLS | `7100` | Cluster clients, including CA verification (the explicit TLS cluster tests hardcode this port) |
 | Qdrant | `6334` | Qdrant gRPC client |
 | Weaviate | `9000` | Weaviate HTTP client |
 | Pinecone Local | `5081` | Pinecone-compatible local index |
-| PostgreSQL | `5432` | Framework configuration and log-store tests |
+| PostgreSQL | `5432` | Framework configuration and PostgreSQL log-store tests |
+| ClickHouse | `9001` (native), `8123` (HTTP) | ClickHouse log-store suites and the cross-backend log-store parity suite; these skip with a diagnostic (`t.Skipf` with the connection error) when nothing listens on `9001`, and the run still reports green |
 
 `redis-certs-init` writes the test CA and server certificate under `tests/redis-certs/`. The CA-backed Redis tests read `tests/redis-certs/ca.crt` directly.
 
@@ -48,8 +51,15 @@ Pinecone Local runs as `linux/amd64`; startup can be slower under emulation on a
 Once the services are ready:
 
 ```bash
-make test-framework
+USE_INFISICAL=0 PATH="$(go env GOPATH)/bin:$PATH" make test-framework
 ```
+
+Two Makefile traps make the plain `make test-framework` misleading on a fresh machine:
+
+- Every test target sources secrets from the Infisical CLI by default and hard-aborts with `infisical CLI not found` before running a single test. Set `USE_INFISICAL=0` (or install and configure the CLI) — there is no automatic fallback.
+- The target runs tests through `gotestsum`, which installs to `$(go env GOPATH)/bin`. If that directory is not on `PATH`, the target can report success having run zero tests, so always check the reported test count.
+
+`make test-all` chains `test-core test-framework test-plugins test-http-transport test test-cli` and stops at the first failing target. When `test-framework` fails on missing services, the four later suites never run at all — a red `make test-all` on a machine without this stack is a truncated run, not a verdict on those suites. Run the later targets individually before concluding anything about them.
 
 To run only the vector-store package:
 
@@ -64,10 +74,11 @@ If you deliberately need a clean result from the rest of the framework without r
 
 ```bash
 cd framework
-go list ./... | grep -v '/vectorstore$' | xargs go test
+packages=$(go list ./... | grep -v '/vectorstore$')
+[ -n "$packages" ] && go test -count=1 $packages
 ```
 
-Do not prefix that command with `go test ./...`; doing so would include `framework/vectorstore` again.
+The guard matters: piping straight into `xargs go test` exits green with zero tests executed when `go list` itself fails (GNU `xargs` runs a bare `go test` in the package-less `framework` root; BSD `xargs` runs nothing), and `xargs -r` is not portable to BSD/macOS.
 
 ## Stop the services
 
@@ -90,9 +101,10 @@ The destination port normally identifies the missing service:
 | `6334` | Qdrant gRPC |
 | `5081` | Pinecone Local |
 | `9000` | Weaviate |
+| `9001` | ClickHouse (native protocol) |
 | `5432` | PostgreSQL |
 
-A connection-refused error usually means the corresponding service is absent or still starting. Assertion failures, panics, schema mismatches, and dimension mismatches require ordinary test debugging rather than infrastructure setup.
+A connection-refused error usually means the corresponding service is absent or still starting. A `port is already allocated` error from `docker compose up` means something else holds the port — most often the other compose stack (`docker compose -f framework/docker-compose.yml down` releases it, as described in the warning above), but any container or host process can be the holder; `docker ps` or `lsof -iTCP:<port> -sTCP:LISTEN` identifies it. Assertion failures, panics, schema mismatches, and dimension mismatches require ordinary test debugging rather than infrastructure setup.
 
 Before attributing a failure to the current branch, check whether the package changed:
 

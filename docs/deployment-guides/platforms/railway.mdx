@@ -7,7 +7,7 @@ icon: "train"
 Railway has two Maxim-maintained template contracts for a single OSS Bifrost replica. Both use `maximhq/bifrost:latest`, generate the encryption and administrator secrets, enable dashboard authentication, and reject anonymous inference.
 
 <Note>
-The contracts use the container runtime introduced in Bifrost `v1.6.12` and were validated in the repository on August 18, 2026. Publish or update the public templates only after `maximhq/bifrost:latest` resolves to a qualified multi-architecture release of `v1.6.12` or later.
+The contracts use the container runtime introduced with the `v1.6.12` release line and were validated in the repository on August 18, 2026. No published Bifrost release satisfies that contract yet. Publish or update the public templates only after `.github/workflows/scripts/verify-deployment-release.sh` resolves a qualified multi-architecture release at or above the `minimum_release_tag` in `deploy/runtime-contract.json`.
 </Note>
 
 ## Choose a deployment
@@ -22,7 +22,7 @@ The contracts use the container runtime introduced in Bifrost `v1.6.12` and were
 <Warning>
 The public `blue-dark` template does not currently match the checked-in security and runtime contract, so its one-click button is deliberately withheld. Enable the button only after the live template has been updated, inspected against `deploy/railway/postgres.template-contract.json`, and its verification recorded.
 
-Until then, reproduce the template manually from the checked-in contract rather than deploying the stale public template.
+Until then, reproduce the template manually from the checked-in contract rather than deploying the stale public template — with one substitution: the contract records `docker.io/maximhq/bifrost:latest` with a daily image check, which is the design for the verified public template, not for an unverified manual copy. Replace `latest` with an immutable release tag or digest you have qualified against the runtime contract, and disable the automatic image check. Do not deploy a manual reproduction while it still references `latest`; if no qualified release is published yet, there is nothing to deploy.
 </Warning>
 
 Once verified, the Maxim-owned `blue-dark` template provisions Bifrost and PostgreSQL 18. Both stores require TLS, configuration and logs persist in PostgreSQL, and the Bifrost service has no unnecessary volume or root-user override.
@@ -31,7 +31,7 @@ The auditable dashboard contract is checked in at `deploy/railway/postgres.templ
 
 ### SQLite
 
-The Maxim-owned SQLite template is defined by `deploy/railway/sqlite.template-contract.json`. Its public button is deliberately release-gated: the assigned template slug must be recorded in that contract and on this page immediately after publication. Do not substitute an unowned or unverified community template.
+The Maxim-owned SQLite template is defined by `deploy/railway/sqlite.template-contract.json`. Its public button is deliberately release-gated: the assigned template slug must be recorded in that contract and on this page immediately after publication. Do not substitute an unowned or unverified community template. A manual reproduction before publication needs the same substitution as the PostgreSQL contract above: replace `latest` with a qualified immutable release tag or digest and disable the automatic image check.
 
 The SQLite service attaches a volume at `/app/data`. Railway mounts volumes as root, so the template starts the container with `RAILWAY_RUN_UID=0`; the official entrypoint repairs the mounted directory and then launches Bifrost as `1000:0` using `BIFROST_RUN_AS_UID` and `BIFROST_RUN_AS_GID`. Bifrost—not the bootstrap shell—remains PID 1.
 
