@@ -26,6 +26,17 @@ Start with [Bifrost Deployment Requirements](/deployment-guides/runtime-contract
 
 The Kubernetes guides begin with an existing cluster. If you need to create a cluster, each page links to the cloud provider's setup documentation before continuing with the Bifrost installation.
 
+{/*
+  Maintainers: when the first one-click deploy target is verified (its
+  last_verified / verified_release recorded in deploy/render/blueprint-verification.json
+  or a deploy/railway/*.template-contract.json), validate-deployment-templates.py
+  requires this page to regain an H2 section titled "Hosted one-click choices"
+  listing the published buttons. The removed comparison table to restore lives in
+  git history: `git show 4da6e0c82~1:docs/deployment-guides/overview.mdx`.
+  Do not paste the heading here before a target is verified — the same check
+  fails in the other direction while nothing is published.
+*/}
+
 ## Choose where Bifrost stores data
 
 Bifrost stores provider configuration, encrypted credentials, application settings, and request logs. Choose one of these storage models before deploying:
