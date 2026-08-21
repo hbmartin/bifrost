@@ -28,13 +28,13 @@ The stack provides:
 |---|---:|---|
 | Redis Stack | `6379` | Standalone Redis and vector search |
 | Redis with TLS | `6380` | Standalone TLS clients, including CA verification |
-| Redis Cluster | `7000` | No checked-in test dials this port; reachable only through the `REDIS_ADDR` and `REDIS_CLUSTER_MODE` environment overrides |
-| Redis Cluster with TLS | `7100` | Cluster clients, including CA verification (the checked-in cluster tests dial only this port) |
+| Redis Cluster | `7000` | No test defaults to this port; the integration tests dial it only when `REDIS_ADDR=localhost:7000` and `REDIS_CLUSTER_MODE=true` are set |
+| Redis Cluster with TLS | `7100` | Cluster clients, including CA verification (the explicit TLS cluster tests hardcode this port) |
 | Qdrant | `6334` | Qdrant gRPC client |
 | Weaviate | `9000` | Weaviate HTTP client |
 | Pinecone Local | `5081` | Pinecone-compatible local index |
 | PostgreSQL | `5432` | Framework configuration and PostgreSQL log-store tests |
-| ClickHouse | `9001` (native), `8123` (HTTP) | ClickHouse log-store suites and the cross-backend log-store parity suite; these skip silently (`t.Skipf`) when nothing listens on `9001` |
+| ClickHouse | `9001` (native), `8123` (HTTP) | ClickHouse log-store suites and the cross-backend log-store parity suite; these skip with a diagnostic (`t.Skipf` with the connection error) when nothing listens on `9001`, and the run still reports green |
 
 `redis-certs-init` writes the test CA and server certificate under `tests/redis-certs/`. The CA-backed Redis tests read `tests/redis-certs/ca.crt` directly.
 
@@ -74,10 +74,11 @@ If you deliberately need a clean result from the rest of the framework without r
 
 ```bash
 cd framework
-go list ./... | grep -v '/vectorstore$' | xargs -r go test -count=1
+packages=$(go list ./... | grep -v '/vectorstore$')
+[ -n "$packages" ] && go test -count=1 $packages
 ```
 
-The `-r` flag matters: without it, an empty package list (for example when `go list` itself fails) makes GNU `xargs` run a bare `go test` in the package-less `framework` root and exit green with zero tests executed.
+The guard matters: piping straight into `xargs go test` exits green with zero tests executed when `go list` itself fails (GNU `xargs` runs a bare `go test` in the package-less `framework` root; BSD `xargs` runs nothing), and `xargs -r` is not portable to BSD/macOS.
 
 ## Stop the services
 
@@ -103,7 +104,7 @@ The destination port normally identifies the missing service:
 | `9001` | ClickHouse (native protocol) |
 | `5432` | PostgreSQL |
 
-A connection-refused error usually means the corresponding service is absent or still starting. A `port is already allocated` error from `docker compose up` means the other compose stack (usually `framework/docker-compose.yml`) still holds the port — stop it first, as described in the warning above. Assertion failures, panics, schema mismatches, and dimension mismatches require ordinary test debugging rather than infrastructure setup.
+A connection-refused error usually means the corresponding service is absent or still starting. A `port is already allocated` error from `docker compose up` means something else holds the port — most often the other compose stack (`docker compose -f framework/docker-compose.yml down` releases it, as described in the warning above), but any container or host process can be the holder; `docker ps` or `lsof -iTCP:<port> -sTCP:LISTEN` identifies it. Assertion failures, panics, schema mismatches, and dimension mismatches require ordinary test debugging rather than infrastructure setup.
 
 Before attributing a failure to the current branch, check whether the package changed:
 
