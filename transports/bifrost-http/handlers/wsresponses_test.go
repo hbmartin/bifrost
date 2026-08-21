@@ -102,7 +102,9 @@ func TestNewBifrostError(t *testing.T) {
 
 func TestCreateBifrostContextFromAuth_BaggageSessionIDSetsGrouping(t *testing.T) {
 	ctx, cancel := createBifrostContextFromAuth(testWSHandlerStore{}, &authHeaders{
-		baggage: "foo=bar, session-id=rt-ws-123, baz=qux",
+		headers: map[string][]string{
+			"baggage": {"foo=bar, session-id=rt-ws-123, baz=qux"},
+		},
 	})
 	defer cancel()
 
@@ -113,7 +115,9 @@ func TestCreateBifrostContextFromAuth_BaggageSessionIDSetsGrouping(t *testing.T)
 
 func TestCreateBifrostContextFromAuth_EmptyBaggageSessionIDIgnored(t *testing.T) {
 	ctx, cancel := createBifrostContextFromAuth(testWSHandlerStore{}, &authHeaders{
-		baggage: "session-id=   ",
+		headers: map[string][]string{
+			"baggage": {"session-id=   "},
+		},
 	})
 	defer cancel()
 
@@ -217,6 +221,43 @@ func TestCreateBifrostContextFromAuth_BlocksWebSocketHandshakeForwardedHeaders(t
 	assert.NotContains(t, extraHeaders, "upgrade")
 	assert.NotContains(t, extraHeaders, "sec-websocket-protocol")
 	assert.NotContains(t, extraHeaders, "sec-websocket-extensions")
+}
+
+func TestCreateBifrostContextFromAuth_MatchesHTTPHeaderMapping(t *testing.T) {
+	var req fasthttp.Request
+	req.SetRequestURI("/v1/responses?team=acme-team")
+	req.Header.Set("x-bf-session-id", "sess-1")
+	req.Header.Set("x-bf-session-ttl", "24h")
+	req.Header.Set("x-bf-dim-tenant", "acme")
+	req.Header.Set("x-team-id", "team-7")
+	req.Header.Set("x-bf-mcp-include-clients", "github")
+
+	fctx := &fasthttp.RequestCtx{}
+	fctx.Init(&req, &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 12345}, nil)
+
+	auth := captureAuthHeaders(fctx)
+	ctx, cancel := createBifrostContextFromAuth(testWSHandlerStore{}, auth)
+	defer cancel()
+
+	sessionID, _ := ctx.Value(schemas.BifrostContextKeySessionID).(string)
+	assert.Equal(t, "sess-1", sessionID)
+
+	ttl, _ := ctx.Value(schemas.BifrostContextKeySessionTTL).(time.Duration)
+	assert.Equal(t, 24*time.Hour, ttl)
+
+	dimensions, _ := ctx.Value(schemas.BifrostContextKeyDimensions).(map[string]string)
+	assert.Equal(t, map[string]string{"tenant": "acme"}, dimensions)
+
+	requestHeaders, _ := ctx.Value(schemas.BifrostContextKeyRequestHeaders).(map[string]string)
+	if assert.NotNil(t, requestHeaders, "governance required-headers checks read this map") {
+		assert.Equal(t, "team-7", requestHeaders["x-team-id"])
+	}
+
+	requestQuery, _ := ctx.Value(schemas.BifrostContextKeyRequestQuery).(map[string]string)
+	assert.Equal(t, map[string]string{"team": "acme-team"}, requestQuery)
+
+	includeClients, _ := ctx.Value(schemas.MCPContextKeyIncludeClients).([]string)
+	assert.Equal(t, []string{"github"}, includeClients)
 }
 
 func TestMergeWebSocketHeaders_ForwardedHeadersOverrideProviderHeadersAndPreserveValues(t *testing.T) {

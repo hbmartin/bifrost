@@ -75,7 +75,7 @@ func (h *WSRealtimeHandler) handleUpgrade(ctx *fasthttp.RequestCtx) {
 	// Extract it into the auth headers so downstream processing recognizes it.
 	if auth.authorization == "" {
 		if token := extractRealtimeSubprotocolAPIKey(ctx); token != "" {
-			auth.authorization = "Bearer " + token
+			auth.setAuthorization("Bearer " + token)
 		}
 	}
 
@@ -116,24 +116,10 @@ func (h *WSRealtimeHandler) handleUpgrade(ctx *fasthttp.RequestCtx) {
 	if realtimeDefaultProviderForPath(path) == schemas.OpenAI {
 		preReqCtx.SetValue(schemas.BifrostContextKeyIntegrationType, "openai")
 	}
-	// Surface full request headers + query params on the pre-request context so governance
-	// CEL routing rules (which read headers[...] / params[...]) see the same shape they would
-	// for normal HTTP requests. Mirrors lib/ctx.go ConvertToBifrostContext; the normal HTTP
-	// path doesn't run for WS upgrades, so we populate these explicitly. Keys are lowercased.
-	allHeaders := make(map[string]string)
-	ctx.Request.Header.All()(func(key, value []byte) bool {
-		allHeaders[strings.ToLower(string(key))] = string(value)
-		return true
-	})
-	preReqCtx.SetValue(schemas.BifrostContextKeyRequestHeaders, allHeaders)
-	if queryArgs := ctx.Request.URI().QueryArgs(); queryArgs.Len() > 0 {
-		allQuery := make(map[string]string, queryArgs.Len())
-		queryArgs.All()(func(key, value []byte) bool {
-			allQuery[strings.ToLower(string(key))] = string(value)
-			return true
-		})
-		preReqCtx.SetValue(schemas.BifrostContextKeyRequestQuery, allQuery)
-	}
+	// createBifrostContextFromAuth already surfaced the full request headers and
+	// query params (via the shared lib.ApplyHeaderValuesToBifrostContext
+	// mapping), so governance CEL routing rules that read headers[...] /
+	// params[...] see the same shape they would for normal HTTP requests.
 	preReq := &schemas.BifrostRequest{
 		RequestType: schemas.RealtimeRequest,
 		ResponsesRequest: &schemas.BifrostResponsesRequest{
@@ -832,9 +818,11 @@ func newRealtimeWireBifrostError(status int, code, message string) *schemas.Bifr
 // logs, raw-storage overrides) would be lost because the WebSocket handler creates a
 // fresh BifrostContext that outlives the fasthttp request.
 //
-// Values already explicitly set by createBifrostContextFromAuth (VK, parent request ID,
-// request headers, extra headers) are preserved — middleware values do not overwrite them
-// since createBifrostContextFromAuth runs first.
+// Values already set by createBifrostContextFromAuth — which replays the full
+// HTTP header→context mapping (VK, session ID/TTL, parent request ID, request
+// headers/query, extra headers, dimensions, raw-capture overrides) — are
+// preserved: middleware values do not overwrite them since
+// createBifrostContextFromAuth runs first.
 // realtimeMiddlewareKeys lists the BifrostContext keys that TransportInterceptorMiddleware
 // copies from the governance plugin's context onto individual fasthttp UserValue slots.
 // We snapshot exactly these keys before the WebSocket upgrade so the long-lived session

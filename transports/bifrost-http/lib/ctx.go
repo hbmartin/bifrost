@@ -249,16 +249,6 @@ func ResolveSessionIDFromRequest(h *fasthttp.RequestHeader) string {
 //	// session stickiness, and extra headers
 
 func ConvertToBifrostContext(ctx *fasthttp.RequestCtx, store HandlerStore) (*schemas.BifrostContext, context.CancelFunc) {
-	var matcher *HeaderMatcher
-	mcpHeaderCombinedAllowlist := schemas.WhiteList{}
-	allowPerRequestStorageOverride := false
-	allowPerRequestRawOverride := false
-	if store != nil {
-		matcher = store.GetHeaderMatcher()
-		mcpHeaderCombinedAllowlist = store.GetMCPHeaderCombinedAllowlist()
-		allowPerRequestStorageOverride = store.ShouldAllowPerRequestStorageOverride()
-		allowPerRequestRawOverride = store.ShouldAllowPerRequestRawOverride()
-	}
 	// Reuse a shared request-scoped context when available.
 	var bifrostCtx *schemas.BifrostContext
 	var cancel context.CancelFunc
@@ -311,6 +301,64 @@ func ConvertToBifrostContext(ctx *fasthttp.RequestCtx, store HandlerStore) (*sch
 		EmitModelCatalogRoutingLog(bifrostCtx, res)
 	}
 
+	// The header→context mapping itself is shared with the WebSocket upgrade
+	// paths, which replay the headers captured at upgrade time — see
+	// ApplyHeaderValuesToBifrostContext.
+	ApplyHeaderValuesToBifrostContext(bifrostCtx, ctx.Request.Header.All(), store)
+
+	// Collect all request query params for downstream use (e.g., governance routing CEL rules
+	// that read params["..."]). Keys are lowercased for case-insensitive lookup.
+	queryArgs := ctx.Request.URI().QueryArgs()
+	if queryArgs.Len() > 0 {
+		allQuery := make(map[string]string, queryArgs.Len())
+		queryArgs.All()(func(key, value []byte) bool {
+			allQuery[strings.ToLower(string(key))] = string(value)
+			return true
+		})
+		bifrostCtx.SetValue(schemas.BifrostContextKeyRequestQuery, allQuery)
+	}
+
+	// Build and set the MCP callback base URL. Used by per-user OAuth (appends
+	// /api/oauth/callback) and per-user headers (appends the workspace submit
+	// path) resolvers when initiating their respective auth flows. Bifrost is
+	// acting as the OAuth client to upstream MCP servers here, so the client-
+	// side override applies.
+	var externalClientURL string
+	if store != nil {
+		externalClientURL = store.GetMCPExternalClientURL()
+	}
+	baseURL := BuildBaseURL(ctx, externalClientURL)
+	if baseURL != "" {
+		bifrostCtx.SetValue(schemas.BifrostContextKeyMCPCallbackBaseURL, baseURL)
+	}
+
+	return bifrostCtx, cancel
+}
+
+// ApplyHeaderValuesToBifrostContext applies the full request-header → context
+// mapping documented on ConvertToBifrostContext onto bifrostCtx: dimension,
+// maxim, MCP, cache, session (ID and TTL), raw-capture, and compat headers,
+// extra-header forwarding (x-bf-eh-* and the configured allowlist), virtual and
+// direct keys, the lowercased BifrostContextKeyRequestHeaders map, and
+// session-ID resolution.
+//
+// It is the single mapping shared by every ingestion path: the HTTP path calls
+// it from ConvertToBifrostContext with the live fasthttp header iterator, and
+// the WebSocket paths (Responses and Realtime) call it per turn with the
+// headers captured at upgrade, so header-driven behavior cannot silently
+// diverge between HTTP and WebSocket requests. headers yields raw (name,
+// value) pairs in wire order; names are lowercased here.
+func ApplyHeaderValuesToBifrostContext(bifrostCtx *schemas.BifrostContext, headers func(yield func(key, value []byte) bool), store HandlerStore) {
+	var matcher *HeaderMatcher
+	mcpHeaderCombinedAllowlist := schemas.WhiteList{}
+	allowPerRequestStorageOverride := false
+	allowPerRequestRawOverride := false
+	if store != nil {
+		matcher = store.GetHeaderMatcher()
+		mcpHeaderCombinedAllowlist = store.GetMCPHeaderCombinedAllowlist()
+		allowPerRequestStorageOverride = store.ShouldAllowPerRequestStorageOverride()
+		allowPerRequestRawOverride = store.ShouldAllowPerRequestRawOverride()
+	}
 	// Initialize tags map for collecting maxim tags
 	maximTags := make(map[string]string)
 	// Initialize dimensions map for x-bf-dim-* headers
@@ -319,8 +367,14 @@ func ConvertToBifrostContext(ctx *fasthttp.RequestCtx, store HandlerStore) (*sch
 	extraHeaders := make(map[string][]string)
 	// Initialize extra headers map for headers in the mcp header combined allowlist
 	mcpExtraHeaders := make(map[string][]string)
+	// All request headers, collected during the same pass and stored under
+	// BifrostContextKeyRequestHeaders for downstream use (e.g., governance
+	// required-headers checks). Keys are lowercased for case-insensitive lookup.
+	allHeaders := make(map[string]string)
 	// Security denylist of header names that should never be accepted (case-insensitive)
-	// This denylist is always enforced regardless of user configuration
+	// This denylist is always enforced regardless of user configuration.
+	// sec-websocket-* handshake headers are likewise always denied, via a prefix
+	// check at the two consultation sites below.
 	securityDenylist := map[string]bool{
 		"proxy-authorization": true,
 		"cookie":              true,
@@ -328,6 +382,7 @@ func ConvertToBifrostContext(ctx *fasthttp.RequestCtx, store HandlerStore) (*sch
 		"content-length":      true,
 		"connection":          true,
 		"transfer-encoding":   true,
+		"upgrade":             true,
 
 		// prevent auth/key overrides via x-bf-eh-*
 		"x-api-key":       true,
@@ -348,8 +403,9 @@ func ConvertToBifrostContext(ctx *fasthttp.RequestCtx, store HandlerStore) (*sch
 	}
 
 	// Then process other headers
-	ctx.Request.Header.All()(func(key, value []byte) bool {
+	headers(func(key, value []byte) bool {
 		keyStr := strings.ToLower(string(key))
+		allHeaders[keyStr] = string(value)
 		if keyStr == "baggage" {
 			if sessionID := ParseSessionIDFromBaggage(string(value)); sessionID != "" {
 				bifrostCtx.SetValue(schemas.BifrostContextKeyParentRequestID, sessionID)
@@ -560,7 +616,7 @@ func ConvertToBifrostContext(ctx *fasthttp.RequestCtx, store HandlerStore) (*sch
 			// Normalize header name to lowercase
 			labelName = strings.ToLower(labelName)
 			// Validate against security denylist (always enforced)
-			if securityDenylist[labelName] {
+			if securityDenylist[labelName] || strings.HasPrefix(labelName, "sec-websocket-") {
 				return true
 			}
 			// Apply configurable header filter
@@ -594,7 +650,7 @@ func ConvertToBifrostContext(ctx *fasthttp.RequestCtx, store HandlerStore) (*sch
 					return true
 				}
 				// Validate against security denylist (always enforced)
-				if securityDenylist[keyStr] {
+				if securityDenylist[keyStr] || strings.HasPrefix(keyStr, "sec-websocket-") {
 					return true
 				}
 				// Check denylist
@@ -717,13 +773,7 @@ func ConvertToBifrostContext(ctx *fasthttp.RequestCtx, store HandlerStore) (*sch
 		bifrostCtx.SetValue(schemas.BifrostContextKeyMCPExtraHeaders, mcpExtraHeaders)
 	}
 
-	// Collect all request headers for downstream use (e.g., governance required headers check)
-	// Keys are lowercased for case-insensitive lookup
-	allHeaders := make(map[string]string)
-	ctx.Request.Header.All()(func(key, value []byte) bool {
-		allHeaders[strings.ToLower(string(key))] = string(value)
-		return true
-	})
+	// Surface the full header map collected during the pass above.
 	bifrostCtx.SetValue(schemas.BifrostContextKeyRequestHeaders, allHeaders)
 
 	// Session stickiness: an explicit x-bf-session-id wins, otherwise the
@@ -741,32 +791,6 @@ func ConvertToBifrostContext(ctx *fasthttp.RequestCtx, store HandlerStore) (*sch
 		bifrostCtx.SetValue(schemas.BifrostContextKeySessionID, sessionID)
 	}
 
-	// Collect all request query params for downstream use (e.g., governance routing CEL rules
-	// that read params["..."]). Keys are lowercased for case-insensitive lookup.
-	queryArgs := ctx.Request.URI().QueryArgs()
-	if queryArgs.Len() > 0 {
-		allQuery := make(map[string]string, queryArgs.Len())
-		queryArgs.All()(func(key, value []byte) bool {
-			allQuery[strings.ToLower(string(key))] = string(value)
-			return true
-		})
-		bifrostCtx.SetValue(schemas.BifrostContextKeyRequestQuery, allQuery)
-	}
-
-	// Build and set the MCP callback base URL. Used by per-user OAuth (appends
-	// /api/oauth/callback) and per-user headers (appends the workspace submit
-	// path) resolvers when initiating their respective auth flows. Bifrost is
-	// acting as the OAuth client to upstream MCP servers here, so the client-
-	// side override applies.
-	var externalClientURL string
-	if store != nil {
-		externalClientURL = store.GetMCPExternalClientURL()
-	}
-	baseURL := BuildBaseURL(ctx, externalClientURL)
-	if baseURL != "" {
-		bifrostCtx.SetValue(schemas.BifrostContextKeyMCPCallbackBaseURL, baseURL)
-	}
-
 	bifrostCtx.SetValue(schemas.BifrostContextKeyAllowPerRequestStorageOverride, allowPerRequestStorageOverride)
 	bifrostCtx.SetValue(schemas.BifrostContextKeyAllowPerRequestRawOverride, allowPerRequestRawOverride)
 
@@ -776,9 +800,9 @@ func ConvertToBifrostContext(ctx *fasthttp.RequestCtx, store HandlerStore) (*sch
 	// Enterprise SCIM inference auth runs before this context conversion, so it mirrors
 	// this config/header gate separately to avoid validating provider bearer tokens as
 	// SCIM user JWTs before direct-key extraction can happen here.
-	if store != nil && store.ShouldAllowDirectKeys() && string(ctx.Request.Header.Peek("x-bf-direct-key")) == "true" {
+	if store != nil && store.ShouldAllowDirectKeys() && allHeaders["x-bf-direct-key"] == "true" {
 		var apiKey string
-		authHeader := string(ctx.Request.Header.Peek("Authorization"))
+		authHeader := allHeaders["authorization"]
 		if authHeader != "" {
 			if strings.HasPrefix(strings.ToLower(authHeader), "bearer ") {
 				authHeaderValue := strings.TrimSpace(authHeader[7:])
@@ -788,11 +812,11 @@ func ConvertToBifrostContext(ctx *fasthttp.RequestCtx, store HandlerStore) (*sch
 			}
 		}
 		if apiKey == "" {
-			xAPIKey := strings.TrimSpace(string(ctx.Request.Header.Peek("x-api-key")))
+			xAPIKey := strings.TrimSpace(allHeaders["x-api-key"])
 			if xAPIKey != "" && !strings.HasPrefix(strings.ToLower(xAPIKey), governance.VirtualKeyPrefix) {
 				apiKey = xAPIKey
 			} else {
-				xGoogleAPIKey := strings.TrimSpace(string(ctx.Request.Header.Peek("x-goog-api-key")))
+				xGoogleAPIKey := strings.TrimSpace(allHeaders["x-goog-api-key"])
 				if xGoogleAPIKey != "" && !strings.HasPrefix(strings.ToLower(xGoogleAPIKey), governance.VirtualKeyPrefix) {
 					apiKey = xGoogleAPIKey
 				}
@@ -809,8 +833,6 @@ func ConvertToBifrostContext(ctx *fasthttp.RequestCtx, store HandlerStore) (*sch
 			bifrostCtx.SetValue(schemas.BifrostContextKeyDirectKey, key)
 		}
 	}
-
-	return bifrostCtx, cancel
 }
 
 // ValidateBaseURL checks that a URL is parseable with both scheme and host —
