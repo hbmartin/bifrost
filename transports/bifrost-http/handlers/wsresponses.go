@@ -112,6 +112,7 @@ type authHeaders struct {
 	apiKey        string
 	googAPIKey    string
 	baggage       string
+	sessionID     string
 	headers       map[string][]string
 }
 
@@ -123,6 +124,7 @@ func captureAuthHeaders(ctx *fasthttp.RequestCtx) *authHeaders {
 		apiKey:        string(ctx.Request.Header.Peek("x-api-key")),
 		googAPIKey:    string(ctx.Request.Header.Peek("x-goog-api-key")),
 		baggage:       string(ctx.Request.Header.Peek("baggage")),
+		sessionID:     lib.ResolveSessionIDFromRequest(&ctx.Request.Header),
 		headers:       make(map[string][]string),
 	}
 
@@ -647,6 +649,14 @@ func createBifrostContextFromAuth(handlerStore lib.HandlerStore, auth *authHeade
 	ctx, cancel := schemas.NewBifrostContextWithCancel(context.Background())
 	if auth == nil {
 		return ctx, cancel
+	}
+
+	// ResolveSessionIDFromRequest validates the upgrade headers once and stores
+	// only the small normalized identifier here. Every Responses and Realtime
+	// WebSocket context then receives the same sticky-key and tracing identity as
+	// an equivalent HTTP request, without retaining the fasthttp request.
+	if auth.sessionID != "" {
+		ctx.SetValue(schemas.BifrostContextKeySessionID, auth.sessionID)
 	}
 
 	if sessionID := lib.ParseSessionIDFromBaggage(auth.baggage); sessionID != "" {
