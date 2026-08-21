@@ -6,7 +6,7 @@ icon: "file-contract"
 
 This page describes the information your platform needs to run Bifrost. Use it together with the guide for [Kubernetes](/deployment-guides/helm), [EKS](/deployment-guides/platforms/eks), [GKE](/deployment-guides/platforms/gke), [AKS](/deployment-guides/platforms/aks), [ECS](/deployment-guides/ecs), or another container platform.
 
-For a single OSS replica, the [Render](/deployment-guides/platforms/render) and [Railway](/deployment-guides/platforms/railway) guides provide four one-click choices: PostgreSQL or persistent SQLite on either platform. PostgreSQL keeps state outside the Bifrost container; SQLite mounts durable `/app/data` storage and accepts brief disk-backed deployment downtime.
+For a single OSS replica, the [Render](/deployment-guides/platforms/render) and [Railway](/deployment-guides/platforms/railway) guides describe PostgreSQL and persistent SQLite contracts for each platform. Their public one-click buttons remain gated until the corresponding live template has been deployed and verified. PostgreSQL keeps state outside the Bifrost container; SQLite mounts durable `/app/data` storage and accepts brief disk-backed deployment downtime.
 
 ## What you will deploy
 
@@ -142,9 +142,9 @@ Keep the encryption key stable across restarts, replicas, upgrades, backups, and
 
 Configure `setup_token` before starting a deployment that does not have an admin account. It accepts a literal value, an `env.VARIABLE_NAME` reference, or a `vault.path` reference; `BIFROST_SETUP_TOKEN` is also used when `setup_token` is absent. The token is never persisted or logged, must be identical across replicas, and is required only when [creating the first admin account](/quickstart/gateway/setting-up-auth).
 
-### One-click administrator authentication
+### Hosted-template administrator authentication
 
-The Render and Railway one-click templates retain Bifrost 1.6-compatible authentication instead of using the 2.0 setup-token flow:
+The checked-in Render Blueprints and Railway template contracts retain Bifrost 1.6-compatible authentication instead of using the 2.0 setup-token flow:
 
 ```json
 {
