@@ -19,27 +19,19 @@ The Blueprints use the container runtime contract introduced in Bifrost `v1.6.12
 
 ### PostgreSQL evaluation
 
-<Warning>
-The one-click button for this Blueprint is not published yet. It is enabled only after the Blueprint has been deployed and verified against a qualified `maximhq/bifrost` release.
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/maximhq/bifrost/tree/dev)
 
-Until then, deploy it manually: in the Render dashboard choose **New → Blueprint**, point it at this repository's `main` branch, and approve the generated `render.yaml`.
-</Warning>
-
-Once published, the button is explicitly bound to the `main` branch and its root `render.yaml`. It provisions one Free web service and one private Free PostgreSQL 18 database. Both Bifrost stores use TLS-required PostgreSQL connections, so configuration and logs survive web-service replacement without a Bifrost disk.
+This button is explicitly bound to the `dev` branch and its root `render.yaml`. It provisions one Free web service and one private Free PostgreSQL 18 database. Both Bifrost stores use TLS-required PostgreSQL connections, so configuration and logs survive web-service replacement without a Bifrost disk.
 
 Treat this as a 30-day evaluation. Upgrade the database before its expiry date to retain access to the data. An expired Free database has a limited upgrade grace period before Render deletes it. Upgrade the web service as well if you need it to remain awake or need production resources.
 
 ### SQLite durable
 
-<Warning>
-The one-click button for this Blueprint is not published yet. It is enabled only after the generated `render-sqlite` branch exists and its Blueprint has been deployed and verified against a qualified `maximhq/bifrost` release.
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/maximhq/bifrost/tree/render-sqlite)
 
-Until then, deploy it manually: copy `deploy/render/render-sqlite.yaml` into your own repository as the root `render.yaml`, then create a Render Blueprint from it.
-</Warning>
+This button is explicitly bound to the generated `render-sqlite` branch. It provisions one Starter web service and mounts a 1 GB persistent disk at `/app/data`. Bifrost's SQLite configuration and logs survive restarts and redeploys.
 
-Once published, the button is explicitly bound to the generated `render-sqlite` branch. It provisions one Starter web service and mounts a 1 GB persistent disk at `/app/data`. Bifrost's SQLite configuration and logs survive restarts and redeploys.
-
-The canonical Blueprint lives on `main` at `deploy/render/render-sqlite.yaml`; automation publishes an orphan branch containing only the generated root `render.yaml`. Do not edit the generated branch directly.
+The canonical Blueprint lives on `dev` at `deploy/render/render-sqlite.yaml`; automation publishes an orphan branch containing only the generated root `render.yaml`. Do not edit the generated branch directly.
 
 ## Sign in and create a credential
 
