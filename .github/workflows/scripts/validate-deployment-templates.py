@@ -273,13 +273,18 @@ def one_click_targets() -> list[dict[str, Any]]:
         label = f"Render {name}"
         # The record must be internally consistent before it can vouch for a
         # button: the named blueprint must exist in this repository, and the
-        # button must deploy the branch the record claims was verified.
+        # button must deploy this repository at the branch the record claims
+        # was verified — a suffix match alone would certify a button deploying
+        # someone else's repository.
         if not (REPO_ROOT / entry["blueprint"]).is_file():
             fail(f"{label} in {render_evidence} names blueprint {entry['blueprint']!r}, which does not exist in the repository")
-        if entry["button_url"] and not entry["button_url"].endswith(f"/tree/{entry['branch']}"):
+        expected_button_url = (
+            f"https://render.com/deploy?repo=https://github.com/maximhq/bifrost/tree/{entry['branch']}"
+        )
+        if entry["button_url"] and entry["button_url"] != expected_button_url:
             fail(
-                f"{label} in {render_evidence} records branch {entry['branch']!r} but its "
-                f"button_url deploys a different ref: {entry['button_url']}"
+                f"{label} in {render_evidence} button_url must deploy the recorded branch of "
+                f"maximhq/bifrost, expected {expected_button_url}, got {entry['button_url']}"
             )
         # Evaluated before the button URL is considered: a malformed record is a
         # mistake worth reporting whether or not its button is published yet.
