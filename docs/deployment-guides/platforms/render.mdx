@@ -4,7 +4,7 @@ description: "Deploy Bifrost to Render with PostgreSQL or durable SQLite"
 icon: "cloud"
 ---
 
-Bifrost includes two Maxim-maintained Blueprint contracts for a single OSS replica. The checked-in files generate the encryption and administrator secrets, enable dashboard authentication, and reject anonymous inference. They reference `docker.io/maximhq/bifrost:latest` only as the placeholder that repository validation checks; deploying either Blueprint requires substituting a qualified immutable release, as the sections below describe.
+Bifrost includes two Maxim-maintained Blueprint contracts for a single OSS replica. The checked-in files generate the encryption and administrator secrets, enable dashboard authentication, and reject anonymous inference. They reference `docker.io/maximhq/bifrost:latest`, which repository validation requires: the published one-click buttons deploy `latest` only after the release gate has qualified what it resolves to. A manual copy made before that gate passes has no such assurance, so it must substitute a qualified immutable release tag or digest, as the sections below describe.
 
 <Note>
 The Blueprints use the container runtime contract introduced with the `v1.6.12` release line. The repository contracts were validated on August 18, 2026. No published Bifrost release satisfies that contract yet: qualification requires a final multi-architecture release at or above the `minimum_release_tag` recorded in `deploy/runtime-contract.json`. Run `.github/workflows/scripts/verify-deployment-release.sh` to resolve the newest qualified release — until it reports one, the manual deployment steps below cannot be completed and there is no supported Render deployment path.
