@@ -272,12 +272,15 @@ def one_click_targets() -> list[dict[str, Any]]:
     for name, entry in render["blueprints"].items():
         label = f"Render {name}"
         # The record must be internally consistent before it can vouch for a
-        # button: the named blueprint must exist in this repository, and the
-        # button must deploy this repository at the branch the record claims
-        # was verified — a suffix match alone would certify a button deploying
-        # someone else's repository.
-        if not (REPO_ROOT / entry["blueprint"]).is_file():
-            fail(f"{label} in {render_evidence} names blueprint {entry['blueprint']!r}, which does not exist in the repository")
+        # button: the named blueprint must exist in this repository — resolved
+        # and contained, so an absolute or ../ path cannot satisfy the check
+        # with a file outside the repo — and the button must deploy this
+        # repository at the branch the record claims was verified, since a
+        # suffix match alone would certify a button deploying someone else's
+        # repository.
+        blueprint_path = (REPO_ROOT / entry["blueprint"]).resolve()
+        if not blueprint_path.is_relative_to(REPO_ROOT) or not blueprint_path.is_file():
+            fail(f"{label} in {render_evidence} names blueprint {entry['blueprint']!r}, which is not a file inside the repository")
         expected_button_url = (
             f"https://render.com/deploy?repo=https://github.com/maximhq/bifrost/tree/{entry['branch']}"
         )
