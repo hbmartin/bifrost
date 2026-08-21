@@ -102,7 +102,9 @@ func TestNewBifrostError(t *testing.T) {
 
 func TestCreateBifrostContextFromAuth_BaggageSessionIDSetsGrouping(t *testing.T) {
 	ctx, cancel := createBifrostContextFromAuth(testWSHandlerStore{}, &authHeaders{
-		baggage: "foo=bar, session-id=rt-ws-123, baz=qux",
+		headers: []headerPair{
+			{key: "baggage", value: "foo=bar, session-id=rt-ws-123, baz=qux"},
+		},
 	})
 	defer cancel()
 
@@ -113,7 +115,9 @@ func TestCreateBifrostContextFromAuth_BaggageSessionIDSetsGrouping(t *testing.T)
 
 func TestCreateBifrostContextFromAuth_EmptyBaggageSessionIDIgnored(t *testing.T) {
 	ctx, cancel := createBifrostContextFromAuth(testWSHandlerStore{}, &authHeaders{
-		baggage: "session-id=   ",
+		headers: []headerPair{
+			{key: "baggage", value: "session-id=   "},
+		},
 	})
 	defer cancel()
 
@@ -124,10 +128,10 @@ func TestCreateBifrostContextFromAuth_EmptyBaggageSessionIDIgnored(t *testing.T)
 
 func TestCreateBifrostContextFromAuth_ForwardsPrefixedHeaders(t *testing.T) {
 	ctx, cancel := createBifrostContextFromAuth(testWSHandlerStore{}, &authHeaders{
-		headers: map[string][]string{
-			"x-bf-eh-originator": {"my-test-client"},
-			"x-bf-eh-x-trace-id": {"abc-123"},
-			"x-bf-eh-cookie":     {"blocked"},
+		headers: []headerPair{
+			{key: "x-bf-eh-originator", value: "my-test-client"},
+			{key: "x-bf-eh-x-trace-id", value: "abc-123"},
+			{key: "x-bf-eh-cookie", value: "blocked"},
 		},
 	})
 	defer cancel()
@@ -147,12 +151,12 @@ func TestCreateBifrostContextFromAuth_AppliesHeaderFilterAndDirectAllowlist(t *t
 		Denylist:  []string{"anthropic-secret"},
 	})
 	ctx, cancel := createBifrostContextFromAuth(testWSHandlerStore{matcher: matcher}, &authHeaders{
-		headers: map[string][]string{
-			"x-bf-eh-originator":       {"allowed-prefix"},
-			"x-bf-eh-x-trace-id":       {"blocked-by-allowlist"},
-			"anthropic-beta":           {"allowed-direct"},
-			"anthropic-secret":         {"blocked-by-denylist"},
-			"x-bf-eh-anthropic-secret": {"blocked-prefix-denylist"},
+		headers: []headerPair{
+			{key: "x-bf-eh-originator", value: "allowed-prefix"},
+			{key: "x-bf-eh-x-trace-id", value: "blocked-by-allowlist"},
+			{key: "anthropic-beta", value: "allowed-direct"},
+			{key: "anthropic-secret", value: "blocked-by-denylist"},
+			{key: "x-bf-eh-anthropic-secret", value: "blocked-prefix-denylist"},
 		},
 	})
 	defer cancel()
@@ -177,13 +181,20 @@ func TestCaptureAuthHeaders_PreservesDuplicateHeaderValues(t *testing.T) {
 	ctx.Init(&req, &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 12345}, nil)
 
 	auth := captureAuthHeaders(ctx)
-	assert.Equal(t, []string{"trace-a", "trace-b"}, auth.headers["x-bf-eh-x-trace-id"])
+	var traceValues []string
+	for _, pair := range auth.headers {
+		if pair.key == "x-bf-eh-x-trace-id" {
+			traceValues = append(traceValues, pair.value)
+		}
+	}
+	assert.Equal(t, []string{"trace-a", "trace-b"}, traceValues)
 }
 
 func TestCreateBifrostContextFromAuth_PreservesMultipleForwardedHeaderValues(t *testing.T) {
 	ctx, cancel := createBifrostContextFromAuth(testWSHandlerStore{}, &authHeaders{
-		headers: map[string][]string{
-			"x-bf-eh-x-trace-id": {"trace-a", "trace-b"},
+		headers: []headerPair{
+			{key: "x-bf-eh-x-trace-id", value: "trace-a"},
+			{key: "x-bf-eh-x-trace-id", value: "trace-b"},
 		},
 	})
 	defer cancel()
@@ -200,11 +211,11 @@ func TestCreateBifrostContextFromAuth_BlocksWebSocketHandshakeForwardedHeaders(t
 		Allowlist: []string{"*"},
 	})
 	ctx, cancel := createBifrostContextFromAuth(testWSHandlerStore{matcher: matcher}, &authHeaders{
-		headers: map[string][]string{
-			"x-bf-eh-upgrade":                {"websocket"},
-			"x-bf-eh-sec-websocket-protocol": {"realtime"},
-			"sec-websocket-extensions":       {"permessage-deflate"},
-			"x-bf-eh-originator":             {"safe"},
+		headers: []headerPair{
+			{key: "x-bf-eh-upgrade", value: "websocket"},
+			{key: "x-bf-eh-sec-websocket-protocol", value: "realtime"},
+			{key: "sec-websocket-extensions", value: "permessage-deflate"},
+			{key: "x-bf-eh-originator", value: "safe"},
 		},
 	})
 	defer cancel()
@@ -217,6 +228,68 @@ func TestCreateBifrostContextFromAuth_BlocksWebSocketHandshakeForwardedHeaders(t
 	assert.NotContains(t, extraHeaders, "upgrade")
 	assert.NotContains(t, extraHeaders, "sec-websocket-protocol")
 	assert.NotContains(t, extraHeaders, "sec-websocket-extensions")
+}
+
+func TestCreateBifrostContextFromAuth_MatchesHTTPHeaderMapping(t *testing.T) {
+	var req fasthttp.Request
+	req.SetRequestURI("/v1/responses?team=acme-team")
+	req.Header.Set("x-bf-session-id", "sess-1")
+	req.Header.Set("x-bf-session-ttl", "24h")
+	req.Header.Set("x-bf-dim-tenant", "acme")
+	req.Header.Set("x-team-id", "team-7")
+	req.Header.Set("x-bf-mcp-include-clients", "github")
+
+	fctx := &fasthttp.RequestCtx{}
+	fctx.Init(&req, &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 12345}, nil)
+
+	auth := captureAuthHeaders(fctx)
+	ctx, cancel := createBifrostContextFromAuth(testWSHandlerStore{}, auth)
+	defer cancel()
+
+	sessionID, _ := ctx.Value(schemas.BifrostContextKeySessionID).(string)
+	assert.Equal(t, "sess-1", sessionID)
+
+	ttl, _ := ctx.Value(schemas.BifrostContextKeySessionTTL).(time.Duration)
+	assert.Equal(t, 24*time.Hour, ttl)
+
+	dimensions, _ := ctx.Value(schemas.BifrostContextKeyDimensions).(map[string]string)
+	assert.Equal(t, map[string]string{"tenant": "acme"}, dimensions)
+
+	requestHeaders, _ := ctx.Value(schemas.BifrostContextKeyRequestHeaders).(map[string]string)
+	if assert.NotNil(t, requestHeaders, "governance required-headers checks read this map") {
+		assert.Equal(t, "team-7", requestHeaders["x-team-id"])
+	}
+
+	requestQuery, _ := ctx.Value(schemas.BifrostContextKeyRequestQuery).(map[string]string)
+	assert.Equal(t, map[string]string{"team": "acme-team"}, requestQuery)
+
+	includeClients, _ := ctx.Value(schemas.MCPContextKeyIncludeClients).([]string)
+	assert.Equal(t, []string{"github"}, includeClients)
+}
+
+func TestCreateBifrostContextFromAuth_ConflictingCredentialsMatchHTTPPrecedence(t *testing.T) {
+	// Several header names can set the virtual key; on the HTTP path the
+	// last-processed one wins, so the WS replay must preserve wire order for
+	// both paths to resolve the same credential.
+	var req fasthttp.Request
+	req.SetRequestURI("/v1/responses")
+	req.Header.Set("x-bf-vk", "sk-bf-from-vk-header")
+	req.Header.Set("Authorization", "Bearer sk-bf-from-authorization")
+
+	fctx := &fasthttp.RequestCtx{}
+	fctx.Init(&req, &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 12345}, nil)
+
+	httpCtx, httpCancel := lib.ConvertToBifrostContext(fctx, nil)
+	defer httpCancel()
+	httpVK, _ := httpCtx.Value(schemas.BifrostContextKeyVirtualKey).(string)
+
+	auth := captureAuthHeaders(fctx)
+	wsCtx, wsCancel := createBifrostContextFromAuth(nil, auth)
+	defer wsCancel()
+	wsVK, _ := wsCtx.Value(schemas.BifrostContextKeyVirtualKey).(string)
+
+	assert.NotEmpty(t, httpVK)
+	assert.Equal(t, httpVK, wsVK)
 }
 
 func TestMergeWebSocketHeaders_ForwardedHeadersOverrideProviderHeadersAndPreserveValues(t *testing.T) {

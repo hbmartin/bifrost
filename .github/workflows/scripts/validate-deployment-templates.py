@@ -26,6 +26,13 @@ RENDER_VERIFICATION_SCHEMA = json.loads(
 MINIMUM_RELEASE_TAG = json.loads((REPO_ROOT / "deploy/runtime-contract.json").read_text())["minimum_release_tag"]
 RELEASE_TAG_PATTERN = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
 HOSTED_ONE_CLICK_HEADING = "## Hosted one-click choices"
+# Any one-click deploy link, whatever branch or slug it names. The per-target
+# link check compares only the exact recorded URL, so a button re-added with a
+# different branch (tree/dev vs tree/main) or an unrecorded template slug would
+# otherwise be published without a verification behind it.
+DEPLOY_BUTTON_URL_PATTERN = re.compile(
+    r"https://(?:render\.com/deploy|railway\.(?:app|com)/new/template)[^\s)\"'<>\]]*"
+)
 
 
 def fail(message: str) -> None:
@@ -264,6 +271,24 @@ def one_click_targets() -> list[dict[str, Any]]:
     targets: list[dict[str, Any]] = []
     for name, entry in render["blueprints"].items():
         label = f"Render {name}"
+        # The record must be internally consistent before it can vouch for a
+        # button: the named blueprint must exist in this repository — resolved
+        # and contained, so an absolute or ../ path cannot satisfy the check
+        # with a file outside the repo — and the button must deploy this
+        # repository at the branch the record claims was verified, since a
+        # suffix match alone would certify a button deploying someone else's
+        # repository.
+        blueprint_path = (REPO_ROOT / entry["blueprint"]).resolve()
+        if not blueprint_path.is_relative_to(REPO_ROOT) or not blueprint_path.is_file():
+            fail(f"{label} in {render_evidence} names blueprint {entry['blueprint']!r}, which is not a file inside the repository")
+        expected_button_url = (
+            f"https://render.com/deploy?repo=https://github.com/maximhq/bifrost/tree/{entry['branch']}"
+        )
+        if entry["button_url"] and entry["button_url"] != expected_button_url:
+            fail(
+                f"{label} in {render_evidence} button_url must deploy the recorded branch of "
+                f"maximhq/bifrost, expected {expected_button_url}, got {entry['button_url']}"
+            )
         # Evaluated before the button URL is considered: a malformed record is a
         # mistake worth reporting whether or not its button is published yet.
         recorded = verification_recorded(entry, f"{label} in {render_evidence}")
@@ -314,9 +339,27 @@ def validate_documentation_links() -> None:
                 f"last_verified and verified_release, or remove the button."
             )
 
+    # Sweep for deploy-button URLs the exact-match checks above cannot see:
+    # any render.com/deploy or Railway template link in the deployment docs
+    # must be the URL of a verified target. This also covers targets whose
+    # recorded URL is None (an unassigned Railway slug), which the per-target
+    # check skips entirely.
+    verified_urls = {target["url"] for target in targets if target["verified"]}
+    overview_path = REPO_ROOT / "docs/deployment-guides/overview.mdx"
+    for doc in sorted({target["doc"] for target in targets} | {overview_path}):
+        text = doc.read_text()
+        doc_label = str(doc.relative_to(REPO_ROOT))
+        for match in DEPLOY_BUTTON_URL_PATTERN.finditer(text):
+            if match.group(0) not in verified_urls:
+                fail(
+                    f"{doc_label} links the one-click deploy URL {match.group(0)}, which no "
+                    f"recorded verification covers. Verify the live template and record it, "
+                    f"or remove the link."
+                )
+
     # The overview advertises the hosted one-click choices as a group. It may do
     # so only while at least one of them is actually published.
-    overview = (REPO_ROOT / "docs/deployment-guides/overview.mdx").read_text()
+    overview = overview_path.read_text()
     verified = [target["label"] for target in targets if target["verified"]]
     if verified and HOSTED_ONE_CLICK_HEADING not in overview:
         fail(f"docs/deployment-guides/overview.mdx must list the published one-click choices ({', '.join(verified)})")
