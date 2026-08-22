@@ -68,25 +68,52 @@ func (h *WSRealtimeHandler) Close() {
 
 // resolveRealtimeWebSocketEphemeralMapping resolves the upgrade credential
 // once so routing and the long-lived provider session cannot derive different
-// identities from competing credential header aliases.
-func resolveRealtimeWebSocketEphemeralMapping(kv schemas.KVStore, auth *authHeaders) *realtimeEphemeralKeyMapping {
+// identities from competing credential header aliases. The second return
+// reports whether the bearer credential was an ephemeral token at all: an
+// ephemeral token with no mapping (nil, true) is a dead credential, and the
+// caller must reject it rather than let the connection fall through to
+// whatever competing credential headers were sent alongside it.
+func resolveRealtimeWebSocketEphemeralMapping(kv schemas.KVStore, auth *authHeaders) (*realtimeEphemeralKeyMapping, bool) {
 	if auth == nil {
-		return nil
+		return nil, false
 	}
 	token := extractRealtimeBearerTokenFromHeader(auth.authorization)
 	if !isRealtimeEphemeralToken(token) {
-		return nil
+		return nil, false
 	}
 	mapping, ok := lookupRealtimeEphemeralKeyMapping(kv, token)
 	if !ok {
-		return nil
+		return nil, true
 	}
-	return &mapping
+	return &mapping, true
 }
 
 func applyResolvedRealtimeEphemeralMapping(bifrostCtx *schemas.BifrostContext, mapping *realtimeEphemeralKeyMapping) {
 	if mapping != nil {
 		applyRealtimeEphemeralKeyMapping(bifrostCtx, *mapping)
+	}
+}
+
+// applyRealtimeSessionContextValues restores the upgrade-time identity onto
+// the long-lived session context: middleware snapshot values first, then the
+// resolved ephemeral mapping so it overrides competing credential header
+// aliases replayed by createBifrostContextFromAuth. The snapshot's API key ID
+// then outranks the mapping's: the mapping was already applied to the routing
+// context before RunPreRequestHooks ran, so a differing snapshot value means a
+// routing rule pinned another key, and letting the mapping win here would
+// select session keys under an identity routing never accounted for.
+func applyRealtimeSessionContextValues(
+	bifrostCtx *schemas.BifrostContext,
+	middlewareValues map[any]any,
+	mapping *realtimeEphemeralKeyMapping,
+) {
+	applyRealtimeMiddlewareValues(bifrostCtx, middlewareValues)
+	applyResolvedRealtimeEphemeralMapping(bifrostCtx, mapping)
+	if mapping == nil {
+		return
+	}
+	if pinned, ok := middlewareValues[schemas.BifrostContextKeyAPIKeyID]; ok && pinned != nil {
+		bifrostCtx.SetValue(schemas.BifrostContextKeyAPIKeyID, pinned)
 	}
 }
 
@@ -102,7 +129,25 @@ func (h *WSRealtimeHandler) handleUpgrade(ctx *fasthttp.RequestCtx) {
 			auth.setAuthorization("Bearer " + token)
 		}
 	}
-	ephemeralMapping := resolveRealtimeWebSocketEphemeralMapping(h.handlerStore.GetKVStore(), auth)
+	ephemeralMapping, isEphemeralCredential := resolveRealtimeWebSocketEphemeralMapping(h.handlerStore.GetKVStore(), auth)
+	if isEphemeralCredential && ephemeralMapping == nil {
+		// The bearer credential is an ephemeral token with no live mapping —
+		// expired, revoked, or never minted here. Failing open would let the
+		// session run under whatever competing credential headers (x-bf-vk,
+		// x-bf-api-key-id) arrived alongside the dead token, so reject the
+		// connection the way the WebRTC path refuses to resolve keys for an
+		// unmapped ephemeral token.
+		upgrader := h.websocketUpgrader("")
+		upgradeErr := upgrader.Upgrade(ctx, func(conn *ws.Conn) {
+			defer conn.Close()
+			clientConn := newRealtimeClientConn(conn)
+			clientConn.writeRealtimeError(newRealtimeWireBifrostError(401, "invalid_request_error", "ephemeral key is unknown or expired"))
+		})
+		if upgradeErr != nil {
+			logger.Warn("websocket upgrade failed for %s: %v", path, upgradeErr)
+		}
+		return
+	}
 
 	providerKey, model, err := resolveRealtimeTarget(ctx, h.config, path, modelParam, deploymentParam)
 	if err != nil {
@@ -264,9 +309,10 @@ func (h *WSRealtimeHandler) runRealtimeSession(
 	// Restore governance and routing values from the transport middleware context.
 	// These include routing rule ID/name, virtual key ID/name, routing engines,
 	// routing engine logs, raw-storage header overrides, and other values set by
-	// HTTPTransportPreHook plugins (governance, prompts, etc.).
-	applyRealtimeMiddlewareValues(bifrostCtx, middlewareValues)
-	applyResolvedRealtimeEphemeralMapping(bifrostCtx, ephemeralMapping)
+	// HTTPTransportPreHook plugins (governance, prompts, etc.), plus the resolved
+	// ephemeral mapping — with the snapshot's post-routing API key pin kept
+	// authoritative over the mapping's key.
+	applyRealtimeSessionContextValues(bifrostCtx, middlewareValues, ephemeralMapping)
 
 	bifrostCtx.SetValue(schemas.BifrostContextKeyHTTPRequestType, schemas.RealtimeRequest)
 	if strings.HasPrefix(path, "/openai") {
