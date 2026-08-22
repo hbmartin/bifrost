@@ -76,11 +76,12 @@ def parse_deploy_button_url(url: str, label: str) -> DeployButtonKey | None:
     """
     try:
         parsed = urlsplit(url)
-        host = (parsed.hostname or "").lower()
+        host = (parsed.hostname or "").lower().removesuffix(".").removeprefix("www.")
+        path = parsed.path.removesuffix("/")
     except ValueError as error:
         fail(f"{label} contains an invalid URL {url!r}: {error}")
 
-    if host == "render.com" and parsed.path == "/deploy":
+    if host == "render.com" and path == "/deploy":
         if parsed.scheme.lower() != "https" or parsed.netloc.lower() != "render.com" or parsed.fragment:
             fail(f"{label} Render deploy URL must use canonical HTTPS with no credentials, port, or fragment: {url}")
         query = parse_qsl(parsed.query, keep_blank_values=True)
@@ -103,7 +104,7 @@ def parse_deploy_button_url(url: str, label: str) -> DeployButtonKey | None:
             fail(f"{label} Render repo parameter must be an unambiguous GitHub branch URL: {repo_url}")
         return ("render", repo.path)
 
-    if host in {"railway.com", "railway.app"} and parsed.path.startswith("/new/template/"):
+    if host in {"railway.com", "railway.app"} and path.startswith("/new/template/"):
         if (
             parsed.scheme.lower() != "https"
             or parsed.netloc.lower() != host
@@ -111,7 +112,7 @@ def parse_deploy_button_url(url: str, label: str) -> DeployButtonKey | None:
             or parsed.fragment
         ):
             fail(f"{label} Railway deploy URL must use canonical HTTPS with no credentials, port, query, or fragment: {url}")
-        slug = parsed.path.removeprefix("/new/template/")
+        slug = path.removeprefix("/new/template/")
         if not slug or "/" in slug:
             fail(f"{label} Railway deploy URL must name exactly one template slug: {url}")
         return ("railway", slug)
@@ -133,7 +134,31 @@ def document_deploy_buttons(path: Path) -> list[tuple[str, DeployButtonKey]]:
 
 def deployment_document_paths() -> list[Path]:
     """Every deployment guide, including future nested platform pages."""
-    return sorted((REPO_ROOT / "docs/deployment-guides").rglob("*.mdx"))
+    paths = sorted((REPO_ROOT / "docs/deployment-guides").rglob("*.mdx"))
+    navigation = json.loads((REPO_ROOT / "docs/docs.json").read_text())["navigation"]
+
+    def navigation_entries(value: Any) -> set[str]:
+        entries: set[str] = set()
+        if isinstance(value, list):
+            for item in value:
+                entries.update(navigation_entries(item))
+        if isinstance(value, dict):
+            pages = value.get("pages", [])
+            if isinstance(pages, list):
+                entries.update(page for page in pages if isinstance(page, str))
+            for item in value.values():
+                entries.update(navigation_entries(item))
+        return entries
+
+    documented = navigation_entries(navigation)
+    missing = [
+        path.relative_to(REPO_ROOT).as_posix()
+        for path in paths
+        if path.relative_to(REPO_ROOT / "docs").with_suffix("").as_posix() not in documented
+    ]
+    if missing:
+        fail(f"docs/docs.json navigation is missing deployment guide {', '.join(missing)}")
+    return paths
 
 
 def validate_render_blueprint_reference(name: str, blueprint: str, label: str) -> Path:
@@ -441,6 +466,8 @@ def validate_documentation_links() -> None:
     buttons_by_doc = {path: document_deploy_buttons(path) for path in deployment_document_paths()}
     for target in targets:
         doc_label = str(target["doc"].relative_to(REPO_ROOT))
+        if target["doc"] not in buttons_by_doc:
+            fail(f"{target['label']} expects deployment page {doc_label}, but it is missing")
         doc_button_keys = {key for _, key in buttons_by_doc[target["doc"]]}
         if target["verified"]:
             if target["key"] not in doc_button_keys:
