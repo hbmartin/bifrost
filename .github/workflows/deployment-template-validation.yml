@@ -70,7 +70,7 @@ jobs:
 
       - name: Install validators
         run: |
-          python3 -m pip install --disable-pip-version-check PyYAML==6.0.3 jsonschema==4.26.0
+          python3 -m pip install --disable-pip-version-check PyYAML==6.0.3 "jsonschema[format]==4.26.0"
           curl -fsSL \
             https://github.com/render-oss/cli/releases/download/v2.22.0/cli_2.22.0_linux_amd64.zip \
             -o /tmp/render-cli.zip

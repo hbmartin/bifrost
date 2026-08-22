@@ -51,7 +51,8 @@ func trySetupClickHouseStore(t *testing.T) *ClickHouseLogStore {
 	}
 	require.NoError(t, conn.Close())
 
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	t.Cleanup(cancel)
 	store, err := newClickHouseLogStore(ctx, clickhouseTestConfig(), 0, testLogger{})
 	require.NoError(t, err, "ClickHouse is reachable but log-store setup failed")
 	ch := store.(*ClickHouseLogStore)
