@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"maps"
 	"net"
 	"net/http"
 	"strings"
@@ -836,7 +837,7 @@ func createBifrostContextFromAuth(handlerStore lib.HandlerStore, auth *authHeade
 	}
 
 	if len(auth.query) > 0 {
-		ctx.SetValue(schemas.BifrostContextKeyRequestQuery, auth.query)
+		ctx.SetValue(schemas.BifrostContextKeyRequestQuery, maps.Clone(auth.query))
 	}
 
 	return ctx, cancel
