@@ -13,12 +13,10 @@ on:
       - ".github/workflows/scripts/test-docker-image.sh"
       - "transports/Dockerfile"
       - "transports/Dockerfile.local"
-      - "docs/deployment-guides/overview.mdx"
-      - "docs/deployment-guides/runtime-contract.mdx"
-      - "docs/deployment-guides/platforms/render.mdx"
-      - "docs/deployment-guides/platforms/railway.mdx"
+      - "docs/deployment-guides/**"
       - ".github/workflows/deployment-template-validation.yml"
       - ".github/workflows/scripts/validate-deployment-templates.py"
+      - ".github/workflows/scripts/validate-deployment-templates_test.py"
       - ".github/workflows/scripts/verify-deployment-release.sh"
       - ".github/workflows/scripts/smoke-test-published-image.sh"
   push:
@@ -34,12 +32,10 @@ on:
       - ".github/workflows/scripts/test-docker-image.sh"
       - "transports/Dockerfile"
       - "transports/Dockerfile.local"
-      - "docs/deployment-guides/overview.mdx"
-      - "docs/deployment-guides/runtime-contract.mdx"
-      - "docs/deployment-guides/platforms/render.mdx"
-      - "docs/deployment-guides/platforms/railway.mdx"
+      - "docs/deployment-guides/**"
       - ".github/workflows/deployment-template-validation.yml"
       - ".github/workflows/scripts/validate-deployment-templates.py"
+      - ".github/workflows/scripts/validate-deployment-templates_test.py"
       - ".github/workflows/scripts/verify-deployment-release.sh"
       - ".github/workflows/scripts/smoke-test-published-image.sh"
 
@@ -85,7 +81,9 @@ jobs:
           sudo install -m 0755 /tmp/render-cli/cli_v2.22.0 /usr/local/bin/render
 
       - name: Validate repository contracts
-        run: python3 .github/workflows/scripts/validate-deployment-templates.py
+        run: |
+          python3 .github/workflows/scripts/validate-deployment-templates_test.py
+          python3 .github/workflows/scripts/validate-deployment-templates.py
 
       - name: Validate entrypoint shell
         run: |
