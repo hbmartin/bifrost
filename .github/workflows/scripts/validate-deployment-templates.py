@@ -8,7 +8,7 @@ import re
 import sys
 from datetime import date
 from pathlib import Path
-from typing import Any
+from typing import Any, NoReturn
 from urllib.parse import parse_qsl, urlsplit
 
 import yaml
@@ -27,16 +27,30 @@ RENDER_VERIFICATION_SCHEMA = json.loads(
 MINIMUM_RELEASE_TAG = json.loads((REPO_ROOT / "deploy/runtime-contract.json").read_text())["minimum_release_tag"]
 RELEASE_TAG_PATTERN = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
 HOSTED_ONE_CLICK_HEADING = "## Hosted one-click choices"
-HTTP_URL_PATTERN = re.compile(r"https?://[^\s)\"'<>\]]+", re.IGNORECASE)
+HTTP_URL_PATTERN = re.compile(r"https?://[^\s)\"'<>\]`]+", re.IGNORECASE)
+# Fenced blocks and inline code spans describe URLs rather than publish them: a
+# reader cannot click prose set in code formatting, so the sweep must not read
+# a documented URL shape as a live deploy button.
+CODE_SPAN_PATTERN = re.compile(r"```.*?```|`[^`\n]*`", re.DOTALL)
+# Sentence punctuation the URL regex cannot distinguish from the URL itself.
+TRAILING_PUNCTUATION = ".,;:!?"
 RENDER_BRANCH_PATTERN = re.compile(r"^[A-Za-z0-9._/-]+$")
+# The single registry of publishable blueprints/contracts: main() validates the
+# content of every entry, and one_click_targets() requires the recorded
+# verification evidence to cover exactly these slots — adding a slot here
+# cannot green-light a button without its content checks running.
 RENDER_BLUEPRINT_PATHS = {
     "postgres": "render.yaml",
     "sqlite": "deploy/render/render-sqlite.yaml",
 }
+RAILWAY_TEMPLATE_CONTRACTS = {
+    "postgres": ("PostgreSQL", "deploy/railway/postgres.template-contract.json"),
+    "sqlite": ("SQLite", "deploy/railway/sqlite.template-contract.json"),
+}
 DeployButtonKey = tuple[str, str]
 
 
-def fail(message: str) -> None:
+def fail(message: str) -> NoReturn:
     raise AssertionError(message)
 
 
@@ -77,11 +91,14 @@ def parse_deploy_button_url(url: str, label: str) -> DeployButtonKey | None:
     try:
         parsed = urlsplit(url)
         host = (parsed.hostname or "").lower().removesuffix(".").removeprefix("www.")
-        # Treat any number of trailing slashes consistently so a Render URL
-        # such as /deploy// cannot bypass deploy-button validation.
-        path = parsed.path.rstrip("/")
-    except ValueError as error:
-        fail(f"{label} contains an invalid URL {url!r}: {error}")
+        path = parsed.path.removesuffix("/")
+    except ValueError:
+        # No browser can be sent to a URL urlsplit rejects, so whatever this is
+        # (an IPv6 example the URL regex truncated, malformed prose), it is not
+        # a working deploy button. Recorded button URLs still fail closed: an
+        # unparseable button_url yields None, which never matches the expected
+        # key computed from the verified branch or slug.
+        return None
 
     if host == "render.com" and path == "/deploy":
         if parsed.scheme.lower() != "https" or parsed.netloc.lower() != "render.com" or parsed.fragment:
@@ -106,7 +123,10 @@ def parse_deploy_button_url(url: str, label: str) -> DeployButtonKey | None:
             fail(f"{label} Render repo parameter must be an unambiguous GitHub branch URL: {repo_url}")
         return ("render", repo.path)
 
-    if host in {"railway.com", "railway.app"} and path.startswith("/new/template/"):
+    # Match every Railway template-launch shape, including the historical
+    # query form (/new/template?template=SLUG) and a bare /new/template, so a
+    # functional non-canonical button cannot slip past the sweep as prose.
+    if host in {"railway.com", "railway.app"} and (path == "/new/template" or path.startswith("/new/template/")):
         if (
             parsed.scheme.lower() != "https"
             or parsed.netloc.lower() != host
@@ -114,9 +134,9 @@ def parse_deploy_button_url(url: str, label: str) -> DeployButtonKey | None:
             or parsed.fragment
         ):
             fail(f"{label} Railway deploy URL must use canonical HTTPS with no credentials, port, query, or fragment: {url}")
-        slug = path.removeprefix("/new/template/")
+        slug = path.removeprefix("/new/template").removeprefix("/")
         if not slug or "/" in slug:
-            fail(f"{label} Railway deploy URL must name exactly one template slug: {url}")
+            fail(f"{label} Railway deploy URL must name exactly one template slug in its path: {url}")
         return ("railway", slug)
 
     return None
@@ -126,8 +146,9 @@ def document_deploy_buttons(path: Path) -> list[tuple[str, DeployButtonKey]]:
     """Return every one-click deploy URL in a documentation page."""
     label = str(path.relative_to(REPO_ROOT))
     buttons: list[tuple[str, DeployButtonKey]] = []
-    for match in HTTP_URL_PATTERN.finditer(path.read_text()):
-        url = match.group(0)
+    text = CODE_SPAN_PATTERN.sub(" ", path.read_text())
+    for match in HTTP_URL_PATTERN.finditer(text):
+        url = match.group(0).rstrip(TRAILING_PUNCTUATION)
         key = parse_deploy_button_url(url, label)
         if key is not None:
             buttons.append((url, key))
@@ -477,8 +498,7 @@ def one_click_targets() -> list[dict[str, Any]]:
             }
         )
 
-    for name, filename in (("PostgreSQL", "postgres"), ("SQLite", "sqlite")):
-        evidence = f"deploy/railway/{filename}.template-contract.json"
+    for name, evidence in RAILWAY_TEMPLATE_CONTRACTS.values():
         template = json.loads((REPO_ROOT / evidence).read_text())["template"]
         slug = template["slug"]
         recorded = verification_recorded(template, f"Railway {name} in {evidence}")
@@ -556,10 +576,10 @@ def main() -> int:
             f"like v1.6.12, got {MINIMUM_RELEASE_TAG!r}"
         )
 
-    validate_render(REPO_ROOT / "render.yaml", "postgres")
-    validate_render(REPO_ROOT / "deploy/render/render-sqlite.yaml", "sqlite")
-    validate_railway(REPO_ROOT / "deploy/railway/postgres.template-contract.json", "postgres")
-    validate_railway(REPO_ROOT / "deploy/railway/sqlite.template-contract.json", "sqlite")
+    for storage, blueprint in RENDER_BLUEPRINT_PATHS.items():
+        validate_render(REPO_ROOT / blueprint, storage)
+    for storage, (_, contract) in RAILWAY_TEMPLATE_CONTRACTS.items():
+        validate_railway(REPO_ROOT / contract, storage)
     validate_documentation_links()
     print("deployment template validation passed")
     return 0

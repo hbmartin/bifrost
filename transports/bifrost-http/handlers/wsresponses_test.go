@@ -364,30 +364,90 @@ func TestRealtimeEphemeralMappingOverridesCompetingCredentialInBothContexts(t *t
 		headers: []headerPair{
 			{key: "authorization", value: "Bearer ek_first"},
 			{key: "x-bf-vk", value: "sk-bf-competing-virtual-key"},
+			{key: "x-bf-api-key-id", value: "competing-key-id"},
 		},
 	}
-	resolved := resolveRealtimeWebSocketEphemeralMapping(store, auth)
-	if resolved == nil {
+	resolved, isEphemeral := resolveRealtimeWebSocketEphemeralMapping(store, auth)
+	if resolved == nil || !isEphemeral {
 		t.Fatal("expected ephemeral mapping to resolve")
 	}
 
-	for _, phase := range []string{"routing", "session"} {
-		t.Run(phase, func(t *testing.T) {
-			ctx, cancel := createBifrostContextFromAuth(testWSHandlerStore{}, auth)
-			defer cancel()
-			applyResolvedRealtimeEphemeralMapping(ctx, resolved)
-
-			virtualKey, _ := ctx.Value(schemas.BifrostContextKeyVirtualKey).(string)
-			keyID, _ := ctx.Value(schemas.BifrostContextKeyAPIKeyID).(string)
-			assert.Equal(t, "sk-bf-mapped-virtual-key", virtualKey)
-			assert.Equal(t, "mapped-key-id", keyID)
-		})
+	sessionIdentity := func(t *testing.T, apply func(ctx *schemas.BifrostContext)) (string, string) {
+		t.Helper()
+		ctx, cancel := createBifrostContextFromAuth(testWSHandlerStore{}, auth)
+		defer cancel()
+		apply(ctx)
+		virtualKey, _ := ctx.Value(schemas.BifrostContextKeyVirtualKey).(string)
+		keyID, _ := ctx.Value(schemas.BifrostContextKeyAPIKeyID).(string)
+		return virtualKey, keyID
 	}
+
+	t.Run("routing", func(t *testing.T) {
+		// handleUpgrade order: auth replay, then the mapping, before
+		// RunPreRequestHooks reads the context.
+		virtualKey, keyID := sessionIdentity(t, func(ctx *schemas.BifrostContext) {
+			applyResolvedRealtimeEphemeralMapping(ctx, resolved)
+		})
+		assert.Equal(t, "sk-bf-mapped-virtual-key", virtualKey)
+		assert.Equal(t, "mapped-key-id", keyID)
+	})
+
+	t.Run("session without routing pin", func(t *testing.T) {
+		// runRealtimeSession order: auth replay, then the middleware snapshot,
+		// then the mapping. The snapshot carries the routing context's final
+		// key ID — the mapping's own, since no routing rule re-pinned it.
+		virtualKey, keyID := sessionIdentity(t, func(ctx *schemas.BifrostContext) {
+			applyRealtimeSessionContextValues(ctx, map[any]any{
+				schemas.BifrostContextKeyAPIKeyID: "mapped-key-id",
+			}, resolved)
+		})
+		assert.Equal(t, "sk-bf-mapped-virtual-key", virtualKey)
+		assert.Equal(t, "mapped-key-id", keyID)
+	})
+
+	t.Run("session with routing pin", func(t *testing.T) {
+		// A routing rule pinned a different key during RunPreRequestHooks. The
+		// snapshot value is what routing and governance accounted under, so it
+		// must survive the mapping replay or the session would select keys
+		// under an identity routing never saw.
+		virtualKey, keyID := sessionIdentity(t, func(ctx *schemas.BifrostContext) {
+			applyRealtimeSessionContextValues(ctx, map[any]any{
+				schemas.BifrostContextKeyAPIKeyID: "routing-pinned-key-id",
+			}, resolved)
+		})
+		assert.Equal(t, "sk-bf-mapped-virtual-key", virtualKey)
+		assert.Equal(t, "routing-pinned-key-id", keyID)
+	})
+
+	t.Run("session without middleware snapshot", func(t *testing.T) {
+		// No transport middleware ran; the mapping must still beat the
+		// competing credential headers on its own.
+		virtualKey, keyID := sessionIdentity(t, func(ctx *schemas.BifrostContext) {
+			applyRealtimeSessionContextValues(ctx, nil, resolved)
+		})
+		assert.Equal(t, "sk-bf-mapped-virtual-key", virtualKey)
+		assert.Equal(t, "mapped-key-id", keyID)
+	})
 }
 
 func TestResolveRealtimeWebSocketEphemeralMappingLeavesOrdinaryAuthorizationAlone(t *testing.T) {
 	auth := &authHeaders{authorization: "Bearer sk-bf-ordinary"}
-	assert.Nil(t, resolveRealtimeWebSocketEphemeralMapping(nil, auth))
+	mapping, isEphemeral := resolveRealtimeWebSocketEphemeralMapping(nil, auth)
+	assert.Nil(t, mapping)
+	assert.False(t, isEphemeral)
+}
+
+func TestResolveRealtimeWebSocketEphemeralMappingFlagsUnmappedEphemeralToken(t *testing.T) {
+	store, err := kvstore.New(kvstore.Config{})
+	if err != nil {
+		t.Fatalf("kvstore.New() error = %v", err)
+	}
+	defer store.Close()
+
+	auth := &authHeaders{authorization: "Bearer ek_expired"}
+	mapping, isEphemeral := resolveRealtimeWebSocketEphemeralMapping(store, auth)
+	assert.Nil(t, mapping)
+	assert.True(t, isEphemeral, "an unmapped ephemeral token must be reported so the upgrade is rejected instead of failing open")
 }
 
 func TestMergeWebSocketHeaders_ForwardedHeadersOverrideProviderHeadersAndPreserveValues(t *testing.T) {
