@@ -3,6 +3,7 @@ package logstore
 import (
 	"context"
 	"fmt"
+	"net"
 	"reflect"
 	"strings"
 	"sync"
@@ -39,15 +40,20 @@ func clickhouseTestConfig() *ClickHouseConfig {
 }
 
 // trySetupClickHouseStore connects to the docker-compose ClickHouse, runs
-// migrations, and truncates the log tables for a clean slate. Skips the test
-// when ClickHouse is unavailable.
+// migrations, and truncates the log tables for a clean slate. It skips only
+// when the native endpoint is unavailable; a reachable server with broken
+// credentials, configuration, or migrations is a test failure.
 func trySetupClickHouseStore(t *testing.T) *ClickHouseLogStore {
 	t.Helper()
+	conn, err := net.DialTimeout("tcp", net.JoinHostPort(clickhouseTestHost, clickhouseTestPort), time.Second)
+	if err != nil {
+		t.Skipf("ClickHouse native endpoint is unavailable, skipping test: %v", err)
+	}
+	require.NoError(t, conn.Close())
+
 	ctx := context.Background()
 	store, err := newClickHouseLogStore(ctx, clickhouseTestConfig(), 0, testLogger{})
-	if err != nil {
-		t.Skipf("ClickHouse not available, skipping test: %v", err)
-	}
+	require.NoError(t, err, "ClickHouse is reachable but log-store setup failed")
 	ch := store.(*ClickHouseLogStore)
 	for _, table := range []string{"logs", "mcp_tool_logs", "async_jobs", "webhook_deliveries"} {
 		require.NoError(t, ch.db.Exec("TRUNCATE TABLE "+table).Error)

@@ -39,7 +39,7 @@ Until then, copy `deploy/render/render-sqlite.yaml` into your own repository as 
 
 Once published, the button is explicitly bound to the generated `render-sqlite` branch. It provisions one Starter web service and mounts a 1 GB persistent disk at `/app/data`. Bifrost's SQLite configuration and logs survive restarts and redeploys.
 
-The canonical Blueprint is maintained on `dev` at `deploy/render/render-sqlite.yaml`. The `render-sqlite` branch does not exist yet: publication automation creates it as an orphan branch containing only the generated root `render.yaml` when the button is first verified and enabled. Do not edit the generated branch directly.
+The canonical Blueprint is maintained on `dev` at `deploy/render/render-sqlite.yaml`. After the release gate passes, publication automation creates the `render-sqlite` branch as an orphan branch containing only the generated root `render.yaml`. Maintainers then deploy and verify that branch, record the verification, and enable the button. Do not edit the generated branch directly.
 
 ## Sign in and create a credential
 
