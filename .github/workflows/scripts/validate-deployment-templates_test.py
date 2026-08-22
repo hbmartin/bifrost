@@ -3,9 +3,14 @@
 
 from __future__ import annotations
 
+import json
 import importlib.util
+import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
+
+from jsonschema import Draft202012Validator
 
 
 SCRIPT_PATH = Path(__file__).with_name("validate-deployment-templates.py")
@@ -68,6 +73,66 @@ class DeployButtonURLTests(unittest.TestCase):
         )
         self.assertEqual(railway_com, railway_app)
 
+    def test_deploy_host_aliases_are_rejected_instead_of_ignored(self) -> None:
+        urls = (
+            "https://www.render.com/deploy?repo=https://github.com/maximhq/bifrost/tree/dev",
+            "https://render.com./deploy?repo=https://github.com/maximhq/bifrost/tree/dev",
+            "https://www.railway.com/new/template/blue-dark",
+            "https://railway.com./new/template/blue-dark",
+        )
+        for url in urls:
+            with self.subTest(url=url):
+                with self.assertRaisesRegex(AssertionError, "canonical HTTPS"):
+                    validator.parse_deploy_button_url(url, "test")
+
+    def test_one_trailing_path_slash_preserves_deploy_identity(self) -> None:
+        render = validator.parse_deploy_button_url(
+            "https://render.com/deploy/?repo=https://github.com/maximhq/bifrost/tree/dev",
+            "test",
+        )
+        railway = validator.parse_deploy_button_url(
+            "https://railway.com/new/template/blue-dark/", "test"
+        )
+        self.assertEqual(("render", "/maximhq/bifrost/tree/dev"), render)
+        self.assertEqual(("railway", "blue-dark"), railway)
+
+    def test_non_deploy_urls_are_ignored_by_host_and_path(self) -> None:
+        urls = (
+            "https://example.com/deploy?repo=https://github.com/maximhq/bifrost/tree/dev",
+            "https://render.com/pricing",
+        )
+        for url in urls:
+            with self.subTest(url=url):
+                self.assertIsNone(validator.parse_deploy_button_url(url, "test"))
+
+
+class RenderVerificationSchemaTests(unittest.TestCase):
+    def test_button_url_uri_format_is_enforced(self) -> None:
+        record = {
+            "blueprints": {
+                "postgres": {
+                    "blueprint": "render.yaml",
+                    "branch": "dev",
+                    "button_url": "not a uri",
+                    "last_verified": None,
+                    "verified_release": None,
+                }
+            }
+        }
+        with self.assertRaisesRegex(AssertionError, "is not a 'uri'"):
+            validator.validate_json_schema(
+                record,
+                validator.RENDER_VERIFICATION_SCHEMA,
+                "test",
+                Draft202012Validator,
+            )
+
+    def test_branch_pattern_matches_runtime_validation(self) -> None:
+        branch_schema = validator.RENDER_VERIFICATION_SCHEMA["properties"]["blueprints"][
+            "additionalProperties"
+        ]["properties"]["branch"]
+        self.assertEqual(validator.RENDER_BRANCH_PATTERN.pattern, branch_schema["pattern"])
+
 
 class DeploymentDocumentationTests(unittest.TestCase):
     def test_sweep_is_recursive(self) -> None:
@@ -77,6 +142,67 @@ class DeploymentDocumentationTests(unittest.TestCase):
         }
         self.assertIn("docs/deployment-guides/runtime-contract.mdx", relative_paths)
         self.assertIn("docs/deployment-guides/platforms/render.mdx", relative_paths)
+
+    def test_every_discovered_guide_must_be_in_navigation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            guide = root / "docs/deployment-guides/platforms/future.mdx"
+            guide.parent.mkdir(parents=True)
+            guide.write_text("# Future deployment guide\n")
+            (root / "docs/docs.json").write_text(
+                json.dumps({"navigation": {"tabs": [{"pages": []}]}})
+            )
+
+            with mock.patch.object(validator, "REPO_ROOT", root):
+                with self.assertRaisesRegex(
+                    AssertionError,
+                    "docs/docs.json navigation is missing deployment guide docs/deployment-guides/platforms/future.mdx",
+                ):
+                    validator.deployment_document_paths()
+
+    def test_missing_target_document_reports_validation_error(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            missing_doc = root / "docs/deployment-guides/platforms/render.mdx"
+            target = {
+                "label": "Render postgres",
+                "doc": missing_doc,
+                "url": "https://render.com/deploy?repo=https://github.com/maximhq/bifrost/tree/dev",
+                "key": ("render", "/maximhq/bifrost/tree/dev"),
+                "verified": True,
+                "evidence": "deploy/render/blueprint-verification.json",
+            }
+
+            with (
+                mock.patch.object(validator, "REPO_ROOT", root),
+                mock.patch.object(validator, "one_click_targets", return_value=[target]),
+                mock.patch.object(validator, "deployment_document_paths", return_value=[]),
+            ):
+                with self.assertRaisesRegex(
+                    AssertionError,
+                    "Render postgres expects deployment page docs/deployment-guides/platforms/render.mdx, but it is missing",
+                ):
+                    validator.validate_documentation_links()
+
+    def test_document_deploy_button_without_verified_target_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            guide = root / "docs/deployment-guides/platforms/future.mdx"
+            guide.parent.mkdir(parents=True)
+            url = "https://railway.com/new/template/unverified"
+            guide.write_text(f"[Deploy]({url})\n")
+
+            with (
+                mock.patch.object(validator, "REPO_ROOT", root),
+                mock.patch.object(validator, "one_click_targets", return_value=[]),
+                mock.patch.object(validator, "deployment_document_paths", return_value=[guide]),
+            ):
+                self.assertEqual(
+                    [(url, ("railway", "unverified"))],
+                    validator.document_deploy_buttons(guide),
+                )
+                with self.assertRaisesRegex(AssertionError, "no recorded verification covers"):
+                    validator.validate_documentation_links()
 
 
 if __name__ == "__main__":
