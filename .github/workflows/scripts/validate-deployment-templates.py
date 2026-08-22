@@ -77,7 +77,9 @@ def parse_deploy_button_url(url: str, label: str) -> DeployButtonKey | None:
     try:
         parsed = urlsplit(url)
         host = (parsed.hostname or "").lower().removesuffix(".").removeprefix("www.")
-        path = parsed.path.removesuffix("/")
+        # Treat any number of trailing slashes consistently so a Render URL
+        # such as /deploy// cannot bypass deploy-button validation.
+        path = parsed.path.rstrip("/")
     except ValueError as error:
         fail(f"{label} contains an invalid URL {url!r}: {error}")
 
@@ -139,25 +141,60 @@ def deployment_document_paths() -> list[Path]:
 
     def navigation_entries(value: Any) -> set[str]:
         entries: set[str] = set()
+        if isinstance(value, str):
+            entries.add(value)
         if isinstance(value, list):
             for item in value:
                 entries.update(navigation_entries(item))
         if isinstance(value, dict):
-            pages = value.get("pages", [])
-            if isinstance(pages, list):
-                entries.update(page for page in pages if isinstance(page, str))
-            for item in value.values():
-                entries.update(navigation_entries(item))
+            entries.update(navigation_entries(value.get("pages", [])))
         return entries
 
-    documented = navigation_entries(navigation)
+    top_level_entries = []
+    if isinstance(navigation, list):
+        top_level_entries = navigation
+    elif isinstance(navigation, dict):
+        top_level_entries = [
+            entry
+            for value in navigation.values()
+            if isinstance(value, list)
+            for entry in value
+        ]
+    deployment_groups = [
+        entry
+        for entry in top_level_entries
+        if isinstance(entry, dict)
+        and (entry.get("group") == "Deployment Guides" or entry.get("tab") == "Deployment Guides")
+    ]
+    if len(deployment_groups) != 1:
+        fail(
+            "docs/docs.json navigation must contain exactly one top-level Deployment Guides group, "
+            f"found {len(deployment_groups)}"
+        )
+
+    documented = navigation_entries(deployment_groups[0].get("pages", []))
     missing = [
         path.relative_to(REPO_ROOT).as_posix()
         for path in paths
         if path.relative_to(REPO_ROOT / "docs").with_suffix("").as_posix() not in documented
     ]
+    docs_root = (REPO_ROOT / "docs").resolve()
+    stale = []
+    for page in sorted(documented):
+        target = (docs_root / f"{page}.mdx").resolve()
+        if not target.is_relative_to(docs_root) or not target.is_file():
+            stale.append(page)
+
+    errors = []
     if missing:
-        fail(f"docs/docs.json navigation is missing deployment guide {', '.join(missing)}")
+        errors.append(f"docs/docs.json navigation is missing deployment guide {', '.join(missing)}")
+    if stale:
+        errors.append(
+            "docs/docs.json Deployment Guides navigation references missing page "
+            + ", ".join(stale)
+        )
+    if errors:
+        fail("; ".join(errors))
     return paths
 
 

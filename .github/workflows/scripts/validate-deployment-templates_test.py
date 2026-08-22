@@ -96,6 +96,13 @@ class DeployButtonURLTests(unittest.TestCase):
         self.assertEqual(("render", "/maximhq/bifrost/tree/dev"), render)
         self.assertEqual(("railway", "blue-dark"), railway)
 
+    def test_repeated_trailing_slashes_cannot_bypass_render_validation(self) -> None:
+        render = validator.parse_deploy_button_url(
+            "https://render.com/deploy//?repo=https://github.com/maximhq/bifrost/tree/dev",
+            "test",
+        )
+        self.assertEqual(("render", "/maximhq/bifrost/tree/dev"), render)
+
     def test_non_deploy_urls_are_ignored_by_host_and_path(self) -> None:
         urls = (
             "https://example.com/deploy?repo=https://github.com/maximhq/bifrost/tree/dev",
@@ -150,13 +157,79 @@ class DeploymentDocumentationTests(unittest.TestCase):
             guide.parent.mkdir(parents=True)
             guide.write_text("# Future deployment guide\n")
             (root / "docs/docs.json").write_text(
-                json.dumps({"navigation": {"tabs": [{"pages": []}]}})
+                json.dumps(
+                    {
+                        "navigation": {
+                            "tabs": [{"tab": "Deployment Guides", "pages": []}]
+                        }
+                    }
+                )
             )
 
             with mock.patch.object(validator, "REPO_ROOT", root):
                 with self.assertRaisesRegex(
                     AssertionError,
                     "docs/docs.json navigation is missing deployment guide docs/deployment-guides/platforms/future.mdx",
+                ):
+                    validator.deployment_document_paths()
+
+    def test_guide_registered_outside_deployment_group_is_still_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            guide = root / "docs/deployment-guides/platforms/future.mdx"
+            guide.parent.mkdir(parents=True)
+            guide.write_text("# Future deployment guide\n")
+            (root / "docs/docs.json").write_text(
+                json.dumps(
+                    {
+                        "navigation": {
+                            "tabs": [
+                                {
+                                    "tab": "Other",
+                                    "pages": ["deployment-guides/platforms/future"],
+                                },
+                                {"tab": "Deployment Guides", "pages": []},
+                            ]
+                        }
+                    }
+                )
+            )
+
+            with mock.patch.object(validator, "REPO_ROOT", root):
+                with self.assertRaisesRegex(
+                    AssertionError,
+                    "navigation is missing deployment guide docs/deployment-guides/platforms/future.mdx",
+                ):
+                    validator.deployment_document_paths()
+
+    def test_stale_deployment_navigation_entry_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "docs/deployment-guides").mkdir(parents=True)
+            (root / "docs/docs.json").write_text(
+                json.dumps(
+                    {
+                        "navigation": {
+                            "tabs": [
+                                {
+                                    "tab": "Deployment Guides",
+                                    "pages": [
+                                        {
+                                            "group": "Hosted Containers",
+                                            "pages": ["deployment-guides/platforms/missing"],
+                                        }
+                                    ],
+                                }
+                            ]
+                        }
+                    }
+                )
+            )
+
+            with mock.patch.object(validator, "REPO_ROOT", root):
+                with self.assertRaisesRegex(
+                    AssertionError,
+                    "Deployment Guides navigation references missing page deployment-guides/platforms/missing",
                 ):
                     validator.deployment_document_paths()
 
