@@ -34,7 +34,7 @@ The stack provides:
 | Weaviate | `9000` | Weaviate HTTP client |
 | Pinecone Local | `5081` | Pinecone-compatible local index |
 | PostgreSQL | `5432` | Framework configuration and PostgreSQL log-store tests |
-| ClickHouse | `9001` (native), `8123` (HTTP) | ClickHouse log-store suites and the cross-backend log-store parity suite; these skip only when the native endpoint cannot be reached. If the native endpoint is reachable, authentication, configuration, and migration failures fail the suite |
+| ClickHouse | `9001` (native), `8123` (HTTP) | ClickHouse log-store suites and the cross-backend log-store parity suite; these skip when no usable ClickHouse answers on the native endpoint, and the parity suite additionally skips when PostgreSQL on `5432` is unavailable. A real ClickHouse that rejects authentication, configuration, or migrations fails the suite |
 
 `redis-certs-init` writes the test CA and server certificate under `tests/redis-certs/`. The CA-backed Redis tests read `tests/redis-certs/ca.crt` directly.
 
