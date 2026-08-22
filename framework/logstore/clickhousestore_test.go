@@ -57,7 +57,7 @@ func trySetupClickHouseStore(t *testing.T) *ClickHouseLogStore {
 	require.NoError(t, err, "ClickHouse is reachable but log-store setup failed")
 	ch := store.(*ClickHouseLogStore)
 	for _, table := range []string{"logs", "mcp_tool_logs", "async_jobs", "webhook_deliveries"} {
-		require.NoError(t, ch.db.Exec("TRUNCATE TABLE "+table).Error)
+		require.NoError(t, ch.db.WithContext(ctx).Exec("TRUNCATE TABLE "+table).Error)
 	}
 	t.Cleanup(func() { _ = ch.Close(context.Background()) })
 	return ch
