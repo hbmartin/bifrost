@@ -374,8 +374,8 @@ func TestNewBifrostUpstreamConnectionError(t *testing.T) {
 func TestNewBifrostUpstreamResponseError(t *testing.T) {
 	err := NewBifrostUpstreamResponseError("invalid upstream payload", errors.New("malformed JSON"))
 
-	if !err.IsBifrostError {
-		t.Fatal("expected malformed upstream response to be terminal for the current attempt")
+	if err.IsBifrostError {
+		t.Fatal("expected malformed upstream response to remain retryable before any stream content is forwarded")
 	}
 	if err.StatusCode == nil || *err.StatusCode != 502 {
 		t.Fatalf("expected StatusCode 502, got %v", err.StatusCode)

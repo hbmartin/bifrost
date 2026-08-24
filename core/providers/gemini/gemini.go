@@ -168,13 +168,13 @@ func (provider *GeminiProvider) completeRequest(ctx *schemas.BifrostContext, mod
 	// Parse Gemini's response
 	var geminiResponse GenerateContentResponse
 	if err := sonic.Unmarshal(body, &geminiResponse); err != nil {
-		return nil, nil, latency, providerResponseHeaders, providerUtils.NewBifrostOperationError(schemas.ErrProviderResponseUnmarshal, err)
+		return nil, nil, latency, providerResponseHeaders, providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, err)
 	}
 
 	var rawResponse interface{}
 	if providerUtils.ShouldSendBackRawResponse(ctx, provider.sendBackRawResponse) {
 		if err := sonic.Unmarshal(body, &rawResponse); err != nil {
-			return nil, nil, latency, providerResponseHeaders, providerUtils.NewBifrostOperationError(schemas.ErrProviderResponseUnmarshal, err)
+			return nil, nil, latency, providerResponseHeaders, providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, err)
 		}
 	}
 
@@ -805,7 +805,7 @@ func (provider *GeminiProvider) responsesWithLargeResponseDetection(
 	// Normal parse-and-convert path
 	var geminiResponse GenerateContentResponse
 	if unmarshalErr := sonic.Unmarshal(responseBody, &geminiResponse); unmarshalErr != nil {
-		return nil, providerUtils.NewBifrostOperationError(schemas.ErrProviderResponseUnmarshal, unmarshalErr)
+		return nil, providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, unmarshalErr)
 	}
 	bifrostResponse := geminiResponse.ToResponsesBifrostResponsesResponse()
 	bifrostResponse.ExtraFields.Latency = latency.Milliseconds()
@@ -1292,8 +1292,10 @@ func (provider *GeminiProvider) Embedding(ctx *schemas.BifrostContext, key schem
 	// Convert to Bifrost format
 	bifrostResponse := ToBifrostEmbeddingResponse(&geminiResponse, request.Model)
 	if bifrostResponse == nil {
-		return nil, providerUtils.NewBifrostOperationError(schemas.ErrProviderResponseUnmarshal,
-			fmt.Errorf("failed to convert Gemini embedding response to Bifrost format"))
+		return nil, providerUtils.NewBifrostOperationError(
+			"failed to convert Gemini embedding response to Bifrost format",
+			fmt.Errorf("Gemini embedding response converter returned nil"),
+		)
 	}
 
 	bifrostResponse.ExtraFields.Latency = latency.Milliseconds()
@@ -2590,7 +2592,7 @@ func (provider *GeminiProvider) BatchCreate(ctx *schemas.BifrostContext, key sch
 	var geminiResp GeminiBatchJobResponse
 	if err := sonic.Unmarshal(body, &geminiResp); err != nil {
 		provider.logger.Error("gemini batch create unmarshal error: " + err.Error())
-		return nil, providerUtils.EnrichError(ctx, providerUtils.NewBifrostOperationError(schemas.ErrProviderResponseUnmarshal, err), jsonData, body, provider.sendBackRawRequest, provider.sendBackRawResponse, latency)
+		return nil, providerUtils.EnrichError(ctx, providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, err), jsonData, body, provider.sendBackRawRequest, provider.sendBackRawResponse, latency)
 	}
 	// Check for metadata
 	if geminiResp.Metadata == nil {
@@ -2722,7 +2724,7 @@ func (provider *GeminiProvider) batchListByKey(ctx *schemas.BifrostContext, key 
 
 	var geminiResp GeminiBatchListResponse
 	if err := sonic.Unmarshal(body, &geminiResp); err != nil {
-		return nil, latency, providerUtils.NewBifrostOperationError(schemas.ErrProviderResponseUnmarshal, err)
+		return nil, latency, providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, err)
 	}
 
 	// Convert to Bifrost format
@@ -2868,7 +2870,7 @@ func (provider *GeminiProvider) batchRetrieveByKey(ctx *schemas.BifrostContext, 
 
 	var geminiResp GeminiBatchJobResponse
 	if err := sonic.Unmarshal(body, &geminiResp); err != nil {
-		return nil, providerUtils.NewBifrostOperationError(schemas.ErrProviderResponseUnmarshal, err)
+		return nil, providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, err)
 	}
 
 	var completedCount, failedCount int
@@ -3278,7 +3280,7 @@ func (provider *GeminiProvider) batchResultsByKey(ctx *schemas.BifrostContext, k
 
 	var geminiResp GeminiBatchJobResponse
 	if err := sonic.Unmarshal(body, &geminiResp); err != nil {
-		return nil, providerUtils.NewBifrostOperationError(schemas.ErrProviderResponseUnmarshal, err)
+		return nil, providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, err)
 	}
 
 	// Check if batch is still processing
@@ -3475,7 +3477,7 @@ func (provider *GeminiProvider) FileUpload(ctx *schemas.BifrostContext, key sche
 		File GeminiFileResponse `json:"file"`
 	}
 	if err := sonic.Unmarshal(body, &responseWrapper); err != nil {
-		return nil, providerUtils.NewBifrostOperationError(schemas.ErrProviderResponseUnmarshal, err)
+		return nil, providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, err)
 	}
 
 	geminiResp := responseWrapper.File
@@ -3564,7 +3566,7 @@ func (provider *GeminiProvider) fileListByKey(ctx *schemas.BifrostContext, key s
 
 	var geminiResp GeminiFileListResponse
 	if err := sonic.Unmarshal(body, &geminiResp); err != nil {
-		return nil, latency, providerUtils.NewBifrostOperationError(schemas.ErrProviderResponseUnmarshal, err)
+		return nil, latency, providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, err)
 	}
 
 	// Convert to Bifrost response
@@ -3727,7 +3729,7 @@ func (provider *GeminiProvider) fileRetrieveByKey(ctx *schemas.BifrostContext, k
 
 	var geminiResp GeminiFileResponse
 	if err := sonic.Unmarshal(body, &geminiResp); err != nil {
-		return nil, providerUtils.NewBifrostOperationError(schemas.ErrProviderResponseUnmarshal, err)
+		return nil, providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, err)
 	}
 
 	var sizeBytes int64

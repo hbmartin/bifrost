@@ -2255,16 +2255,17 @@ func NewBifrostUpstreamConnectionError(message string, err error) *schemas.Bifro
 }
 
 // NewBifrostUpstreamResponseError creates a standardized error for an upstream
-// provider response that arrived but violated the expected wire protocol or
-// could not be decoded. It remains a 502, but is terminal for the current
-// provider attempt: replaying a request after the provider returned malformed
-// protocol data is not equivalent to retrying a connection that failed before
-// any response bytes arrived.
+// provider response that violated the expected wire protocol or could not be
+// decoded. It is a retryable 502 when surfaced before any stream content is
+// forwarded: CheckFirstStreamChunkForError converts that first error chunk into
+// a synchronous provider failure, allowing executeRequestWithRetries to retry or
+// fall back. Mid-stream errors remain client-visible and cannot be replayed
+// because the stream has already been handed to the caller.
 func NewBifrostUpstreamResponseError(message string, err error) *schemas.BifrostError {
 	statusCode := 502
 	errorType := schemas.ProviderResponseInvalid
 	return &schemas.BifrostError{
-		IsBifrostError: true,
+		IsBifrostError: false,
 		StatusCode:     &statusCode,
 		Error: &schemas.ErrorField{
 			Message: message,

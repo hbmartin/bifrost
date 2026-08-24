@@ -3241,7 +3241,7 @@ func (provider *BedrockProvider) BatchCreate(ctx *schemas.BifrostContext, key sc
 
 	var bedrockResp BedrockBatchJobResponse
 	if err := sonic.Unmarshal(body, &bedrockResp); err != nil {
-		return nil, providerUtils.EnrichError(ctx, providerUtils.NewBifrostOperationError(schemas.ErrProviderResponseUnmarshal, err), jsonData, body, sendBackRawRequest, sendBackRawResponse)
+		return nil, providerUtils.EnrichError(ctx, providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, err), jsonData, body, sendBackRawRequest, sendBackRawResponse)
 	}
 
 	// AWS CreateModelInvocationJob only returns jobArn, not status or other details.
@@ -3366,7 +3366,7 @@ func (provider *BedrockProvider) BatchList(ctx *schemas.BifrostContext, keys []s
 
 	var bedrockResp BedrockBatchJobListResponse
 	if err := sonic.Unmarshal(body, &bedrockResp); err != nil {
-		return nil, providerUtils.NewBifrostOperationError(schemas.ErrProviderResponseUnmarshal, err)
+		return nil, providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, err)
 	}
 
 	// Convert batches to Bifrost format
@@ -3549,7 +3549,7 @@ func (provider *BedrockProvider) BatchRetrieve(ctx *schemas.BifrostContext, keys
 
 		var bedrockResp BedrockBatchJobResponse
 		if err := sonic.Unmarshal(body, &bedrockResp); err != nil {
-			lastErr = providerUtils.NewBifrostOperationError(schemas.ErrProviderResponseUnmarshal, err)
+			lastErr = providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, err)
 			continue
 		}
 
