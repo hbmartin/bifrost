@@ -2,6 +2,7 @@ package logstore
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"reflect"
@@ -10,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/maximhq/bifrost/core/schemas"
 	"github.com/maximhq/bifrost/framework/objectstore"
 	"github.com/stretchr/testify/assert"
@@ -40,9 +42,11 @@ func clickhouseTestConfig() *ClickHouseConfig {
 }
 
 // trySetupClickHouseStore connects to the docker-compose ClickHouse, runs
-// migrations, and truncates the log tables for a clean slate. It skips only
-// when the native endpoint is unavailable; a reachable server with broken
-// credentials, configuration, or migrations is a test failure.
+// migrations, and truncates the log tables for a clean slate. It skips when no
+// usable ClickHouse answers on the native endpoint — port closed, a different
+// service listening, or a container still initializing. A real ClickHouse that
+// rejects the connection (broken credentials, configuration, or migrations) is
+// a test failure.
 func trySetupClickHouseStore(t *testing.T) *ClickHouseLogStore {
 	t.Helper()
 	conn, err := net.DialTimeout("tcp", net.JoinHostPort(clickhouseTestHost, clickhouseTestPort), time.Second)
@@ -54,7 +58,18 @@ func trySetupClickHouseStore(t *testing.T) *ClickHouseLogStore {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	t.Cleanup(cancel)
 	store, err := newClickHouseLogStore(ctx, clickhouseTestConfig(), 0, testLogger{})
-	require.NoError(t, err, "ClickHouse is reachable but log-store setup failed")
+	if err != nil {
+		// A server exception proves a real ClickHouse answered, so the setup
+		// failure is loud. Anything else — handshake garbage, EOF, timeout —
+		// means the accepted TCP connection was not a usable ClickHouse (a
+		// foreign service on the port, or a container still starting), which
+		// is the same situation as a closed port.
+		var chErr *clickhouse.Exception
+		if errors.As(err, &chErr) {
+			require.NoError(t, err, "ClickHouse is reachable but log-store setup failed")
+		}
+		t.Skipf("port %s accepted TCP but no usable ClickHouse answered, skipping test: %v", clickhouseTestPort, err)
+	}
 	ch := store.(*ClickHouseLogStore)
 	for _, table := range []string{"logs", "mcp_tool_logs", "async_jobs", "webhook_deliveries"} {
 		require.NoError(t, ch.db.WithContext(ctx).Exec("TRUNCATE TABLE "+table).Error)
