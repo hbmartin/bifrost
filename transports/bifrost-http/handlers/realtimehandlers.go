@@ -21,7 +21,7 @@ func NewRealtimeHandlers(
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("initialize realtime ephemeral token codec: %w", err)
 	}
-	if tokenCodec == nil && logger != nil {
+	if tokenCodec == nil {
 		logger.Warn("realtime ephemeral token portability is disabled because no encryption key is configured; multi-replica requests may reach a node without the in-memory routing mapping, and all mappings are lost on restart")
 	}
 

@@ -311,10 +311,8 @@ func (h *WebRTCRealtimeHandler) runWebRTCRelay(
 
 	authKey, selectedKey, mappedEphemeralCredential, err := h.resolveRealtimeWebRTCKeys(ctx, bifrostCtx, providerKey, model)
 	if err != nil {
-		if logger != nil {
-			logger.Warn("realtime WebRTC key selection failed: provider=%s model=%s mapped_ephemeral=%t error=%v", providerKey, model, mappedEphemeralCredential, err)
-		}
 		status, errorType, message := classifyRealtimeKeySelectionError(err, mappedEphemeralCredential)
+		logKeySelectionFailure("realtime WebRTC", providerKey, model, mappedEphemeralCredential, status, err)
 		SendBifrostError(ctx, newRealtimeWebRTCError(status, errorType, message, nil))
 		return
 	}
