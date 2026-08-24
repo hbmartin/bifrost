@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -196,6 +197,52 @@ func TestExtractRealtimeBearerToken(t *testing.T) {
 	}
 }
 
+func TestClassifyRealtimeKeySelectionError(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		err        error
+		mapped     bool
+		wantStatus int
+		wantType   string
+		wantMsg    string
+	}{
+		{
+			name:       "stale mapped pin",
+			err:        fmt.Errorf("%w: removed", bifrost.ErrPinnedAPIKeyUnavailable),
+			mapped:     true,
+			wantStatus: fasthttp.StatusUnauthorized,
+			wantType:   "invalid_request_error",
+			wantMsg:    errRealtimeEphemeralKeyUnknown.Error(),
+		},
+		{
+			name:       "caller supplied stale pin",
+			err:        fmt.Errorf("%w: removed", bifrost.ErrPinnedAPIKeyUnavailable),
+			wantStatus: fasthttp.StatusBadRequest,
+			wantType:   "invalid_request_error",
+			wantMsg:    "pinned API key unavailable: removed",
+		},
+		{
+			name:       "key store failure",
+			err:        fmt.Errorf("%w: database offline", bifrost.ErrKeySelectionUnavailable),
+			mapped:     true,
+			wantStatus: fasthttp.StatusInternalServerError,
+			wantType:   "server_error",
+			wantMsg:    realtimeKeySelectionUnavailableMessage,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			status, errorType, message := classifyRealtimeKeySelectionError(tt.err, tt.mapped)
+			if status != tt.wantStatus || errorType != tt.wantType || message != tt.wantMsg {
+				t.Fatalf("classification = (%d, %q, %q), want (%d, %q, %q)", status, errorType, message, tt.wantStatus, tt.wantType, tt.wantMsg)
+			}
+		})
+	}
+}
+
 func TestLookupRealtimeEphemeralKeyMappingKeepsEntryUntilTTLExpiry(t *testing.T) {
 	t.Parallel()
 
@@ -213,7 +260,7 @@ func TestLookupRealtimeEphemeralKeyMappingKeepsEntryUntilTTLExpiry(t *testing.T)
 		t.Fatalf("store.SetWithTTL() error = %v", err)
 	}
 
-	mapping, ok := lookupRealtimeEphemeralKeyMapping(store, "ek_test_123")
+	mapping, ok := lookupRealtimeEphemeralKeyMappingWithCodec(store, "ek_test_123", nil)
 	if !ok {
 		t.Fatal("expected mapping to be consumed")
 	}
@@ -246,7 +293,7 @@ func TestLookupRealtimeEphemeralKeyMappingRejectsUnversionedStringValue(t *testi
 		t.Fatalf("store.SetWithTTL() error = %v", err)
 	}
 
-	if mapping, ok := lookupRealtimeEphemeralKeyMapping(store, "ek_test_legacy"); ok {
+	if mapping, ok := lookupRealtimeEphemeralKeyMappingWithCodec(store, "ek_test_legacy", nil); ok {
 		t.Fatalf("lookupRealtimeEphemeralKeyMapping() = %#v, true; want legacy mapping rejected", mapping)
 	}
 }
@@ -265,7 +312,7 @@ func TestLookupRealtimeEphemeralKeyMappingAcceptsLegacyStructuredValue(t *testin
 		t.Fatalf("store.SetWithTTL() error = %v", err)
 	}
 
-	mapping, ok := lookupRealtimeEphemeralKeyMapping(store, "ek_test_legacy_structured")
+	mapping, ok := lookupRealtimeEphemeralKeyMappingWithCodec(store, "ek_test_legacy_structured", nil)
 	if !ok {
 		t.Fatal("expected the previous release's structured mapping to remain readable")
 	}
@@ -344,7 +391,7 @@ func TestResolveRealtimeWebRTCKeys_UnmappedEphemeralTokenIsRejected(t *testing.T
 	bifrostCtx.SetValue(schemas.BifrostContextKeyAPIKeyID, "mapped-id")
 	bifrostCtx.SetValue(schemas.BifrostContextKeyAPIKeyName, "mapped-name")
 
-	authKey, selectedKey, err := handler.resolveRealtimeWebRTCKeys(&ctx, bifrostCtx, schemas.OpenAI, "gpt-realtime")
+	authKey, selectedKey, mapped, err := handler.resolveRealtimeWebRTCKeys(&ctx, bifrostCtx, schemas.OpenAI, "gpt-realtime")
 	if err != errRealtimeEphemeralKeyUnknown {
 		t.Fatalf("resolveRealtimeWebRTCKeys() error = %v, want %v", err, errRealtimeEphemeralKeyUnknown)
 	}
@@ -354,9 +401,12 @@ func TestResolveRealtimeWebRTCKeys_UnmappedEphemeralTokenIsRejected(t *testing.T
 	if selectedKey != nil {
 		t.Fatalf("selectedKey = %#v, want nil", selectedKey)
 	}
+	if mapped {
+		t.Fatal("unmapped ephemeral token reported as mapped")
+	}
 }
 
-func TestResolveRealtimeWebRTCKeysRejectsInvalidMappedKeyAsUnknown(t *testing.T) {
+func TestResolveRealtimeWebRTCKeysClassifiesStaleMappedKey(t *testing.T) {
 	t.Parallel()
 
 	store, err := kvstore.New(kvstore.Config{})
@@ -394,9 +444,12 @@ func TestResolveRealtimeWebRTCKeysRejectsInvalidMappedKeyAsUnknown(t *testing.T)
 	ctx.Request.Header.Set("Authorization", "Bearer ek_mapped")
 	bifrostCtx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 
-	_, selectedKey, err := handler.resolveRealtimeWebRTCKeys(&ctx, bifrostCtx, schemas.OpenAI, "gpt-realtime")
-	if !errors.Is(err, errRealtimeEphemeralKeyUnknown) {
-		t.Fatalf("resolveRealtimeWebRTCKeys() error = %v, want %v", err, errRealtimeEphemeralKeyUnknown)
+	_, selectedKey, mapped, err := handler.resolveRealtimeWebRTCKeys(&ctx, bifrostCtx, schemas.OpenAI, "gpt-realtime")
+	if !errors.Is(err, bifrost.ErrPinnedAPIKeyUnavailable) {
+		t.Fatalf("resolveRealtimeWebRTCKeys() error = %v, want %v", err, bifrost.ErrPinnedAPIKeyUnavailable)
+	}
+	if !mapped {
+		t.Fatal("mapped ephemeral credential was not reported")
 	}
 	if selectedKey != nil {
 		t.Fatalf("selectedKey = %#v, want nil", selectedKey)
@@ -443,7 +496,7 @@ func TestLookupRealtimeEphemeralKeyMappingHandlesTypedNilStore(t *testing.T) {
 	t.Parallel()
 
 	var store *kvstore.Store
-	if mapping, ok := lookupRealtimeEphemeralKeyMapping(store, "ek_test"); ok {
+	if mapping, ok := lookupRealtimeEphemeralKeyMappingWithCodec(store, "ek_test", nil); ok {
 		t.Fatalf("lookupRealtimeEphemeralKeyMapping() = %#v, true; want no mapping", mapping)
 	}
 }
