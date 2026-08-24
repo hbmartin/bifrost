@@ -580,6 +580,46 @@ func TestRealtimeEphemeralTokenSealClampsFarFutureExpiry(t *testing.T) {
 	}
 }
 
+func TestWrapRealtimeClientSecretResponseAdvertisesClampedTokenExpiry(t *testing.T) {
+	t.Parallel()
+
+	codec := mustRealtimeEphemeralTokenCodec(t, []byte("shared-cluster-encryption-key-for-tests"))
+	upstreamExpiresAt := time.Now().Add(30 * 24 * time.Hour).Unix()
+	body := fmt.Appendf(nil, `{"value":"ek_upstream","expires_at":%d}`, upstreamExpiresAt)
+
+	rewritten, wrapped, err := wrapRealtimeClientSecretResponseWithCodec(body, "key-1", "", codec)
+	if err != nil || !wrapped {
+		t.Fatalf("wrapRealtimeClientSecretResponseWithCodec() = wrapped %v, error %v", wrapped, err)
+	}
+
+	var response struct {
+		Value     string `json:"value"`
+		ExpiresAt int64  `json:"expires_at"`
+	}
+	if err := json.Unmarshal(rewritten, &response); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	sealed, err := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(response.Value, realtimeEphemeralTokenPrefix))
+	if err != nil {
+		t.Fatalf("DecodeString() error = %v", err)
+	}
+	nonceSize := codec.aead.NonceSize()
+	payloadJSON, err := codec.aead.Open(nil, sealed[:nonceSize], sealed[nonceSize:], []byte(realtimeEphemeralTokenPrefix))
+	if err != nil {
+		t.Fatalf("opening sealed payload: %v", err)
+	}
+	var payload realtimeEphemeralTokenPayload
+	if err := json.Unmarshal(payloadJSON, &payload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if response.ExpiresAt != payload.ExpiresAt {
+		t.Fatalf("response expiry = %d, token expiry = %d; want identical clamped expiry", response.ExpiresAt, payload.ExpiresAt)
+	}
+	if response.ExpiresAt >= upstreamExpiresAt {
+		t.Fatalf("response expiry = %d, want less than far-future upstream expiry %d", response.ExpiresAt, upstreamExpiresAt)
+	}
+}
+
 func TestRealtimeEphemeralTokenOpenRejectsFarFuturePayload(t *testing.T) {
 	t.Parallel()
 

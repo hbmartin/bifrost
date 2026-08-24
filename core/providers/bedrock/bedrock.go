@@ -3100,8 +3100,15 @@ func (provider *BedrockProvider) BatchCreate(ctx *schemas.BifrostContext, key sc
 		return nil, providerUtils.NewBifrostOperationError("model is required for Bedrock batch API", nil)
 	}
 
-	// Generate job name
+	clientRequestToken := BatchClientRequestToken(request)
+
+	// Generate a stable job name when the caller supplies AWS's idempotency token,
+	// so retries send the same request payload as the accepted first attempt.
 	jobName := fmt.Sprintf("bifrost-batch-%d", time.Now().Unix())
+	if clientRequestToken != "" {
+		digest := sha256.Sum256([]byte(clientRequestToken))
+		jobName = fmt.Sprintf("bifrost-batch-%x", digest[:8])
+	}
 	if request.Metadata != nil {
 		if name, ok := request.Metadata["job_name"]; ok {
 			jobName = name
@@ -3162,9 +3169,10 @@ func (provider *BedrockProvider) BatchCreate(ctx *schemas.BifrostContext, key sc
 
 	// Build request
 	bedrockReq := &BedrockBatchJobRequest{
-		JobName: jobName,
-		ModelID: request.Model,
-		RoleArn: roleArn,
+		JobName:            jobName,
+		ClientRequestToken: clientRequestToken,
+		ModelID:            request.Model,
+		RoleArn:            roleArn,
 		InputDataConfig: BedrockInputDataConfig{
 			S3InputDataConfig: BedrockS3InputDataConfig{
 				S3Uri:         inputFileID,
@@ -3226,7 +3234,7 @@ func (provider *BedrockProvider) BatchCreate(ctx *schemas.BifrostContext, key sc
 				},
 			}, jsonData, nil, sendBackRawRequest, sendBackRawResponse)
 		}
-		return nil, providerUtils.EnrichError(ctx, providerUtils.NewBifrostOperationError(schemas.ErrProviderDoRequest, err), jsonData, nil, sendBackRawRequest, sendBackRawResponse)
+		return nil, providerUtils.EnrichError(ctx, providerUtils.NewBifrostUpstreamConnectionError(schemas.ErrProviderDoRequest, err), jsonData, nil, sendBackRawRequest, sendBackRawResponse)
 	}
 	defer resp.Body.Close()
 
