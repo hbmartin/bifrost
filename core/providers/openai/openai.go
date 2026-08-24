@@ -12,6 +12,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 	"time"
 
@@ -32,6 +33,128 @@ type OpenAIProvider struct {
 	sendBackRawResponse  bool                          // Whether to include raw response in BifrostResponse
 	customProviderConfig *schemas.CustomProviderConfig // Custom provider config
 	disableStore         bool                          // Whether to force store=false on outgoing requests
+}
+
+func sendOpenAIStreamUnmarshalError(
+	ctx *schemas.BifrostContext,
+	postHookRunner schemas.PostHookRunner,
+	responseChan chan *schemas.BifrostStreamChunk,
+	logger schemas.Logger,
+	postHookSpanFinalizer func(context.Context),
+	err error,
+	requestBody []byte,
+	responseBody string,
+	sendBackRawRequest bool,
+	sendBackRawResponse bool,
+	latency time.Duration,
+) {
+	logger.Warn("Failed to parse stream response: %v", err)
+	ctx.SetValue(schemas.BifrostContextKeyStreamEndIndicator, true)
+	bifrostErr := providerUtils.EnrichError(
+		ctx,
+		providerUtils.NewBifrostOperationError(schemas.ErrProviderResponseUnmarshal, err),
+		requestBody,
+		nil,
+		sendBackRawRequest,
+		sendBackRawResponse,
+		latency,
+	)
+	// The failed payload is not valid JSON by definition, so retain it as a
+	// string instead of json.RawMessage; otherwise marshaling the error itself
+	// can fail while trying to report the original decode failure.
+	if providerUtils.ShouldSendBackRawResponse(ctx, sendBackRawResponse) && responseBody != "" {
+		bifrostErr.ExtraFields.RawResponse = responseBody
+	}
+	providerUtils.ProcessAndSendBifrostError(ctx, postHookRunner, bifrostErr, responseChan, logger, postHookSpanFinalizer)
+}
+
+func recordOpenAIStreamChoiceState(choices []schemas.BifrostResponseChoice, seenChoices map[int]struct{}, finishReasons map[int]string) {
+	for i := range choices {
+		choice := &choices[i]
+		seenChoices[choice.Index] = struct{}{}
+		if choice.FinishReason != nil && *choice.FinishReason != "" {
+			finishReasons[choice.Index] = *choice.FinishReason
+		}
+	}
+}
+
+func expectedOpenAIStreamChoiceCount(n *int) int {
+	if n != nil && *n > 0 {
+		return *n
+	}
+	return 1
+}
+
+func allOpenAIStreamChoicesFinished(expected int, finishReasons map[int]string) bool {
+	return len(finishReasons) >= expected
+}
+
+func openAITextResponseHasDelta(choices []schemas.BifrostResponseChoice) bool {
+	for i := range choices {
+		choice := &choices[i]
+		if choice.TextCompletionResponseChoice != nil && choice.TextCompletionResponseChoice.Text != nil {
+			return true
+		}
+	}
+	return false
+}
+
+func openAIChatResponseHasDelta(choices []schemas.BifrostResponseChoice) bool {
+	for i := range choices {
+		choice := &choices[i]
+		if choice.ChatStreamResponseChoice == nil || choice.ChatStreamResponseChoice.Delta == nil {
+			continue
+		}
+		delta := choice.ChatStreamResponseChoice.Delta
+		if delta.Role != nil || delta.Content != nil || delta.Refusal != nil || delta.Audio != nil || delta.Reasoning != nil ||
+			len(delta.ReasoningDetails) > 0 || len(delta.Annotations) > 0 || len(delta.ToolCalls) > 0 || len(delta.ExtraContent) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func sortedOpenAIStreamChoiceIndexes(seenChoices map[int]struct{}) []int {
+	indexes := make([]int, 0, len(seenChoices))
+	for index := range seenChoices {
+		indexes = append(indexes, index)
+	}
+	sort.Ints(indexes)
+	return indexes
+}
+
+func createOpenAITextFinalChoices(seenChoices map[int]struct{}, finishReasons map[int]string) []schemas.BifrostResponseChoice {
+	indexes := sortedOpenAIStreamChoiceIndexes(seenChoices)
+	choices := make([]schemas.BifrostResponseChoice, 0, len(indexes))
+	for _, index := range indexes {
+		choice := schemas.BifrostResponseChoice{
+			Index:                        index,
+			TextCompletionResponseChoice: &schemas.TextCompletionResponseChoice{},
+		}
+		if finishReason, ok := finishReasons[index]; ok {
+			choice.FinishReason = schemas.Ptr(finishReason)
+		}
+		choices = append(choices, choice)
+	}
+	return choices
+}
+
+func createOpenAIChatFinalChoices(seenChoices map[int]struct{}, finishReasons map[int]string, forwardedFinishReasons map[int]bool) []schemas.BifrostResponseChoice {
+	indexes := sortedOpenAIStreamChoiceIndexes(seenChoices)
+	choices := make([]schemas.BifrostResponseChoice, 0, len(indexes))
+	for _, index := range indexes {
+		choice := schemas.BifrostResponseChoice{
+			Index: index,
+			ChatStreamResponseChoice: &schemas.ChatStreamResponseChoice{
+				Delta: &schemas.ChatStreamResponseChoiceDelta{},
+			},
+		}
+		if finishReason, ok := finishReasons[index]; ok && !forwardedFinishReasons[index] {
+			choice.FinishReason = schemas.Ptr(finishReason)
+		}
+		choices = append(choices, choice)
+	}
+	return choices
 }
 
 // NewOpenAIProvider creates a new OpenAI provider instance.
@@ -592,7 +715,12 @@ func HandleOpenAITextCompletionStreaming(
 		// cancel/timeout can bill for tokens the provider already processed.
 		ctx.SetValue(schemas.BifrostContextKeyStreamAccumulatedUsage, usage)
 
-		var finishReason *string
+		seenChoices := make(map[int]struct{})
+		finishReasons := make(map[int]string)
+		expectedChoices := 1
+		if request.Params != nil {
+			expectedChoices = expectedOpenAIStreamChoiceCount(request.Params.N)
+		}
 		var messageID string
 		var created int
 		lastChunkTime := startTime
@@ -656,8 +784,8 @@ func HandleOpenAITextCompletionStreaming(
 				umErr := sonic.UnmarshalString(jsonData, &response)
 				schemas.AddStreamParse(ctx, time.Since(parseStart))
 				if umErr != nil {
-					logger.Warn("Failed to parse stream response: %v", umErr)
-					continue
+					sendOpenAIStreamUnmarshalError(ctx, postHookRunner, responseChan, logger, postHookSpanFinalizer, umErr, jsonBody, jsonData, sendBackRawRequest, sendBackRawResponse, latency)
+					return
 				}
 			}
 
@@ -706,17 +834,17 @@ func HandleOpenAITextCompletionStreaming(
 				response.Usage = nil
 			}
 
-			// Skip empty responses or responses without choices
-			if len(response.Choices) == 0 {
-				continue
+			recordOpenAIStreamChoiceState(response.Choices, seenChoices, finishReasons)
+
+			// Keep finish reasons on the synthesized final chunk, where usage is
+			// attached. Apply this to every choice, not only Choices[0].
+			for i := range response.Choices {
+				response.Choices[i].FinishReason = nil
 			}
 
-			// Handle finish reason, usually in the final chunk
-			choice := response.Choices[0]
-			if choice.FinishReason != nil && *choice.FinishReason != "" {
-				// Collect finish reason and send at the end of the stream
-				finishReason = choice.FinishReason
-				response.Choices[0].FinishReason = nil
+			// Skip responses without choices after collecting usage.
+			if len(response.Choices) == 0 {
+				continue
 			}
 
 			if response.ID != "" && messageID == "" {
@@ -727,7 +855,7 @@ func HandleOpenAITextCompletionStreaming(
 			}
 
 			// Handle regular content chunks
-			if choice.TextCompletionResponseChoice != nil && choice.TextCompletionResponseChoice.Text != nil {
+			if openAITextResponseHasDelta(response.Choices) {
 				chunkIndex++
 
 				response.ExtraFields.ChunkIndex = chunkIndex
@@ -742,7 +870,7 @@ func HandleOpenAITextCompletionStreaming(
 			}
 
 			// For providers that don't send [DONE] marker break on finish_reason
-			if !providerUtils.ProviderSendsDoneMarker(providerName) && finishReason != nil {
+			if !providerUtils.ProviderSendsDoneMarker(providerName) && allOpenAIStreamChoicesFinished(expectedChoices, finishReasons) {
 				break
 			}
 		}
@@ -750,12 +878,19 @@ func HandleOpenAITextCompletionStreaming(
 		// See HandleOpenAIChatCompletionStreaming: a plain io.EOF cannot distinguish a
 		// finished provider from a dead connection, so a terminal marker is required
 		// before synthesizing the final chunk.
-		if !providerUtils.SSEStreamEndedOnMarker(sseReader) && finishReason == nil {
+		if !providerUtils.SSEStreamEndedOnMarker(sseReader) && !allOpenAIStreamChoicesFinished(expectedChoices, finishReasons) {
 			providerUtils.SendStreamTruncatedError(ctx, postHookRunner, responseChan, logger, postHookSpanFinalizer, jsonBody)
 			return
 		}
 
-		response := providerUtils.CreateBifrostTextCompletionChunkResponse(messageID, usage, finishReason, chunkIndex, schemas.TextCompletionStreamRequest, request.Model, created)
+		var firstFinishReason *string
+		if finishReason, ok := finishReasons[0]; ok {
+			firstFinishReason = schemas.Ptr(finishReason)
+		}
+		response := providerUtils.CreateBifrostTextCompletionChunkResponse(messageID, usage, firstFinishReason, chunkIndex, schemas.TextCompletionStreamRequest, request.Model, created)
+		if finalChoices := createOpenAITextFinalChoices(seenChoices, finishReasons); len(finalChoices) > 0 {
+			response.Choices = finalChoices
+		}
 		if postResponseConverter != nil {
 			response = postResponseConverter(response)
 			if response == nil {
@@ -1223,13 +1358,18 @@ func HandleOpenAIChatCompletionStreaming(
 
 		lastChunkTime := startTime
 
-		var finishReason *string
+		seenChoices := make(map[int]struct{})
+		finishReasons := make(map[int]string)
+		forwardedFinishReasons := make(map[int]bool)
+		expectedChoices := 1
+		if request.Params != nil {
+			expectedChoices = expectedOpenAIStreamChoiceCount(request.Params.N)
+		}
 		var messageID string
 		var modelName string
 		var created int
 		// service_tier is echoed on chunks; propagate to the final chunk for priority/flex billing
 		var serviceTier *schemas.BifrostServiceTier
-		forwardedTerminalFinishReason := false
 		// Defer final completed/incomplete event until usage chunk arrives (fallback path only).
 		var pendingFinalEvent *schemas.BifrostResponsesStreamResponse
 		usageSeen := false
@@ -1296,8 +1436,8 @@ func HandleOpenAIChatCompletionStreaming(
 				umErr := sonic.UnmarshalString(jsonData, &response)
 				schemas.AddStreamParse(ctx, time.Since(parseStart))
 				if umErr != nil {
-					logger.Warn("Failed to parse stream response: %v", umErr)
-					continue
+					sendOpenAIStreamUnmarshalError(ctx, postHookRunner, responseChan, logger, postHookSpanFinalizer, umErr, jsonBody, jsonData, sendBackRawRequest, sendBackRawResponse, latency)
+					return
 				}
 			}
 
@@ -1432,19 +1572,6 @@ func HandleOpenAIChatCompletionStreaming(
 				if response.Model != "" {
 					modelName = response.Model
 				}
-
-				// Skip empty responses or responses without choices
-				if len(response.Choices) == 0 {
-					continue
-				}
-
-				// Handle finish reason, usually in the final chunk
-				choice := response.Choices[0]
-				if choice.FinishReason != nil && *choice.FinishReason != "" {
-					// Collect finish reason and send at the end of the stream
-					finishReason = choice.FinishReason
-				}
-
 				if response.ID != "" && messageID == "" {
 					messageID = response.ID
 				}
@@ -1452,16 +1579,22 @@ func HandleOpenAIChatCompletionStreaming(
 					created = response.Created
 				}
 
-				// Handle regular content chunks, including reasoning
-				if choice.ChatStreamResponseChoice != nil &&
-					choice.ChatStreamResponseChoice.Delta != nil &&
-					((choice.ChatStreamResponseChoice.Delta.Content != nil && *choice.ChatStreamResponseChoice.Delta.Content != "") ||
-						choice.ChatStreamResponseChoice.Delta.Reasoning != nil ||
-						len(choice.ChatStreamResponseChoice.Delta.ReasoningDetails) > 0 ||
-						choice.ChatStreamResponseChoice.Delta.Audio != nil ||
-						len(choice.ChatStreamResponseChoice.Delta.ToolCalls) > 0) {
-					if choice.FinishReason != nil && *choice.FinishReason != "" {
-						forwardedTerminalFinishReason = true
+				recordOpenAIStreamChoiceState(response.Choices, seenChoices, finishReasons)
+
+				// Skip empty responses or responses without choices
+				if len(response.Choices) == 0 {
+					continue
+				}
+
+				// Forward the complete event when any choice carries a delta. This
+				// preserves n>1 streams even when Choices[0] is empty and a later
+				// choice contains the actual content.
+				if openAIChatResponseHasDelta(response.Choices) {
+					for i := range response.Choices {
+						choice := &response.Choices[i]
+						if choice.FinishReason != nil && *choice.FinishReason != "" {
+							forwardedFinishReasons[choice.Index] = true
+						}
 					}
 					chunkIndex++
 
@@ -1477,7 +1610,7 @@ func HandleOpenAIChatCompletionStreaming(
 				}
 
 				// For providers that don't send [DONE] marker break on finish_reason
-				if !providerUtils.ProviderSendsDoneMarker(providerName) && finishReason != nil {
+				if !providerUtils.ProviderSendsDoneMarker(providerName) && allOpenAIStreamChoicesFinished(expectedChoices, finishReasons) {
 					break
 				}
 			}
@@ -1497,7 +1630,7 @@ func HandleOpenAIChatCompletionStreaming(
 			// rather than a silent stream close, even though [DONE] may have arrived.
 			terminalSignalSeen = pendingFinalEvent != nil || (terminalSignalSeen && !fallbackFinishReasonSeen)
 		} else {
-			terminalSignalSeen = terminalSignalSeen || finishReason != nil
+			terminalSignalSeen = terminalSignalSeen || allOpenAIStreamChoicesFinished(expectedChoices, finishReasons)
 		}
 		if !terminalSignalSeen {
 			providerUtils.SendStreamTruncatedError(ctx, postHookRunner, responseChan, logger, postHookSpanFinalizer, jsonBody)
@@ -1517,11 +1650,14 @@ func HandleOpenAIChatCompletionStreaming(
 				providerUtils.ProcessAndSendResponse(ctx, postHookRunner, providerUtils.GetBifrostResponseForStreamResponse(nil, nil, pendingFinalEvent, nil, nil, nil), responseChan, postHookSpanFinalizer)
 			}
 		} else {
-			finalFinishReason := finishReason
-			if forwardedTerminalFinishReason {
-				finalFinishReason = nil
+			var firstFinishReason *string
+			if finishReason, ok := finishReasons[0]; ok && !forwardedFinishReasons[0] {
+				firstFinishReason = schemas.Ptr(finishReason)
 			}
-			response := providerUtils.CreateBifrostChatCompletionChunkResponse(messageID, usage, finalFinishReason, chunkIndex, modelName, created)
+			response := providerUtils.CreateBifrostChatCompletionChunkResponse(messageID, usage, firstFinishReason, chunkIndex, modelName, created)
+			if finalChoices := createOpenAIChatFinalChoices(seenChoices, finishReasons, forwardedFinishReasons); len(finalChoices) > 0 {
+				response.Choices = finalChoices
+			}
 			if postResponseConverter != nil {
 				response = postResponseConverter(response)
 			}
@@ -1993,8 +2129,8 @@ func HandleOpenAIResponsesStreaming(
 				umErr := sonic.UnmarshalString(jsonData, &response)
 				schemas.AddStreamParse(ctx, time.Since(parseStart))
 				if umErr != nil {
-					logger.Warn("Failed to parse stream response: %v", umErr)
-					continue
+					sendOpenAIStreamUnmarshalError(ctx, postHookRunner, responseChan, logger, postHookSpanFinalizer, umErr, jsonBody, jsonData, sendBackRawRequest, sendBackRawResponse, latency)
+					return
 				}
 
 				if postResponseConverter != nil {
@@ -2575,6 +2711,7 @@ func HandleOpenAISpeechStreamRequest(
 					ctx.SetValue(schemas.BifrostContextKeyStreamEndIndicator, true)
 					logger.Warn("Error reading stream: %v", readErr)
 					providerUtils.ProcessAndSendError(ctx, postHookRunner, readErr, responseChan, logger, postHookSpanFinalizer)
+					return
 				}
 				break
 			}
@@ -2596,8 +2733,8 @@ func HandleOpenAISpeechStreamRequest(
 			// Parse into bifrost response
 			var response schemas.BifrostSpeechStreamResponse
 			if err := sonic.UnmarshalString(jsonData, &response); err != nil {
-				logger.Warn("Failed to parse stream response: %v", err)
-				continue
+				sendOpenAIStreamUnmarshalError(ctx, postHookRunner, responseChan, logger, postHookSpanFinalizer, err, jsonBody, jsonData, sendBackRawRequest, sendBackRawResponse, latency)
+				return
 			}
 
 			if postResponseConverter != nil {
@@ -3086,6 +3223,7 @@ func HandleOpenAITranscriptionStreamRequest(
 					ctx.SetValue(schemas.BifrostContextKeyStreamEndIndicator, true)
 					logger.Warn("Error reading stream: %v", readErr)
 					providerUtils.ProcessAndSendError(ctx, postHookRunner, readErr, responseChan, logger, postHookSpanFinalizer)
+					return
 				}
 				break
 			}
@@ -3119,9 +3257,8 @@ func HandleOpenAITranscriptionStreamRequest(
 				}
 
 				if err := sonic.UnmarshalString(jsonData, response); err != nil {
-					logger.Warn("Failed to parse stream response: %v", err)
-					continue
-
+					sendOpenAIStreamUnmarshalError(ctx, postHookRunner, responseChan, logger, postHookSpanFinalizer, err, nil, jsonData, false, sendBackRawResponse, latency)
+					return
 				}
 			}
 
@@ -3567,8 +3704,8 @@ func HandleOpenAIImageGenerationStreaming(
 			// Parse minimally to extract usage and check for errors
 			var response OpenAIImageStreamResponse
 			if err := sonic.UnmarshalString(jsonData, &response); err != nil {
-				logger.Warn("Failed to parse stream response: %v", err)
-				continue
+				sendOpenAIStreamUnmarshalError(ctx, postHookRunner, responseChan, logger, postHookSpanFinalizer, err, jsonBody, jsonData, sendBackRawRequest, sendBackRawResponse, latency)
+				return
 			}
 
 			// Check if response type indicates an error
@@ -5173,8 +5310,8 @@ func HandleOpenAIImageEditStreamRequest(
 			// Parse minimally to extract usage and check for errors
 			var response OpenAIImageStreamResponse
 			if err := sonic.UnmarshalString(jsonData, &response); err != nil {
-				logger.Warn("Failed to parse stream response: %v", err)
-				continue
+				sendOpenAIStreamUnmarshalError(ctx, postHookRunner, responseChan, logger, postHookSpanFinalizer, err, nil, jsonData, false, sendBackRawResponse, latency)
+				return
 			}
 
 			// Check if response type indicates an error
