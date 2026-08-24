@@ -7,7 +7,10 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
-const realtimeKeySelectionUnavailableMessage = "provider credentials are temporarily unavailable"
+const (
+	realtimeKeySelectionUnavailableMessage = "provider credentials are temporarily unavailable"
+	realtimeKeySelectionInvalidMessage     = "provider credentials are unavailable for this request"
+)
 
 func classifyRealtimeKeySelectionError(err error, mappedEphemeralCredential bool) (int, string, string) {
 	if errors.Is(err, errRealtimeEphemeralKeyUnknown) ||
@@ -15,7 +18,7 @@ func classifyRealtimeKeySelectionError(err error, mappedEphemeralCredential bool
 		return fasthttp.StatusUnauthorized, "invalid_request_error", errRealtimeEphemeralKeyUnknown.Error()
 	}
 	if errors.Is(err, bifrost.ErrKeySelectionUnavailable) {
-		return fasthttp.StatusInternalServerError, "server_error", realtimeKeySelectionUnavailableMessage
+		return fasthttp.StatusServiceUnavailable, "server_error", realtimeKeySelectionUnavailableMessage
 	}
-	return fasthttp.StatusBadRequest, "invalid_request_error", err.Error()
+	return fasthttp.StatusBadRequest, "invalid_request_error", realtimeKeySelectionInvalidMessage
 }
