@@ -2,6 +2,8 @@ module github.com/maximhq/bifrost/transports
 
 go 1.27.0
 
+replace github.com/maximhq/bifrost/core v1.8.3 => ../core
+
 require (
 	github.com/andybalholm/brotli v1.2.2
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.10
