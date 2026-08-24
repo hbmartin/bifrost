@@ -18,6 +18,20 @@ if [[ "$VERSION" == *-* ]]; then
 fi
 TITLE="NPX Package v$VERSION"
 
+git_push_with_token() {
+  if [[ -z "${GH_TOKEN:-}" ]]; then
+    echo "GitHub authentication is required to push $FULL_TAG" >&2
+    return 1
+  fi
+
+  local push_auth_header
+  push_auth_header=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')
+  GIT_CONFIG_COUNT=1 \
+    GIT_CONFIG_KEY_0=http.https://github.com/.extraheader \
+    GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $push_auth_header" \
+    git push "$@"
+}
+
 # Create release body
 BODY="## NPX Package Release
 
@@ -80,7 +94,7 @@ if git rev-parse "$FULL_TAG" >/dev/null 2>&1; then
 else
   echo "🏷️ Creating tag $FULL_TAG..."
   git tag "$FULL_TAG"
-  git push origin "$FULL_TAG"
+  git_push_with_token origin "$FULL_TAG"
 fi
 
 # Create release
