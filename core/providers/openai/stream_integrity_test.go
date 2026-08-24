@@ -18,8 +18,14 @@ func assertStreamUnmarshalError(t *testing.T, chunks []*schemas.BifrostStreamChu
 	if bifrostErr.Error.Message != schemas.ErrProviderResponseUnmarshal {
 		t.Fatalf("expected error message %q, got %+v", schemas.ErrProviderResponseUnmarshal, bifrostErr.Error)
 	}
-	if !bifrostErr.IsBifrostError {
-		t.Error("provider response decoding failures must be marked as Bifrost errors")
+	if bifrostErr.IsBifrostError {
+		t.Error("provider response decoding failures must be marked as upstream errors")
+	}
+	if bifrostErr.StatusCode == nil || *bifrostErr.StatusCode != 502 {
+		t.Fatalf("expected upstream status 502, got %v", bifrostErr.StatusCode)
+	}
+	if bifrostErr.Error.Type == nil || *bifrostErr.Error.Type != schemas.ProviderConnectionFailed {
+		t.Fatalf("expected error type %q, got %v", schemas.ProviderConnectionFailed, bifrostErr.Error.Type)
 	}
 }
 
@@ -60,6 +66,71 @@ func TestTextStreamMalformedChunkTerminatesWithError(t *testing.T) {
 	}
 
 	assertStreamUnmarshalError(t, collectChunks(t, stream))
+}
+
+func TestChatStreamNilFinalResponseConverterKeepsFinalChunk(t *testing.T) {
+	stop := "stop"
+	server := completeSSEServer(t, chatChunk("hello", nil)+chatChunk("", &stop)+"data: [DONE]\n\n")
+	defer server.Close()
+
+	provider := newStreamTestProvider(server.URL)
+	stream, bifrostErr := HandleOpenAIChatCompletionStreaming(
+		newStreamTestContext(),
+		provider.streamingClient,
+		server.URL+"/v1/chat/completions",
+		basicChatRequest(),
+		BearerAuthHeader(testKey()),
+		nil,
+		0,
+		false,
+		false,
+		schemas.OpenAI,
+		passthroughPostHook,
+		nil,
+		nil,
+		nil,
+		nil,
+		func(response *schemas.BifrostChatResponse) *schemas.BifrostChatResponse {
+			if response.Usage != nil {
+				return nil
+			}
+			return response
+		},
+		nil,
+		testNoopLogger{},
+		nil,
+	)
+	if bifrostErr != nil {
+		t.Fatalf("stream setup failed: %v", bifrostErr)
+	}
+
+	chunks := collectChunks(t, stream)
+	if len(chunks) == 0 {
+		t.Fatal("expected the converted stream to retain its final chunk")
+	}
+	final := chunks[len(chunks)-1]
+	if final.BifrostError != nil || final.BifrostChatResponse == nil || final.BifrostChatResponse.Usage == nil {
+		t.Fatalf("unexpected final chunk after nil converter result: %+v", final)
+	}
+}
+
+func TestOpenAIStreamChoiceStateUsesScalarSingleChoiceFastPath(t *testing.T) {
+	state := newOpenAIStreamChoiceState(1)
+	stop := "stop"
+	state.record([]schemas.BifrostResponseChoice{{Index: 0}})
+	finished := []schemas.BifrostResponseChoice{{Index: 0, FinishReason: &stop}}
+	state.record(finished)
+	state.recordForwardedFinishReasons(finished)
+
+	if state.seenChoices != nil || state.finishReasons != nil || state.forwardedFinishReasonIndexes != nil {
+		t.Fatalf("single-choice stream promoted to map-backed state: %#v", state)
+	}
+	if !state.allFinished() {
+		t.Fatal("single-choice stream did not retain its finish reason")
+	}
+	if choices := state.createChatFinalChoices(); len(choices) != 1 || choices[0].Index != 0 {
+		t.Fatalf("unexpected final choices: %#v", choices)
+	}
 }
 
 func TestChatStreamPreservesAllChoices(t *testing.T) {

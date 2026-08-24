@@ -50,15 +50,21 @@ type WebRTCRealtimeHandler struct {
 	mu           sync.Mutex
 	relays       map[string]*webrtcRealtimeRelay
 	legacyRoutes map[string]schemas.ModelProvider // path → default provider (legacy raw-SDP routes)
+	tokenCodec   *realtimeEphemeralTokenCodec
 }
 
 func NewWebRTCRealtimeHandler(client *bifrost.Bifrost, config *lib.Config) *WebRTCRealtimeHandler {
+	tokenCodec, err := newRealtimeEphemeralTokenCodec(encrypt.Key())
+	if err != nil {
+		panic(fmt.Sprintf("failed to initialize realtime ephemeral token codec: %v", err))
+	}
 	return &WebRTCRealtimeHandler{
 		client:       client,
 		config:       config,
 		handlerStore: config,
 		relays:       make(map[string]*webrtcRealtimeRelay),
 		legacyRoutes: make(map[string]schemas.ModelProvider),
+		tokenCodec:   tokenCodec,
 	}
 }
 
@@ -354,7 +360,7 @@ func (h *WebRTCRealtimeHandler) resolveRealtimeWebRTCKeys(
 	model string,
 ) (schemas.Key, *schemas.Key, error) {
 	inboundToken := extractRealtimeBearerToken(ctx)
-	mapping, mapped := lookupRealtimeEphemeralKeyMapping(h.handlerStore.GetKVStore(), inboundToken)
+	mapping, mapped := lookupRealtimeEphemeralKeyMappingWithCodec(h.handlerStore.GetKVStore(), inboundToken, h.tokenCodec)
 	if mapped {
 		applyRealtimeEphemeralKeyMapping(bifrostCtx, mapping)
 	}
@@ -364,6 +370,9 @@ func (h *WebRTCRealtimeHandler) resolveRealtimeWebRTCKeys(
 
 	selectedKey, err := h.client.SelectKeyForProviderRequestType(bifrostCtx, schemas.RealtimeRequest, providerKey, model)
 	if err != nil {
+		if mapped {
+			return schemas.Key{}, nil, errRealtimeEphemeralKeyUnknown
+		}
 		return schemas.Key{}, nil, err
 	}
 
@@ -383,12 +392,20 @@ func lookupRealtimeEphemeralKeyMapping(kv *kvstore.Store, token string) (realtim
 }
 
 func lookupRealtimeEphemeralKeyMappingWithKey(kv *kvstore.Store, token string, masterKey []byte) (realtimeEphemeralKeyMapping, bool) {
+	tokenCodec, err := newRealtimeEphemeralTokenCodec(masterKey)
+	if err != nil {
+		return realtimeEphemeralKeyMapping{}, false
+	}
+	return lookupRealtimeEphemeralKeyMappingWithCodec(kv, token, tokenCodec)
+}
+
+func lookupRealtimeEphemeralKeyMappingWithCodec(kv *kvstore.Store, token string, tokenCodec *realtimeEphemeralTokenCodec) (realtimeEphemeralKeyMapping, bool) {
 	token = strings.TrimSpace(token)
 	if token == "" {
 		return realtimeEphemeralKeyMapping{}, false
 	}
 	if strings.HasPrefix(token, realtimeEphemeralTokenPrefix) {
-		return openRealtimeEphemeralToken(masterKey, token)
+		return tokenCodec.open(token)
 	}
 	if kv == nil {
 		return realtimeEphemeralKeyMapping{}, false
@@ -415,13 +432,31 @@ func parseRealtimeEphemeralKeyMappingValue(raw []byte) (realtimeEphemeralKeyMapp
 		return realtimeEphemeralKeyMapping{}, false
 	}
 
-	var mapping realtimeEphemeralKeyMapping
-	if err := json.Unmarshal(raw, &mapping); err == nil {
-		mapping.KeyID = strings.TrimSpace(mapping.KeyID)
-		mapping.VirtualKey = strings.TrimSpace(mapping.VirtualKey)
-		if mapping.Version == realtimeEphemeralKeyMappingVersion && mapping.KeyID != "" {
-			return mapping, true
+	var stored struct {
+		Version    json.RawMessage `json:"version"`
+		KeyID      string          `json:"key_id"`
+		VirtualKey string          `json:"virtual_key"`
+	}
+	if err := json.Unmarshal(raw, &stored); err != nil {
+		return realtimeEphemeralKeyMapping{}, false
+	}
+	// A missing version is the structured shape written before the explicit
+	// version field was introduced. Normalize it during the compatibility
+	// window while continuing to reject malformed or future versions and the
+	// older ambiguous raw-string form.
+	if len(stored.Version) > 0 {
+		var version int
+		if err := json.Unmarshal(stored.Version, &version); err != nil || version != realtimeEphemeralKeyMappingVersion {
+			return realtimeEphemeralKeyMapping{}, false
 		}
+	}
+	stored.KeyID = strings.TrimSpace(stored.KeyID)
+	if stored.KeyID != "" {
+		return realtimeEphemeralKeyMapping{
+			Version:    realtimeEphemeralKeyMappingVersion,
+			KeyID:      stored.KeyID,
+			VirtualKey: strings.TrimSpace(stored.VirtualKey),
+		}, true
 	}
 	return realtimeEphemeralKeyMapping{}, false
 }
