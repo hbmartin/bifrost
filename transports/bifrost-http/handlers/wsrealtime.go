@@ -134,18 +134,11 @@ func (h *WSRealtimeHandler) handleUpgrade(ctx *fasthttp.RequestCtx) {
 		// The bearer credential is an ephemeral token with no live mapping —
 		// expired, revoked, or never minted here. Failing open would let the
 		// session run under whatever competing credential headers (x-bf-vk,
-		// x-bf-api-key-id) arrived alongside the dead token, so reject the
-		// connection the way the WebRTC path refuses to resolve keys for an
-		// unmapped ephemeral token.
-		upgrader := h.websocketUpgrader("")
-		upgradeErr := upgrader.Upgrade(ctx, func(conn *ws.Conn) {
-			defer conn.Close()
-			clientConn := newRealtimeClientConn(conn)
-			clientConn.writeRealtimeError(newRealtimeWireBifrostError(401, "invalid_request_error", "ephemeral key is unknown or expired"))
-		})
-		if upgradeErr != nil {
-			logger.Warn("websocket upgrade failed for %s: %v", path, upgradeErr)
-		}
+		// x-bf-api-key-id) arrived alongside the dead token. Reject the HTTP
+		// handshake before upgrading so clients observe an actual 401 instead of
+		// a successful 101 followed by an error frame whose wire schema cannot
+		// carry the Bifrost status code.
+		SendBifrostError(ctx, newRealtimeWireBifrostError(fasthttp.StatusUnauthorized, "invalid_request_error", "ephemeral key is unknown or expired"))
 		return
 	}
 
