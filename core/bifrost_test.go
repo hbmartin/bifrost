@@ -12,6 +12,7 @@ import (
 	"time"
 
 	mistralprovider "github.com/maximhq/bifrost/core/providers/mistral"
+	providerUtils "github.com/maximhq/bifrost/core/providers/utils"
 	schemas "github.com/maximhq/bifrost/core/schemas"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -1290,6 +1291,36 @@ func TestSelectKeyFromProviderForModel_ClassifiesMissingPinnedKey(t *testing.T) 
 	}
 }
 
+func TestSelectKeyFromProviderForModel_DoesNotClassifyIneligiblePinnedKeyAsMissing(t *testing.T) {
+	account := NewMockAccount()
+	account.AddProvider(schemas.OpenAI, 5, 1000)
+	account.SetKeysForProvider(schemas.OpenAI, []schemas.Key{
+		{ID: "present", Name: "Present", Value: *schemas.NewSecretVar("sk-test"), Models: schemas.WhiteList{"gpt-other"}},
+	})
+
+	client, err := Init(context.Background(), schemas.BifrostConfig{
+		Account: account,
+		Logger:  NewDefaultLogger(schemas.LogLevelError),
+	})
+	if err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+	defer client.Shutdown()
+
+	bfCtx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
+	bfCtx.SetValue(schemas.BifrostContextKeyAPIKeyID, "present")
+	_, _, err = client.selectKeyFromProviderForModelWithPool(bfCtx, schemas.RealtimeRequest, schemas.OpenAI, "gpt-realtime", schemas.OpenAI)
+	if err == nil {
+		t.Fatal("expected an ineligible-model error")
+	}
+	if errors.Is(err, ErrPinnedAPIKeyUnavailable) {
+		t.Fatalf("existing but ineligible pin was classified as missing: %v", err)
+	}
+	if !strings.Contains(err.Error(), "no keys found that support model") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestSelectKeyForProviderRequestType_ClassifiesInfrastructureFailures(t *testing.T) {
 	t.Run("key store", func(t *testing.T) {
 		account := NewMockAccount()
@@ -1329,6 +1360,104 @@ func TestSelectKeyForProviderRequestType_ClassifiesInfrastructureFailures(t *tes
 			t.Fatalf("error = %v, want both classification and selector cause", err)
 		}
 	})
+}
+
+func TestExecuteRequestWithRetries_KeySelectionUnavailableIsClientSafe(t *testing.T) {
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
+	ctx.SetValue(schemas.BifrostContextKeyTracer, &schemas.NoOpTracer{})
+	logger := NewDefaultLogger(schemas.LogLevelError)
+	rawCause := errors.New("database offline for sensitive-key-id")
+
+	handlerCalled := false
+	_, bifrostErr := executeRequestWithRetries(
+		ctx,
+		createTestConfig(2, 0, 0),
+		func(schemas.Key) (string, *schemas.BifrostError) {
+			handlerCalled = true
+			return "", nil
+		},
+		func(map[string]bool, map[string]bool) (schemas.Key, error) {
+			return schemas.Key{}, fmt.Errorf("%w: %w", ErrKeySelectionUnavailable, rawCause)
+		},
+		schemas.ChatCompletionRequest,
+		schemas.OpenAI,
+		"gpt-4",
+		nil,
+		logger,
+	)
+
+	if handlerCalled {
+		t.Fatal("request handler ran after key selection failed")
+	}
+	if bifrostErr == nil || bifrostErr.StatusCode == nil || *bifrostErr.StatusCode != 503 {
+		t.Fatalf("error = %#v, want client-safe 503", bifrostErr)
+	}
+	if bifrostErr.Error == nil || bifrostErr.Error.Message != keySelectionUnavailableClientMessage {
+		t.Fatalf("message = %#v, want %q", bifrostErr.Error, keySelectionUnavailableClientMessage)
+	}
+	if bifrostErr.Error.Error != nil || strings.Contains(bifrostErr.Error.Message, rawCause.Error()) {
+		t.Fatalf("raw selector cause reached client-facing error: %#v", bifrostErr.Error)
+	}
+}
+
+func TestExecuteRequestWithRetries_RetriesFirstChunkUpstreamResponseError(t *testing.T) {
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
+	ctx.SetValue(schemas.BifrostContextKeyTracer, &schemas.NoOpTracer{})
+	logger := NewDefaultLogger(schemas.LogLevelError)
+	attempts := 0
+
+	result, bifrostErr := executeRequestWithRetries(
+		ctx,
+		createTestConfig(1, 0, 0),
+		func(schemas.Key) (string, *schemas.BifrostError) {
+			attempts++
+			if attempts == 1 {
+				return "", providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, errors.New("malformed JSON"))
+			}
+			return "ok", nil
+		},
+		func(map[string]bool, map[string]bool) (schemas.Key, error) {
+			return schemas.Key{ID: "key-1", Name: "Key 1"}, nil
+		},
+		schemas.ChatCompletionStreamRequest,
+		schemas.OpenAI,
+		"gpt-4",
+		nil,
+		logger,
+	)
+
+	if bifrostErr != nil || result != "ok" || attempts != 2 {
+		t.Fatalf("result=%q error=%v attempts=%d, want successful retry", result, bifrostErr, attempts)
+	}
+}
+
+func TestExecuteRequestWithRetries_LabelsTerminalAttemptFailure(t *testing.T) {
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
+	ctx.SetValue(schemas.BifrostContextKeyTracer, &schemas.NoOpTracer{})
+	errorType := schemas.ProviderResponseInvalid
+
+	_, bifrostErr := executeRequestWithRetries(
+		ctx,
+		createTestConfig(0, 0, 0),
+		func(schemas.Key) (string, *schemas.BifrostError) {
+			return "", createBifrostError("terminal", Ptr(502), &errorType, true)
+		},
+		func(map[string]bool, map[string]bool) (schemas.Key, error) {
+			return schemas.Key{ID: "key-1", Name: "Key 1"}, nil
+		},
+		schemas.ChatCompletionRequest,
+		schemas.OpenAI,
+		"gpt-4",
+		nil,
+		NewDefaultLogger(schemas.LogLevelError),
+	)
+	if bifrostErr == nil {
+		t.Fatal("expected terminal error")
+	}
+	trail, ok := ctx.Value(schemas.BifrostContextKeyAttemptTrail).([]schemas.KeyAttemptRecord)
+	if !ok || len(trail) != 1 || trail[0].FailReason == nil || *trail[0].FailReason != errorType {
+		t.Fatalf("attempt trail = %#v, want terminal fail reason %q", trail, errorType)
+	}
 }
 
 // Test key rotation in executeRequestWithRetries on rate-limit errors
