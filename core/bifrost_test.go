@@ -14,6 +14,7 @@ import (
 	mistralprovider "github.com/maximhq/bifrost/core/providers/mistral"
 	providerUtils "github.com/maximhq/bifrost/core/providers/utils"
 	schemas "github.com/maximhq/bifrost/core/schemas"
+	"github.com/valyala/fasthttp"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
@@ -1316,7 +1317,7 @@ func TestSelectKeyFromProviderForModel_DoesNotClassifyIneligiblePinnedKeyAsMissi
 	if errors.Is(err, ErrPinnedAPIKeyUnavailable) {
 		t.Fatalf("existing but ineligible pin was classified as missing: %v", err)
 	}
-	if !strings.Contains(err.Error(), "no keys found that support model") {
+	if !strings.Contains(err.Error(), "not eligible") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
@@ -1392,31 +1393,47 @@ func TestExecuteRequestWithRetries_KeySelectionUnavailableIsClientSafe(t *testin
 	if bifrostErr == nil || bifrostErr.StatusCode == nil || *bifrostErr.StatusCode != 503 {
 		t.Fatalf("error = %#v, want client-safe 503", bifrostErr)
 	}
-	if bifrostErr.Error == nil || bifrostErr.Error.Message != keySelectionUnavailableClientMessage {
-		t.Fatalf("message = %#v, want %q", bifrostErr.Error, keySelectionUnavailableClientMessage)
+	if bifrostErr.Error == nil || bifrostErr.Error.Message != KeySelectionUnavailableClientMessage {
+		t.Fatalf("message = %#v, want %q", bifrostErr.Error, KeySelectionUnavailableClientMessage)
 	}
 	if bifrostErr.Error.Error != nil || strings.Contains(bifrostErr.Error.Message, rawCause.Error()) {
 		t.Fatalf("raw selector cause reached client-facing error: %#v", bifrostErr.Error)
 	}
 }
 
-func TestExecuteRequestWithRetries_RetriesFirstChunkUpstreamResponseError(t *testing.T) {
+func TestPinnedKeySelectionErrorsAreClientSafe(t *testing.T) {
+	const sensitiveKeyID = "routing-secret-key-id"
+
+	for _, selectionErr := range []error{
+		fmt.Errorf("%w: key id %q not found", ErrPinnedAPIKeyUnavailable, sensitiveKeyID),
+		fmt.Errorf("%w: configured key id %q is not eligible", errPinnedAPIKeyIneligible, sensitiveKeyID),
+	} {
+		bifrostErr := newKeySelectionBifrostError(selectionErr)
+		if bifrostErr.StatusCode == nil || *bifrostErr.StatusCode != fasthttp.StatusBadRequest {
+			t.Fatalf("status = %v, want 400", bifrostErr.StatusCode)
+		}
+		if bifrostErr.Error == nil || bifrostErr.Error.Message != KeySelectionInvalidClientMessage {
+			t.Fatalf("error = %#v, want client-safe message", bifrostErr.Error)
+		}
+		if bifrostErr.Error.Error != nil || strings.Contains(bifrostErr.Error.Message, sensitiveKeyID) {
+			t.Fatalf("client error leaked key identity: %#v", bifrostErr.Error)
+		}
+	}
+}
+
+func TestExecuteRequestWithRetries_DoesNotReplayFirstChunkForBillableStream(t *testing.T) {
 	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	ctx.SetValue(schemas.BifrostContextKeyTracer, &schemas.NoOpTracer{})
 	logger := NewDefaultLogger(schemas.LogLevelError)
 	attempts := 0
 
-	result, bifrostErr := executeRequestWithRetries(
+	_, bifrostErr := executeRequestWithRetries(
 		ctx,
 		createTestConfig(1, 0, 0),
 		func(schemas.Key) (chan *schemas.BifrostStreamChunk, *schemas.BifrostError) {
 			attempts++
 			stream := make(chan *schemas.BifrostStreamChunk, 1)
-			if attempts == 1 {
-				stream <- &schemas.BifrostStreamChunk{BifrostError: providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, errors.New("malformed JSON"))}
-			} else {
-				stream <- &schemas.BifrostStreamChunk{BifrostChatResponse: &schemas.BifrostChatResponse{ID: "chatcmpl-ok"}}
-			}
+			stream <- &schemas.BifrostStreamChunk{BifrostError: providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, errors.New("malformed JSON"))}
 			close(stream)
 			return stream, nil
 		},
@@ -1430,12 +1447,11 @@ func TestExecuteRequestWithRetries_RetriesFirstChunkUpstreamResponseError(t *tes
 		logger,
 	)
 
-	if bifrostErr != nil {
-		t.Fatalf("error=%v, want successful retry", bifrostErr)
+	if bifrostErr == nil || attempts != 1 {
+		t.Fatalf("error=%v attempts=%d, want terminal first-attempt error", bifrostErr, attempts)
 	}
-	chunk, ok := <-result
-	if !ok || chunk == nil || chunk.BifrostChatResponse == nil || chunk.BifrostChatResponse.ID != "chatcmpl-ok" || attempts != 2 {
-		t.Fatalf("chunk=%#v open=%v attempts=%d, want successful second-attempt chunk", chunk, ok, attempts)
+	if bifrostErr.AllowFallbacks == nil || *bifrostErr.AllowFallbacks {
+		t.Fatalf("AllowFallbacks = %v, want false for accepted billable stream", bifrostErr.AllowFallbacks)
 	}
 }
 
@@ -1464,6 +1480,18 @@ func TestExecuteRequestWithRetries_DoesNotReplayAcceptedNonIdempotentOperations(
 			provider:    schemas.Gemini,
 			req:         &schemas.BifrostRequest{FileUploadRequest: &schemas.BifrostFileUploadRequest{}},
 		},
+		{
+			name:        "gemini cached content ttl update",
+			requestType: schemas.CachedContentUpdateRequest,
+			provider:    schemas.Gemini,
+			req:         &schemas.BifrostRequest{CachedContentUpdateRequest: &schemas.BifrostCachedContentUpdateRequest{}},
+		},
+		{
+			name:        "accepted billable chat completion",
+			requestType: schemas.ChatCompletionRequest,
+			provider:    schemas.OpenAI,
+			req:         &schemas.BifrostRequest{ChatRequest: &schemas.BifrostChatRequest{}},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -1489,7 +1517,38 @@ func TestExecuteRequestWithRetries_DoesNotReplayAcceptedNonIdempotentOperations(
 			if bifrostErr == nil || attempts != 1 {
 				t.Fatalf("error=%v attempts=%d, want terminal first-attempt response error", bifrostErr, attempts)
 			}
+			if bifrostErr.AllowFallbacks == nil || *bifrostErr.AllowFallbacks {
+				t.Fatalf("AllowFallbacks = %v, want false", bifrostErr.AllowFallbacks)
+			}
 		})
+	}
+}
+
+func TestExecuteRequestWithRetries_ReplaysAcceptedResponseForReadOnlyOperation(t *testing.T) {
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
+	ctx.SetValue(schemas.BifrostContextKeyTracer, &schemas.NoOpTracer{})
+	attempts := 0
+
+	result, bifrostErr := executeRequestWithRetries(
+		ctx,
+		createTestConfig(1, 0, 0),
+		func(schemas.Key) (string, *schemas.BifrostError) {
+			attempts++
+			if attempts == 1 {
+				return "", providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, errors.New("malformed JSON"))
+			}
+			return "ok", nil
+		},
+		nil,
+		schemas.EmbeddingRequest,
+		schemas.Gemini,
+		"text-embedding-004",
+		&schemas.BifrostRequest{EmbeddingRequest: &schemas.BifrostEmbeddingRequest{}},
+		NewDefaultLogger(schemas.LogLevelError),
+	)
+
+	if bifrostErr != nil || result != "ok" || attempts != 2 {
+		t.Fatalf("result=%q error=%v attempts=%d, want read-only retry success", result, bifrostErr, attempts)
 	}
 }
 
@@ -1546,6 +1605,9 @@ func TestExecuteRequestWithRetries_DoesNotReplayNetworkFailureForNonIdempotentOp
 
 	if bifrostErr == nil || attempts != 1 {
 		t.Fatalf("error=%v attempts=%d, want terminal ambiguous network failure", bifrostErr, attempts)
+	}
+	if bifrostErr.AllowFallbacks == nil || *bifrostErr.AllowFallbacks {
+		t.Fatalf("AllowFallbacks = %v, want false", bifrostErr.AllowFallbacks)
 	}
 }
 
