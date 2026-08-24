@@ -15,7 +15,6 @@ import (
 	bifrost "github.com/maximhq/bifrost/core"
 	"github.com/maximhq/bifrost/core/providers/openai"
 	"github.com/maximhq/bifrost/core/schemas"
-	"github.com/maximhq/bifrost/framework/encrypt"
 	"github.com/maximhq/bifrost/framework/grant"
 	"github.com/maximhq/bifrost/framework/kvstore"
 	"github.com/maximhq/bifrost/plugins/modelcatalogresolver"
@@ -54,11 +53,7 @@ type WebRTCRealtimeHandler struct {
 	tokenCodec   *realtimeEphemeralTokenCodec
 }
 
-func NewWebRTCRealtimeHandler(client *bifrost.Bifrost, config *lib.Config) *WebRTCRealtimeHandler {
-	tokenCodec, err := newRealtimeEphemeralTokenCodec(encrypt.Key())
-	if err != nil {
-		panic(fmt.Sprintf("failed to initialize realtime ephemeral token codec: %v", err))
-	}
+func newWebRTCRealtimeHandler(client *bifrost.Bifrost, config *lib.Config, tokenCodec *realtimeEphemeralTokenCodec) *WebRTCRealtimeHandler {
 	return &WebRTCRealtimeHandler{
 		client:       client,
 		config:       config,
@@ -314,13 +309,10 @@ func (h *WebRTCRealtimeHandler) runWebRTCRelay(
 		bifrostCtx.SetValue(schemas.BifrostContextKeyIntegrationType, "openai")
 	}
 
-	authKey, selectedKey, err := h.resolveRealtimeWebRTCKeys(ctx, bifrostCtx, providerKey, model)
+	authKey, selectedKey, mappedEphemeralCredential, err := h.resolveRealtimeWebRTCKeys(ctx, bifrostCtx, providerKey, model)
 	if err != nil {
-		status := fasthttp.StatusBadRequest
-		if errors.Is(err, errRealtimeEphemeralKeyUnknown) {
-			status = fasthttp.StatusUnauthorized
-		}
-		SendBifrostError(ctx, newRealtimeWebRTCError(status, "invalid_request_error", err.Error(), nil))
+		status, errorType, message := classifyRealtimeKeySelectionError(err, mappedEphemeralCredential)
+		SendBifrostError(ctx, newRealtimeWebRTCError(status, errorType, message, nil))
 		return
 	}
 
@@ -359,14 +351,14 @@ func (h *WebRTCRealtimeHandler) resolveRealtimeWebRTCKeys(
 	bifrostCtx *schemas.BifrostContext,
 	providerKey schemas.ModelProvider,
 	model string,
-) (schemas.Key, *schemas.Key, error) {
+) (schemas.Key, *schemas.Key, bool, error) {
 	inboundToken := extractRealtimeBearerToken(ctx)
 	mapping, mapped := lookupRealtimeEphemeralKeyMappingWithCodec(h.handlerStore.GetKVStore(), inboundToken, h.tokenCodec)
 	if mapped {
 		applyRealtimeEphemeralKeyMapping(bifrostCtx, mapping)
 	}
 	if isRealtimeEphemeralToken(inboundToken) && !mapped {
-		return schemas.Key{}, nil, errRealtimeEphemeralKeyUnknown
+		return schemas.Key{}, nil, false, errRealtimeEphemeralKeyUnknown
 	}
 
 	selectedKey, err := h.client.SelectKeyForProviderRequestType(bifrostCtx, schemas.RealtimeRequest, providerKey, model)
@@ -375,9 +367,8 @@ func (h *WebRTCRealtimeHandler) resolveRealtimeWebRTCKeys(
 			if logger != nil {
 				logger.Warn("realtime WebRTC key selection failed for mapped ephemeral credential: provider=%s model=%s error=%v", providerKey, model, err)
 			}
-			return schemas.Key{}, nil, errRealtimeEphemeralKeyUnknown
 		}
-		return schemas.Key{}, nil, err
+		return schemas.Key{}, nil, mapped, err
 	}
 
 	authKey := selectedKey
@@ -388,19 +379,7 @@ func (h *WebRTCRealtimeHandler) resolveRealtimeWebRTCKeys(
 		}
 		authKey.Value = *schemas.NewSecretVar(upstreamToken)
 	}
-	return authKey, &selectedKey, nil
-}
-
-func lookupRealtimeEphemeralKeyMapping(kv *kvstore.Store, token string) (realtimeEphemeralKeyMapping, bool) {
-	return lookupRealtimeEphemeralKeyMappingWithKey(kv, token, encrypt.Key())
-}
-
-func lookupRealtimeEphemeralKeyMappingWithKey(kv *kvstore.Store, token string, masterKey []byte) (realtimeEphemeralKeyMapping, bool) {
-	tokenCodec, err := newRealtimeEphemeralTokenCodec(masterKey)
-	if err != nil {
-		return realtimeEphemeralKeyMapping{}, false
-	}
-	return lookupRealtimeEphemeralKeyMappingWithCodec(kv, token, tokenCodec)
+	return authKey, &selectedKey, mapped, nil
 }
 
 func lookupRealtimeEphemeralKeyMappingWithCodec(kv *kvstore.Store, token string, tokenCodec *realtimeEphemeralTokenCodec) (realtimeEphemeralKeyMapping, bool) {
@@ -445,9 +424,10 @@ func parseRealtimeEphemeralKeyMappingValue(raw []byte) (realtimeEphemeralKeyMapp
 		return realtimeEphemeralKeyMapping{}, false
 	}
 	// A missing version is the structured shape written before the explicit
-	// version field was introduced. Normalize it during the compatibility
-	// window while continuing to reject malformed or future versions and the
-	// older ambiguous raw-string form.
+	// version field was introduced. Existing entries are allowed to drain during
+	// rolling upgrades; all newly written mappings are versioned and their TTL is
+	// capped by realtimeEphemeralKeyMappingMaxTTL. Continue rejecting malformed
+	// or future versions and the older ambiguous raw-string form.
 	if len(stored.Version) > 0 {
 		var version int
 		if err := json.Unmarshal(stored.Version, &version); err != nil || version != realtimeEphemeralKeyMappingVersion {
