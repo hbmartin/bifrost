@@ -142,13 +142,19 @@ class DeployButtonURLTests(unittest.TestCase):
             )
         )
 
-    def test_bare_railway_template_path_with_fragment_is_navigation(self) -> None:
-        self.assertIsNone(
+    def test_bare_railway_template_path_with_fragment_is_rejected(self) -> None:
+        with self.assertRaisesRegex(AssertionError, "no credentials, port, query, or fragment"):
             validator.parse_deploy_button_url(
                 "https://railway.com/new/template#fragment",
                 "test",
             )
-        )
+
+    def test_bare_railway_template_path_with_trailing_slash_is_rejected(self) -> None:
+        with self.assertRaisesRegex(AssertionError, "must name exactly one template slug"):
+            validator.parse_deploy_button_url(
+                "https://railway.com/new/template/",
+                "test",
+            )
 
     def test_railway_query_form_is_rejected_as_noncanonical(self) -> None:
         with self.assertRaisesRegex(AssertionError, "no credentials, port, query, or fragment"):
