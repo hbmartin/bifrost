@@ -196,7 +196,7 @@ func (provider *VertexProvider) CachedContentCreate(ctx *schemas.BifrostContext,
 
 	var vResp vertexCachedContent
 	if err := sonic.Unmarshal(respBody, &vResp); err != nil {
-		return nil, providerUtils.NewBifrostOperationError(schemas.ErrProviderResponseUnmarshal, err)
+		return nil, providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, err)
 	}
 
 	return &schemas.BifrostCachedContentCreateResponse{
@@ -268,7 +268,7 @@ func (provider *VertexProvider) cachedContentListByKey(ctx *schemas.BifrostConte
 
 	var vList vertexCachedContentList
 	if err := sonic.Unmarshal(respBody, &vList); err != nil {
-		return nil, latency, providerUtils.NewBifrostOperationError(schemas.ErrProviderResponseUnmarshal, err)
+		return nil, latency, providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, err)
 	}
 
 	bifrostObjects := make([]schemas.CachedContentObject, 0, len(vList.CachedContents))
@@ -341,7 +341,7 @@ func (provider *VertexProvider) cachedContentRetrieveByKey(ctx *schemas.BifrostC
 
 	var vResp vertexCachedContent
 	if err := sonic.Unmarshal(respBody, &vResp); err != nil {
-		return nil, latency, providerUtils.NewBifrostOperationError(schemas.ErrProviderResponseUnmarshal, err)
+		return nil, latency, providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, err)
 	}
 
 	return &schemas.BifrostCachedContentRetrieveResponse{
@@ -445,7 +445,7 @@ func (provider *VertexProvider) cachedContentUpdateByKey(ctx *schemas.BifrostCon
 
 	var vResp vertexCachedContent
 	if err := sonic.Unmarshal(respBody, &vResp); err != nil {
-		return nil, latency, providerUtils.NewBifrostOperationError(schemas.ErrProviderResponseUnmarshal, err)
+		return nil, latency, providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, err)
 	}
 
 	return &schemas.BifrostCachedContentUpdateResponse{

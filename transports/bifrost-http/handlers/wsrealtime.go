@@ -328,10 +328,8 @@ func (h *WSRealtimeHandler) runRealtimeSession(
 
 	key, err := h.client.SelectKeyForProviderRequestType(bifrostCtx, schemas.RealtimeRequest, providerKey, model)
 	if err != nil {
-		if ephemeralMapping != nil {
-			if logger != nil {
-				logger.Warn("realtime WebSocket key selection failed for mapped ephemeral credential: provider=%s model=%s error=%v", providerKey, model, err)
-			}
+		if logger != nil {
+			logger.Warn("realtime WebSocket key selection failed: provider=%s model=%s mapped_ephemeral=%t error=%v", providerKey, model, ephemeralMapping != nil, err)
 		}
 		status, errorType, message := classifyRealtimeKeySelectionError(err, ephemeralMapping != nil)
 		clientConn.writeRealtimeError(newRealtimeWireBifrostError(status, errorType, message))

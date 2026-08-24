@@ -19,8 +19,8 @@ func assertStreamUnmarshalError(t *testing.T, chunks []*schemas.BifrostStreamChu
 	if bifrostErr.Error.Message != schemas.ErrProviderResponseUnmarshal {
 		t.Fatalf("expected error message %q, got %+v", schemas.ErrProviderResponseUnmarshal, bifrostErr.Error)
 	}
-	if !bifrostErr.IsBifrostError {
-		t.Error("provider response decoding failures must be terminal rather than retriable")
+	if bifrostErr.IsBifrostError {
+		t.Error("provider response decoding failures must remain retryable when they are the first stream chunk")
 	}
 	if bifrostErr.StatusCode == nil || *bifrostErr.StatusCode != 502 {
 		t.Fatalf("expected upstream status 502, got %v", bifrostErr.StatusCode)
@@ -227,6 +227,39 @@ func TestOpenAIStreamChoiceStateUsesScalarSingleChoiceFastPath(t *testing.T) {
 	}
 	if choices := state.createChatFinalChoices(); len(choices) != 1 || choices[0].Index != 0 {
 		t.Fatalf("unexpected final choices: %#v", choices)
+	}
+}
+
+func TestOpenAIStreamChoiceStateCountsEachFinishedChoiceOnce(t *testing.T) {
+	state := newOpenAIStreamChoiceState(2)
+	stop := "stop"
+	finished := []schemas.BifrostResponseChoice{{Index: 0, FinishReason: &stop}}
+
+	state.record(finished)
+	state.record(finished)
+
+	if state.finished != 1 {
+		t.Fatalf("finished choice count = %d, want 1", state.finished)
+	}
+	if state.allFinished() {
+		t.Fatal("duplicate finish reasons marked a two-choice stream complete")
+	}
+}
+
+func TestOpenAIStreamChoiceStatePromotionPreservesFinishedCount(t *testing.T) {
+	state := newOpenAIStreamChoiceState(1)
+	stop := "stop"
+	state.record([]schemas.BifrostResponseChoice{{Index: 0, FinishReason: &stop}})
+	state.record([]schemas.BifrostResponseChoice{{Index: 1}})
+
+	if state.choices == nil {
+		t.Fatal("second choice did not promote stream state")
+	}
+	if state.finished != 1 {
+		t.Fatalf("finished choice count after promotion = %d, want 1", state.finished)
+	}
+	if state.allFinished() {
+		t.Fatal("promoted state ignored the unfinished second choice")
 	}
 }
 
