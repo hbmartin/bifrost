@@ -3,6 +3,7 @@ package bedrock
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"time"
 
@@ -67,8 +68,15 @@ func uploadToS3(
 	return nil
 }
 
-// generateBatchInputS3Key generates a unique S3 key for batch input files.
-func generateBatchInputS3Key(jobName string) string {
+// generateBatchInputS3Key generates a stable key for replayable batch creates
+// and a unique key for calls that do not carry an idempotency token. Including
+// the content digest keeps an accidental token reuse with different JSONL from
+// overwriting the input object accepted for the original request.
+func generateBatchInputS3Key(jobName, clientRequestToken string, content []byte) string {
+	if clientRequestToken != "" {
+		digest := sha256.Sum256(content)
+		return fmt.Sprintf("bifrost-batch-input/%s-%x.jsonl", jobName, digest)
+	}
 	timestamp := time.Now().UnixNano()
 	return fmt.Sprintf("bifrost-batch-input/%s-%d.jsonl", jobName, timestamp)
 }

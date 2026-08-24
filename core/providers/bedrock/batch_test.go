@@ -2,11 +2,36 @@ package bedrock
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/maximhq/bifrost/core/schemas"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestGenerateBatchInputS3KeyIsStableForIdempotentReplay(t *testing.T) {
+	t.Parallel()
+
+	const (
+		jobName = "bifrost-batch-token-digest"
+		token   = "stable-token"
+	)
+	content := []byte("{\"recordId\":\"one\"}\n")
+
+	first := generateBatchInputS3Key(jobName, token, content)
+	second := generateBatchInputS3Key(jobName, token, content)
+	if first != second {
+		t.Fatalf("replayed input keys differ: %q != %q", first, second)
+	}
+	if !strings.HasPrefix(first, "bifrost-batch-input/"+jobName+"-") {
+		t.Fatalf("input key = %q, want stable job-name prefix", first)
+	}
+
+	differentContent := generateBatchInputS3Key(jobName, token, []byte("{\"recordId\":\"two\"}\n"))
+	if differentContent == first {
+		t.Fatalf("different JSONL reused input key %q", first)
+	}
+}
 
 func TestBatchClientRequestToken(t *testing.T) {
 	t.Parallel()
