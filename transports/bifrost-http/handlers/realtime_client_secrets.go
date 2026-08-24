@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"mime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -442,7 +443,12 @@ func wrapRealtimeClientSecretResponseWithCodec(body []byte, keyID string, virtua
 			return nil, false, err
 		}
 		if wrappedExpiresAt != secret.expiresAt {
-			encodedExpiry, err := json.Marshal(wrappedExpiresAt)
+			var encodedExpiry []byte
+			if secret.expiresAtIsString {
+				encodedExpiry, err = json.Marshal(strconv.FormatInt(wrappedExpiresAt, 10))
+			} else {
+				encodedExpiry, err = json.Marshal(wrappedExpiresAt)
+			}
 			if err != nil {
 				return nil, false, err
 			}
@@ -498,24 +504,27 @@ func realtimeEphemeralKeyMappingTTL(expiresAt int64, now time.Time) time.Duratio
 }
 
 type realtimeClientSecretProbe struct {
-	value         string
-	valuePath     string
-	expiresAt     int64
-	expiresAtPath string
+	value             string
+	valuePath         string
+	expiresAt         int64
+	expiresAtPath     string
+	expiresAtIsString bool
 }
 
 // probeRealtimeClientSecrets returns every supported credential occurrence so
 // portable wrapping and local caching cannot leave a second usable token
 // outside the routing identity binding. It normalizes the numeric forms
-// accepted by the previous gjson-based parser to integer Unix times. A
-// non-empty supported value with an invalid expiry makes the whole response
-// unbindable instead of permitting a partially rewritten success response.
+// accepted by the previous gjson-based parser to integer Unix times while
+// retaining whether the upstream encoded the value as a string, so clamping
+// does not change the public JSON type. A non-empty supported value with an
+// invalid expiry makes the whole response unbindable instead of permitting a
+// partially rewritten success response.
 func probeRealtimeClientSecrets(body []byte) ([]realtimeClientSecretProbe, bool) {
 	if !json.Valid(body) {
 		return nil, false
 	}
 
-	now := time.Now().Unix()
+	oldestAcceptedExpiry := time.Now().Add(-realtimeEphemeralTokenClockSkew).Unix()
 	secrets := make([]realtimeClientSecretProbe, 0, 2)
 	for _, prefix := range []string{"", "client_secret."} {
 		valuePath := prefix + "value"
@@ -533,14 +542,15 @@ func probeRealtimeClientSecrets(body []byte) ([]realtimeClientSecretProbe, bool)
 			return nil, false
 		}
 		parsedExpiry := expiresAt.Int()
-		if parsedExpiry <= now {
+		if parsedExpiry <= oldestAcceptedExpiry {
 			return nil, false
 		}
 		secrets = append(secrets, realtimeClientSecretProbe{
-			value:         trimmedValue,
-			valuePath:     valuePath,
-			expiresAt:     parsedExpiry,
-			expiresAtPath: prefix + "expires_at",
+			value:             trimmedValue,
+			valuePath:         valuePath,
+			expiresAt:         parsedExpiry,
+			expiresAtPath:     prefix + "expires_at",
+			expiresAtIsString: expiresAt.Type == gjson.String,
 		})
 	}
 

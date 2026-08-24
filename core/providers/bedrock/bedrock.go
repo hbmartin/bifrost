@@ -3198,8 +3198,9 @@ func (provider *BedrockProvider) BatchCreate(ctx *schemas.BifrostContext, key sc
 			return nil, providerUtils.NewBifrostOperationError("failed to convert requests to JSONL", err)
 		}
 
-		// Generate S3 key for the input file
-		inputKey := generateBatchInputS3Key(jobName)
+		// Keep the uploaded input URI stable when AWS may replay this create by
+		// clientRequestToken. Without a token, retain a unique object per call.
+		inputKey := generateBatchInputS3Key(jobName, clientRequestToken, jsonlData)
 
 		// Derive bucket from output S3 URI
 		inputS3URI := deriveInputS3URIFromOutput(outputS3Uri, inputKey)

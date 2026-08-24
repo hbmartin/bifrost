@@ -95,7 +95,12 @@ done
 # Also ensure core and framework are up to date
 
 echo "  🔧 Updating core to $CORE_VERSION"
-go mod edit -dropreplace="github.com/maximhq/bifrost/core@$CORE_VERSION"
+# Normalize any version-qualified local replacement before removing it. The
+# checked-in replacement can point at the previous core version when releases
+# are prepared out of order, while -dropreplace requires an exact left-hand
+# path/version match.
+go mod edit -replace="github.com/maximhq/bifrost/core=../core"
+go mod edit -dropreplace="github.com/maximhq/bifrost/core"
 go mod edit -require="github.com/maximhq/bifrost/core@$CORE_VERSION"
 
 echo "  📦 Updating framework to $FRAMEWORK_VERSION"
