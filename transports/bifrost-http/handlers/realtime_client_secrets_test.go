@@ -389,6 +389,121 @@ func TestParseRealtimeEphemeralKeyMapping_NestedFallback(t *testing.T) {
 	}
 }
 
+func TestWrapRealtimeClientSecretResponseIsPortableAcrossReplicas(t *testing.T) {
+	t.Parallel()
+
+	masterKey := []byte("shared-cluster-encryption-key-for-tests")
+	body := []byte(`{
+		"value": "ek_upstream_123",
+		"expires_at": 4102444800,
+		"session": {"model": "gpt-realtime"}
+	}`)
+
+	rewritten, wrapped, err := wrapRealtimeClientSecretResponse(body, "key_123", "sk-bf-test", masterKey)
+	if err != nil {
+		t.Fatalf("wrapRealtimeClientSecretResponse() error = %v", err)
+	}
+	if !wrapped {
+		t.Fatal("expected client secret to be wrapped")
+	}
+	var response struct {
+		Value   string `json:"value"`
+		Session struct {
+			Model string `json:"model"`
+		} `json:"session"`
+	}
+	if err := json.Unmarshal(rewritten, &response); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if response.Value == "ek_upstream_123" || len(response.Value) <= len(realtimeEphemeralTokenPrefix) {
+		t.Fatalf("wrapped token = %q, want an opaque Bifrost token", response.Value)
+	}
+	if response.Session.Model != "gpt-realtime" {
+		t.Fatalf("session.model = %q, want preserved response fields", response.Session.Model)
+	}
+
+	// A different process has no local KV entry. The stable encryption key is
+	// sufficient to recover the exact routing and governance binding.
+	mapping, ok := lookupRealtimeEphemeralKeyMappingWithKey(nil, response.Value, masterKey)
+	if !ok {
+		t.Fatal("expected wrapped token to resolve without process-local state")
+	}
+	if mapping.KeyID != "key_123" || mapping.VirtualKey != "sk-bf-test" || mapping.UpstreamToken != "ek_upstream_123" {
+		t.Fatalf("resolved mapping = %#v, want original binding", mapping)
+	}
+}
+
+func TestWrapRealtimeClientSecretResponseSupportsNestedShape(t *testing.T) {
+	t.Parallel()
+
+	masterKey := []byte("shared-cluster-encryption-key-for-tests")
+	body := []byte(`{
+		"client_secret": {
+			"value": "ek_upstream_nested",
+			"expires_at": 4102444800
+		}
+	}`)
+	rewritten, wrapped, err := wrapRealtimeClientSecretResponse(body, "key_nested", "", masterKey)
+	if err != nil || !wrapped {
+		t.Fatalf("wrapRealtimeClientSecretResponse() = wrapped %v, error %v", wrapped, err)
+	}
+
+	var response struct {
+		ClientSecret struct {
+			Value string `json:"value"`
+		} `json:"client_secret"`
+	}
+	if err := json.Unmarshal(rewritten, &response); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	mapping, ok := lookupRealtimeEphemeralKeyMappingWithKey(nil, response.ClientSecret.Value, masterKey)
+	if !ok || mapping.UpstreamToken != "ek_upstream_nested" || mapping.KeyID != "key_nested" {
+		t.Fatalf("resolved mapping = %#v, ok %v", mapping, ok)
+	}
+}
+
+func TestRealtimeEphemeralTokenRejectsWrongKeyAndTampering(t *testing.T) {
+	t.Parallel()
+
+	token, err := sealRealtimeEphemeralToken(
+		[]byte("correct-cluster-encryption-key"),
+		"ek_upstream_123",
+		"key_123",
+		"sk-bf-test",
+		time.Now().Add(time.Hour).Unix(),
+	)
+	if err != nil {
+		t.Fatalf("sealRealtimeEphemeralToken() error = %v", err)
+	}
+	if mapping, ok := openRealtimeEphemeralToken([]byte("wrong-cluster-encryption-key"), token); ok {
+		t.Fatalf("wrong key resolved mapping %#v", mapping)
+	}
+	tamperedBytes := []byte(token)
+	tamperAt := len(realtimeEphemeralTokenPrefix)
+	if tamperedBytes[tamperAt] == 'A' {
+		tamperedBytes[tamperAt] = 'B'
+	} else {
+		tamperedBytes[tamperAt] = 'A'
+	}
+	tampered := string(tamperedBytes)
+	if mapping, ok := openRealtimeEphemeralToken([]byte("correct-cluster-encryption-key"), tampered); ok {
+		t.Fatalf("tampered token resolved mapping %#v", mapping)
+	}
+}
+
+func TestWrapRealtimeClientSecretResponseFallsBackWithoutEncryption(t *testing.T) {
+	t.Parallel()
+
+	body := []byte(`{"value":"ek_local","expires_at":4102444800}`)
+	rewritten, wrapped, err := wrapRealtimeClientSecretResponse(body, "key_local", "", nil)
+	if err != nil || wrapped {
+		t.Fatalf("wrapRealtimeClientSecretResponse() = wrapped %v, error %v", wrapped, err)
+	}
+	if string(rewritten) != string(body) {
+		t.Fatalf("response changed without encryption: %s", rewritten)
+	}
+}
+
 func TestCacheRealtimeEphemeralKeyMappingStoresKeyID(t *testing.T) {
 	t.Parallel()
 
@@ -418,6 +533,9 @@ func TestCacheRealtimeEphemeralKeyMappingStoresKeyID(t *testing.T) {
 	}
 	if mapping.KeyID != "key_123" {
 		t.Fatalf("mapping.KeyID = %q, want %q", mapping.KeyID, "key_123")
+	}
+	if mapping.Version != realtimeEphemeralKeyMappingVersion {
+		t.Fatalf("mapping.Version = %d, want %d", mapping.Version, realtimeEphemeralKeyMappingVersion)
 	}
 	if mapping.VirtualKey != "sk-bf-test" {
 		t.Fatalf("mapping.VirtualKey = %q, want %q", mapping.VirtualKey, "sk-bf-test")

@@ -95,10 +95,17 @@ def parse_deploy_button_url(url: str, label: str) -> DeployButtonKey | None:
         # such as /deploy// cannot bypass deploy-button validation.
         path = parsed.path.rstrip("/")
     except ValueError as error:
-        # Deployment documentation is executable user guidance. Keep malformed
-        # candidates visible instead of silently dropping them from the button
-        # sweep and later reporting only that an expected button is missing.
-        fail(f"{label} contains an invalid URL {url!r}: {error}")
+        # The documentation URL sweep can truncate bracketed IPv6 examples at
+        # the Markdown closing bracket. Ignore malformed unrelated URLs, but
+        # keep malformed deployment-host candidates visible.
+        malformed_candidate = re.match(
+            r"^https?://\[?(?:www\.)?(?:render\.com|railway\.(?:com|app))(?:[/:?#]|$)",
+            url,
+            re.IGNORECASE,
+        )
+        if malformed_candidate:
+            fail(f"{label} contains an invalid URL {url!r}: {error}")
+        return None
 
     if host == "render.com" and path == "/deploy":
         if parsed.scheme.lower() != "https" or parsed.netloc.lower() != "render.com" or parsed.fragment:
@@ -123,13 +130,12 @@ def parse_deploy_button_url(url: str, label: str) -> DeployButtonKey | None:
             fail(f"{label} Render repo parameter must be an unambiguous GitHub branch URL: {repo_url}")
         return ("render", repo.path)
 
-    # Match slug launch URLs and historical query-form launch URLs. A bare
-    # /new/template with no query identifies no template, so it is an ordinary
-    # Railway navigation link rather than a Bifrost one-click button.
-    railway_template_path = path.startswith("/new/template/") or (
-        path == "/new/template" and bool(parsed.query)
-    )
-    if host in {"railway.com", "railway.app"} and railway_template_path:
+    if host in {"railway.com", "railway.app"} and (
+        path == "/new/template" or path.startswith("/new/template/")
+    ):
+        # Recognize slug URLs, the historical query form, and a bare launch
+        # path as deployment candidates. Query/fragment forms are rejected as
+        # noncanonical below; a bare path is rejected for its missing slug.
         if (
             parsed.scheme.lower() != "https"
             or parsed.netloc.lower() != host
