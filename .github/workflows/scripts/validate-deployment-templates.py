@@ -108,7 +108,16 @@ def parse_deploy_button_url(url: str, label: str) -> DeployButtonKey | None:
         return None
 
     if host == "render.com" and path == "/deploy":
-        if parsed.scheme.lower() != "https" or parsed.netloc.lower() != "render.com" or parsed.fragment:
+        # urlsplit normalizes a bare trailing '#' to an empty fragment. Preserve
+        # delimiter presence so non-canonical Render buttons cannot compare as
+        # equivalent to their verified form.
+        has_fragment_delimiter = "#" in url
+        if (
+            parsed.scheme.lower() != "https"
+            or parsed.netloc.lower() != "render.com"
+            or parsed.fragment
+            or has_fragment_delimiter
+        ):
             fail(f"{label} Render deploy URL must use canonical HTTPS with no credentials, port, or fragment: {url}")
         query = parse_qsl(parsed.query, keep_blank_values=True)
         if len(query) != 1 or query[0][0] != "repo" or not query[0][1]:
@@ -119,12 +128,18 @@ def parse_deploy_button_url(url: str, label: str) -> DeployButtonKey | None:
             repo = urlsplit(repo_url)
         except ValueError as error:
             fail(f"{label} contains an invalid Render repo URL {repo_url!r}: {error}")
+        # parse_qsl percent-decodes the nested URL, while urlsplit erases empty
+        # query/fragment delimiters. Check their presence on the decoded value.
+        repo_has_query_delimiter = "?" in repo_url.partition("#")[0]
+        repo_has_fragment_delimiter = "#" in repo_url
         if (
             repo.scheme.lower() != "https"
             or (repo.hostname or "").lower() != "github.com"
             or repo.netloc.lower() != "github.com"
             or repo.query
             or repo.fragment
+            or repo_has_query_delimiter
+            or repo_has_fragment_delimiter
             or not re.fullmatch(r"/[^/]+/[^/]+/tree/.+", repo.path)
         ):
             fail(f"{label} Render repo parameter must be an unambiguous GitHub branch URL: {repo_url}")
