@@ -1,6 +1,7 @@
 package openai
 
 import (
+	"sync/atomic"
 	"testing"
 
 	"github.com/maximhq/bifrost/core/schemas"
@@ -18,14 +19,14 @@ func assertStreamUnmarshalError(t *testing.T, chunks []*schemas.BifrostStreamChu
 	if bifrostErr.Error.Message != schemas.ErrProviderResponseUnmarshal {
 		t.Fatalf("expected error message %q, got %+v", schemas.ErrProviderResponseUnmarshal, bifrostErr.Error)
 	}
-	if bifrostErr.IsBifrostError {
-		t.Error("provider response decoding failures must be marked as upstream errors")
+	if !bifrostErr.IsBifrostError {
+		t.Error("provider response decoding failures must be terminal rather than retriable")
 	}
 	if bifrostErr.StatusCode == nil || *bifrostErr.StatusCode != 502 {
 		t.Fatalf("expected upstream status 502, got %v", bifrostErr.StatusCode)
 	}
-	if bifrostErr.Error.Type == nil || *bifrostErr.Error.Type != schemas.ProviderConnectionFailed {
-		t.Fatalf("expected error type %q, got %v", schemas.ProviderConnectionFailed, bifrostErr.Error.Type)
+	if bifrostErr.Error.Type == nil || *bifrostErr.Error.Type != schemas.ProviderResponseInvalid {
+		t.Fatalf("expected error type %q, got %v", schemas.ProviderResponseInvalid, bifrostErr.Error.Type)
 	}
 }
 
@@ -68,12 +69,19 @@ func TestTextStreamMalformedChunkTerminatesWithError(t *testing.T) {
 	assertStreamUnmarshalError(t, collectChunks(t, stream))
 }
 
-func TestChatStreamNilFinalResponseConverterSkipsFinalChunk(t *testing.T) {
+func TestChatStreamNilFinalResponseConverterLeavesFinalChunkUnmodified(t *testing.T) {
 	stop := "stop"
 	server := completeSSEServer(t, chatChunk("hello", nil)+chatChunk("", &stop)+"data: [DONE]\n\n")
 	defer server.Close()
 
 	provider := newStreamTestProvider(server.URL)
+	var terminalPostHooks atomic.Int32
+	postHook := func(ctx *schemas.BifrostContext, response *schemas.BifrostResponse, bifrostErr *schemas.BifrostError) (*schemas.BifrostResponse, *schemas.BifrostError) {
+		if ended, _ := ctx.Value(schemas.BifrostContextKeyStreamEndIndicator).(bool); ended {
+			terminalPostHooks.Add(1)
+		}
+		return response, bifrostErr
+	}
 	stream, bifrostErr := HandleOpenAIChatCompletionStreaming(
 		newStreamTestContext(),
 		provider.streamingClient,
@@ -85,7 +93,7 @@ func TestChatStreamNilFinalResponseConverterSkipsFinalChunk(t *testing.T) {
 		false,
 		false,
 		schemas.OpenAI,
-		passthroughPostHook,
+		postHook,
 		nil,
 		nil,
 		nil,
@@ -108,17 +116,24 @@ func TestChatStreamNilFinalResponseConverterSkipsFinalChunk(t *testing.T) {
 	if len(chunks) == 0 {
 		t.Fatal("expected the converted stream to retain its content chunk")
 	}
+	var final *schemas.BifrostChatResponse
 	for _, chunk := range chunks {
 		if chunk.BifrostError != nil {
 			t.Fatalf("unexpected stream error after nil converter result: %+v", chunk.BifrostError)
 		}
 		if chunk.BifrostChatResponse != nil && chunk.BifrostChatResponse.Usage != nil {
-			t.Fatalf("converter returned nil for the final chunk, but it was forwarded: %+v", chunk)
+			final = chunk.BifrostChatResponse
 		}
+	}
+	if final == nil {
+		t.Fatal("converter returned nil for the final chunk, but the unmodified terminal usage chunk was not forwarded")
+	}
+	if got := terminalPostHooks.Load(); got != 1 {
+		t.Fatalf("terminal post-hook calls = %d, want 1", got)
 	}
 }
 
-func TestTextStreamNilFinalResponseConverterSkipsFinalChunk(t *testing.T) {
+func TestTextStreamNilFinalResponseConverterLeavesFinalChunkUnmodified(t *testing.T) {
 	body := `data: {"id":"cmpl-converter","object":"text_completion","created":1,"model":"repro-model","choices":[{"index":0,"text":"hello","finish_reason":null}]}` + "\n\n" +
 		`data: {"id":"cmpl-converter","object":"text_completion","created":1,"model":"repro-model","choices":[{"index":0,"text":null,"finish_reason":"stop"}]}` + "\n\n" +
 		"data: [DONE]\n\n"
@@ -131,6 +146,13 @@ func TestTextStreamNilFinalResponseConverterSkipsFinalChunk(t *testing.T) {
 		Input:    &schemas.TextCompletionInput{PromptStr: schemas.Ptr("hi")},
 	}
 	provider := newStreamTestProvider(server.URL)
+	var terminalPostHooks atomic.Int32
+	postHook := func(ctx *schemas.BifrostContext, response *schemas.BifrostResponse, bifrostErr *schemas.BifrostError) (*schemas.BifrostResponse, *schemas.BifrostError) {
+		if ended, _ := ctx.Value(schemas.BifrostContextKeyStreamEndIndicator).(bool); ended {
+			terminalPostHooks.Add(1)
+		}
+		return response, bifrostErr
+	}
 	stream, bifrostErr := HandleOpenAITextCompletionStreaming(
 		newStreamTestContext(),
 		provider.streamingClient,
@@ -143,7 +165,7 @@ func TestTextStreamNilFinalResponseConverterSkipsFinalChunk(t *testing.T) {
 		false,
 		schemas.OpenAI,
 		nil,
-		passthroughPostHook,
+		postHook,
 		nil,
 		func(response *schemas.BifrostTextCompletionResponse) *schemas.BifrostTextCompletionResponse {
 			if response.Usage != nil {
@@ -162,13 +184,20 @@ func TestTextStreamNilFinalResponseConverterSkipsFinalChunk(t *testing.T) {
 	if len(chunks) == 0 {
 		t.Fatal("expected the converted stream to retain its content chunk")
 	}
+	var final *schemas.BifrostTextCompletionResponse
 	for _, chunk := range chunks {
 		if chunk.BifrostError != nil {
 			t.Fatalf("unexpected stream error after nil converter result: %+v", chunk.BifrostError)
 		}
 		if chunk.BifrostTextCompletionResponse != nil && chunk.BifrostTextCompletionResponse.Usage != nil {
-			t.Fatalf("converter returned nil for the final chunk, but it was forwarded: %+v", chunk)
+			final = chunk.BifrostTextCompletionResponse
 		}
+	}
+	if final == nil {
+		t.Fatal("converter returned nil for the final chunk, but the unmodified terminal usage chunk was not forwarded")
+	}
+	if got := terminalPostHooks.Load(); got != 1 {
+		t.Fatalf("terminal post-hook calls = %d, want 1", got)
 	}
 }
 
@@ -177,7 +206,7 @@ func TestOpenAIStreamChoiceStateIgnoresUnrecordedForwardedFinishReason(t *testin
 	stop := "stop"
 	state.recordForwardedFinishReasons([]schemas.BifrostResponseChoice{{Index: 0, FinishReason: &stop}})
 
-	if state.singleSeen || state.seenChoices != nil || state.forwardedFinishReasonIndexes != nil {
+	if state.singleSeen || state.choices != nil {
 		t.Fatalf("unrecorded finish reason mutated choice state: %#v", state)
 	}
 }
@@ -190,7 +219,7 @@ func TestOpenAIStreamChoiceStateUsesScalarSingleChoiceFastPath(t *testing.T) {
 	state.record(finished)
 	state.recordForwardedFinishReasons(finished)
 
-	if state.seenChoices != nil || state.finishReasons != nil || state.forwardedFinishReasonIndexes != nil {
+	if state.choices != nil {
 		t.Fatalf("single-choice stream promoted to map-backed state: %#v", state)
 	}
 	if !state.allFinished() {
