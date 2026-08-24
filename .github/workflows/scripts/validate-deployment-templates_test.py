@@ -107,7 +107,6 @@ class DeployButtonURLTests(unittest.TestCase):
         urls = (
             "https://example.com/deploy?repo=https://github.com/maximhq/bifrost/tree/dev",
             "https://render.com/pricing",
-            "https://railway.com/new/template",
         )
         for url in urls:
             with self.subTest(url=url):
@@ -117,6 +116,25 @@ class DeployButtonURLTests(unittest.TestCase):
         with self.assertRaisesRegex(AssertionError, "contains an invalid URL"):
             validator.parse_deploy_button_url(
                 "https://[render.com/deploy?repo=https://github.com/maximhq/bifrost/tree/dev",
+                "test",
+            )
+
+    def test_malformed_unrelated_url_is_ignored(self) -> None:
+        self.assertIsNone(
+            validator.parse_deploy_button_url("https://[2001:db8::1", "test")
+        )
+
+    def test_bare_railway_template_path_is_rejected(self) -> None:
+        with self.assertRaisesRegex(AssertionError, "must name exactly one template slug"):
+            validator.parse_deploy_button_url(
+                "https://railway.com/new/template",
+                "test",
+            )
+
+    def test_bare_railway_template_path_with_fragment_is_rejected(self) -> None:
+        with self.assertRaisesRegex(AssertionError, "no credentials, port, query, or fragment"):
+            validator.parse_deploy_button_url(
+                "https://railway.com/new/template#fragment",
                 "test",
             )
 
@@ -157,6 +175,16 @@ class RenderVerificationSchemaTests(unittest.TestCase):
 
 
 class DeploymentDocumentationTests(unittest.TestCase):
+    def test_bracketed_ipv6_example_is_ignored(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            guide = root / "docs/deployment-guides/platforms/networking.mdx"
+            guide.parent.mkdir(parents=True)
+            guide.write_text("Connect to https://[2001:db8::1]:8080/path.\n")
+
+            with mock.patch.object(validator, "REPO_ROOT", root):
+                self.assertEqual([], validator.document_deploy_buttons(guide))
+
     def test_malformed_deploy_candidate_is_not_silently_dropped(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

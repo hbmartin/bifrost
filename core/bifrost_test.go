@@ -997,6 +997,20 @@ func (m *mockKVStore) Delete(key string) (bool, error) {
 	return false, nil
 }
 
+func TestNormalizeOptionalKVStoreHandlesTypedNil(t *testing.T) {
+	t.Parallel()
+
+	var typedNil *mockKVStore
+	if got := normalizeOptionalKVStore(typedNil); got != nil {
+		t.Fatalf("normalizeOptionalKVStore(typed nil) = %#v, want nil", got)
+	}
+
+	store := newMockKVStore()
+	if got := normalizeOptionalKVStore(store); got != store {
+		t.Fatalf("normalizeOptionalKVStore(store) = %#v, want original store", got)
+	}
+}
+
 // Test selectKeyFromProviderForModelWithPool with session stickiness
 func TestSelectKeyFromProviderForModel_SessionStickiness(t *testing.T) {
 	kvStore := newMockKVStore()
