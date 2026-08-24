@@ -99,7 +99,7 @@ def parse_deploy_button_url(url: str, label: str) -> DeployButtonKey | None:
         # the Markdown closing bracket. Ignore malformed unrelated URLs, but
         # keep malformed deployment-host candidates visible.
         malformed_candidate = re.match(
-            r"^https?://\[?(?:www\.)?(?:render\.com|railway\.(?:com|app))(?:[/:?#]|$)",
+            r"^https?://(?:[^/?#@]*@)?\[?(?:www\.)?(?:render\.com|railway\.(?:com|app))(?:[/:?#]|$)",
             url,
             re.IGNORECASE,
         )
@@ -130,12 +130,13 @@ def parse_deploy_button_url(url: str, label: str) -> DeployButtonKey | None:
             fail(f"{label} Render repo parameter must be an unambiguous GitHub branch URL: {repo_url}")
         return ("render", repo.path)
 
-    if host in {"railway.com", "railway.app"} and (
-        path == "/new/template" or path.startswith("/new/template/")
-    ):
-        # Recognize slug URLs, the historical query form, and a bare launch
-        # path as deployment candidates. Query/fragment forms are rejected as
-        # noncanonical below; a bare path is rejected for its missing slug.
+    railway_template_candidate = path.startswith("/new/template/") or (
+        path == "/new/template" and bool(parsed.query)
+    )
+    if host in {"railway.com", "railway.app"} and railway_template_candidate:
+        # Recognize slug URLs and the historical query form. The bare path is
+        # ordinary Railway navigation unless a query turns it into the legacy
+        # deployment form; query and fragment forms are rejected below.
         if (
             parsed.scheme.lower() != "https"
             or parsed.netloc.lower() != host
