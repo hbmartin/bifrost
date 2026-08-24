@@ -2254,6 +2254,26 @@ func NewBifrostUpstreamConnectionError(message string, err error) *schemas.Bifro
 	}
 }
 
+// NewBifrostUpstreamResponseError creates a standardized error for an upstream
+// provider response that arrived but violated the expected wire protocol or
+// could not be decoded. It remains a 502, but is terminal for the current
+// provider attempt: replaying a request after the provider returned malformed
+// protocol data is not equivalent to retrying a connection that failed before
+// any response bytes arrived.
+func NewBifrostUpstreamResponseError(message string, err error) *schemas.BifrostError {
+	statusCode := 502
+	errorType := schemas.ProviderResponseInvalid
+	return &schemas.BifrostError{
+		IsBifrostError: true,
+		StatusCode:     &statusCode,
+		Error: &schemas.ErrorField{
+			Message: message,
+			Type:    &errorType,
+			Error:   err,
+		},
+	}
+}
+
 // NewProviderAPIError creates a standardized error for provider API errors.
 // This helper reduces code duplication across providers that have provider API errors.
 func NewProviderAPIError(message string, err error, statusCode int, errorType *string, eventID *string) *schemas.BifrostError {

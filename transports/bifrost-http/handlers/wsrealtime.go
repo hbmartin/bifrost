@@ -15,7 +15,6 @@ import (
 	ws "github.com/fasthttp/websocket"
 	bifrost "github.com/maximhq/bifrost/core"
 	"github.com/maximhq/bifrost/core/schemas"
-	"github.com/maximhq/bifrost/framework/encrypt"
 	"github.com/maximhq/bifrost/framework/kvstore"
 	"github.com/maximhq/bifrost/transports/bifrost-http/integrations"
 	"github.com/maximhq/bifrost/transports/bifrost-http/lib"
@@ -40,14 +39,8 @@ type WSRealtimeHandler struct {
 	tokenCodec   *realtimeEphemeralTokenCodec
 }
 
-// NewWSRealtimeHandler creates a new Realtime WebSocket handler.
-func NewWSRealtimeHandler(client *bifrost.Bifrost, config *lib.Config, pool *bfws.Pool) *WSRealtimeHandler {
+func newWSRealtimeHandler(client *bifrost.Bifrost, config *lib.Config, pool *bfws.Pool, tokenCodec *realtimeEphemeralTokenCodec) *WSRealtimeHandler {
 	maxConns := config.WebSocketConfig.MaxConnections
-	tokenCodec, err := newRealtimeEphemeralTokenCodec(encrypt.Key())
-	if err != nil {
-		panic(fmt.Sprintf("failed to initialize realtime ephemeral token codec: %v", err))
-	}
-
 	return &WSRealtimeHandler{
 		client:       client,
 		config:       config,
@@ -74,21 +67,13 @@ func (h *WSRealtimeHandler) Close() {
 	h.sessions.CloseAll()
 }
 
-// resolveRealtimeWebSocketEphemeralMapping resolves the upgrade credential
+// resolveRealtimeWebSocketEphemeralMappingWithCodec resolves the upgrade credential
 // once so routing and the long-lived provider session cannot derive different
 // identities from competing credential header aliases. The second return
 // reports whether the bearer credential was an ephemeral token at all: an
 // ephemeral token with no mapping (nil, true) is a dead credential, and the
 // caller must reject it rather than let the connection fall through to
 // whatever competing credential headers were sent alongside it.
-func resolveRealtimeWebSocketEphemeralMapping(kv *kvstore.Store, auth *authHeaders) (*realtimeEphemeralKeyMapping, bool) {
-	tokenCodec, err := newRealtimeEphemeralTokenCodec(encrypt.Key())
-	if err != nil {
-		return nil, true
-	}
-	return resolveRealtimeWebSocketEphemeralMappingWithCodec(kv, auth, tokenCodec)
-}
-
 func resolveRealtimeWebSocketEphemeralMappingWithCodec(kv *kvstore.Store, auth *authHeaders, tokenCodec *realtimeEphemeralTokenCodec) (*realtimeEphemeralKeyMapping, bool) {
 	if auth == nil {
 		return nil, false
@@ -347,10 +332,9 @@ func (h *WSRealtimeHandler) runRealtimeSession(
 			if logger != nil {
 				logger.Warn("realtime WebSocket key selection failed for mapped ephemeral credential: provider=%s model=%s error=%v", providerKey, model, err)
 			}
-			clientConn.writeRealtimeError(newRealtimeWireBifrostError(fasthttp.StatusUnauthorized, "invalid_request_error", errRealtimeEphemeralKeyUnknown.Error()))
-			return
 		}
-		clientConn.writeRealtimeError(newRealtimeWireBifrostError(400, "invalid_request_error", err.Error()))
+		status, errorType, message := classifyRealtimeKeySelectionError(err, ephemeralMapping != nil)
+		clientConn.writeRealtimeError(newRealtimeWireBifrostError(status, errorType, message))
 		return
 	}
 

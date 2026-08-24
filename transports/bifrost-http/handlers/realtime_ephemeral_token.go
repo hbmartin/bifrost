@@ -44,27 +44,6 @@ func newRealtimeEphemeralTokenCodec(masterKey []byte) (*realtimeEphemeralTokenCo
 	return &realtimeEphemeralTokenCodec{aead: aead}, nil
 }
 
-// sealRealtimeEphemeralToken binds an upstream secret to the provider key and
-// governance identity that minted it. AES-GCM keeps the upstream token and
-// virtual key confidential while allowing any replica with the same stable
-// Bifrost encryption key to authenticate and recover the mapping.
-func sealRealtimeEphemeralToken(
-	masterKey []byte,
-	upstreamToken string,
-	keyID string,
-	virtualKey string,
-	expiresAt int64,
-) (string, error) {
-	codec, err := newRealtimeEphemeralTokenCodec(masterKey)
-	if err != nil || codec == nil {
-		if err != nil {
-			return "", err
-		}
-		return "", errInvalidRealtimeEphemeralToken
-	}
-	return codec.seal(upstreamToken, keyID, virtualKey, expiresAt)
-}
-
 func (codec *realtimeEphemeralTokenCodec) seal(
 	upstreamToken string,
 	keyID string,
@@ -92,14 +71,6 @@ func (codec *realtimeEphemeralTokenCodec) seal(
 	}
 	sealed := codec.aead.Seal(nonce, nonce, payload, []byte(realtimeEphemeralTokenPrefix))
 	return realtimeEphemeralTokenPrefix + base64.RawURLEncoding.EncodeToString(sealed), nil
-}
-
-func openRealtimeEphemeralToken(masterKey []byte, token string) (realtimeEphemeralKeyMapping, bool) {
-	codec, err := newRealtimeEphemeralTokenCodec(masterKey)
-	if err != nil || codec == nil {
-		return realtimeEphemeralKeyMapping{}, false
-	}
-	return codec.open(token)
 }
 
 func (codec *realtimeEphemeralTokenCodec) open(token string) (realtimeEphemeralKeyMapping, bool) {
