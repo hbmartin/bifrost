@@ -91,7 +91,9 @@ def parse_deploy_button_url(url: str, label: str) -> DeployButtonKey | None:
     try:
         parsed = urlsplit(url)
         host = (parsed.hostname or "").lower().removesuffix(".").removeprefix("www.")
-        path = parsed.path.removesuffix("/")
+        # Treat any number of trailing slashes consistently so a Render URL
+        # such as /deploy// cannot bypass deploy-button validation.
+        path = parsed.path.rstrip("/")
     except ValueError:
         # No browser can be sent to a URL urlsplit rejects, so whatever this is
         # (an IPv6 example the URL regex truncated, malformed prose), it is not
@@ -142,13 +144,34 @@ def parse_deploy_button_url(url: str, label: str) -> DeployButtonKey | None:
     return None
 
 
+def document_url_from_match(text: str, match: re.Match[str]) -> str:
+    """Return the URL represented by a documentation match.
+
+    A terminal period or similar character is sentence punctuation for a bare
+    prose URL, but it is part of the destination when it appears inside a
+    Markdown link, reference definition, autolink, or href/src attribute. Keep
+    structured destinations byte-for-byte so validation stays bound to what a
+    click actually sends to the deployment platform.
+    """
+    url = match.group(0)
+    line_start = text.rfind("\n", 0, match.start()) + 1
+    line_prefix = text[line_start : match.start()]
+    structured_destination = (
+        re.search(r"\]\(\s*<?$", line_prefix) is not None
+        or re.search(r"^\s*\[[^\]]+\]:\s*<?$", line_prefix) is not None
+        or re.search(r"\b(?:href|src)\s*=\s*[\"']$", line_prefix, re.IGNORECASE) is not None
+        or line_prefix.endswith("<")
+    )
+    return url if structured_destination else url.rstrip(TRAILING_PUNCTUATION)
+
+
 def document_deploy_buttons(path: Path) -> list[tuple[str, DeployButtonKey]]:
     """Return every one-click deploy URL in a documentation page."""
     label = str(path.relative_to(REPO_ROOT))
     buttons: list[tuple[str, DeployButtonKey]] = []
     text = CODE_SPAN_PATTERN.sub(" ", path.read_text())
     for match in HTTP_URL_PATTERN.finditer(text):
-        url = match.group(0).rstrip(TRAILING_PUNCTUATION)
+        url = document_url_from_match(text, match)
         key = parse_deploy_button_url(url, label)
         if key is not None:
             buttons.append((url, key))

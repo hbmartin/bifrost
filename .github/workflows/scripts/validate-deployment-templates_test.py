@@ -142,6 +142,51 @@ class RenderVerificationSchemaTests(unittest.TestCase):
 
 
 class DeploymentDocumentationTests(unittest.TestCase):
+    def test_bare_url_sentence_punctuation_is_not_part_of_the_button(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            guide = root / "docs/deployment-guides/platforms/railway.mdx"
+            guide.parent.mkdir(parents=True)
+            guide.write_text(
+                "Deploy from https://railway.com/new/template/blue-dark.\n"
+            )
+
+            with mock.patch.object(validator, "REPO_ROOT", root):
+                self.assertEqual(
+                    [
+                        (
+                            "https://railway.com/new/template/blue-dark",
+                            ("railway", "blue-dark"),
+                        )
+                    ],
+                    validator.document_deploy_buttons(guide),
+                )
+
+    def test_markdown_link_punctuation_remains_part_of_the_destination(self) -> None:
+        cases = (
+            (
+                "https://railway.com/new/template/blue-dark.",
+                ("railway", "blue-dark."),
+            ),
+            (
+                "https://render.com/deploy?repo=https://github.com/maximhq/bifrost/tree/dev.",
+                ("render", "/maximhq/bifrost/tree/dev."),
+            ),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            guide = root / "docs/deployment-guides/platforms/hosted.mdx"
+            guide.parent.mkdir(parents=True)
+
+            for url, expected_key in cases:
+                with self.subTest(url=url):
+                    guide.write_text(f"[Deploy]({url})\n")
+                    with mock.patch.object(validator, "REPO_ROOT", root):
+                        self.assertEqual(
+                            [(url, expected_key)],
+                            validator.document_deploy_buttons(guide),
+                        )
+
     def test_sweep_is_recursive(self) -> None:
         relative_paths = {
             path.relative_to(validator.REPO_ROOT).as_posix()
