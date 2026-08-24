@@ -107,10 +107,25 @@ class DeployButtonURLTests(unittest.TestCase):
         urls = (
             "https://example.com/deploy?repo=https://github.com/maximhq/bifrost/tree/dev",
             "https://render.com/pricing",
+            "https://railway.com/new/template",
         )
         for url in urls:
             with self.subTest(url=url):
                 self.assertIsNone(validator.parse_deploy_button_url(url, "test"))
+
+    def test_malformed_url_is_reported(self) -> None:
+        with self.assertRaisesRegex(AssertionError, "contains an invalid URL"):
+            validator.parse_deploy_button_url(
+                "https://[render.com/deploy?repo=https://github.com/maximhq/bifrost/tree/dev",
+                "test",
+            )
+
+    def test_railway_query_form_is_rejected_as_noncanonical(self) -> None:
+        with self.assertRaisesRegex(AssertionError, "no credentials, port, query, or fragment"):
+            validator.parse_deploy_button_url(
+                "https://railway.com/new/template?template=blue-dark",
+                "test",
+            )
 
 
 class RenderVerificationSchemaTests(unittest.TestCase):
@@ -142,6 +157,19 @@ class RenderVerificationSchemaTests(unittest.TestCase):
 
 
 class DeploymentDocumentationTests(unittest.TestCase):
+    def test_malformed_deploy_candidate_is_not_silently_dropped(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            guide = root / "docs/deployment-guides/platforms/render.mdx"
+            guide.parent.mkdir(parents=True)
+            guide.write_text(
+                "[Deploy](https://[render.com/deploy?repo=https://github.com/maximhq/bifrost/tree/dev)\n"
+            )
+
+            with mock.patch.object(validator, "REPO_ROOT", root):
+                with self.assertRaisesRegex(AssertionError, "contains an invalid URL"):
+                    validator.document_deploy_buttons(guide)
+
     def test_bare_url_sentence_punctuation_is_not_part_of_the_button(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
