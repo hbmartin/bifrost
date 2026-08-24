@@ -1,18 +1,22 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net"
+	"strings"
 	"testing"
 	"time"
 
+	bifrost "github.com/maximhq/bifrost/core"
 	"github.com/maximhq/bifrost/core/schemas"
 	"github.com/maximhq/bifrost/framework/configstore"
 	configstoreTables "github.com/maximhq/bifrost/framework/configstore/tables"
 	"github.com/maximhq/bifrost/framework/kvstore"
 	"github.com/maximhq/bifrost/framework/logstore"
 	"github.com/maximhq/bifrost/transports/bifrost-http/lib"
+	bfws "github.com/maximhq/bifrost/transports/bifrost-http/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/valyala/fasthttp"
 )
@@ -20,6 +24,22 @@ import (
 type testWSHandlerStore struct {
 	matcher *lib.HeaderMatcher
 	kv      *kvstore.Store
+}
+
+type wsRealtimeKeySelectionTestAccount struct {
+	keys []schemas.Key
+}
+
+func (a *wsRealtimeKeySelectionTestAccount) GetConfiguredProviders() ([]schemas.ModelProvider, error) {
+	return []schemas.ModelProvider{schemas.OpenAI}, nil
+}
+
+func (a *wsRealtimeKeySelectionTestAccount) GetKeysForProvider(context.Context, schemas.ModelProvider) ([]schemas.Key, error) {
+	return a.keys, nil
+}
+
+func (a *wsRealtimeKeySelectionTestAccount) GetConfigForProvider(schemas.ModelProvider) (*schemas.ProviderConfig, error) {
+	return &schemas.ProviderConfig{}, nil
 }
 
 func (s testWSHandlerStore) GetHeaderMatcher() *lib.HeaderMatcher {
@@ -469,6 +489,29 @@ func TestResolveRealtimeWebSocketEphemeralMappingFlagsUnmappedEphemeralToken(t *
 	assert.True(t, isEphemeral, "an unmapped ephemeral token must be reported so the upgrade is rejected instead of failing open")
 }
 
+func TestResolveRealtimeWebSocketEphemeralMappingWithCachedCodecResolvesPortableToken(t *testing.T) {
+	codec, err := newRealtimeEphemeralTokenCodec([]byte("shared-cluster-encryption-key-for-tests"))
+	if err != nil {
+		t.Fatalf("newRealtimeEphemeralTokenCodec() error = %v", err)
+	}
+	token, err := codec.seal("ek_upstream", "key_portable", "sk-bf-portable", time.Now().Add(time.Hour).Unix())
+	if err != nil {
+		t.Fatalf("codec.seal() error = %v", err)
+	}
+
+	mapping, isEphemeral := resolveRealtimeWebSocketEphemeralMappingWithCodec(
+		nil,
+		&authHeaders{authorization: "Bearer " + token},
+		codec,
+	)
+	if mapping == nil || !isEphemeral {
+		t.Fatal("expected portable ephemeral token to resolve through the production codec-aware helper")
+	}
+	if mapping.KeyID != "key_portable" || mapping.VirtualKey != "sk-bf-portable" || mapping.UpstreamToken != "ek_upstream" {
+		t.Fatalf("resolved mapping = %#v", mapping)
+	}
+}
+
 func TestWSRealtimeHandleUpgradeRejectsUnmappedEphemeralTokenBeforeUpgrade(t *testing.T) {
 	store, err := kvstore.New(kvstore.Config{})
 	if err != nil {
@@ -507,6 +550,50 @@ func TestWSRealtimeHandleUpgradeHandlesTypedNilKVStore(t *testing.T) {
 
 	assert.Equal(t, fasthttp.StatusUnauthorized, fctx.Response.StatusCode())
 	assert.Contains(t, string(fctx.Response.Body()), "ephemeral key is unknown or expired")
+}
+
+func TestWSRealtimeSessionRedactsStaleMappedKeyID(t *testing.T) {
+	client, err := bifrost.Init(context.Background(), schemas.BifrostConfig{
+		Account: &wsRealtimeKeySelectionTestAccount{keys: []schemas.Key{{
+			ID: "other-key", Value: *schemas.NewSecretVar("sk-provider"), Models: schemas.WhiteList{"*"}, Weight: 1,
+		}}},
+	})
+	if err != nil {
+		t.Fatalf("bifrost.Init() error = %v", err)
+	}
+	defer client.Shutdown()
+
+	serverConn, browserConn, cleanup := dialRealtimeTestConnPair(t)
+	defer cleanup()
+	handler := &WSRealtimeHandler{
+		client:       client,
+		config:       &lib.Config{},
+		handlerStore: testWSHandlerStore{},
+	}
+	handler.runRealtimeSession(
+		newRealtimeClientConn(serverConn),
+		bfws.NewSession(nil),
+		&authHeaders{},
+		"/v1/realtime",
+		schemas.OpenAI,
+		"gpt-realtime",
+		nil,
+		&realtimeEphemeralKeyMapping{Version: realtimeEphemeralKeyMappingVersion, KeyID: "missing-key"},
+	)
+
+	if err := browserConn.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		t.Fatalf("SetReadDeadline() error = %v", err)
+	}
+	_, payload, err := browserConn.ReadMessage()
+	if err != nil {
+		t.Fatalf("ReadMessage() error = %v", err)
+	}
+	if strings.Contains(string(payload), "missing-key") {
+		t.Fatalf("client-visible error leaked stale mapped key ID: %s", payload)
+	}
+	if !strings.Contains(string(payload), errRealtimeEphemeralKeyUnknown.Error()) {
+		t.Fatalf("client-visible error = %s, want generic ephemeral credential error", payload)
+	}
 }
 
 func TestMergeWebSocketHeaders_ForwardedHeadersOverrideProviderHeadersAndPreserveValues(t *testing.T) {
