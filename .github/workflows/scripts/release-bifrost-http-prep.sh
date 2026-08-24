@@ -95,6 +95,7 @@ done
 # Also ensure core and framework are up to date
 
 echo "  🔧 Updating core to $CORE_VERSION"
+go mod edit -dropreplace="github.com/maximhq/bifrost/core@$CORE_VERSION"
 go mod edit -require="github.com/maximhq/bifrost/core@$CORE_VERSION"
 
 echo "  📦 Updating framework to $FRAMEWORK_VERSION"
