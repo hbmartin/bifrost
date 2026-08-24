@@ -85,6 +85,7 @@ type openAIStreamChoiceTerminalState struct {
 // map if the request or response contains multiple choices.
 type openAIStreamChoiceState struct {
 	expected int
+	finished int
 
 	singleSeen                  bool
 	singleIndex                 int
@@ -117,6 +118,9 @@ func (state *openAIStreamChoiceState) promote(capacity int) {
 			finishReason:          state.singleFinishReason,
 			finishReasonForwarded: state.singleFinishReasonForwarded,
 		}
+		if state.singleFinishReason != "" {
+			state.finished = 1
+		}
 	}
 }
 
@@ -146,6 +150,9 @@ func (state *openAIStreamChoiceState) record(choices []schemas.BifrostResponseCh
 
 		terminalState := state.choices[choice.Index]
 		if finishReason != "" {
+			if terminalState.finishReason == "" {
+				state.finished++
+			}
 			terminalState.finishReason = finishReason
 		}
 		state.choices[choice.Index] = terminalState
@@ -178,13 +185,7 @@ func (state *openAIStreamChoiceState) allFinished() bool {
 	if state.choices == nil {
 		return state.singleSeen && state.singleFinishReason != ""
 	}
-	finished := 0
-	for _, terminalState := range state.choices {
-		if terminalState.finishReason != "" {
-			finished++
-		}
-	}
-	return finished >= max(state.expected, len(state.choices))
+	return state.finished >= max(state.expected, len(state.choices))
 }
 
 func (state *openAIStreamChoiceState) sortedIndexes() []int {
@@ -570,7 +571,7 @@ func HandleOpenAITextCompletionRequest(
 		if len(lpResult.ResponseBody) > 0 {
 			response := &schemas.BifrostTextCompletionResponse{}
 			if err := sonic.Unmarshal(lpResult.ResponseBody, response); err != nil {
-				return nil, providerUtils.NewBifrostOperationError(schemas.ErrProviderResponseUnmarshal, err)
+				return nil, providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, err)
 			}
 			response.ExtraFields = schemas.BifrostResponseExtraFields{Latency: lpResult.Latency}
 			return response, nil
@@ -1124,7 +1125,7 @@ func HandleOpenAIChatCompletionRequest(
 		if len(lpResult.ResponseBody) > 0 {
 			response := &schemas.BifrostChatResponse{}
 			if err := sonic.Unmarshal(lpResult.ResponseBody, response); err != nil {
-				return nil, providerUtils.NewBifrostOperationError(schemas.ErrProviderResponseUnmarshal, err)
+				return nil, providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, err)
 			}
 			response.ExtraFields = schemas.BifrostResponseExtraFields{Latency: lpResult.Latency}
 			return response, nil
@@ -1891,7 +1892,7 @@ func HandleOpenAIResponsesRequest(
 		if len(lpResult.ResponseBody) > 0 {
 			response := &schemas.BifrostResponsesResponse{}
 			if err := sonic.Unmarshal(lpResult.ResponseBody, response); err != nil {
-				return nil, providerUtils.NewBifrostOperationError(schemas.ErrProviderResponseUnmarshal, err)
+				return nil, providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, err)
 			}
 			response.ExtraFields = schemas.BifrostResponseExtraFields{Latency: lpResult.Latency}
 			return response, nil
@@ -2396,7 +2397,7 @@ func HandleOpenAIEmbeddingRequest(
 		if len(lpResult.ResponseBody) > 0 {
 			response := &schemas.BifrostEmbeddingResponse{}
 			if err := sonic.Unmarshal(lpResult.ResponseBody, response); err != nil {
-				return nil, providerUtils.NewBifrostOperationError(schemas.ErrProviderResponseUnmarshal, err)
+				return nil, providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, err)
 			}
 			response.ExtraFields = schemas.BifrostResponseExtraFields{Latency: lpResult.Latency}
 			return response, nil
@@ -2977,7 +2978,7 @@ func HandleOpenAITranscriptionRequest(
 			if request.Params != nil && schemas.IsDiarizedTranscriptionFormat(request.Params.ResponseFormat) {
 				var diarized openAIDiarizedTranscriptionResponse
 				if err := sonic.Unmarshal(lpResult.ResponseBody, &diarized); err != nil {
-					return nil, providerUtils.NewBifrostOperationError(schemas.ErrProviderResponseUnmarshal, err)
+					return nil, providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, err)
 				}
 				response.Duration = diarized.Duration
 				response.Task = diarized.Task
@@ -2985,7 +2986,7 @@ func HandleOpenAITranscriptionRequest(
 				response.DiarizedSegments = diarized.Segments
 				response.Usage = diarized.Usage
 			} else if err := sonic.Unmarshal(lpResult.ResponseBody, response); err != nil {
-				return nil, providerUtils.NewBifrostOperationError(schemas.ErrProviderResponseUnmarshal, err)
+				return nil, providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, err)
 			}
 			response.ExtraFields = schemas.BifrostResponseExtraFields{Latency: lpResult.Latency}
 			return response, nil
@@ -3094,7 +3095,7 @@ func HandleOpenAITranscriptionRequest(
 					},
 				}, latency)
 			}
-			return nil, providerUtils.SetErrorLatency(providerUtils.NewBifrostOperationError(schemas.ErrProviderResponseUnmarshal, err), latency)
+			return nil, providerUtils.SetErrorLatency(providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, err), latency)
 		}
 
 		// Duration/Task are decoded as pointers so an upstream response that
@@ -3127,7 +3128,7 @@ func HandleOpenAITranscriptionRequest(
 					},
 				}, latency)
 			}
-			return nil, providerUtils.SetErrorLatency(providerUtils.NewBifrostOperationError(schemas.ErrProviderResponseUnmarshal, err), latency)
+			return nil, providerUtils.SetErrorLatency(providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, err), latency)
 		}
 
 		// TODO: add HandleProviderResponse here
@@ -3512,7 +3513,7 @@ func HandleOpenAIImageGenerationRequest(
 		if len(lpResult.ResponseBody) > 0 {
 			response := &schemas.BifrostImageGenerationResponse{}
 			if err := sonic.Unmarshal(lpResult.ResponseBody, response); err != nil {
-				return nil, providerUtils.NewBifrostOperationError(schemas.ErrProviderResponseUnmarshal, err)
+				return nil, providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, err)
 			}
 			response.ExtraFields = schemas.BifrostResponseExtraFields{Latency: lpResult.Latency}
 			return response, nil
@@ -4893,7 +4894,7 @@ func HandleOpenAICompactionRequest(
 		if len(lpResult.ResponseBody) > 0 {
 			response := &schemas.BifrostCompactionResponse{}
 			if err := sonic.Unmarshal(lpResult.ResponseBody, response); err != nil {
-				return nil, providerUtils.NewBifrostOperationError(schemas.ErrProviderResponseUnmarshal, err)
+				return nil, providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, err)
 			}
 			response.ExtraFields = schemas.BifrostResponseExtraFields{Latency: lpResult.Latency}
 			return response, nil
@@ -5005,7 +5006,7 @@ func HandleOpenAICountTokensRequest(
 		if len(lpResult.ResponseBody) > 0 {
 			response := &schemas.BifrostCountTokensResponse{}
 			if err := sonic.Unmarshal(lpResult.ResponseBody, response); err != nil {
-				return nil, providerUtils.NewBifrostOperationError(schemas.ErrProviderResponseUnmarshal, err)
+				return nil, providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, err)
 			}
 			response.ExtraFields = schemas.BifrostResponseExtraFields{Latency: lpResult.Latency}
 			return response, nil
@@ -5124,7 +5125,7 @@ func HandleOpenAIImageEditRequest(
 		if len(lpResult.ResponseBody) > 0 {
 			response := &schemas.BifrostImageGenerationResponse{}
 			if err := sonic.Unmarshal(lpResult.ResponseBody, response); err != nil {
-				return nil, providerUtils.NewBifrostOperationError(schemas.ErrProviderResponseUnmarshal, err)
+				return nil, providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, err)
 			}
 			response.ExtraFields = schemas.BifrostResponseExtraFields{Latency: lpResult.Latency}
 			return response, nil
@@ -5652,7 +5653,7 @@ func HandleOpenAIImageVariationRequest(
 		if len(lpResult.ResponseBody) > 0 {
 			response := &schemas.BifrostImageGenerationResponse{}
 			if err := sonic.Unmarshal(lpResult.ResponseBody, response); err != nil {
-				return nil, providerUtils.NewBifrostOperationError(schemas.ErrProviderResponseUnmarshal, err)
+				return nil, providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, err)
 			}
 			response.ExtraFields = schemas.BifrostResponseExtraFields{Latency: lpResult.Latency}
 			return response, nil
