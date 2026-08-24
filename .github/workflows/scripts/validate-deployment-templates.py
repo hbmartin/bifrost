@@ -91,7 +91,9 @@ def parse_deploy_button_url(url: str, label: str) -> DeployButtonKey | None:
     try:
         parsed = urlsplit(url)
         host = (parsed.hostname or "").lower().removesuffix(".").removeprefix("www.")
-        path = parsed.path.removesuffix("/")
+        # Treat any number of trailing slashes consistently so a Render URL
+        # such as /deploy// cannot bypass deploy-button validation.
+        path = parsed.path.rstrip("/")
     except ValueError:
         # No browser can be sent to a URL urlsplit rejects, so whatever this is
         # (an IPv6 example the URL regex truncated, malformed prose), it is not
