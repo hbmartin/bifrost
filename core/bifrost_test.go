@@ -2,6 +2,7 @@ package bifrost
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"runtime"
 	"strings"
@@ -1262,6 +1263,70 @@ func TestSelectKeyFromProviderForModel_BlacklistedModels(t *testing.T) {
 		}
 		if len(pool) != 1 || pool[0].ID != "k2" {
 			t.Fatalf("expected pool=[k2], got %v", pool)
+		}
+	})
+}
+
+func TestSelectKeyFromProviderForModel_ClassifiesMissingPinnedKey(t *testing.T) {
+	account := NewMockAccount()
+	account.AddProvider(schemas.OpenAI, 5, 1000)
+	account.SetKeysForProvider(schemas.OpenAI, []schemas.Key{
+		{ID: "available", Name: "Available", Value: *schemas.NewSecretVar("sk-test"), Models: schemas.WhiteList{"*"}},
+	})
+
+	bifrost, err := Init(context.Background(), schemas.BifrostConfig{
+		Account: account,
+		Logger:  NewDefaultLogger(schemas.LogLevelError),
+	})
+	if err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	bfCtx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
+	bfCtx.SetValue(schemas.BifrostContextKeyAPIKeyID, "removed")
+	_, _, err = bifrost.selectKeyFromProviderForModelWithPool(bfCtx, schemas.RealtimeRequest, schemas.OpenAI, "gpt-realtime", schemas.OpenAI)
+	if !errors.Is(err, ErrPinnedAPIKeyUnavailable) {
+		t.Fatalf("error = %v, want ErrPinnedAPIKeyUnavailable", err)
+	}
+}
+
+func TestSelectKeyForProviderRequestType_ClassifiesInfrastructureFailures(t *testing.T) {
+	t.Run("key store", func(t *testing.T) {
+		account := NewMockAccount()
+		client := &Bifrost{
+			account: account,
+			ctx:     schemas.NewBifrostContext(context.Background(), schemas.NoDeadline),
+		}
+
+		_, err := client.SelectKeyForProviderRequestType(client.ctx, schemas.RealtimeRequest, schemas.OpenAI, "gpt-realtime")
+		if !errors.Is(err, ErrKeySelectionUnavailable) {
+			t.Fatalf("error = %v, want ErrKeySelectionUnavailable", err)
+		}
+	})
+
+	t.Run("custom selector", func(t *testing.T) {
+		selectorErr := errors.New("selector backend offline")
+		account := NewMockAccount()
+		account.AddProvider(schemas.OpenAI, 5, 1000)
+		account.SetKeysForProvider(schemas.OpenAI, []schemas.Key{
+			{ID: "first", Value: *schemas.NewSecretVar("sk-first"), Models: schemas.WhiteList{"*"}, Weight: 1},
+			{ID: "second", Value: *schemas.NewSecretVar("sk-second"), Models: schemas.WhiteList{"*"}, Weight: 1},
+		})
+		client, err := Init(context.Background(), schemas.BifrostConfig{
+			Account: account,
+			Logger:  NewDefaultLogger(schemas.LogLevelError),
+			KeySelector: func(*schemas.BifrostContext, []schemas.Key, schemas.ModelProvider, string) (schemas.Key, error) {
+				return schemas.Key{}, selectorErr
+			},
+		})
+		if err != nil {
+			t.Fatalf("Init failed: %v", err)
+		}
+		defer client.Shutdown()
+
+		_, err = client.SelectKeyForProviderRequestType(nil, schemas.RealtimeRequest, schemas.OpenAI, "gpt-realtime")
+		if !errors.Is(err, ErrKeySelectionUnavailable) || !errors.Is(err, selectorErr) {
+			t.Fatalf("error = %v, want both classification and selector cause", err)
 		}
 	})
 }
