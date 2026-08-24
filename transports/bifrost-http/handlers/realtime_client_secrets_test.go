@@ -17,6 +17,18 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
+func mustRealtimeEphemeralTokenCodec(t *testing.T, masterKey []byte) *realtimeEphemeralTokenCodec {
+	t.Helper()
+	codec, err := newRealtimeEphemeralTokenCodec(masterKey)
+	if err != nil {
+		t.Fatalf("newRealtimeEphemeralTokenCodec() error = %v", err)
+	}
+	if codec == nil {
+		t.Fatal("newRealtimeEphemeralTokenCodec() returned nil codec")
+	}
+	return codec
+}
+
 func TestResolveRealtimeClientSecretTarget(t *testing.T) {
 	t.Parallel()
 
@@ -373,13 +385,14 @@ func TestWrapRealtimeClientSecretResponseIsPortableAcrossReplicas(t *testing.T) 
 	t.Parallel()
 
 	masterKey := []byte("shared-cluster-encryption-key-for-tests")
+	codec := mustRealtimeEphemeralTokenCodec(t, masterKey)
 	body := []byte(`{
 		"value": "ek_upstream_123",
 		"expires_at": 4102444800,
 		"session": {"model": "gpt-realtime"}
 	}`)
 
-	rewritten, wrapped, err := wrapRealtimeClientSecretResponse(body, "key_123", "sk-bf-test", masterKey)
+	rewritten, wrapped, err := wrapRealtimeClientSecretResponseWithCodec(body, "key_123", "sk-bf-test", codec)
 	if err != nil {
 		t.Fatalf("wrapRealtimeClientSecretResponse() error = %v", err)
 	}
@@ -404,7 +417,7 @@ func TestWrapRealtimeClientSecretResponseIsPortableAcrossReplicas(t *testing.T) 
 
 	// A different process has no local KV entry. The stable encryption key is
 	// sufficient to recover the exact routing and governance binding.
-	mapping, ok := lookupRealtimeEphemeralKeyMappingWithKey(nil, response.Value, masterKey)
+	mapping, ok := lookupRealtimeEphemeralKeyMappingWithCodec(nil, response.Value, codec)
 	if !ok {
 		t.Fatal("expected wrapped token to resolve without process-local state")
 	}
@@ -417,13 +430,14 @@ func TestWrapRealtimeClientSecretResponseSupportsNestedShape(t *testing.T) {
 	t.Parallel()
 
 	masterKey := []byte("shared-cluster-encryption-key-for-tests")
+	codec := mustRealtimeEphemeralTokenCodec(t, masterKey)
 	body := []byte(`{
 		"client_secret": {
 			"value": "ek_upstream_nested",
 			"expires_at": 4102444800
 		}
 	}`)
-	rewritten, wrapped, err := wrapRealtimeClientSecretResponse(body, "key_nested", "", masterKey)
+	rewritten, wrapped, err := wrapRealtimeClientSecretResponseWithCodec(body, "key_nested", "", codec)
 	if err != nil || !wrapped {
 		t.Fatalf("wrapRealtimeClientSecretResponse() = wrapped %v, error %v", wrapped, err)
 	}
@@ -436,7 +450,7 @@ func TestWrapRealtimeClientSecretResponseSupportsNestedShape(t *testing.T) {
 	if err := json.Unmarshal(rewritten, &response); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
-	mapping, ok := lookupRealtimeEphemeralKeyMappingWithKey(nil, response.ClientSecret.Value, masterKey)
+	mapping, ok := lookupRealtimeEphemeralKeyMappingWithCodec(nil, response.ClientSecret.Value, codec)
 	if !ok || mapping.UpstreamToken != "ek_upstream_nested" || mapping.KeyID != "key_nested" {
 		t.Fatalf("resolved mapping = %#v, ok %v", mapping, ok)
 	}
@@ -446,6 +460,7 @@ func TestWrapRealtimeClientSecretResponseBindsEverySupportedShape(t *testing.T) 
 	t.Parallel()
 
 	masterKey := []byte("shared-cluster-encryption-key-for-tests")
+	codec := mustRealtimeEphemeralTokenCodec(t, masterKey)
 	body := []byte(`{
 		"value": "ek_upstream_top",
 		"expires_at": 4102444800,
@@ -454,7 +469,7 @@ func TestWrapRealtimeClientSecretResponseBindsEverySupportedShape(t *testing.T) 
 			"expires_at": 4102444800
 		}
 	}`)
-	rewritten, wrapped, err := wrapRealtimeClientSecretResponse(body, "key_dual", "sk-bf-dual", masterKey)
+	rewritten, wrapped, err := wrapRealtimeClientSecretResponseWithCodec(body, "key_dual", "sk-bf-dual", codec)
 	if err != nil || !wrapped {
 		t.Fatalf("wrapRealtimeClientSecretResponse() = wrapped %v, error %v", wrapped, err)
 	}
@@ -472,7 +487,7 @@ func TestWrapRealtimeClientSecretResponseBindsEverySupportedShape(t *testing.T) 
 		response.Value:              "ek_upstream_top",
 		response.ClientSecret.Value: "ek_upstream_nested",
 	} {
-		mapping, ok := lookupRealtimeEphemeralKeyMappingWithKey(nil, wrappedToken, masterKey)
+		mapping, ok := lookupRealtimeEphemeralKeyMappingWithCodec(nil, wrappedToken, codec)
 		if !ok || mapping.UpstreamToken != upstreamToken || mapping.KeyID != "key_dual" || mapping.VirtualKey != "sk-bf-dual" {
 			t.Fatalf("resolved mapping = %#v, ok %v; want upstream %q with the shared binding", mapping, ok, upstreamToken)
 		}
@@ -487,11 +502,11 @@ func TestWrapRealtimeClientSecretResponseRejectsPartialBinding(t *testing.T) {
 		"expires_at": 4102444800,
 		"client_secret": {"value": "ek_unbindable_nested"}
 	}`)
-	rewritten, wrapped, err := wrapRealtimeClientSecretResponse(
+	rewritten, wrapped, err := wrapRealtimeClientSecretResponseWithCodec(
 		body,
 		"key_partial",
 		"",
-		[]byte("shared-cluster-encryption-key-for-tests"),
+		mustRealtimeEphemeralTokenCodec(t, []byte("shared-cluster-encryption-key-for-tests")),
 	)
 	if err != nil || wrapped {
 		t.Fatalf("wrapRealtimeClientSecretResponse() = wrapped %v, error %v", wrapped, err)
@@ -504,8 +519,8 @@ func TestWrapRealtimeClientSecretResponseRejectsPartialBinding(t *testing.T) {
 func TestRealtimeEphemeralTokenRejectsWrongKeyAndTampering(t *testing.T) {
 	t.Parallel()
 
-	token, err := sealRealtimeEphemeralToken(
-		[]byte("correct-cluster-encryption-key"),
+	codec := mustRealtimeEphemeralTokenCodec(t, []byte("correct-cluster-encryption-key"))
+	token, err := codec.seal(
 		"ek_upstream_123",
 		"key_123",
 		"sk-bf-test",
@@ -514,7 +529,8 @@ func TestRealtimeEphemeralTokenRejectsWrongKeyAndTampering(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sealRealtimeEphemeralToken() error = %v", err)
 	}
-	if mapping, ok := openRealtimeEphemeralToken([]byte("wrong-cluster-encryption-key"), token); ok {
+	wrongCodec := mustRealtimeEphemeralTokenCodec(t, []byte("wrong-cluster-encryption-key"))
+	if mapping, ok := wrongCodec.open(token); ok {
 		t.Fatalf("wrong key resolved mapping %#v", mapping)
 	}
 	tamperedBytes := []byte(token)
@@ -525,7 +541,7 @@ func TestRealtimeEphemeralTokenRejectsWrongKeyAndTampering(t *testing.T) {
 		tamperedBytes[tamperAt] = 'A'
 	}
 	tampered := string(tamperedBytes)
-	if mapping, ok := openRealtimeEphemeralToken([]byte("correct-cluster-encryption-key"), tampered); ok {
+	if mapping, ok := codec.open(tampered); ok {
 		t.Fatalf("tampered token resolved mapping %#v", mapping)
 	}
 }
@@ -534,7 +550,7 @@ func TestWrapRealtimeClientSecretResponseFallsBackWithoutEncryption(t *testing.T
 	t.Parallel()
 
 	body := []byte(`{"value":"ek_local","expires_at":4102444800}`)
-	rewritten, wrapped, err := wrapRealtimeClientSecretResponse(body, "key_local", "", nil)
+	rewritten, wrapped, err := wrapRealtimeClientSecretResponseWithCodec(body, "key_local", "", nil)
 	if err != nil || wrapped {
 		t.Fatalf("wrapRealtimeClientSecretResponse() = wrapped %v, error %v", wrapped, err)
 	}
@@ -547,11 +563,11 @@ func TestWrapRealtimeClientSecretResponseReturnsUnwrappedForUnbindableResponse(t
 	t.Parallel()
 
 	body := []byte(`{"expires_at":4102444800,"client_secret":{"expires_at":4102444800}}`)
-	rewritten, wrapped, err := wrapRealtimeClientSecretResponse(
+	rewritten, wrapped, err := wrapRealtimeClientSecretResponseWithCodec(
 		body,
 		"key_unbindable",
 		"",
-		[]byte("shared-cluster-encryption-key-for-tests"),
+		mustRealtimeEphemeralTokenCodec(t, []byte("shared-cluster-encryption-key-for-tests")),
 	)
 	if err != nil || wrapped {
 		t.Fatalf("wrapRealtimeClientSecretResponse() = wrapped %v, error %v", wrapped, err)
@@ -596,6 +612,21 @@ func TestCacheRealtimeEphemeralKeyMappingStoresKeyID(t *testing.T) {
 	}
 	if mapping.VirtualKey != "sk-bf-test" {
 		t.Fatalf("mapping.VirtualKey = %q, want %q", mapping.VirtualKey, "sk-bf-test")
+	}
+}
+
+func TestRealtimeEphemeralKeyMappingTTLIsBounded(t *testing.T) {
+	t.Parallel()
+
+	now := time.Unix(1_700_000_000, 0)
+	if got := realtimeEphemeralKeyMappingTTL(now.Add(7*24*time.Hour).Unix(), now); got != realtimeEphemeralKeyMappingMaxTTL {
+		t.Fatalf("far-future TTL = %s, want %s", got, realtimeEphemeralKeyMappingMaxTTL)
+	}
+	if got := realtimeEphemeralKeyMappingTTL(now.Add(5*time.Minute).Unix(), now); got != 5*time.Minute {
+		t.Fatalf("short TTL = %s, want %s", got, 5*time.Minute)
+	}
+	if got := realtimeEphemeralKeyMappingTTL(now.Unix(), now); got != 0 {
+		t.Fatalf("expired TTL = %s, want 0", got)
 	}
 }
 
@@ -762,7 +793,7 @@ func TestRealtimeClientSecretsEvaluateMintingGovernance_RequiresAccess(t *testin
 	plugins := []schemas.BasePlugin{plugin}
 	config.BasePlugins.Store(&plugins)
 
-	handler := NewRealtimeClientSecretsHandler(nil, config)
+	handler := newRealtimeClientSecretsHandler(nil, config, nil)
 	bifrostCtx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	defer bifrostCtx.Done()
 
@@ -788,7 +819,7 @@ func TestRealtimeClientSecretsEvaluateMintingGovernance_PassesContext(t *testing
 	}
 	config.BasePlugins.Store(&plugins)
 
-	handler := NewRealtimeClientSecretsHandler(nil, config)
+	handler := newRealtimeClientSecretsHandler(nil, config, nil)
 	bifrostCtx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	defer bifrostCtx.Done()
 	bifrostCtx.SetValue(schemas.BifrostContextKeyUserID, "user_123")
@@ -817,7 +848,7 @@ func TestRealtimeClientSecretsEvaluateMintingGovernance_PassesContext(t *testing
 func TestRealtimeClientSecretsEvaluateMintingGovernance_ContinuesWithoutGovernance(t *testing.T) {
 	t.Parallel()
 
-	handler := NewRealtimeClientSecretsHandler(nil, &lib.Config{})
+	handler := newRealtimeClientSecretsHandler(nil, &lib.Config{}, nil)
 	bifrostCtx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	defer bifrostCtx.Done()
 

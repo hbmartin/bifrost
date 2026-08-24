@@ -132,6 +132,10 @@ def parse_deploy_button_url(url: str, label: str) -> DeployButtonKey | None:
 
     railway_template_candidate = path.startswith("/new/template/") or path == "/new/template"
     if host in {"railway.com", "railway.app"} and railway_template_candidate:
+        # urlsplit normalizes a bare '?' or '#' to an empty query/fragment, so
+        # retain delimiter presence separately for canonical-form validation.
+        has_query_delimiter = "?" in url.partition("#")[0]
+        has_fragment_delimiter = "#" in url
         # Only the exact canonical bare path is ordinary Railway navigation.
         # A trailing slash, query, fragment, credentials, or port can otherwise
         # disguise a slug-less deploy button as the navigation exemption.
@@ -139,6 +143,8 @@ def parse_deploy_button_url(url: str, label: str) -> DeployButtonKey | None:
             parsed.path == "/new/template"
             and not parsed.query
             and not parsed.fragment
+            and not has_query_delimiter
+            and not has_fragment_delimiter
             and parsed.scheme.lower() == "https"
             and parsed.netloc.lower() == host
         ):
@@ -151,6 +157,8 @@ def parse_deploy_button_url(url: str, label: str) -> DeployButtonKey | None:
             or parsed.netloc.lower() != host
             or parsed.query
             or parsed.fragment
+            or has_query_delimiter
+            or has_fragment_delimiter
         ):
             fail(f"{label} Railway deploy URL must use canonical HTTPS with no credentials, port, query, or fragment: {url}")
         slug = path.removeprefix("/new/template").removeprefix("/")
