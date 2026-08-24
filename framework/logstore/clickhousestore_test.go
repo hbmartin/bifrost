@@ -49,27 +49,42 @@ func clickhouseTestConfig() *ClickHouseConfig {
 // a test failure.
 func trySetupClickHouseStore(t *testing.T) *ClickHouseLogStore {
 	t.Helper()
-	conn, err := net.DialTimeout("tcp", net.JoinHostPort(clickhouseTestHost, clickhouseTestPort), time.Second)
-	if err != nil {
-		t.Skipf("ClickHouse native endpoint is unavailable, skipping test: %v", err)
+	probe, err := clickhouse.Open(&clickhouse.Options{
+		Addr: []string{net.JoinHostPort(clickhouseTestHost, clickhouseTestPort)},
+		Auth: clickhouse.Auth{
+			Database: clickhouseTestDatabase,
+			Username: clickhouseTestUser,
+			Password: clickhouseTestPassword,
+		},
+		DialTimeout: time.Second,
+		ReadTimeout: 5 * time.Second,
+	})
+	require.NoError(t, err, "build ClickHouse native-protocol probe")
+
+	probeCtx, probeCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	probeErr := probe.Ping(probeCtx)
+	probeCancel()
+	if probeErr != nil {
+		_ = probe.Close()
+		// An authenticated server exception proves that a real ClickHouse
+		// answered, so broken credentials or server configuration remain loud.
+		// Connection, handshake, and protocol failures mean the endpoint is not
+		// currently a usable ClickHouse and may be skipped as test infrastructure.
+		var chErr *clickhouse.Exception
+		if errors.As(probeErr, &chErr) {
+			require.NoError(t, probeErr, "ClickHouse rejected the native-protocol probe")
+		}
+		t.Skipf("no usable ClickHouse answered on port %s, skipping test: %v", clickhouseTestPort, probeErr)
 	}
-	require.NoError(t, conn.Close())
+	require.NoError(t, probe.Close(), "close ClickHouse native-protocol probe")
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	t.Cleanup(cancel)
 	store, err := newClickHouseLogStore(ctx, clickhouseTestConfig(), 0, testLogger{})
-	if err != nil {
-		// A server exception proves a real ClickHouse answered, so the setup
-		// failure is loud. Anything else — handshake garbage, EOF, timeout —
-		// means the accepted TCP connection was not a usable ClickHouse (a
-		// foreign service on the port, or a container still starting), which
-		// is the same situation as a closed port.
-		var chErr *clickhouse.Exception
-		if errors.As(err, &chErr) {
-			require.NoError(t, err, "ClickHouse is reachable but log-store setup failed")
-		}
-		t.Skipf("port %s accepted TCP but no usable ClickHouse answered, skipping test: %v", clickhouseTestPort, err)
-	}
+	// The protocol/authentication probe already established a usable server.
+	// Everything below exercises application setup and migrations, so any error
+	// is a product regression rather than missing test infrastructure.
+	require.NoError(t, err, "ClickHouse is usable but log-store setup or migrations failed")
 	ch := store.(*ClickHouseLogStore)
 	for _, table := range []string{"logs", "mcp_tool_logs", "async_jobs", "webhook_deliveries"} {
 		require.NoError(t, ch.db.WithContext(ctx).Exec("TRUNCATE TABLE "+table).Error)
