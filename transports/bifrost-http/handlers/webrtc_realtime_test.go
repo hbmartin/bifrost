@@ -3,9 +3,11 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
+	bifrost "github.com/maximhq/bifrost/core"
 	"github.com/maximhq/bifrost/core/schemas"
 	"github.com/maximhq/bifrost/framework/kvstore"
 	"github.com/maximhq/bifrost/framework/logstore"
@@ -16,6 +18,22 @@ import (
 
 type testHandlerStore struct {
 	kv *kvstore.Store
+}
+
+type realtimeKeySelectionTestAccount struct {
+	keys []schemas.Key
+}
+
+func (a *realtimeKeySelectionTestAccount) GetConfiguredProviders() ([]schemas.ModelProvider, error) {
+	return nil, nil
+}
+
+func (a *realtimeKeySelectionTestAccount) GetKeysForProvider(context.Context, schemas.ModelProvider) ([]schemas.Key, error) {
+	return a.keys, nil
+}
+
+func (a *realtimeKeySelectionTestAccount) GetConfigForProvider(schemas.ModelProvider) (*schemas.ProviderConfig, error) {
+	return nil, nil
 }
 
 func (s testHandlerStore) GetHeaderMatcher() *lib.HeaderMatcher { return nil }
@@ -186,7 +204,7 @@ func TestLookupRealtimeEphemeralKeyMappingKeepsEntryUntilTTLExpiry(t *testing.T)
 	}
 	defer store.Close()
 
-	payload, err := json.Marshal(realtimeEphemeralKeyMapping{KeyID: "key_123", VirtualKey: "sk-bf-test"})
+	payload, err := json.Marshal(realtimeEphemeralKeyMapping{Version: realtimeEphemeralKeyMappingVersion, KeyID: "key_123", VirtualKey: "sk-bf-test"})
 	if err != nil {
 		t.Fatalf("json.Marshal() error = %v", err)
 	}
@@ -214,7 +232,7 @@ func TestLookupRealtimeEphemeralKeyMappingKeepsEntryUntilTTLExpiry(t *testing.T)
 	}
 }
 
-func TestLookupRealtimeEphemeralKeyMapping_BackwardsCompatibleStringValue(t *testing.T) {
+func TestLookupRealtimeEphemeralKeyMappingRejectsUnversionedStringValue(t *testing.T) {
 	t.Parallel()
 
 	store, err := kvstore.New(kvstore.Config{})
@@ -227,15 +245,8 @@ func TestLookupRealtimeEphemeralKeyMapping_BackwardsCompatibleStringValue(t *tes
 		t.Fatalf("store.SetWithTTL() error = %v", err)
 	}
 
-	mapping, ok := lookupRealtimeEphemeralKeyMapping(store, "ek_test_legacy")
-	if !ok {
-		t.Fatal("expected legacy mapping to be consumed")
-	}
-	if mapping.KeyID != "key_legacy" {
-		t.Fatalf("mapping.KeyID = %q, want %q", mapping.KeyID, "key_legacy")
-	}
-	if mapping.VirtualKey != "" {
-		t.Fatalf("mapping.VirtualKey = %q, want empty", mapping.VirtualKey)
+	if mapping, ok := lookupRealtimeEphemeralKeyMapping(store, "ek_test_legacy"); ok {
+		t.Fatalf("lookupRealtimeEphemeralKeyMapping() = %#v, true; want legacy mapping rejected", mapping)
 	}
 }
 
@@ -321,6 +332,59 @@ func TestResolveRealtimeWebRTCKeys_UnmappedEphemeralTokenIsRejected(t *testing.T
 	}
 }
 
+func TestResolveRealtimeWebRTCKeysDoesNotDropInvalidMappedKeyPin(t *testing.T) {
+	t.Parallel()
+
+	store, err := kvstore.New(kvstore.Config{})
+	if err != nil {
+		t.Fatalf("kvstore.New() error = %v", err)
+	}
+	defer store.Close()
+	payload, err := json.Marshal(realtimeEphemeralKeyMapping{
+		Version:    realtimeEphemeralKeyMappingVersion,
+		KeyID:      "missing-key",
+		VirtualKey: "sk-bf-mapped",
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+	if err := store.SetWithTTL(buildRealtimeEphemeralKeyMappingKey("ek_mapped"), payload, time.Minute); err != nil {
+		t.Fatalf("store.SetWithTTL() error = %v", err)
+	}
+
+	client, err := bifrost.Init(context.Background(), schemas.BifrostConfig{
+		Account: &realtimeKeySelectionTestAccount{keys: []schemas.Key{
+			{ID: "other-key", Value: *schemas.NewSecretVar("sk-provider"), Models: schemas.WhiteList{"*"}, Weight: 1},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("bifrost.Init() error = %v", err)
+	}
+	defer client.Shutdown()
+
+	handler := &WebRTCRealtimeHandler{
+		client:       client,
+		handlerStore: testHandlerStore{kv: store},
+	}
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.Set("Authorization", "Bearer ek_mapped")
+	bifrostCtx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
+
+	_, selectedKey, err := handler.resolveRealtimeWebRTCKeys(&ctx, bifrostCtx, schemas.OpenAI, "gpt-realtime")
+	if err == nil || !strings.Contains(err.Error(), `no supported key found with id "missing-key"`) {
+		t.Fatalf("resolveRealtimeWebRTCKeys() error = %v, want invalid mapped pin error", err)
+	}
+	if selectedKey != nil {
+		t.Fatalf("selectedKey = %#v, want nil", selectedKey)
+	}
+	if got := bifrostCtx.Value(schemas.BifrostContextKeyAPIKeyID); got != "missing-key" {
+		t.Fatalf("api key pin = %#v, want mapped pin preserved", got)
+	}
+	if got := bifrostCtx.Value(schemas.BifrostContextKeyVirtualKey); got != "sk-bf-mapped" {
+		t.Fatalf("virtual key = %#v, want mapped governance identity preserved", got)
+	}
+}
+
 func TestRunWebRTCRelayRejectsUnmappedEphemeralTokenAsUnauthorized(t *testing.T) {
 	t.Parallel()
 
@@ -394,5 +458,23 @@ func TestApplyRealtimeEphemeralKeyMapping_ClearsAliasesMissingFromMapping(t *tes
 	}
 	if got := bifrostCtx.Value(schemas.BifrostContextKeyAPIKeyName); got != nil {
 		t.Fatalf("api key name context = %#v, want nil", got)
+	}
+}
+
+func TestApplyRealtimeEphemeralKeyMappingVersionedMappingWithoutVirtualKeyClearsCallerVirtualKey(t *testing.T) {
+	t.Parallel()
+
+	bifrostCtx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
+	bifrostCtx.SetValue(schemas.BifrostContextKeyVirtualKey, "sk-bf-caller-controlled")
+	applyRealtimeEphemeralKeyMapping(bifrostCtx, realtimeEphemeralKeyMapping{
+		Version: realtimeEphemeralKeyMappingVersion,
+		KeyID:   "key_123",
+	})
+
+	if got := bifrostCtx.Value(schemas.BifrostContextKeyVirtualKey); got != nil {
+		t.Fatalf("virtual key context = %#v, want caller identity cleared", got)
+	}
+	if got := bifrostCtx.Value(schemas.BifrostContextKeyAPIKeyID); got != "key_123" {
+		t.Fatalf("api key id context = %#v, want explicit mapped key", got)
 	}
 }
