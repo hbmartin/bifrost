@@ -371,6 +371,9 @@ func (h *WebRTCRealtimeHandler) resolveRealtimeWebRTCKeys(
 	selectedKey, err := h.client.SelectKeyForProviderRequestType(bifrostCtx, schemas.RealtimeRequest, providerKey, model)
 	if err != nil {
 		if mapped {
+			if logger != nil {
+				logger.Warn("realtime WebRTC key selection failed for mapped ephemeral credential: provider=%s model=%s error=%v", providerKey, model, err)
+			}
 			return schemas.Key{}, nil, errRealtimeEphemeralKeyUnknown
 		}
 		return schemas.Key{}, nil, err
