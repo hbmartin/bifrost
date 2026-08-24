@@ -450,6 +450,30 @@ func TestResolveRealtimeWebSocketEphemeralMappingFlagsUnmappedEphemeralToken(t *
 	assert.True(t, isEphemeral, "an unmapped ephemeral token must be reported so the upgrade is rejected instead of failing open")
 }
 
+func TestWSRealtimeHandleUpgradeRejectsUnmappedEphemeralTokenBeforeUpgrade(t *testing.T) {
+	store, err := kvstore.New(kvstore.Config{})
+	if err != nil {
+		t.Fatalf("kvstore.New() error = %v", err)
+	}
+	defer store.Close()
+
+	var req fasthttp.Request
+	req.Header.SetMethod(fasthttp.MethodGet)
+	req.SetRequestURI("/v1/realtime?model=openai/gpt-realtime")
+	req.Header.Set("Authorization", "Bearer ek_expired")
+
+	fctx := &fasthttp.RequestCtx{}
+	fctx.Init(&req, &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 12345}, nil)
+
+	handler := &WSRealtimeHandler{handlerStore: testWSHandlerStore{kv: store}}
+	handler.handleUpgrade(fctx)
+
+	assert.Equal(t, fasthttp.StatusUnauthorized, fctx.Response.StatusCode())
+	assert.NotEqual(t, fasthttp.StatusSwitchingProtocols, fctx.Response.StatusCode())
+	assert.Equal(t, "application/json", string(fctx.Response.Header.ContentType()))
+	assert.Contains(t, string(fctx.Response.Body()), "ephemeral key is unknown or expired")
+}
+
 func TestMergeWebSocketHeaders_ForwardedHeadersOverrideProviderHeadersAndPreserveValues(t *testing.T) {
 	ctx := schemas.NewBifrostContext(nil, time.Time{})
 	ctx.SetValue(schemas.BifrostContextKeyExtraHeaders, map[string][]string{
