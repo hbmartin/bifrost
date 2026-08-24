@@ -504,6 +504,24 @@ func TestWrapRealtimeClientSecretResponseFallsBackWithoutEncryption(t *testing.T
 	}
 }
 
+func TestWrapRealtimeClientSecretResponseReturnsUnwrappedForUnbindableResponse(t *testing.T) {
+	t.Parallel()
+
+	body := []byte(`{"expires_at":4102444800,"client_secret":{"expires_at":4102444800}}`)
+	rewritten, wrapped, err := wrapRealtimeClientSecretResponse(
+		body,
+		"key_unbindable",
+		"",
+		[]byte("shared-cluster-encryption-key-for-tests"),
+	)
+	if err != nil || wrapped {
+		t.Fatalf("wrapRealtimeClientSecretResponse() = wrapped %v, error %v", wrapped, err)
+	}
+	if string(rewritten) != string(body) {
+		t.Fatalf("unbindable response changed: %s", rewritten)
+	}
+}
+
 func TestCacheRealtimeEphemeralKeyMappingStoresKeyID(t *testing.T) {
 	t.Parallel()
 
