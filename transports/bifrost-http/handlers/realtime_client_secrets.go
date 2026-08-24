@@ -125,10 +125,8 @@ func (h *RealtimeClientSecretsHandler) handleRequest(ctx *fasthttp.RequestCtx) {
 
 	key, keyErr := h.client.SelectKeyForProviderRequestType(bifrostCtx, schemas.RealtimeRequest, providerKey, model)
 	if keyErr != nil {
-		if logger != nil {
-			logger.Warn("realtime client-secret key selection failed: provider=%s model=%s error=%v", providerKey, model, keyErr)
-		}
-		status, errorType, message := classifyRealtimeKeySelectionError(keyErr, false)
+		status, errorType, message := classifyKeySelectionError(keyErr)
+		logKeySelectionFailure("realtime client-secret", providerKey, model, false, status, keyErr)
 		SendBifrostError(ctx, newRealtimeClientSecretHandlerError(
 			status,
 			errorType,
@@ -430,7 +428,7 @@ func wrapRealtimeClientSecretResponseWithCodec(body []byte, keyID string, virtua
 
 	rewritten := body
 	for _, secret := range secrets {
-		wrappedToken, err := tokenCodec.seal(secret.value, keyID, virtualKey, secret.expiresAt)
+		wrappedToken, wrappedExpiresAt, err := tokenCodec.sealWithExpiry(secret.value, keyID, virtualKey, secret.expiresAt)
 		if err != nil {
 			return nil, false, err
 		}
@@ -441,6 +439,16 @@ func wrapRealtimeClientSecretResponseWithCodec(body []byte, keyID string, virtua
 		rewritten, err = providerUtils.SetRawJSONField(rewritten, secret.valuePath, encodedToken)
 		if err != nil {
 			return nil, false, err
+		}
+		if wrappedExpiresAt != secret.expiresAt {
+			encodedExpiry, err := json.Marshal(wrappedExpiresAt)
+			if err != nil {
+				return nil, false, err
+			}
+			rewritten, err = providerUtils.SetRawJSONField(rewritten, secret.expiresAtPath, encodedExpiry)
+			if err != nil {
+				return nil, false, err
+			}
 		}
 	}
 	return rewritten, true, nil
@@ -489,9 +497,10 @@ func realtimeEphemeralKeyMappingTTL(expiresAt int64, now time.Time) time.Duratio
 }
 
 type realtimeClientSecretProbe struct {
-	value     string
-	valuePath string
-	expiresAt int64
+	value         string
+	valuePath     string
+	expiresAt     int64
+	expiresAtPath string
 }
 
 // probeRealtimeClientSecrets returns every supported credential occurrence so
@@ -527,9 +536,10 @@ func probeRealtimeClientSecrets(body []byte) ([]realtimeClientSecretProbe, bool)
 			return nil, false
 		}
 		secrets = append(secrets, realtimeClientSecretProbe{
-			value:     trimmedValue,
-			valuePath: valuePath,
-			expiresAt: parsedExpiry,
+			value:         trimmedValue,
+			valuePath:     valuePath,
+			expiresAt:     parsedExpiry,
+			expiresAtPath: prefix + "expires_at",
 		})
 	}
 

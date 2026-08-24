@@ -217,6 +217,14 @@ func TestClassifyRealtimeKeySelectionError(t *testing.T) {
 			wantMsg:    errRealtimeEphemeralKeyUnknown.Error(),
 		},
 		{
+			name:       "mapped pin became ineligible",
+			err:        errors.New("configured key id sensitive-id is not eligible for this model"),
+			mapped:     true,
+			wantStatus: fasthttp.StatusUnauthorized,
+			wantType:   "invalid_request_error",
+			wantMsg:    errRealtimeEphemeralKeyUnknown.Error(),
+		},
+		{
 			name:       "caller supplied stale pin",
 			err:        fmt.Errorf("%w: removed", bifrost.ErrPinnedAPIKeyUnavailable),
 			wantStatus: fasthttp.StatusBadRequest,
@@ -247,6 +255,20 @@ func TestClassifyRealtimeKeySelectionError(t *testing.T) {
 				t.Fatalf("classification = (%d, %q, %q), want (%d, %q, %q)", status, errorType, message, tt.wantStatus, tt.wantType, tt.wantMsg)
 			}
 		})
+	}
+}
+
+func TestClassifyKeySelectionErrorHasNoEphemeralBranch(t *testing.T) {
+	t.Parallel()
+
+	status, errorType, message := classifyKeySelectionError(fmt.Errorf("%w: database offline", bifrost.ErrKeySelectionUnavailable))
+	if status != fasthttp.StatusServiceUnavailable || errorType != "server_error" || message != realtimeKeySelectionUnavailableMessage {
+		t.Fatalf("infrastructure classification = (%d, %q, %q)", status, errorType, message)
+	}
+
+	status, errorType, message = classifyKeySelectionError(errors.New("configured key id sensitive-id is unavailable"))
+	if status != fasthttp.StatusBadRequest || errorType != "invalid_request_error" || message != realtimeKeySelectionInvalidMessage {
+		t.Fatalf("client classification = (%d, %q, %q)", status, errorType, message)
 	}
 }
 
