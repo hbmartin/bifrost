@@ -3,6 +3,7 @@ package bedrock
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/bytedance/sonic"
@@ -13,12 +14,30 @@ import (
 // BedrockBatchJobRequest represents a request to create a batch inference job.
 type BedrockBatchJobRequest struct {
 	JobName                string                  `json:"jobName"`
+	ClientRequestToken     string                  `json:"clientRequestToken,omitempty"`
 	ModelID                *string                 `json:"modelId"`
 	RoleArn                string                  `json:"roleArn"`
 	InputDataConfig        BedrockInputDataConfig  `json:"inputDataConfig"`
 	OutputDataConfig       BedrockOutputDataConfig `json:"outputDataConfig"`
 	TimeoutDurationInHours int                     `json:"timeoutDurationInHours,omitempty"`
 	Tags                   []BedrockTag            `json:"tags,omitempty"`
+}
+
+// BatchClientRequestToken returns the caller-supplied AWS idempotency token from
+// Bifrost's provider-specific batch parameters. Both spellings are accepted so
+// native Bedrock and Bifrost-format routes converge on the same wire field.
+func BatchClientRequestToken(request *schemas.BifrostBatchCreateRequest) string {
+	if request == nil || request.ExtraParams == nil {
+		return ""
+	}
+	for _, key := range []string{"clientRequestToken", "client_request_token"} {
+		if value, ok := request.ExtraParams[key].(string); ok {
+			if token := strings.TrimSpace(value); token != "" {
+				return token
+			}
+		}
+	}
+	return ""
 }
 
 // BedrockInputDataConfig represents the input configuration for a batch job.
