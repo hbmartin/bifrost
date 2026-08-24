@@ -4,13 +4,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"mime"
-	"reflect"
 	"strings"
 	"time"
 
 	"github.com/fasthttp/router"
 	bifrost "github.com/maximhq/bifrost/core"
+	providerUtils "github.com/maximhq/bifrost/core/providers/utils"
 	"github.com/maximhq/bifrost/core/schemas"
+	"github.com/maximhq/bifrost/framework/encrypt"
+	"github.com/maximhq/bifrost/framework/kvstore"
 	"github.com/maximhq/bifrost/plugins/governance"
 	"github.com/maximhq/bifrost/plugins/modelcatalogresolver"
 	"github.com/maximhq/bifrost/transports/bifrost-http/integrations"
@@ -163,12 +165,33 @@ func (h *RealtimeClientSecretsHandler) handleRequest(ctx *fasthttp.RequestCtx) {
 
 	logger.Info("[realtime-client-secrets] upstream success: provider=%s model=%s status=%d",
 		providerKey, model, resp.StatusCode)
-	cacheRealtimeEphemeralKeyMapping(
-		h.handlerStore.GetKVStore(),
-		resp.Body,
-		key.ID,
-		bifrost.GetStringFromContext(bifrostCtx, schemas.BifrostContextKeyVirtualKey),
-	)
+	virtualKey := bifrost.GetStringFromContext(bifrostCtx, schemas.BifrostContextKeyVirtualKey)
+	masterKey := encrypt.Key()
+	wrappedBody, wrapped, wrapErr := wrapRealtimeClientSecretResponse(resp.Body, key.ID, virtualKey, masterKey)
+	if wrapErr != nil {
+		SendBifrostError(ctx, newRealtimeClientSecretHandlerError(
+			fasthttp.StatusInternalServerError,
+			"server_error",
+			"failed to bind realtime client secret to its routing identity",
+			wrapErr,
+		))
+		return
+	}
+	if wrapped {
+		resp.Body = wrappedBody
+	} else if len(masterKey) > 0 {
+		SendBifrostError(ctx, newRealtimeClientSecretHandlerError(
+			fasthttp.StatusBadGateway,
+			"server_error",
+			"provider returned a realtime client secret that could not be bound to its routing identity",
+			nil,
+		))
+		return
+	} else {
+		// Encryption is optional for single-process installations. Preserve the
+		// local TTL mapping there; multi-node deployments use the portable token.
+		cacheRealtimeEphemeralKeyMapping(h.handlerStore.GetKVStore(), resp.Body, key.ID, virtualKey)
+	}
 
 	writeRealtimeClientSecretResponse(ctx, resp)
 }
@@ -376,30 +399,49 @@ func rewriteGASessionTranscriptionModel(session map[string]json.RawMessage, norm
 
 const realtimeEphemeralKeyMappingPrefix = "realtime:ephemeral-key:"
 
+const realtimeEphemeralKeyMappingVersion = 1
+
 type realtimeEphemeralKeyMapping struct {
-	KeyID      string `json:"key_id,omitempty"`
-	VirtualKey string `json:"virtual_key,omitempty"`
+	Version       int    `json:"version"`
+	KeyID         string `json:"key_id,omitempty"`
+	VirtualKey    string `json:"virtual_key,omitempty"`
+	UpstreamToken string `json:"-"`
 }
 
-// isNilKVStore handles both a nil interface and a typed-nil implementation
-// boxed into schemas.KVStore. HandlerStore.GetKVStore returns *kvstore.Store,
-// so passing an uninitialized store through the interface would otherwise make
-// a simple kv == nil guard ineffective and panic on the first method call.
-func isNilKVStore(kv schemas.KVStore) bool {
-	if kv == nil {
-		return true
+func wrapRealtimeClientSecretResponse(body []byte, keyID string, virtualKey string, masterKey []byte) ([]byte, bool, error) {
+	if len(masterKey) == 0 {
+		return body, false, nil
 	}
-	value := reflect.ValueOf(kv)
-	switch value.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return value.IsNil()
-	default:
-		return false
+
+	valuePath := "value"
+	value := providerUtils.GetJSONField(body, valuePath)
+	expiresAt := providerUtils.GetJSONField(body, "expires_at")
+	if !value.Exists() || value.String() == "" || !expiresAt.Exists() || expiresAt.Int() <= 0 {
+		valuePath = "client_secret.value"
+		value = providerUtils.GetJSONField(body, valuePath)
+		expiresAt = providerUtils.GetJSONField(body, "client_secret.expires_at")
 	}
+	if !value.Exists() || value.String() == "" || !expiresAt.Exists() || expiresAt.Int() <= time.Now().Unix() {
+		return body, false, nil
+	}
+
+	wrappedToken, err := sealRealtimeEphemeralToken(masterKey, value.String(), keyID, virtualKey, expiresAt.Int())
+	if err != nil {
+		return nil, false, err
+	}
+	encodedToken, err := json.Marshal(wrappedToken)
+	if err != nil {
+		return nil, false, err
+	}
+	rewritten, err := providerUtils.SetRawJSONField(body, valuePath, encodedToken)
+	if err != nil {
+		return nil, false, err
+	}
+	return rewritten, true, nil
 }
 
-func cacheRealtimeEphemeralKeyMapping(kv schemas.KVStore, body []byte, keyID string, virtualKey string) {
-	if isNilKVStore(kv) || len(body) == 0 || strings.TrimSpace(keyID) == "" {
+func cacheRealtimeEphemeralKeyMapping(kv *kvstore.Store, body []byte, keyID string, virtualKey string) {
+	if kv == nil || len(body) == 0 || strings.TrimSpace(keyID) == "" {
 		return
 	}
 
@@ -409,6 +451,7 @@ func cacheRealtimeEphemeralKeyMapping(kv schemas.KVStore, body []byte, keyID str
 	}
 
 	payload, err := json.Marshal(realtimeEphemeralKeyMapping{
+		Version:    realtimeEphemeralKeyMappingVersion,
 		KeyID:      strings.TrimSpace(keyID),
 		VirtualKey: strings.TrimSpace(virtualKey),
 	})

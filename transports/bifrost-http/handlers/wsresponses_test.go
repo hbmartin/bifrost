@@ -349,6 +349,7 @@ func TestRealtimeEphemeralMappingOverridesCompetingCredentialInBothContexts(t *t
 	defer store.Close()
 
 	payload, err := json.Marshal(realtimeEphemeralKeyMapping{
+		Version:    realtimeEphemeralKeyMappingVersion,
 		KeyID:      "mapped-key-id",
 		VirtualKey: "sk-bf-mapped-virtual-key",
 	})
