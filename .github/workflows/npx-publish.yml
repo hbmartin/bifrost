@@ -63,6 +63,7 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
+          persist-credentials: false
 
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -90,7 +91,7 @@ jobs:
       - name: Install dependencies
         if: steps.check-bifrost.outputs.changed == 'true'
         working-directory: npx/bifrost
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Run tests
         if: steps.check-bifrost.outputs.changed == 'true'
@@ -118,7 +119,7 @@ jobs:
           
           # Try OIDC (Trusted Publishing) first - no token needed
           echo "Attempting publish with OIDC (Trusted Publishing)..."
-          if npm publish --provenance --access public 2>&1; then
+          if npm publish --ignore-scripts --provenance --access public 2>&1; then
             echo "Published successfully with OIDC!"
             exit 0
           fi
@@ -127,7 +128,7 @@ jobs:
           if [ -n "$NPM_TOKEN" ]; then
             echo "OIDC failed, falling back to NPM_TOKEN..."
             export NODE_AUTH_TOKEN="$NPM_TOKEN"
-            npm publish --access public
+            npm publish --ignore-scripts --access public
           else
             echo "OIDC failed and no NPM_TOKEN available"
             exit 1
@@ -186,6 +187,7 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
+          persist-credentials: false
 
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -230,7 +232,7 @@ jobs:
           
           # Try OIDC (Trusted Publishing) first - no token needed
           echo "Attempting publish with OIDC (Trusted Publishing)..."
-          if npm publish --provenance --access public 2>&1; then
+          if npm publish --ignore-scripts --provenance --access public 2>&1; then
             echo "Published successfully with OIDC!"
             exit 0
           fi
@@ -239,7 +241,7 @@ jobs:
           if [ -n "$NPM_TOKEN" ]; then
             echo "OIDC failed, falling back to NPM_TOKEN..."
             export NODE_AUTH_TOKEN="$NPM_TOKEN"
-            npm publish --access public
+            npm publish --ignore-scripts --access public
           else
             echo "OIDC failed and no NPM_TOKEN available"
             exit 1
@@ -268,7 +270,11 @@ jobs:
           fi
           if ! git rev-parse "$FULL_TAG" >/dev/null 2>&1; then
             git tag "$FULL_TAG"
-            git push origin "$FULL_TAG"
+            PUSH_AUTH_HEADER=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')
+            GIT_CONFIG_COUNT=1 \
+              GIT_CONFIG_KEY_0=http.https://github.com/.extraheader \
+              GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $PUSH_AUTH_HEADER" \
+              git push origin "$FULL_TAG"
           fi
           gh release create "$FULL_TAG" \
             --title "Bifrost CLI v$VERSION" \
