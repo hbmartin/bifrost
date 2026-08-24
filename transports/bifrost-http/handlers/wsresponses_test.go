@@ -388,7 +388,7 @@ func TestRealtimeEphemeralMappingOverridesCompetingCredentialInBothContexts(t *t
 			{key: "x-bf-api-key-id", value: "competing-key-id"},
 		},
 	}
-	resolved, isEphemeral := resolveRealtimeWebSocketEphemeralMapping(store, auth)
+	resolved, isEphemeral := resolveRealtimeWebSocketEphemeralMappingWithCodec(store, auth, nil)
 	if resolved == nil || !isEphemeral {
 		t.Fatal("expected ephemeral mapping to resolve")
 	}
@@ -471,7 +471,7 @@ func TestRealtimeSessionRestoresOrdinaryRoutingPinOverClientHeader(t *testing.T)
 
 func TestResolveRealtimeWebSocketEphemeralMappingLeavesOrdinaryAuthorizationAlone(t *testing.T) {
 	auth := &authHeaders{authorization: "Bearer sk-bf-ordinary"}
-	mapping, isEphemeral := resolveRealtimeWebSocketEphemeralMapping(nil, auth)
+	mapping, isEphemeral := resolveRealtimeWebSocketEphemeralMappingWithCodec(nil, auth, nil)
 	assert.Nil(t, mapping)
 	assert.False(t, isEphemeral)
 }
@@ -484,7 +484,7 @@ func TestResolveRealtimeWebSocketEphemeralMappingFlagsUnmappedEphemeralToken(t *
 	defer store.Close()
 
 	auth := &authHeaders{authorization: "Bearer ek_expired"}
-	mapping, isEphemeral := resolveRealtimeWebSocketEphemeralMapping(store, auth)
+	mapping, isEphemeral := resolveRealtimeWebSocketEphemeralMappingWithCodec(store, auth, nil)
 	assert.Nil(t, mapping)
 	assert.True(t, isEphemeral, "an unmapped ephemeral token must be reported so the upgrade is rejected instead of failing open")
 }

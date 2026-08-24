@@ -149,6 +149,17 @@ class DeployButtonURLTests(unittest.TestCase):
                 "test",
             )
 
+    def test_bare_railway_template_path_with_empty_delimiter_is_rejected(self) -> None:
+        for delimiter in ("?", "#"):
+            with self.subTest(delimiter=delimiter):
+                with self.assertRaisesRegex(
+                    AssertionError, "no credentials, port, query, or fragment"
+                ):
+                    validator.parse_deploy_button_url(
+                        f"https://railway.com/new/template{delimiter}",
+                        "test",
+                    )
+
     def test_bare_railway_template_path_with_trailing_slash_is_rejected(self) -> None:
         with self.assertRaisesRegex(AssertionError, "must name exactly one template slug"):
             validator.parse_deploy_button_url(
