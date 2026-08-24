@@ -109,9 +109,10 @@ func applyRealtimeSessionContextValues(
 ) {
 	applyRealtimeMiddlewareValues(bifrostCtx, middlewareValues)
 	applyResolvedRealtimeEphemeralMapping(bifrostCtx, mapping)
-	if mapping == nil {
-		return
-	}
+	// applyRealtimeMiddlewareValues preserves values replayed from the request
+	// headers, so restore the post-routing pin explicitly even when this is an
+	// ordinary (non-ephemeral) upgrade. When a mapping exists this also keeps the
+	// routing decision authoritative over the mapped key.
 	if pinned, ok := middlewareValues[schemas.BifrostContextKeyAPIKeyID]; ok && pinned != nil {
 		bifrostCtx.SetValue(schemas.BifrostContextKeyAPIKeyID, pinned)
 	}

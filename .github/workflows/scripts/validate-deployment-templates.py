@@ -94,13 +94,11 @@ def parse_deploy_button_url(url: str, label: str) -> DeployButtonKey | None:
         # Treat any number of trailing slashes consistently so a Render URL
         # such as /deploy// cannot bypass deploy-button validation.
         path = parsed.path.rstrip("/")
-    except ValueError:
-        # No browser can be sent to a URL urlsplit rejects, so whatever this is
-        # (an IPv6 example the URL regex truncated, malformed prose), it is not
-        # a working deploy button. Recorded button URLs still fail closed: an
-        # unparseable button_url yields None, which never matches the expected
-        # key computed from the verified branch or slug.
-        return None
+    except ValueError as error:
+        # Deployment documentation is executable user guidance. Keep malformed
+        # candidates visible instead of silently dropping them from the button
+        # sweep and later reporting only that an expected button is missing.
+        fail(f"{label} contains an invalid URL {url!r}: {error}")
 
     if host == "render.com" and path == "/deploy":
         if parsed.scheme.lower() != "https" or parsed.netloc.lower() != "render.com" or parsed.fragment:
@@ -125,10 +123,13 @@ def parse_deploy_button_url(url: str, label: str) -> DeployButtonKey | None:
             fail(f"{label} Render repo parameter must be an unambiguous GitHub branch URL: {repo_url}")
         return ("render", repo.path)
 
-    # Match every Railway template-launch shape, including the historical
-    # query form (/new/template?template=SLUG) and a bare /new/template, so a
-    # functional non-canonical button cannot slip past the sweep as prose.
-    if host in {"railway.com", "railway.app"} and (path == "/new/template" or path.startswith("/new/template/")):
+    # Match slug launch URLs and historical query-form launch URLs. A bare
+    # /new/template with no query identifies no template, so it is an ordinary
+    # Railway navigation link rather than a Bifrost one-click button.
+    railway_template_path = path.startswith("/new/template/") or (
+        path == "/new/template" and bool(parsed.query)
+    )
+    if host in {"railway.com", "railway.app"} and railway_template_path:
         if (
             parsed.scheme.lower() != "https"
             or parsed.netloc.lower() != host
