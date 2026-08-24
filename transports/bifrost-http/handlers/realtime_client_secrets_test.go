@@ -2,8 +2,10 @@ package handlers
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -543,6 +545,59 @@ func TestRealtimeEphemeralTokenRejectsWrongKeyAndTampering(t *testing.T) {
 	tampered := string(tamperedBytes)
 	if mapping, ok := codec.open(tampered); ok {
 		t.Fatalf("tampered token resolved mapping %#v", mapping)
+	}
+}
+
+func TestRealtimeEphemeralTokenSealClampsFarFutureExpiry(t *testing.T) {
+	t.Parallel()
+
+	codec := mustRealtimeEphemeralTokenCodec(t, []byte("shared-cluster-encryption-key-for-tests"))
+	before := time.Now()
+	token, err := codec.seal("ek_upstream", "key-1", "", before.Add(30*24*time.Hour).Unix())
+	if err != nil {
+		t.Fatalf("codec.seal() error = %v", err)
+	}
+
+	sealed, err := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(token, realtimeEphemeralTokenPrefix))
+	if err != nil {
+		t.Fatalf("DecodeString() error = %v", err)
+	}
+	nonceSize := codec.aead.NonceSize()
+	payloadJSON, err := codec.aead.Open(nil, sealed[:nonceSize], sealed[nonceSize:], []byte(realtimeEphemeralTokenPrefix))
+	if err != nil {
+		t.Fatalf("opening sealed payload: %v", err)
+	}
+	var payload realtimeEphemeralTokenPayload
+	if err := json.Unmarshal(payloadJSON, &payload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	maxExpected := before.Add(realtimeEphemeralKeyMappingMaxTTL).Add(time.Second).Unix()
+	if payload.ExpiresAt > maxExpected {
+		t.Fatalf("sealed expiry = %d, want at most %d", payload.ExpiresAt, maxExpected)
+	}
+	if _, ok := codec.open(token); !ok {
+		t.Fatal("clamped token did not round-trip")
+	}
+}
+
+func TestRealtimeEphemeralTokenOpenRejectsFarFuturePayload(t *testing.T) {
+	t.Parallel()
+
+	codec := mustRealtimeEphemeralTokenCodec(t, []byte("shared-cluster-encryption-key-for-tests"))
+	payloadJSON, err := json.Marshal(realtimeEphemeralTokenPayload{
+		Version:       realtimeEphemeralTokenVersion,
+		UpstreamToken: "ek_upstream",
+		KeyID:         "key-1",
+		ExpiresAt:     time.Now().Add(30 * 24 * time.Hour).Unix(),
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+	nonce := make([]byte, codec.aead.NonceSize())
+	sealed := codec.aead.Seal(nonce, nonce, payloadJSON, []byte(realtimeEphemeralTokenPrefix))
+	token := realtimeEphemeralTokenPrefix + base64.RawURLEncoding.EncodeToString(sealed)
+	if mapping, ok := codec.open(token); ok {
+		t.Fatalf("far-future token resolved mapping %#v", mapping)
 	}
 }
 
