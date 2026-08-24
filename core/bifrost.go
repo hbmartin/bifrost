@@ -6711,7 +6711,8 @@ func executeRequestWithRetries[T any](
 		// isPerKeyFailure: failure is bound to this specific key/account (401/402/403/429, or a
 		//   rate-limit error surfaced via message text instead of a 429 status). The same key
 		//   won't help — try a different one.
-		// retryable 5xx / network errors: transient server issues — retry with the same key.
+		// retryable 5xx / network errors: transient server issues — retry with the same key
+		// only when replaying the operation is safe or explicitly idempotent.
 		shouldRetry := false
 		isPerKeyFailure := (bifrostError.StatusCode != nil && perKeyFailureStatusCodes[*bifrostError.StatusCode]) ||
 			(bifrostError.Error != nil &&
@@ -6724,11 +6725,21 @@ func executeRequestWithRetries[T any](
 		if bifrostError.Error != nil &&
 			(bifrostError.Error.Message == schemas.ErrProviderDoRequest ||
 				bifrostError.Error.Message == schemas.ErrProviderNetworkError) {
-			shouldRetry = true
-			logger.Debug("detected request HTTP/network error, will retry: %s", errMessage)
+			shouldRetry = canRetryAmbiguousProviderFailure(requestType, providerKey, req)
+			if shouldRetry {
+				logger.Debug("detected request HTTP/network error, will retry: %s", errMessage)
+			} else {
+				logger.Debug("not retrying HTTP/network error for non-idempotent %s/%s operation", providerKey, requestType)
+			}
 		} else if (bifrostError.StatusCode != nil && transientServerStatusCodes[*bifrostError.StatusCode]) || isPerKeyFailure {
 			shouldRetry = true
-			logger.Debug("encountered error that should be retried: %s", errMessage)
+			if bifrostError.StatusCode != nil && *bifrostError.StatusCode == fasthttp.StatusBadGateway &&
+				!canRetryAmbiguousProviderFailure(requestType, providerKey, req) {
+				shouldRetry = false
+				logger.Debug("not retrying 502 for non-idempotent %s/%s operation", providerKey, requestType)
+			} else {
+				logger.Debug("encountered error that should be retried: %s", errMessage)
+			}
 		}
 
 		// Fail soft when the upstream refuses replayed encrypted reasoning. The ciphertext
@@ -6814,6 +6825,22 @@ func executeRequestWithRetries[T any](
 	}
 
 	return result, bifrostError
+}
+
+// canRetryAmbiguousProviderFailure reports whether a request may be repeated after
+// a 502 or transport failure where Bifrost cannot prove the provider rejected it.
+// Resource creates and uploads fail closed unless the concrete provider operation
+// carries an idempotency key that is actually sent upstream.
+func canRetryAmbiguousProviderFailure(requestType schemas.RequestType, providerKey schemas.ModelProvider, req *schemas.BifrostRequest) bool {
+	switch requestType {
+	case schemas.BatchCreateRequest:
+		return providerKey == schemas.Bedrock && req != nil &&
+			bedrock.BatchClientRequestToken(req.BatchCreateRequest) != ""
+	case schemas.CachedContentCreateRequest, schemas.FileUploadRequest:
+		return false
+	default:
+		return true
+	}
 }
 
 // clearAnthropicPassthroughForNonNativeProvider disables Anthropic raw-body passthrough when a

@@ -1409,12 +1409,16 @@ func TestExecuteRequestWithRetries_RetriesFirstChunkUpstreamResponseError(t *tes
 	result, bifrostErr := executeRequestWithRetries(
 		ctx,
 		createTestConfig(1, 0, 0),
-		func(schemas.Key) (string, *schemas.BifrostError) {
+		func(schemas.Key) (chan *schemas.BifrostStreamChunk, *schemas.BifrostError) {
 			attempts++
+			stream := make(chan *schemas.BifrostStreamChunk, 1)
 			if attempts == 1 {
-				return "", providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, errors.New("malformed JSON"))
+				stream <- &schemas.BifrostStreamChunk{BifrostError: providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, errors.New("malformed JSON"))}
+			} else {
+				stream <- &schemas.BifrostStreamChunk{BifrostChatResponse: &schemas.BifrostChatResponse{ID: "chatcmpl-ok"}}
 			}
-			return "ok", nil
+			close(stream)
+			return stream, nil
 		},
 		func(map[string]bool, map[string]bool) (schemas.Key, error) {
 			return schemas.Key{ID: "key-1", Name: "Key 1"}, nil
@@ -1426,8 +1430,150 @@ func TestExecuteRequestWithRetries_RetriesFirstChunkUpstreamResponseError(t *tes
 		logger,
 	)
 
+	if bifrostErr != nil {
+		t.Fatalf("error=%v, want successful retry", bifrostErr)
+	}
+	chunk, ok := <-result
+	if !ok || chunk == nil || chunk.BifrostChatResponse == nil || chunk.BifrostChatResponse.ID != "chatcmpl-ok" || attempts != 2 {
+		t.Fatalf("chunk=%#v open=%v attempts=%d, want successful second-attempt chunk", chunk, ok, attempts)
+	}
+}
+
+func TestExecuteRequestWithRetries_DoesNotReplayAcceptedNonIdempotentOperations(t *testing.T) {
+	testCases := []struct {
+		name        string
+		requestType schemas.RequestType
+		provider    schemas.ModelProvider
+		req         *schemas.BifrostRequest
+	}{
+		{
+			name:        "bedrock batch create without client request token",
+			requestType: schemas.BatchCreateRequest,
+			provider:    schemas.Bedrock,
+			req:         &schemas.BifrostRequest{BatchCreateRequest: &schemas.BifrostBatchCreateRequest{}},
+		},
+		{
+			name:        "gemini cached content create",
+			requestType: schemas.CachedContentCreateRequest,
+			provider:    schemas.Gemini,
+			req:         &schemas.BifrostRequest{CachedContentCreateRequest: &schemas.BifrostCachedContentCreateRequest{}},
+		},
+		{
+			name:        "gemini file upload",
+			requestType: schemas.FileUploadRequest,
+			provider:    schemas.Gemini,
+			req:         &schemas.BifrostRequest{FileUploadRequest: &schemas.BifrostFileUploadRequest{}},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
+			ctx.SetValue(schemas.BifrostContextKeyTracer, &schemas.NoOpTracer{})
+			attempts := 0
+			_, bifrostErr := executeRequestWithRetries(
+				ctx,
+				createTestConfig(1, 0, 0),
+				func(schemas.Key) (string, *schemas.BifrostError) {
+					attempts++
+					return "", providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, errors.New("malformed JSON"))
+				},
+				nil,
+				tc.requestType,
+				tc.provider,
+				"test-model",
+				tc.req,
+				NewDefaultLogger(schemas.LogLevelError),
+			)
+
+			if bifrostErr == nil || attempts != 1 {
+				t.Fatalf("error=%v attempts=%d, want terminal first-attempt response error", bifrostErr, attempts)
+			}
+		})
+	}
+}
+
+func TestExecuteRequestWithRetries_ReplaysIdempotentBedrockBatchCreate(t *testing.T) {
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
+	ctx.SetValue(schemas.BifrostContextKeyTracer, &schemas.NoOpTracer{})
+	attempts := 0
+	req := &schemas.BifrostRequest{BatchCreateRequest: &schemas.BifrostBatchCreateRequest{
+		ExtraParams: map[string]any{"clientRequestToken": "stable-token"},
+	}}
+
+	result, bifrostErr := executeRequestWithRetries(
+		ctx,
+		createTestConfig(1, 0, 0),
+		func(schemas.Key) (string, *schemas.BifrostError) {
+			attempts++
+			if attempts == 1 {
+				return "", providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, errors.New("malformed JSON"))
+			}
+			return "ok", nil
+		},
+		nil,
+		schemas.BatchCreateRequest,
+		schemas.Bedrock,
+		"test-model",
+		req,
+		NewDefaultLogger(schemas.LogLevelError),
+	)
+
 	if bifrostErr != nil || result != "ok" || attempts != 2 {
-		t.Fatalf("result=%q error=%v attempts=%d, want successful retry", result, bifrostErr, attempts)
+		t.Fatalf("result=%q error=%v attempts=%d, want idempotent retry success", result, bifrostErr, attempts)
+	}
+}
+
+func TestExecuteRequestWithRetries_DoesNotReplayNetworkFailureForNonIdempotentOperation(t *testing.T) {
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
+	ctx.SetValue(schemas.BifrostContextKeyTracer, &schemas.NoOpTracer{})
+	attempts := 0
+
+	_, bifrostErr := executeRequestWithRetries(
+		ctx,
+		createTestConfig(1, 0, 0),
+		func(schemas.Key) (string, *schemas.BifrostError) {
+			attempts++
+			return "", providerUtils.NewBifrostUpstreamConnectionError(schemas.ErrProviderDoRequest, errors.New("connection reset"))
+		},
+		nil,
+		schemas.FileUploadRequest,
+		schemas.Gemini,
+		"test-model",
+		&schemas.BifrostRequest{FileUploadRequest: &schemas.BifrostFileUploadRequest{}},
+		NewDefaultLogger(schemas.LogLevelError),
+	)
+
+	if bifrostErr == nil || attempts != 1 {
+		t.Fatalf("error=%v attempts=%d, want terminal ambiguous network failure", bifrostErr, attempts)
+	}
+}
+
+func TestExecuteRequestWithRetries_RetriesPreAcceptanceFailureForReplaySafeOperation(t *testing.T) {
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
+	ctx.SetValue(schemas.BifrostContextKeyTracer, &schemas.NoOpTracer{})
+	attempts := 0
+
+	result, bifrostErr := executeRequestWithRetries(
+		ctx,
+		createTestConfig(1, 0, 0),
+		func(schemas.Key) (string, *schemas.BifrostError) {
+			attempts++
+			if attempts == 1 {
+				return "", providerUtils.NewBifrostUpstreamConnectionError(schemas.ErrProviderDoRequest, errors.New("connection reset"))
+			}
+			return "ok", nil
+		},
+		nil,
+		schemas.TranscriptionRequest,
+		schemas.Mistral,
+		"test-model",
+		&schemas.BifrostRequest{TranscriptionRequest: &schemas.BifrostTranscriptionRequest{}},
+		NewDefaultLogger(schemas.LogLevelError),
+	)
+
+	if bifrostErr != nil || result != "ok" || attempts != 2 {
+		t.Fatalf("result=%q error=%v attempts=%d, want pre-acceptance retry success", result, bifrostErr, attempts)
 	}
 }
 
