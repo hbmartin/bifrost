@@ -14,13 +14,9 @@ const (
 )
 
 func classifyRealtimeKeySelectionError(err error, mappedEphemeralCredential bool) (int, string, string) {
-	if errors.Is(err, errRealtimeEphemeralKeyUnknown) {
-		return fasthttp.StatusUnauthorized, "invalid_request_error", errRealtimeEphemeralKeyUnknown.Error()
-	}
-	if errors.Is(err, bifrost.ErrKeySelectionUnavailable) {
-		return classifyKeySelectionError(err)
-	}
-	if mappedEphemeralCredential {
+	if errors.Is(err, errRealtimeEphemeralKeyUnknown) ||
+		(mappedEphemeralCredential &&
+			(errors.Is(err, bifrost.ErrPinnedAPIKeyUnavailable) || errors.Is(err, bifrost.ErrPinnedAPIKeyIneligible))) {
 		return fasthttp.StatusUnauthorized, "invalid_request_error", errRealtimeEphemeralKeyUnknown.Error()
 	}
 	return classifyKeySelectionError(err)
