@@ -163,8 +163,11 @@ func (state *openAIStreamChoiceState) recordForwardedFinishReasons(choices []sch
 			state.singleFinishReasonForwarded = true
 			continue
 		}
-		if state.forwardedFinishReasonIndexes == nil {
-			state.promote(state.expected)
+		if state.seenChoices == nil {
+			continue
+		}
+		if _, seen := state.seenChoices[choice.Index]; !seen {
+			continue
 		}
 		state.forwardedFinishReasonIndexes[choice.Index] = true
 	}
@@ -172,19 +175,14 @@ func (state *openAIStreamChoiceState) recordForwardedFinishReasons(choices []sch
 
 func (state *openAIStreamChoiceState) allFinished() bool {
 	if state.seenChoices == nil {
-		return state.expected <= 1 && state.singleFinishReason != ""
+		return state.singleSeen && state.singleFinishReason != ""
 	}
 	required := max(state.expected, len(state.seenChoices))
 	return len(state.finishReasons) >= required
 }
 
 func (state *openAIStreamChoiceState) sortedIndexes() []int {
-	indexes := make([]int, 0, len(state.seenChoices))
-	for index := range state.seenChoices {
-		indexes = append(indexes, index)
-	}
-	slices.Sort(indexes)
-	return indexes
+	return slices.Sorted(maps.Keys(state.seenChoices))
 }
 
 func (state *openAIStreamChoiceState) finishReason(index int) (string, bool) {
@@ -1021,10 +1019,11 @@ func HandleOpenAITextCompletionStreaming(
 			response.Choices = finalChoices
 		}
 		if postResponseConverter != nil {
-			if converted := postResponseConverter(response); converted != nil {
-				response = converted
-			} else {
-				logger.Warn("postResponseConverter returned nil; leaving chunk unmodified")
+			response = postResponseConverter(response)
+			if response == nil {
+				logger.Warn("postResponseConverter returned nil; skipping chunk")
+				ctx.SetValue(schemas.BifrostContextKeyStreamEndIndicator, true)
+				return
 			}
 		}
 		// Set raw request if enabled
@@ -1777,10 +1776,11 @@ func HandleOpenAIChatCompletionStreaming(
 				response.Choices = finalChoices
 			}
 			if postResponseConverter != nil {
-				if converted := postResponseConverter(response); converted != nil {
-					response = converted
-				} else {
-					logger.Warn("postResponseConverter returned nil; leaving chunk unmodified")
+				response = postResponseConverter(response)
+				if response == nil {
+					logger.Warn("postResponseConverter returned nil; skipping chunk")
+					ctx.SetValue(schemas.BifrostContextKeyStreamEndIndicator, true)
+					return
 				}
 			}
 			// Preserve captured tier so priority/flex billing applies to the streamed response
