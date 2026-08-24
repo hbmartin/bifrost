@@ -15,6 +15,8 @@ import (
 	bifrost "github.com/maximhq/bifrost/core"
 	"github.com/maximhq/bifrost/core/providers/openai"
 	"github.com/maximhq/bifrost/core/schemas"
+	"github.com/maximhq/bifrost/framework/encrypt"
+	"github.com/maximhq/bifrost/framework/kvstore"
 	"github.com/maximhq/bifrost/plugins/modelcatalogresolver"
 	"github.com/maximhq/bifrost/transports/bifrost-http/integrations"
 	"github.com/maximhq/bifrost/transports/bifrost-http/lib"
@@ -361,23 +363,34 @@ func (h *WebRTCRealtimeHandler) resolveRealtimeWebRTCKeys(
 	}
 
 	selectedKey, err := h.client.SelectKeyForProviderRequestType(bifrostCtx, schemas.RealtimeRequest, providerKey, model)
-	if err != nil && mapped && mapping.KeyID != "" {
-		bifrostCtx.ClearValue(schemas.BifrostContextKeyAPIKeyID)
-		selectedKey, err = h.client.SelectKeyForProviderRequestType(bifrostCtx, schemas.RealtimeRequest, providerKey, model)
-	}
 	if err != nil {
 		return schemas.Key{}, nil, err
 	}
 
 	authKey := selectedKey
 	if mapped && inboundToken != "" {
-		authKey.Value = *schemas.NewSecretVar(inboundToken)
+		upstreamToken := inboundToken
+		if mapping.UpstreamToken != "" {
+			upstreamToken = mapping.UpstreamToken
+		}
+		authKey.Value = *schemas.NewSecretVar(upstreamToken)
 	}
 	return authKey, &selectedKey, nil
 }
 
-func lookupRealtimeEphemeralKeyMapping(kv schemas.KVStore, token string) (realtimeEphemeralKeyMapping, bool) {
-	if isNilKVStore(kv) || strings.TrimSpace(token) == "" {
+func lookupRealtimeEphemeralKeyMapping(kv *kvstore.Store, token string) (realtimeEphemeralKeyMapping, bool) {
+	return lookupRealtimeEphemeralKeyMappingWithKey(kv, token, encrypt.Key())
+}
+
+func lookupRealtimeEphemeralKeyMappingWithKey(kv *kvstore.Store, token string, masterKey []byte) (realtimeEphemeralKeyMapping, bool) {
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return realtimeEphemeralKeyMapping{}, false
+	}
+	if strings.HasPrefix(token, realtimeEphemeralTokenPrefix) {
+		return openRealtimeEphemeralToken(masterKey, token)
+	}
+	if kv == nil {
 		return realtimeEphemeralKeyMapping{}, false
 	}
 
@@ -406,24 +419,11 @@ func parseRealtimeEphemeralKeyMappingValue(raw []byte) (realtimeEphemeralKeyMapp
 	if err := json.Unmarshal(raw, &mapping); err == nil {
 		mapping.KeyID = strings.TrimSpace(mapping.KeyID)
 		mapping.VirtualKey = strings.TrimSpace(mapping.VirtualKey)
-		if mapping.KeyID != "" || mapping.VirtualKey != "" {
+		if mapping.Version == realtimeEphemeralKeyMappingVersion && mapping.KeyID != "" {
 			return mapping, true
 		}
 	}
-
-	var keyID string
-	if err := json.Unmarshal(raw, &keyID); err == nil {
-		keyID = strings.TrimSpace(keyID)
-		if keyID != "" {
-			return realtimeEphemeralKeyMapping{KeyID: keyID}, true
-		}
-	}
-
-	keyID = strings.TrimSpace(string(raw))
-	if keyID == "" {
-		return realtimeEphemeralKeyMapping{}, false
-	}
-	return realtimeEphemeralKeyMapping{KeyID: keyID}, true
+	return realtimeEphemeralKeyMapping{}, false
 }
 
 func applyRealtimeEphemeralKeyMapping(bifrostCtx *schemas.BifrostContext, mapping realtimeEphemeralKeyMapping) {
