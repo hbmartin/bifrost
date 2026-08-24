@@ -130,13 +130,22 @@ def parse_deploy_button_url(url: str, label: str) -> DeployButtonKey | None:
             fail(f"{label} Render repo parameter must be an unambiguous GitHub branch URL: {repo_url}")
         return ("render", repo.path)
 
-    railway_template_candidate = path.startswith("/new/template/") or (
-        path == "/new/template" and bool(parsed.query)
-    )
+    railway_template_candidate = path.startswith("/new/template/") or path == "/new/template"
     if host in {"railway.com", "railway.app"} and railway_template_candidate:
-        # Recognize slug URLs and the historical query form. The bare path is
-        # ordinary Railway navigation unless a query turns it into the legacy
-        # deployment form; query and fragment forms are rejected below.
+        # Only the exact canonical bare path is ordinary Railway navigation.
+        # A trailing slash, query, fragment, credentials, or port can otherwise
+        # disguise a slug-less deploy button as the navigation exemption.
+        if (
+            parsed.path == "/new/template"
+            and not parsed.query
+            and not parsed.fragment
+            and parsed.scheme.lower() == "https"
+            and parsed.netloc.lower() == host
+        ):
+            return None
+
+        # Recognize slug URLs and historical query forms so malformed deploy
+        # buttons fail validation rather than silently leaving the candidate set.
         if (
             parsed.scheme.lower() != "https"
             or parsed.netloc.lower() != host
