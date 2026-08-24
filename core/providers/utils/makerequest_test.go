@@ -2,6 +2,7 @@ package utils
 
 import (
 	"context"
+	"errors"
 	"net"
 	"sync/atomic"
 	"testing"
@@ -357,7 +358,7 @@ func TestNewBifrostUpstreamConnectionError(t *testing.T) {
 	err := NewBifrostUpstreamConnectionError("upstream dropped connection", context.DeadlineExceeded)
 
 	if err.IsBifrostError {
-		t.Fatal("expected IsBifrostError to be false (upstream is at fault)")
+		t.Fatal("expected IsBifrostError to be false (upstream connection failure is retriable)")
 	}
 	if err.StatusCode == nil || *err.StatusCode != 502 {
 		t.Fatalf("expected StatusCode 502, got %v", err.StatusCode)
@@ -367,6 +368,23 @@ func TestNewBifrostUpstreamConnectionError(t *testing.T) {
 	}
 	if err.Error.Message != "upstream dropped connection" {
 		t.Fatalf("expected 'upstream dropped connection', got %s", err.Error.Message)
+	}
+}
+
+func TestNewBifrostUpstreamResponseError(t *testing.T) {
+	err := NewBifrostUpstreamResponseError("invalid upstream payload", errors.New("malformed JSON"))
+
+	if !err.IsBifrostError {
+		t.Fatal("expected malformed upstream response to be terminal for the current attempt")
+	}
+	if err.StatusCode == nil || *err.StatusCode != 502 {
+		t.Fatalf("expected StatusCode 502, got %v", err.StatusCode)
+	}
+	if err.Error.Type == nil || *err.Error.Type != schemas.ProviderResponseInvalid {
+		t.Fatalf("expected ProviderResponseInvalid type, got %v", err.Error.Type)
+	}
+	if err.Error.Message != "invalid upstream payload" {
+		t.Fatalf("expected 'invalid upstream payload', got %s", err.Error.Message)
 	}
 }
 
