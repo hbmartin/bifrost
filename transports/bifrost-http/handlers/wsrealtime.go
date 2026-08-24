@@ -15,6 +15,7 @@ import (
 	ws "github.com/fasthttp/websocket"
 	bifrost "github.com/maximhq/bifrost/core"
 	"github.com/maximhq/bifrost/core/schemas"
+	"github.com/maximhq/bifrost/framework/kvstore"
 	"github.com/maximhq/bifrost/transports/bifrost-http/integrations"
 	"github.com/maximhq/bifrost/transports/bifrost-http/lib"
 	bfws "github.com/maximhq/bifrost/transports/bifrost-http/websocket"
@@ -73,7 +74,7 @@ func (h *WSRealtimeHandler) Close() {
 // ephemeral token with no mapping (nil, true) is a dead credential, and the
 // caller must reject it rather than let the connection fall through to
 // whatever competing credential headers were sent alongside it.
-func resolveRealtimeWebSocketEphemeralMapping(kv schemas.KVStore, auth *authHeaders) (*realtimeEphemeralKeyMapping, bool) {
+func resolveRealtimeWebSocketEphemeralMapping(kv *kvstore.Store, auth *authHeaders) (*realtimeEphemeralKeyMapping, bool) {
 	if auth == nil {
 		return nil, false
 	}
