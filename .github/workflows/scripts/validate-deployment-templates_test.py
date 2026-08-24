@@ -61,6 +61,16 @@ class DeployButtonURLTests(unittest.TestCase):
                 "test",
             )
 
+    def test_render_empty_query_components_are_rejected(self) -> None:
+        base = (
+            "https://render.com/deploy?repo="
+            "https%3A%2F%2Fgithub.com%2Fmaximhq%2Fbifrost%2Ftree%2Fdev"
+        )
+        for url in (base + "&", base + "&&", base.replace("?", "?&", 1)):
+            with self.subTest(url=url):
+                with self.assertRaisesRegex(AssertionError, "exactly one"):
+                    validator.parse_deploy_button_url(url, "test")
+
     def test_different_repository_has_a_different_identity(self) -> None:
         expected = validator.parse_deploy_button_url(
             "https://render.com/deploy?repo=https://github.com/maximhq/bifrost/tree/dev",

@@ -74,7 +74,15 @@ func parseVertexError(resp *fasthttp.Response) *schemas.BifrostError {
 				// Try VertexValidationError format (validation errors from Mistral endpoint)
 				var validationErr VertexValidationError
 				if err := sonic.Unmarshal(decodedBody, &validationErr); err != nil {
-					bifrostErr := providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, err)
+					errorType := schemas.ProviderResponseInvalid
+					bifrostErr := providerUtils.NewProviderAPIError(
+						schemas.ErrProviderResponseUnmarshal,
+						err,
+						resp.StatusCode(),
+						&errorType,
+						nil,
+					)
+					bifrostErr.ExtraFields.RawResponse = string(decodedBody)
 					return bifrostErr
 				}
 				if len(validationErr.Detail) > 0 {
