@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -383,6 +384,22 @@ func TestProbeRealtimeClientSecretsAcceptsCompatibleExpiryEncodings(t *testing.T
 	}
 }
 
+func TestProbeRealtimeClientSecretsAllowsBoundedClockSkew(t *testing.T) {
+	t.Parallel()
+
+	withinSkew := time.Now().Add(-realtimeEphemeralTokenClockSkew / 2).Unix()
+	body := fmt.Appendf(nil, `{"value":"ek_within_skew","expires_at":%d}`, withinSkew)
+	if secrets, ok := probeRealtimeClientSecrets(body); !ok || len(secrets) != 1 {
+		t.Fatalf("probeRealtimeClientSecrets() = %#v, %v; want bounded-skew acceptance", secrets, ok)
+	}
+
+	beyondSkew := time.Now().Add(-realtimeEphemeralTokenClockSkew - time.Second).Unix()
+	body = fmt.Appendf(nil, `{"value":"ek_stale","expires_at":%d}`, beyondSkew)
+	if secrets, ok := probeRealtimeClientSecrets(body); ok || len(secrets) != 0 {
+		t.Fatalf("probeRealtimeClientSecrets() = %#v, %v; want stale expiry rejection", secrets, ok)
+	}
+}
+
 func TestWrapRealtimeClientSecretResponseIsPortableAcrossReplicas(t *testing.T) {
 	t.Parallel()
 
@@ -598,6 +615,44 @@ func TestRealtimeEphemeralTokenRoundTripsAcrossReplicaClockSkew(t *testing.T) {
 	}
 }
 
+func TestRealtimeEphemeralTokenAcceptsShortLivedTokenFromFasterVerifier(t *testing.T) {
+	t.Parallel()
+
+	base := time.Unix(1_800_000_000, 0)
+	issuer := mustRealtimeEphemeralTokenCodec(t, []byte("shared-cluster-encryption-key-for-tests"))
+	verifier := mustRealtimeEphemeralTokenCodec(t, []byte("shared-cluster-encryption-key-for-tests"))
+	issuer.now = func() time.Time { return base }
+	verifier.now = func() time.Time { return base.Add(45 * time.Second) }
+
+	token, err := issuer.seal("ek_upstream", "key-1", "", base.Add(30*time.Second).Unix())
+	if err != nil {
+		t.Fatalf("issuer.seal() error = %v", err)
+	}
+	if mapping, ok := verifier.open(token); !ok || mapping.KeyID != "key-1" {
+		t.Fatalf("verifier.open() = %#v, %v; want lower-bound skew tolerance", mapping, ok)
+	}
+
+	verifier.now = func() time.Time { return base.Add(90 * time.Second) }
+	if mapping, ok := verifier.open(token); ok {
+		t.Fatalf("verifier.open() resolved stale mapping %#v beyond skew reserve", mapping)
+	}
+}
+
+func TestRealtimeEphemeralTokenSealAllowsBoundedProviderClockSkew(t *testing.T) {
+	t.Parallel()
+
+	base := time.Unix(1_800_000_000, 0)
+	codec := mustRealtimeEphemeralTokenCodec(t, []byte("shared-cluster-encryption-key-for-tests"))
+	codec.now = func() time.Time { return base.Add(30 * time.Second) }
+
+	if _, err := codec.seal("ek_upstream", "key-1", "", base.Unix()); err != nil {
+		t.Fatalf("codec.seal() rejected expiry within clock-skew reserve: %v", err)
+	}
+	if _, err := codec.seal("ek_upstream", "key-1", "", base.Add(-31*time.Second).Unix()); err == nil {
+		t.Fatal("codec.seal() accepted expiry beyond clock-skew reserve")
+	}
+}
+
 func TestWrapRealtimeClientSecretResponseAdvertisesClampedTokenExpiry(t *testing.T) {
 	t.Parallel()
 
@@ -635,6 +690,33 @@ func TestWrapRealtimeClientSecretResponseAdvertisesClampedTokenExpiry(t *testing
 	}
 	if response.ExpiresAt >= upstreamExpiresAt {
 		t.Fatalf("response expiry = %d, want less than far-future upstream expiry %d", response.ExpiresAt, upstreamExpiresAt)
+	}
+}
+
+func TestWrapRealtimeClientSecretResponsePreservesStringExpiryTypeWhenClamped(t *testing.T) {
+	t.Parallel()
+
+	codec := mustRealtimeEphemeralTokenCodec(t, []byte("shared-cluster-encryption-key-for-tests"))
+	upstreamExpiresAt := time.Now().Add(30 * 24 * time.Hour).Unix()
+	body := fmt.Appendf(nil, `{"value":"ek_upstream","expires_at":"%d"}`, upstreamExpiresAt)
+
+	rewritten, wrapped, err := wrapRealtimeClientSecretResponseWithCodec(body, "key-1", "", codec)
+	if err != nil || !wrapped {
+		t.Fatalf("wrapRealtimeClientSecretResponseWithCodec() = wrapped %v, error %v", wrapped, err)
+	}
+
+	var response struct {
+		ExpiresAt string `json:"expires_at"`
+	}
+	if err := json.Unmarshal(rewritten, &response); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	clampedExpiry, err := strconv.ParseInt(response.ExpiresAt, 10, 64)
+	if err != nil {
+		t.Fatalf("expires_at = %q, want integer encoded as JSON string: %v", response.ExpiresAt, err)
+	}
+	if clampedExpiry >= upstreamExpiresAt {
+		t.Fatalf("expires_at = %d, want clamped value below %d", clampedExpiry, upstreamExpiresAt)
 	}
 }
 

@@ -10,6 +10,10 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
+func newVertexEmbeddingResponseUnmarshalError(err error) *schemas.BifrostError {
+	return providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, err)
+}
+
 func parseVertexError(resp *fasthttp.Response) *schemas.BifrostError {
 	var openAIErr schemas.BifrostError
 	var vertexErr []VertexError
