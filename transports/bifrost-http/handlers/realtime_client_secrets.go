@@ -125,10 +125,8 @@ func (h *RealtimeClientSecretsHandler) handleRequest(ctx *fasthttp.RequestCtx) {
 
 	key, keyErr := h.client.SelectKeyForProviderRequestType(bifrostCtx, schemas.RealtimeRequest, providerKey, model)
 	if keyErr != nil {
-		if logger != nil {
-			logger.Warn("realtime client-secret key selection failed: provider=%s model=%s error=%v", providerKey, model, keyErr)
-		}
-		status, errorType, message := classifyRealtimeKeySelectionError(keyErr, false)
+		status, errorType, message := classifyKeySelectionError(keyErr)
+		logKeySelectionFailure("realtime client-secret", providerKey, model, false, status, keyErr)
 		SendBifrostError(ctx, newRealtimeClientSecretHandlerError(
 			status,
 			errorType,

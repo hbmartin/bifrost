@@ -1304,9 +1304,14 @@ func (provider *GeminiProvider) Embedding(ctx *schemas.BifrostContext, key schem
 	// Convert to Bifrost format
 	bifrostResponse := ToBifrostEmbeddingResponse(&geminiResponse, request.Model)
 	if bifrostResponse == nil {
-		return nil, providerUtils.NewBifrostOperationError(
-			"failed to convert Gemini embedding response to Bifrost format",
-			fmt.Errorf("Gemini embedding response converter returned nil"),
+		return nil, providerUtils.EnrichError(
+			ctx,
+			newGeminiEmbeddingResponseError(),
+			jsonData,
+			body,
+			provider.sendBackRawRequest,
+			provider.sendBackRawResponse,
+			latency,
 		)
 	}
 
@@ -1323,6 +1328,13 @@ func (provider *GeminiProvider) Embedding(ctx *schemas.BifrostContext, key schem
 	}
 
 	return bifrostResponse, nil
+}
+
+func newGeminiEmbeddingResponseError() *schemas.BifrostError {
+	return providerUtils.NewBifrostUpstreamResponseError(
+		schemas.ErrProviderResponseUnmarshal,
+		fmt.Errorf("Gemini embedding response converter returned nil: response contained no embeddings"),
+	)
 }
 
 // Speech performs a speech synthesis request to the Gemini API.

@@ -3,6 +3,7 @@ package vertex
 import (
 	"testing"
 
+	"github.com/maximhq/bifrost/core/schemas"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/valyala/fasthttp"
@@ -37,4 +38,22 @@ func TestParseVertexError_NoStatusNoType(t *testing.T) {
 	require.NotNil(t, bifrostErr)
 	require.NotNil(t, bifrostErr.Error)
 	assert.Nil(t, bifrostErr.Error.Type, "no status present, so none should be fabricated")
+}
+
+func TestParseVertexError_MalformedBodyPreservesUpstreamStatus(t *testing.T) {
+	var resp fasthttp.Response
+	resp.SetStatusCode(fasthttp.StatusUnauthorized)
+	resp.SetBodyString(`not-json`)
+
+	bifrostErr := parseVertexError(&resp)
+
+	require.NotNil(t, bifrostErr)
+	require.NotNil(t, bifrostErr.StatusCode)
+	assert.Equal(t, fasthttp.StatusUnauthorized, *bifrostErr.StatusCode)
+	assert.False(t, bifrostErr.IsBifrostError)
+	require.NotNil(t, bifrostErr.Error)
+	assert.Equal(t, schemas.ErrProviderResponseUnmarshal, bifrostErr.Error.Message)
+	require.NotNil(t, bifrostErr.Error.Type)
+	assert.Equal(t, schemas.ProviderResponseInvalid, *bifrostErr.Error.Type)
+	assert.Equal(t, "not-json", bifrostErr.ExtraFields.RawResponse)
 }
