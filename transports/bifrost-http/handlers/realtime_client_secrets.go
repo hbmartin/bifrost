@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"mime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/maximhq/bifrost/plugins/modelcatalogresolver"
 	"github.com/maximhq/bifrost/transports/bifrost-http/integrations"
 	"github.com/maximhq/bifrost/transports/bifrost-http/lib"
+	"github.com/tidwall/gjson"
 	"github.com/valyala/fasthttp"
 )
 
@@ -27,14 +29,20 @@ type RealtimeClientSecretsHandler struct {
 	config       *lib.Config
 	handlerStore lib.HandlerStore
 	routeSpecs   map[string]schemas.RealtimeSessionRoute
+	tokenCodec   *realtimeEphemeralTokenCodec
 }
 
 func NewRealtimeClientSecretsHandler(client *bifrost.Bifrost, config *lib.Config) *RealtimeClientSecretsHandler {
+	tokenCodec, err := newRealtimeEphemeralTokenCodec(encrypt.Key())
+	if err != nil {
+		panic(fmt.Sprintf("failed to initialize realtime ephemeral token codec: %v", err))
+	}
 	return &RealtimeClientSecretsHandler{
 		client:       client,
 		config:       config,
 		handlerStore: config,
 		routeSpecs:   make(map[string]schemas.RealtimeSessionRoute),
+		tokenCodec:   tokenCodec,
 	}
 }
 
@@ -166,8 +174,7 @@ func (h *RealtimeClientSecretsHandler) handleRequest(ctx *fasthttp.RequestCtx) {
 	logger.Info("[realtime-client-secrets] upstream success: provider=%s model=%s status=%d",
 		providerKey, model, resp.StatusCode)
 	virtualKey := bifrost.GetStringFromContext(bifrostCtx, schemas.BifrostContextKeyVirtualKey)
-	masterKey := encrypt.Key()
-	wrappedBody, wrapped, wrapErr := wrapRealtimeClientSecretResponse(resp.Body, key.ID, virtualKey, masterKey)
+	wrappedBody, wrapped, wrapErr := wrapRealtimeClientSecretResponseWithCodec(resp.Body, key.ID, virtualKey, h.tokenCodec)
 	if wrapErr != nil {
 		SendBifrostError(ctx, newRealtimeClientSecretHandlerError(
 			fasthttp.StatusInternalServerError,
@@ -179,7 +186,7 @@ func (h *RealtimeClientSecretsHandler) handleRequest(ctx *fasthttp.RequestCtx) {
 	}
 	if wrapped {
 		resp.Body = wrappedBody
-	} else if len(masterKey) > 0 {
+	} else if h.tokenCodec != nil {
 		SendBifrostError(ctx, newRealtimeClientSecretHandlerError(
 			fasthttp.StatusBadGateway,
 			"server_error",
@@ -409,23 +416,24 @@ type realtimeEphemeralKeyMapping struct {
 }
 
 func wrapRealtimeClientSecretResponse(body []byte, keyID string, virtualKey string, masterKey []byte) ([]byte, bool, error) {
-	if len(masterKey) == 0 {
+	tokenCodec, err := newRealtimeEphemeralTokenCodec(masterKey)
+	if err != nil {
+		return nil, false, err
+	}
+	return wrapRealtimeClientSecretResponseWithCodec(body, keyID, virtualKey, tokenCodec)
+}
+
+func wrapRealtimeClientSecretResponseWithCodec(body []byte, keyID string, virtualKey string, tokenCodec *realtimeEphemeralTokenCodec) ([]byte, bool, error) {
+	if tokenCodec == nil {
 		return body, false, nil
 	}
 
-	valuePath := "value"
-	value := providerUtils.GetJSONField(body, valuePath)
-	expiresAt := providerUtils.GetJSONField(body, "expires_at")
-	if !value.Exists() || value.String() == "" || !expiresAt.Exists() || expiresAt.Int() <= 0 {
-		valuePath = "client_secret.value"
-		value = providerUtils.GetJSONField(body, valuePath)
-		expiresAt = providerUtils.GetJSONField(body, "client_secret.expires_at")
-	}
-	if !value.Exists() || value.String() == "" || !expiresAt.Exists() || expiresAt.Int() <= time.Now().Unix() {
+	secret, ok := probeRealtimeClientSecret(body)
+	if !ok {
 		return body, false, nil
 	}
 
-	wrappedToken, err := sealRealtimeEphemeralToken(masterKey, value.String(), keyID, virtualKey, expiresAt.Int())
+	wrappedToken, err := tokenCodec.seal(secret.value, keyID, virtualKey, secret.expiresAt)
 	if err != nil {
 		return nil, false, err
 	}
@@ -433,7 +441,7 @@ func wrapRealtimeClientSecretResponse(body []byte, keyID string, virtualKey stri
 	if err != nil {
 		return nil, false, err
 	}
-	rewritten, err := providerUtils.SetRawJSONField(body, valuePath, encodedToken)
+	rewritten, err := providerUtils.SetRawJSONField(body, secret.valuePath, encodedToken)
 	if err != nil {
 		return nil, false, err
 	}
@@ -466,38 +474,57 @@ func cacheRealtimeEphemeralKeyMapping(kv *kvstore.Store, body []byte, keyID stri
 }
 
 func parseRealtimeEphemeralKeyMapping(body []byte) (string, time.Duration, bool) {
-	var root map[string]json.RawMessage
-	if err := json.Unmarshal(body, &root); err != nil {
+	secret, ok := probeRealtimeClientSecret(body)
+	if !ok {
 		return "", 0, false
 	}
 
-	var clientSecret struct {
-		Value     string `json:"value"`
-		ExpiresAt int64  `json:"expires_at"`
-	}
-
-	// OpenAI client_secrets responses expose the ephemeral token at the top level.
-	// Keep accepting the nested shape too so the mapping logic stays compatible
-	// with any provider/session endpoint variants that wrap the secret object.
-	if err := json.Unmarshal(body, &clientSecret); err != nil || strings.TrimSpace(clientSecret.Value) == "" || clientSecret.ExpiresAt <= 0 {
-		clientSecretRaw, ok := root["client_secret"]
-		if !ok || len(clientSecretRaw) == 0 || string(clientSecretRaw) == "null" {
-			return "", 0, false
-		}
-		if err := json.Unmarshal(clientSecretRaw, &clientSecret); err != nil {
-			return "", 0, false
-		}
-	}
-	if strings.TrimSpace(clientSecret.Value) == "" || clientSecret.ExpiresAt <= 0 {
-		return "", 0, false
-	}
-
-	ttl := time.Until(time.Unix(clientSecret.ExpiresAt, 0))
+	ttl := time.Until(time.Unix(secret.expiresAt, 0))
 	if ttl <= 0 {
 		return "", 0, false
 	}
 
-	return clientSecret.Value, ttl, true
+	return secret.value, ttl, true
+}
+
+type realtimeClientSecretProbe struct {
+	value     string
+	valuePath string
+	expiresAt int64
+}
+
+// probeRealtimeClientSecret is the canonical value/expiry classifier used by
+// both portable-token wrapping and local KV caching. Requiring a JSON string
+// token and an integer Unix timestamp keeps both paths on identical rules.
+func probeRealtimeClientSecret(body []byte) (realtimeClientSecretProbe, bool) {
+	if !json.Valid(body) {
+		return realtimeClientSecretProbe{}, false
+	}
+
+	now := time.Now().Unix()
+	for _, prefix := range []string{"", "client_secret."} {
+		valuePath := prefix + "value"
+		value := providerUtils.GetJSONField(body, valuePath)
+		expiresAt := providerUtils.GetJSONField(body, prefix+"expires_at")
+		if value.Type != gjson.String || expiresAt.Type != gjson.Number {
+			continue
+		}
+		parsedExpiry, err := strconv.ParseInt(expiresAt.Raw, 10, 64)
+		if err != nil || parsedExpiry <= now {
+			continue
+		}
+		trimmedValue := strings.TrimSpace(value.String())
+		if trimmedValue == "" {
+			continue
+		}
+		return realtimeClientSecretProbe{
+			value:     trimmedValue,
+			valuePath: valuePath,
+			expiresAt: parsedExpiry,
+		}, true
+	}
+
+	return realtimeClientSecretProbe{}, false
 }
 
 func buildRealtimeEphemeralKeyMappingKey(token string) string {

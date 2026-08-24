@@ -12,7 +12,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/url"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -52,7 +52,7 @@ func sendOpenAIStreamUnmarshalError(
 	ctx.SetValue(schemas.BifrostContextKeyStreamEndIndicator, true)
 	bifrostErr := providerUtils.EnrichError(
 		ctx,
-		providerUtils.NewBifrostOperationError(schemas.ErrProviderResponseUnmarshal, err),
+		providerUtils.NewBifrostUpstreamConnectionError(schemas.ErrProviderResponseUnmarshal, err),
 		requestBody,
 		nil,
 		sendBackRawRequest,
@@ -68,16 +68,6 @@ func sendOpenAIStreamUnmarshalError(
 	providerUtils.ProcessAndSendBifrostError(ctx, postHookRunner, bifrostErr, responseChan, logger, postHookSpanFinalizer)
 }
 
-func recordOpenAIStreamChoiceState(choices []schemas.BifrostResponseChoice, seenChoices map[int]struct{}, finishReasons map[int]string) {
-	for i := range choices {
-		choice := &choices[i]
-		seenChoices[choice.Index] = struct{}{}
-		if choice.FinishReason != nil && *choice.FinishReason != "" {
-			finishReasons[choice.Index] = *choice.FinishReason
-		}
-	}
-}
-
 func expectedOpenAIStreamChoiceCount(n *int) int {
 	if n != nil && *n > 0 {
 		return *n
@@ -85,8 +75,131 @@ func expectedOpenAIStreamChoiceCount(n *int) int {
 	return 1
 }
 
-func allOpenAIStreamChoicesFinished(expected int, finishReasons map[int]string) bool {
-	return len(finishReasons) >= expected
+// openAIStreamChoiceState tracks per-choice terminal state without allocating
+// maps on the overwhelmingly common single-choice path. It promotes to maps if
+// the request or response contains multiple choices.
+type openAIStreamChoiceState struct {
+	expected int
+
+	singleSeen                   bool
+	singleIndex                  int
+	singleFinishReason           string
+	singleFinishReasonForwarded  bool
+	seenChoices                  map[int]struct{}
+	finishReasons                map[int]string
+	forwardedFinishReasonIndexes map[int]bool
+}
+
+func newOpenAIStreamChoiceState(expected int) *openAIStreamChoiceState {
+	if expected <= 0 {
+		expected = 1
+	}
+	state := &openAIStreamChoiceState{expected: expected}
+	if expected > 1 {
+		state.promote(expected)
+	}
+	return state
+}
+
+func (state *openAIStreamChoiceState) promote(capacity int) {
+	if state.seenChoices != nil {
+		return
+	}
+	if capacity < 2 {
+		capacity = 2
+	}
+	state.seenChoices = make(map[int]struct{}, capacity)
+	state.finishReasons = make(map[int]string, capacity)
+	state.forwardedFinishReasonIndexes = make(map[int]bool, capacity)
+	if state.singleSeen {
+		state.seenChoices[state.singleIndex] = struct{}{}
+		if state.singleFinishReason != "" {
+			state.finishReasons[state.singleIndex] = state.singleFinishReason
+		}
+		if state.singleFinishReasonForwarded {
+			state.forwardedFinishReasonIndexes[state.singleIndex] = true
+		}
+	}
+}
+
+func (state *openAIStreamChoiceState) record(choices []schemas.BifrostResponseChoice) {
+	for i := range choices {
+		choice := &choices[i]
+		finishReason := ""
+		if choice.FinishReason != nil {
+			finishReason = *choice.FinishReason
+		}
+
+		if state.seenChoices == nil {
+			if !state.singleSeen {
+				state.singleSeen = true
+				state.singleIndex = choice.Index
+				state.singleFinishReason = finishReason
+				continue
+			}
+			if choice.Index == state.singleIndex {
+				if finishReason != "" {
+					state.singleFinishReason = finishReason
+				}
+				continue
+			}
+			state.promote(max(state.expected, len(choices)))
+		}
+
+		state.seenChoices[choice.Index] = struct{}{}
+		if finishReason != "" {
+			state.finishReasons[choice.Index] = finishReason
+		}
+	}
+}
+
+func (state *openAIStreamChoiceState) recordForwardedFinishReasons(choices []schemas.BifrostResponseChoice) {
+	for i := range choices {
+		choice := &choices[i]
+		if choice.FinishReason == nil || *choice.FinishReason == "" {
+			continue
+		}
+		if state.seenChoices == nil && state.singleSeen && choice.Index == state.singleIndex {
+			state.singleFinishReasonForwarded = true
+			continue
+		}
+		if state.forwardedFinishReasonIndexes == nil {
+			state.promote(state.expected)
+		}
+		state.forwardedFinishReasonIndexes[choice.Index] = true
+	}
+}
+
+func (state *openAIStreamChoiceState) allFinished() bool {
+	if state.seenChoices == nil {
+		return state.expected <= 1 && state.singleFinishReason != ""
+	}
+	required := max(state.expected, len(state.seenChoices))
+	return len(state.finishReasons) >= required
+}
+
+func (state *openAIStreamChoiceState) sortedIndexes() []int {
+	indexes := make([]int, 0, len(state.seenChoices))
+	for index := range state.seenChoices {
+		indexes = append(indexes, index)
+	}
+	slices.Sort(indexes)
+	return indexes
+}
+
+func (state *openAIStreamChoiceState) finishReason(index int) (string, bool) {
+	if state.seenChoices == nil {
+		return state.singleFinishReason, state.singleSeen && index == state.singleIndex && state.singleFinishReason != ""
+	}
+	finishReason, ok := state.finishReasons[index]
+	return finishReason, ok
+}
+
+func (state *openAIStreamChoiceState) finishReasonForwarded(index int) bool {
+	if state.seenChoices == nil {
+		return state.singleSeen && index == state.singleIndex && state.singleFinishReasonForwarded
+	}
+	return state.forwardedFinishReasonIndexes[index]
 }
 
 func openAITextResponseHasDelta(choices []schemas.BifrostResponseChoice) bool {
@@ -114,24 +227,29 @@ func openAIChatResponseHasDelta(choices []schemas.BifrostResponseChoice) bool {
 	return false
 }
 
-func sortedOpenAIStreamChoiceIndexes(seenChoices map[int]struct{}) []int {
-	indexes := make([]int, 0, len(seenChoices))
-	for index := range seenChoices {
-		indexes = append(indexes, index)
+func (state *openAIStreamChoiceState) createTextFinalChoices() []schemas.BifrostResponseChoice {
+	if state.seenChoices == nil {
+		if !state.singleSeen {
+			return nil
+		}
+		choice := schemas.BifrostResponseChoice{
+			Index:                        state.singleIndex,
+			TextCompletionResponseChoice: &schemas.TextCompletionResponseChoice{},
+		}
+		if state.singleFinishReason != "" {
+			choice.FinishReason = schemas.Ptr(state.singleFinishReason)
+		}
+		return []schemas.BifrostResponseChoice{choice}
 	}
-	sort.Ints(indexes)
-	return indexes
-}
 
-func createOpenAITextFinalChoices(seenChoices map[int]struct{}, finishReasons map[int]string) []schemas.BifrostResponseChoice {
-	indexes := sortedOpenAIStreamChoiceIndexes(seenChoices)
+	indexes := state.sortedIndexes()
 	choices := make([]schemas.BifrostResponseChoice, 0, len(indexes))
 	for _, index := range indexes {
 		choice := schemas.BifrostResponseChoice{
 			Index:                        index,
 			TextCompletionResponseChoice: &schemas.TextCompletionResponseChoice{},
 		}
-		if finishReason, ok := finishReasons[index]; ok {
+		if finishReason, ok := state.finishReason(index); ok {
 			choice.FinishReason = schemas.Ptr(finishReason)
 		}
 		choices = append(choices, choice)
@@ -139,8 +257,24 @@ func createOpenAITextFinalChoices(seenChoices map[int]struct{}, finishReasons ma
 	return choices
 }
 
-func createOpenAIChatFinalChoices(seenChoices map[int]struct{}, finishReasons map[int]string, forwardedFinishReasons map[int]bool) []schemas.BifrostResponseChoice {
-	indexes := sortedOpenAIStreamChoiceIndexes(seenChoices)
+func (state *openAIStreamChoiceState) createChatFinalChoices() []schemas.BifrostResponseChoice {
+	if state.seenChoices == nil {
+		if !state.singleSeen {
+			return nil
+		}
+		choice := schemas.BifrostResponseChoice{
+			Index: state.singleIndex,
+			ChatStreamResponseChoice: &schemas.ChatStreamResponseChoice{
+				Delta: &schemas.ChatStreamResponseChoiceDelta{},
+			},
+		}
+		if state.singleFinishReason != "" && !state.singleFinishReasonForwarded {
+			choice.FinishReason = schemas.Ptr(state.singleFinishReason)
+		}
+		return []schemas.BifrostResponseChoice{choice}
+	}
+
+	indexes := state.sortedIndexes()
 	choices := make([]schemas.BifrostResponseChoice, 0, len(indexes))
 	for _, index := range indexes {
 		choice := schemas.BifrostResponseChoice{
@@ -149,7 +283,7 @@ func createOpenAIChatFinalChoices(seenChoices map[int]struct{}, finishReasons ma
 				Delta: &schemas.ChatStreamResponseChoiceDelta{},
 			},
 		}
-		if finishReason, ok := finishReasons[index]; ok && !forwardedFinishReasons[index] {
+		if finishReason, ok := state.finishReason(index); ok && !state.finishReasonForwarded(index) {
 			choice.FinishReason = schemas.Ptr(finishReason)
 		}
 		choices = append(choices, choice)
@@ -715,12 +849,11 @@ func HandleOpenAITextCompletionStreaming(
 		// cancel/timeout can bill for tokens the provider already processed.
 		ctx.SetValue(schemas.BifrostContextKeyStreamAccumulatedUsage, usage)
 
-		seenChoices := make(map[int]struct{})
-		finishReasons := make(map[int]string)
 		expectedChoices := 1
 		if request.Params != nil {
 			expectedChoices = expectedOpenAIStreamChoiceCount(request.Params.N)
 		}
+		choiceState := newOpenAIStreamChoiceState(expectedChoices)
 		var messageID string
 		var created int
 		lastChunkTime := startTime
@@ -834,7 +967,7 @@ func HandleOpenAITextCompletionStreaming(
 				response.Usage = nil
 			}
 
-			recordOpenAIStreamChoiceState(response.Choices, seenChoices, finishReasons)
+			choiceState.record(response.Choices)
 
 			// Keep finish reasons on the synthesized final chunk, where usage is
 			// attached. Apply this to every choice, not only Choices[0].
@@ -870,7 +1003,7 @@ func HandleOpenAITextCompletionStreaming(
 			}
 
 			// For providers that don't send [DONE] marker break on finish_reason
-			if !providerUtils.ProviderSendsDoneMarker(providerName) && allOpenAIStreamChoicesFinished(expectedChoices, finishReasons) {
+			if !providerUtils.ProviderSendsDoneMarker(providerName) && choiceState.allFinished() {
 				break
 			}
 		}
@@ -878,24 +1011,20 @@ func HandleOpenAITextCompletionStreaming(
 		// See HandleOpenAIChatCompletionStreaming: a plain io.EOF cannot distinguish a
 		// finished provider from a dead connection, so a terminal marker is required
 		// before synthesizing the final chunk.
-		if !providerUtils.SSEStreamEndedOnMarker(sseReader) && !allOpenAIStreamChoicesFinished(expectedChoices, finishReasons) {
+		if !providerUtils.SSEStreamEndedOnMarker(sseReader) && !choiceState.allFinished() {
 			providerUtils.SendStreamTruncatedError(ctx, postHookRunner, responseChan, logger, postHookSpanFinalizer, jsonBody)
 			return
 		}
 
-		var firstFinishReason *string
-		if finishReason, ok := finishReasons[0]; ok {
-			firstFinishReason = schemas.Ptr(finishReason)
-		}
-		response := providerUtils.CreateBifrostTextCompletionChunkResponse(messageID, usage, firstFinishReason, chunkIndex, schemas.TextCompletionStreamRequest, request.Model, created)
-		if finalChoices := createOpenAITextFinalChoices(seenChoices, finishReasons); len(finalChoices) > 0 {
+		response := providerUtils.CreateBifrostTextCompletionChunkResponse(messageID, usage, nil, chunkIndex, schemas.TextCompletionStreamRequest, request.Model, created)
+		if finalChoices := choiceState.createTextFinalChoices(); len(finalChoices) > 0 {
 			response.Choices = finalChoices
 		}
 		if postResponseConverter != nil {
-			response = postResponseConverter(response)
-			if response == nil {
+			if converted := postResponseConverter(response); converted != nil {
+				response = converted
+			} else {
 				logger.Warn("postResponseConverter returned nil; leaving chunk unmodified")
-				return
 			}
 		}
 		// Set raw request if enabled
@@ -1358,13 +1487,11 @@ func HandleOpenAIChatCompletionStreaming(
 
 		lastChunkTime := startTime
 
-		seenChoices := make(map[int]struct{})
-		finishReasons := make(map[int]string)
-		forwardedFinishReasons := make(map[int]bool)
 		expectedChoices := 1
 		if request.Params != nil {
 			expectedChoices = expectedOpenAIStreamChoiceCount(request.Params.N)
 		}
+		choiceState := newOpenAIStreamChoiceState(expectedChoices)
 		var messageID string
 		var modelName string
 		var created int
@@ -1579,7 +1706,7 @@ func HandleOpenAIChatCompletionStreaming(
 					created = response.Created
 				}
 
-				recordOpenAIStreamChoiceState(response.Choices, seenChoices, finishReasons)
+				choiceState.record(response.Choices)
 
 				// Skip empty responses or responses without choices
 				if len(response.Choices) == 0 {
@@ -1590,12 +1717,7 @@ func HandleOpenAIChatCompletionStreaming(
 				// preserves n>1 streams even when Choices[0] is empty and a later
 				// choice contains the actual content.
 				if openAIChatResponseHasDelta(response.Choices) {
-					for i := range response.Choices {
-						choice := &response.Choices[i]
-						if choice.FinishReason != nil && *choice.FinishReason != "" {
-							forwardedFinishReasons[choice.Index] = true
-						}
-					}
+					choiceState.recordForwardedFinishReasons(response.Choices)
 					chunkIndex++
 
 					response.ExtraFields.ChunkIndex = chunkIndex
@@ -1610,7 +1732,7 @@ func HandleOpenAIChatCompletionStreaming(
 				}
 
 				// For providers that don't send [DONE] marker break on finish_reason
-				if !providerUtils.ProviderSendsDoneMarker(providerName) && allOpenAIStreamChoicesFinished(expectedChoices, finishReasons) {
+				if !providerUtils.ProviderSendsDoneMarker(providerName) && choiceState.allFinished() {
 					break
 				}
 			}
@@ -1630,7 +1752,7 @@ func HandleOpenAIChatCompletionStreaming(
 			// rather than a silent stream close, even though [DONE] may have arrived.
 			terminalSignalSeen = pendingFinalEvent != nil || (terminalSignalSeen && !fallbackFinishReasonSeen)
 		} else {
-			terminalSignalSeen = terminalSignalSeen || allOpenAIStreamChoicesFinished(expectedChoices, finishReasons)
+			terminalSignalSeen = terminalSignalSeen || choiceState.allFinished()
 		}
 		if !terminalSignalSeen {
 			providerUtils.SendStreamTruncatedError(ctx, postHookRunner, responseChan, logger, postHookSpanFinalizer, jsonBody)
@@ -1650,16 +1772,16 @@ func HandleOpenAIChatCompletionStreaming(
 				providerUtils.ProcessAndSendResponse(ctx, postHookRunner, providerUtils.GetBifrostResponseForStreamResponse(nil, nil, pendingFinalEvent, nil, nil, nil), responseChan, postHookSpanFinalizer)
 			}
 		} else {
-			var firstFinishReason *string
-			if finishReason, ok := finishReasons[0]; ok && !forwardedFinishReasons[0] {
-				firstFinishReason = schemas.Ptr(finishReason)
-			}
-			response := providerUtils.CreateBifrostChatCompletionChunkResponse(messageID, usage, firstFinishReason, chunkIndex, modelName, created)
-			if finalChoices := createOpenAIChatFinalChoices(seenChoices, finishReasons, forwardedFinishReasons); len(finalChoices) > 0 {
+			response := providerUtils.CreateBifrostChatCompletionChunkResponse(messageID, usage, nil, chunkIndex, modelName, created)
+			if finalChoices := choiceState.createChatFinalChoices(); len(finalChoices) > 0 {
 				response.Choices = finalChoices
 			}
 			if postResponseConverter != nil {
-				response = postResponseConverter(response)
+				if converted := postResponseConverter(response); converted != nil {
+					response = converted
+				} else {
+					logger.Warn("postResponseConverter returned nil; leaving chunk unmodified")
+				}
 			}
 			// Preserve captured tier so priority/flex billing applies to the streamed response
 			if serviceTier != nil {
