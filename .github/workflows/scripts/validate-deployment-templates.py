@@ -115,10 +115,14 @@ def parse_deploy_button_url(url: str, label: str) -> DeployButtonKey | None:
         if (
             parsed.scheme.lower() != "https"
             or parsed.netloc.lower() != "render.com"
-            or parsed.fragment
             or has_fragment_delimiter
         ):
             fail(f"{label} Render deploy URL must use canonical HTTPS with no credentials, port, or fragment: {url}")
+        # parse_qsl silently discards empty query components, so leading,
+        # trailing, or repeated '&' delimiters would otherwise compare equal to
+        # the canonical one-parameter form.
+        if len(parsed.query.split("&")) != 1:
+            fail(f"{label} Render deploy URL must contain exactly one non-empty repo parameter: {url}")
         query = parse_qsl(parsed.query, keep_blank_values=True)
         if len(query) != 1 or query[0][0] != "repo" or not query[0][1]:
             fail(f"{label} Render deploy URL must contain exactly one non-empty repo parameter: {url}")
@@ -137,7 +141,6 @@ def parse_deploy_button_url(url: str, label: str) -> DeployButtonKey | None:
             or (repo.hostname or "").lower() != "github.com"
             or repo.netloc.lower() != "github.com"
             or repo.query
-            or repo.fragment
             or repo_has_query_delimiter
             or repo_has_fragment_delimiter
             or not re.fullmatch(r"/[^/]+/[^/]+/tree/.+", repo.path)
@@ -157,7 +160,6 @@ def parse_deploy_button_url(url: str, label: str) -> DeployButtonKey | None:
         if (
             parsed.path == "/new/template"
             and not parsed.query
-            and not parsed.fragment
             and not has_query_delimiter
             and not has_fragment_delimiter
             and parsed.scheme.lower() == "https"
@@ -171,7 +173,6 @@ def parse_deploy_button_url(url: str, label: str) -> DeployButtonKey | None:
             parsed.scheme.lower() != "https"
             or parsed.netloc.lower() != host
             or parsed.query
-            or parsed.fragment
             or has_query_delimiter
             or has_fragment_delimiter
         ):

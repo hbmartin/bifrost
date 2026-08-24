@@ -17,6 +17,10 @@ const (
 	realtimeEphemeralTokenPrefix    = "ek_bf_"
 	realtimeEphemeralTokenVersion   = 1
 	realtimeEphemeralTokenMaxLength = 16 * 1024
+	// Reserve part of the maximum token lifetime for replica clock skew. The
+	// verifier keeps the strict MaxTTL ceiling, while official issuers clamp
+	// below it so a modestly slower replica still accepts a fresh token.
+	realtimeEphemeralTokenClockSkew = time.Minute
 )
 
 var errInvalidRealtimeEphemeralToken = errors.New("invalid realtime ephemeral token")
@@ -31,6 +35,7 @@ type realtimeEphemeralTokenPayload struct {
 
 type realtimeEphemeralTokenCodec struct {
 	aead cipher.AEAD
+	now  func() time.Time
 }
 
 func newRealtimeEphemeralTokenCodec(masterKey []byte) (*realtimeEphemeralTokenCodec, error) {
@@ -41,7 +46,7 @@ func newRealtimeEphemeralTokenCodec(masterKey []byte) (*realtimeEphemeralTokenCo
 	if err != nil {
 		return nil, err
 	}
-	return &realtimeEphemeralTokenCodec{aead: aead}, nil
+	return &realtimeEphemeralTokenCodec{aead: aead, now: time.Now}, nil
 }
 
 func (codec *realtimeEphemeralTokenCodec) seal(
@@ -50,11 +55,21 @@ func (codec *realtimeEphemeralTokenCodec) seal(
 	virtualKey string,
 	expiresAt int64,
 ) (string, error) {
-	now := time.Now()
+	token, _, err := codec.sealWithExpiry(upstreamToken, keyID, virtualKey, expiresAt)
+	return token, err
+}
+
+func (codec *realtimeEphemeralTokenCodec) sealWithExpiry(
+	upstreamToken string,
+	keyID string,
+	virtualKey string,
+	expiresAt int64,
+) (string, int64, error) {
+	now := codec.currentTime()
 	if codec == nil || codec.aead == nil || strings.TrimSpace(upstreamToken) == "" || strings.TrimSpace(keyID) == "" || expiresAt <= now.Unix() {
-		return "", errInvalidRealtimeEphemeralToken
+		return "", 0, errInvalidRealtimeEphemeralToken
 	}
-	maxExpiresAt := now.Add(realtimeEphemeralKeyMappingMaxTTL).Unix()
+	maxExpiresAt := now.Add(realtimeEphemeralKeyMappingMaxTTL - realtimeEphemeralTokenClockSkew).Unix()
 	if expiresAt > maxExpiresAt {
 		expiresAt = maxExpiresAt
 	}
@@ -67,15 +82,15 @@ func (codec *realtimeEphemeralTokenCodec) seal(
 		ExpiresAt:     expiresAt,
 	})
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 
 	nonce := make([]byte, codec.aead.NonceSize())
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-		return "", err
+		return "", 0, err
 	}
 	sealed := codec.aead.Seal(nonce, nonce, payload, []byte(realtimeEphemeralTokenPrefix))
-	return realtimeEphemeralTokenPrefix + base64.RawURLEncoding.EncodeToString(sealed), nil
+	return realtimeEphemeralTokenPrefix + base64.RawURLEncoding.EncodeToString(sealed), expiresAt, nil
 }
 
 func (codec *realtimeEphemeralTokenCodec) open(token string) (realtimeEphemeralKeyMapping, bool) {
@@ -98,7 +113,7 @@ func (codec *realtimeEphemeralTokenCodec) open(token string) (realtimeEphemeralK
 	}
 
 	var payload realtimeEphemeralTokenPayload
-	now := time.Now()
+	now := codec.currentTime()
 	if err := json.Unmarshal(payloadJSON, &payload); err != nil ||
 		payload.Version != realtimeEphemeralTokenVersion ||
 		strings.TrimSpace(payload.UpstreamToken) == "" ||
@@ -114,6 +129,13 @@ func (codec *realtimeEphemeralTokenCodec) open(token string) (realtimeEphemeralK
 		VirtualKey:    strings.TrimSpace(payload.VirtualKey),
 		UpstreamToken: strings.TrimSpace(payload.UpstreamToken),
 	}, true
+}
+
+func (codec *realtimeEphemeralTokenCodec) currentTime() time.Time {
+	if codec != nil && codec.now != nil {
+		return codec.now()
+	}
+	return time.Now()
 }
 
 func newRealtimeEphemeralTokenAEAD(masterKey []byte) (cipher.AEAD, error) {
