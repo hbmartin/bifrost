@@ -566,6 +566,33 @@ func Test_createBedrockBatchRouteConfigs(t *testing.T) {
 	}
 }
 
+func TestBedrockBatchCreateConverterPreservesClientRequestToken(t *testing.T) {
+	t.Parallel()
+
+	route := createBedrockBatchRouteConfigs("/bedrock", &mockHandlerStore{})[0]
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
+	ctx.SetValue(bifrostContextKeyProvider, schemas.Bedrock)
+	model := "anthropic.claude-3-haiku"
+	nativeRequest := &bedrock.BedrockBatchJobRequest{
+		JobName:            "job-name",
+		ClientRequestToken: "stable-token",
+		ModelID:            &model,
+		RoleArn:            "arn:aws:iam::123456789012:role/batch",
+		InputDataConfig: bedrock.BedrockInputDataConfig{
+			S3InputDataConfig: bedrock.BedrockS3InputDataConfig{S3Uri: "s3://input/job.jsonl"},
+		},
+		OutputDataConfig: bedrock.BedrockOutputDataConfig{
+			S3OutputDataConfig: bedrock.BedrockS3OutputDataConfig{S3Uri: "s3://output/"},
+		},
+	}
+
+	converted, err := route.BatchRequestConverter(ctx, nativeRequest)
+	require.NoError(t, err)
+	require.NotNil(t, converted)
+	require.NotNil(t, converted.CreateRequest)
+	assert.Equal(t, "stable-token", converted.CreateRequest.ExtraParams["client_request_token"])
+}
+
 func Test_createBedrockFilesRouteConfigs(t *testing.T) {
 	handlerStore := &mockHandlerStore{}
 	routes := createBedrockFilesRouteConfigs("/bedrock/files", handlerStore)

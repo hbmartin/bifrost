@@ -196,7 +196,7 @@ func (provider *VertexProvider) CachedContentCreate(ctx *schemas.BifrostContext,
 
 	var vResp vertexCachedContent
 	if err := sonic.Unmarshal(respBody, &vResp); err != nil {
-		return nil, providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, err)
+		return nil, providerUtils.NewBifrostOperationError(schemas.ErrProviderResponseUnmarshal, err)
 	}
 
 	return &schemas.BifrostCachedContentCreateResponse{

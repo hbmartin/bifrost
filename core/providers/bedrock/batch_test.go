@@ -1,11 +1,32 @@
 package bedrock
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/maximhq/bifrost/core/schemas"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestBatchClientRequestToken(t *testing.T) {
+	t.Parallel()
+
+	for _, extraParams := range []map[string]any{
+		{"clientRequestToken": "native-token"},
+		{"client_request_token": "bifrost-token"},
+	} {
+		request := &schemas.BifrostBatchCreateRequest{ExtraParams: extraParams}
+		if token := BatchClientRequestToken(request); token == "" {
+			t.Fatalf("BatchClientRequestToken(%v) returned an empty token", extraParams)
+		}
+	}
+
+	requestBody, err := json.Marshal(BedrockBatchJobRequest{ClientRequestToken: "wire-token"})
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+	assert.JSONEq(t, `{"jobName":"","clientRequestToken":"wire-token","modelId":null,"roleArn":"","inputDataConfig":{"s3InputDataConfig":{"s3Uri":""}},"outputDataConfig":{"s3OutputDataConfig":{"s3Uri":""}}}`, string(requestBody))
+}
 
 // TestToBedrockBatchJobRetrieveResponse_SurfacesFailureMessage verifies the
 // AWS job failure reason carried in the normalized Errors field is mapped back
