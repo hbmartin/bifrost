@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"mime"
+	"reflect"
 	"strings"
 	"time"
 
@@ -381,8 +382,25 @@ type realtimeEphemeralKeyMapping struct {
 	VirtualKey string `json:"virtual_key,omitempty"`
 }
 
+// isNilKVStore handles both a nil interface and a typed-nil implementation
+// boxed into schemas.KVStore. HandlerStore.GetKVStore returns *kvstore.Store,
+// so passing an uninitialized store through the interface would otherwise make
+// a simple kv == nil guard ineffective and panic on the first method call.
+func isNilKVStore(kv schemas.KVStore) bool {
+	if kv == nil {
+		return true
+	}
+	value := reflect.ValueOf(kv)
+	switch value.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return value.IsNil()
+	default:
+		return false
+	}
+}
+
 func cacheRealtimeEphemeralKeyMapping(kv schemas.KVStore, body []byte, keyID string, virtualKey string) {
-	if kv == nil || len(body) == 0 || strings.TrimSpace(keyID) == "" {
+	if isNilKVStore(kv) || len(body) == 0 || strings.TrimSpace(keyID) == "" {
 		return
 	}
 
