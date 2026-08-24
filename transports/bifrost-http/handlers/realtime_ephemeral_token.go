@@ -50,8 +50,13 @@ func (codec *realtimeEphemeralTokenCodec) seal(
 	virtualKey string,
 	expiresAt int64,
 ) (string, error) {
-	if codec == nil || codec.aead == nil || strings.TrimSpace(upstreamToken) == "" || strings.TrimSpace(keyID) == "" || expiresAt <= time.Now().Unix() {
+	now := time.Now()
+	if codec == nil || codec.aead == nil || strings.TrimSpace(upstreamToken) == "" || strings.TrimSpace(keyID) == "" || expiresAt <= now.Unix() {
 		return "", errInvalidRealtimeEphemeralToken
+	}
+	maxExpiresAt := now.Add(realtimeEphemeralKeyMappingMaxTTL).Unix()
+	if expiresAt > maxExpiresAt {
+		expiresAt = maxExpiresAt
 	}
 
 	payload, err := json.Marshal(realtimeEphemeralTokenPayload{
@@ -93,11 +98,13 @@ func (codec *realtimeEphemeralTokenCodec) open(token string) (realtimeEphemeralK
 	}
 
 	var payload realtimeEphemeralTokenPayload
+	now := time.Now()
 	if err := json.Unmarshal(payloadJSON, &payload); err != nil ||
 		payload.Version != realtimeEphemeralTokenVersion ||
 		strings.TrimSpace(payload.UpstreamToken) == "" ||
 		strings.TrimSpace(payload.KeyID) == "" ||
-		payload.ExpiresAt <= time.Now().Unix() {
+		payload.ExpiresAt <= now.Unix() ||
+		payload.ExpiresAt > now.Add(realtimeEphemeralKeyMappingMaxTTL).Unix() {
 		return realtimeEphemeralKeyMapping{}, false
 	}
 

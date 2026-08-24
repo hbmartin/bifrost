@@ -221,15 +221,22 @@ func TestClassifyRealtimeKeySelectionError(t *testing.T) {
 			err:        fmt.Errorf("%w: removed", bifrost.ErrPinnedAPIKeyUnavailable),
 			wantStatus: fasthttp.StatusBadRequest,
 			wantType:   "invalid_request_error",
-			wantMsg:    "pinned API key unavailable: removed",
+			wantMsg:    realtimeKeySelectionInvalidMessage,
 		},
 		{
 			name:       "key store failure",
 			err:        fmt.Errorf("%w: database offline", bifrost.ErrKeySelectionUnavailable),
 			mapped:     true,
-			wantStatus: fasthttp.StatusInternalServerError,
+			wantStatus: fasthttp.StatusServiceUnavailable,
 			wantType:   "server_error",
 			wantMsg:    realtimeKeySelectionUnavailableMessage,
+		},
+		{
+			name:       "unclassified selection failure",
+			err:        errors.New("no supported key found with id sensitive-id and name customer-production"),
+			wantStatus: fasthttp.StatusBadRequest,
+			wantType:   "invalid_request_error",
+			wantMsg:    realtimeKeySelectionInvalidMessage,
 		},
 	}
 
@@ -240,6 +247,27 @@ func TestClassifyRealtimeKeySelectionError(t *testing.T) {
 				t.Fatalf("classification = (%d, %q, %q), want (%d, %q, %q)", status, errorType, message, tt.wantStatus, tt.wantType, tt.wantMsg)
 			}
 		})
+	}
+}
+
+func TestRealtimeKeySelectionClientBodyDoesNotLeakKeyIdentity(t *testing.T) {
+	t.Parallel()
+
+	const (
+		sensitiveID   = "sensitive-key-id"
+		sensitiveName = "customer-production-key"
+	)
+	selectionErr := fmt.Errorf("%w: no supported key found with id %q and name %q", bifrost.ErrPinnedAPIKeyUnavailable, sensitiveID, sensitiveName)
+	status, errorType, message := classifyRealtimeKeySelectionError(selectionErr, false)
+
+	var ctx fasthttp.RequestCtx
+	SendBifrostError(&ctx, newRealtimeClientSecretHandlerError(status, errorType, message, nil))
+	body := string(ctx.Response.Body())
+	if strings.Contains(body, sensitiveID) || strings.Contains(body, sensitiveName) || strings.Contains(body, selectionErr.Error()) {
+		t.Fatalf("client-visible key selection error leaked credential identity: %s", body)
+	}
+	if !strings.Contains(body, realtimeKeySelectionInvalidMessage) {
+		t.Fatalf("client-visible error = %s, want generic message", body)
 	}
 }
 

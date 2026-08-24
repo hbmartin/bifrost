@@ -36,6 +36,24 @@ class DeployButtonURLTests(unittest.TestCase):
                 "test",
             )
 
+    def test_render_empty_fragment_delimiter_is_rejected(self) -> None:
+        with self.assertRaisesRegex(AssertionError, "no credentials, port, or fragment"):
+            validator.parse_deploy_button_url(
+                "https://render.com/deploy?repo=https://github.com/maximhq/bifrost/tree/dev#",
+                "test",
+            )
+
+    def test_render_repo_empty_delimiters_are_rejected(self) -> None:
+        for encoded_delimiter in ("%3F", "%23"):
+            with self.subTest(encoded_delimiter=encoded_delimiter):
+                with self.assertRaisesRegex(AssertionError, "unambiguous GitHub branch URL"):
+                    validator.parse_deploy_button_url(
+                        "https://render.com/deploy?repo="
+                        "https%3A%2F%2Fgithub.com%2Fmaximhq%2Fbifrost%2Ftree%2Fdev"
+                        + encoded_delimiter,
+                        "test",
+                    )
+
     def test_render_repo_parameter_must_be_unique(self) -> None:
         with self.assertRaisesRegex(AssertionError, "exactly one"):
             validator.parse_deploy_button_url(

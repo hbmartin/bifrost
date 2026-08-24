@@ -259,7 +259,7 @@ func (provider *GeminiProvider) CachedContentCreate(ctx *schemas.BifrostContext,
 
 	var geminiResp geminiCachedContent
 	if err := sonic.Unmarshal(respBody, &geminiResp); err != nil {
-		return nil, providerUtils.NewBifrostOperationError(schemas.ErrProviderResponseUnmarshal, err)
+		return nil, providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, err)
 	}
 
 	return &schemas.BifrostCachedContentCreateResponse{
@@ -323,7 +323,7 @@ func (provider *GeminiProvider) cachedContentListByKey(ctx *schemas.BifrostConte
 
 	var geminiList geminiCachedContentList
 	if err := sonic.Unmarshal(respBody, &geminiList); err != nil {
-		return nil, latency, providerUtils.NewBifrostOperationError(schemas.ErrProviderResponseUnmarshal, err)
+		return nil, latency, providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, err)
 	}
 
 	bifrostObjects := make([]schemas.CachedContentObject, 0, len(geminiList.CachedContents))
@@ -392,7 +392,7 @@ func (provider *GeminiProvider) cachedContentRetrieveByKey(ctx *schemas.BifrostC
 
 	var geminiResp geminiCachedContent
 	if err := sonic.Unmarshal(respBody, &geminiResp); err != nil {
-		return nil, latency, providerUtils.NewBifrostOperationError(schemas.ErrProviderResponseUnmarshal, err)
+		return nil, latency, providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, err)
 	}
 
 	return &schemas.BifrostCachedContentRetrieveResponse{
@@ -492,7 +492,7 @@ func (provider *GeminiProvider) cachedContentUpdateByKey(ctx *schemas.BifrostCon
 
 	var geminiResp geminiCachedContent
 	if err := sonic.Unmarshal(respBody, &geminiResp); err != nil {
-		return nil, latency, providerUtils.NewBifrostOperationError(schemas.ErrProviderResponseUnmarshal, err)
+		return nil, latency, providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, err)
 	}
 
 	return &schemas.BifrostCachedContentUpdateResponse{
