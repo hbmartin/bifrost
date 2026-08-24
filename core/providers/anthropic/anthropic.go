@@ -464,9 +464,7 @@ func (provider *AnthropicProvider) TextCompletion(ctx *schemas.BifrostContext, k
 	return bifrostResponse, nil
 }
 
-// TextCompletionStream performs a streaming text completion request to Anthropic's API.
-// It formats the request, sends it to Anthropic, and processes the response.
-// Returns a channel of BifrostStreamChunk objects or an error if the request fails.
+// TextCompletionStream reports that Anthropic does not support the legacy text-completion stream operation.
 func (provider *AnthropicProvider) TextCompletionStream(ctx *schemas.BifrostContext, postHookRunner schemas.PostHookRunner, postHookSpanFinalizer func(context.Context), key schemas.Key, request *schemas.BifrostTextCompletionRequest) (chan *schemas.BifrostStreamChunk, *schemas.BifrostError) {
 	return nil, providerUtils.NewUnsupportedOperationError(schemas.TextCompletionStreamRequest, provider.GetProviderKey())
 }
