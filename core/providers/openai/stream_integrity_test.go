@@ -68,7 +68,7 @@ func TestTextStreamMalformedChunkTerminatesWithError(t *testing.T) {
 	assertStreamUnmarshalError(t, collectChunks(t, stream))
 }
 
-func TestChatStreamNilFinalResponseConverterKeepsFinalChunk(t *testing.T) {
+func TestChatStreamNilFinalResponseConverterSkipsFinalChunk(t *testing.T) {
 	stop := "stop"
 	server := completeSSEServer(t, chatChunk("hello", nil)+chatChunk("", &stop)+"data: [DONE]\n\n")
 	defer server.Close()
@@ -106,11 +106,79 @@ func TestChatStreamNilFinalResponseConverterKeepsFinalChunk(t *testing.T) {
 
 	chunks := collectChunks(t, stream)
 	if len(chunks) == 0 {
-		t.Fatal("expected the converted stream to retain its final chunk")
+		t.Fatal("expected the converted stream to retain its content chunk")
 	}
-	final := chunks[len(chunks)-1]
-	if final.BifrostError != nil || final.BifrostChatResponse == nil || final.BifrostChatResponse.Usage == nil {
-		t.Fatalf("unexpected final chunk after nil converter result: %+v", final)
+	for _, chunk := range chunks {
+		if chunk.BifrostError != nil {
+			t.Fatalf("unexpected stream error after nil converter result: %+v", chunk.BifrostError)
+		}
+		if chunk.BifrostChatResponse != nil && chunk.BifrostChatResponse.Usage != nil {
+			t.Fatalf("converter returned nil for the final chunk, but it was forwarded: %+v", chunk)
+		}
+	}
+}
+
+func TestTextStreamNilFinalResponseConverterSkipsFinalChunk(t *testing.T) {
+	body := `data: {"id":"cmpl-converter","object":"text_completion","created":1,"model":"repro-model","choices":[{"index":0,"text":"hello","finish_reason":null}]}` + "\n\n" +
+		`data: {"id":"cmpl-converter","object":"text_completion","created":1,"model":"repro-model","choices":[{"index":0,"text":null,"finish_reason":"stop"}]}` + "\n\n" +
+		"data: [DONE]\n\n"
+	server := completeSSEServer(t, body)
+	defer server.Close()
+
+	request := &schemas.BifrostTextCompletionRequest{
+		Provider: schemas.OpenAI,
+		Model:    "repro-model",
+		Input:    &schemas.TextCompletionInput{PromptStr: schemas.Ptr("hi")},
+	}
+	provider := newStreamTestProvider(server.URL)
+	stream, bifrostErr := HandleOpenAITextCompletionStreaming(
+		newStreamTestContext(),
+		provider.streamingClient,
+		server.URL+"/v1/completions",
+		request,
+		BearerAuthHeader(testKey()),
+		nil,
+		0,
+		false,
+		false,
+		schemas.OpenAI,
+		nil,
+		passthroughPostHook,
+		nil,
+		func(response *schemas.BifrostTextCompletionResponse) *schemas.BifrostTextCompletionResponse {
+			if response.Usage != nil {
+				return nil
+			}
+			return response
+		},
+		testNoopLogger{},
+		nil,
+	)
+	if bifrostErr != nil {
+		t.Fatalf("stream setup failed: %v", bifrostErr)
+	}
+
+	chunks := collectChunks(t, stream)
+	if len(chunks) == 0 {
+		t.Fatal("expected the converted stream to retain its content chunk")
+	}
+	for _, chunk := range chunks {
+		if chunk.BifrostError != nil {
+			t.Fatalf("unexpected stream error after nil converter result: %+v", chunk.BifrostError)
+		}
+		if chunk.BifrostTextCompletionResponse != nil && chunk.BifrostTextCompletionResponse.Usage != nil {
+			t.Fatalf("converter returned nil for the final chunk, but it was forwarded: %+v", chunk)
+		}
+	}
+}
+
+func TestOpenAIStreamChoiceStateIgnoresUnrecordedForwardedFinishReason(t *testing.T) {
+	state := newOpenAIStreamChoiceState(1)
+	stop := "stop"
+	state.recordForwardedFinishReasons([]schemas.BifrostResponseChoice{{Index: 0, FinishReason: &stop}})
+
+	if state.singleSeen || state.seenChoices != nil || state.forwardedFinishReasonIndexes != nil {
+		t.Fatalf("unrecorded finish reason mutated choice state: %#v", state)
 	}
 }
 
