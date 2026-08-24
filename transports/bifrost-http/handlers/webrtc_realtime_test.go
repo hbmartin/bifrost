@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -250,6 +251,29 @@ func TestLookupRealtimeEphemeralKeyMappingRejectsUnversionedStringValue(t *testi
 	}
 }
 
+func TestLookupRealtimeEphemeralKeyMappingAcceptsLegacyStructuredValue(t *testing.T) {
+	t.Parallel()
+
+	store, err := kvstore.New(kvstore.Config{})
+	if err != nil {
+		t.Fatalf("kvstore.New() error = %v", err)
+	}
+	defer store.Close()
+
+	payload := []byte(`{"key_id":"key_legacy","virtual_key":"sk-bf-legacy"}`)
+	if err := store.SetWithTTL(buildRealtimeEphemeralKeyMappingKey("ek_test_legacy_structured"), payload, time.Minute); err != nil {
+		t.Fatalf("store.SetWithTTL() error = %v", err)
+	}
+
+	mapping, ok := lookupRealtimeEphemeralKeyMapping(store, "ek_test_legacy_structured")
+	if !ok {
+		t.Fatal("expected the previous release's structured mapping to remain readable")
+	}
+	if mapping.Version != realtimeEphemeralKeyMappingVersion || mapping.KeyID != "key_legacy" || mapping.VirtualKey != "sk-bf-legacy" {
+		t.Fatalf("unexpected normalized legacy mapping: %#v", mapping)
+	}
+}
+
 func TestWebRTCRealtimeRelayCloseFinalizesActiveTurnHooks(t *testing.T) {
 	t.Parallel()
 
@@ -332,7 +356,7 @@ func TestResolveRealtimeWebRTCKeys_UnmappedEphemeralTokenIsRejected(t *testing.T
 	}
 }
 
-func TestResolveRealtimeWebRTCKeysDoesNotDropInvalidMappedKeyPin(t *testing.T) {
+func TestResolveRealtimeWebRTCKeysRejectsInvalidMappedKeyAsUnknown(t *testing.T) {
 	t.Parallel()
 
 	store, err := kvstore.New(kvstore.Config{})
@@ -371,8 +395,8 @@ func TestResolveRealtimeWebRTCKeysDoesNotDropInvalidMappedKeyPin(t *testing.T) {
 	bifrostCtx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 
 	_, selectedKey, err := handler.resolveRealtimeWebRTCKeys(&ctx, bifrostCtx, schemas.OpenAI, "gpt-realtime")
-	if err == nil || !strings.Contains(err.Error(), `no supported key found with id "missing-key"`) {
-		t.Fatalf("resolveRealtimeWebRTCKeys() error = %v, want invalid mapped pin error", err)
+	if !errors.Is(err, errRealtimeEphemeralKeyUnknown) {
+		t.Fatalf("resolveRealtimeWebRTCKeys() error = %v, want %v", err, errRealtimeEphemeralKeyUnknown)
 	}
 	if selectedKey != nil {
 		t.Fatalf("selectedKey = %#v, want nil", selectedKey)
@@ -382,6 +406,16 @@ func TestResolveRealtimeWebRTCKeysDoesNotDropInvalidMappedKeyPin(t *testing.T) {
 	}
 	if got := bifrostCtx.Value(schemas.BifrostContextKeyVirtualKey); got != "sk-bf-mapped" {
 		t.Fatalf("virtual key = %#v, want mapped governance identity preserved", got)
+	}
+
+	var relayCtx fasthttp.RequestCtx
+	relayCtx.Request.Header.Set("Authorization", "Bearer ek_mapped")
+	handler.runWebRTCRelay(&relayCtx, nil, schemas.OpenAI, "gpt-realtime", "v=0\r\n", nil)
+	if got := relayCtx.Response.StatusCode(); got != fasthttp.StatusUnauthorized {
+		t.Fatalf("status = %d, want %d", got, fasthttp.StatusUnauthorized)
+	}
+	if body := string(relayCtx.Response.Body()); strings.Contains(body, "missing-key") {
+		t.Fatalf("response leaked the stale mapped key ID: %s", body)
 	}
 }
 
