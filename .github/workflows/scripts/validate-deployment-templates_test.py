@@ -119,24 +119,36 @@ class DeployButtonURLTests(unittest.TestCase):
                 "test",
             )
 
+    def test_malformed_deploy_url_with_userinfo_is_reported(self) -> None:
+        urls = (
+            "https://user@[render.com/deploy?repo=https://github.com/maximhq/bifrost/tree/dev",
+            "https://user@[railway.com/new/template/blue-dark",
+        )
+        for url in urls:
+            with self.subTest(url=url):
+                with self.assertRaisesRegex(AssertionError, "contains an invalid URL"):
+                    validator.parse_deploy_button_url(url, "test")
+
     def test_malformed_unrelated_url_is_ignored(self) -> None:
         self.assertIsNone(
             validator.parse_deploy_button_url("https://[2001:db8::1", "test")
         )
 
-    def test_bare_railway_template_path_is_rejected(self) -> None:
-        with self.assertRaisesRegex(AssertionError, "must name exactly one template slug"):
+    def test_bare_railway_template_path_is_navigation(self) -> None:
+        self.assertIsNone(
             validator.parse_deploy_button_url(
                 "https://railway.com/new/template",
                 "test",
             )
+        )
 
-    def test_bare_railway_template_path_with_fragment_is_rejected(self) -> None:
-        with self.assertRaisesRegex(AssertionError, "no credentials, port, query, or fragment"):
+    def test_bare_railway_template_path_with_fragment_is_navigation(self) -> None:
+        self.assertIsNone(
             validator.parse_deploy_button_url(
                 "https://railway.com/new/template#fragment",
                 "test",
             )
+        )
 
     def test_railway_query_form_is_rejected_as_noncanonical(self) -> None:
         with self.assertRaisesRegex(AssertionError, "no credentials, port, query, or fragment"):
