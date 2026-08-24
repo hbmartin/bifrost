@@ -65,11 +65,11 @@ var (
 	// ErrKeySelectionUnavailable identifies failures in the key store or custom
 	// selector rather than a client-supplied key/model mismatch.
 	ErrKeySelectionUnavailable = errors.New("key selection unavailable")
-	// errPinnedAPIKeyIneligible identifies a configured pin that exists but cannot
+	// ErrPinnedAPIKeyIneligible identifies a configured pin that exists but cannot
 	// serve the requested operation/model. It stays distinct from
 	// ErrPinnedAPIKeyUnavailable so realtime callers can reserve the latter for
 	// genuinely stale mappings while HTTP serialization can sanitize both.
-	errPinnedAPIKeyIneligible = errors.New("pinned API key ineligible")
+	ErrPinnedAPIKeyIneligible = errors.New("pinned API key ineligible")
 )
 
 const (
@@ -116,7 +116,7 @@ func newKeySelectionBifrostError(err error) *schemas.BifrostError {
 	switch {
 	case errors.Is(err, ErrKeySelectionUnavailable):
 		return newKeySelectionUnavailableBifrostError()
-	case errors.Is(err, ErrPinnedAPIKeyUnavailable), errors.Is(err, errPinnedAPIKeyIneligible):
+	case errors.Is(err, ErrPinnedAPIKeyUnavailable), errors.Is(err, ErrPinnedAPIKeyIneligible):
 		return newKeySelectionInvalidBifrostError()
 	default:
 		return &schemas.BifrostError{
@@ -6784,11 +6784,11 @@ func executeRequestWithRetries[T any](
 					blockErrorFallbacks(bifrostError)
 					logger.Debug("not replaying accepted invalid response for %s/%s operation", providerKey, requestType)
 				}
-			case bifrostError.StatusCode != nil && *bifrostError.StatusCode == fasthttp.StatusBadGateway &&
+			case bifrostError.StatusCode != nil && transientServerStatusCodes[*bifrostError.StatusCode] &&
 				!canRetryAmbiguousProviderFailure(requestType, providerKey, req):
 				shouldRetry = false
 				blockErrorFallbacks(bifrostError)
-				logger.Debug("not retrying 502 for non-idempotent %s/%s operation", providerKey, requestType)
+				logger.Debug("not retrying transient server error for non-idempotent %s/%s operation", providerKey, requestType)
 			}
 			if shouldRetry {
 				logger.Debug("encountered error that should be retried: %s", errMessage)
@@ -6881,7 +6881,7 @@ func executeRequestWithRetries[T any](
 }
 
 // canRetryAmbiguousProviderFailure reports whether a request may be repeated after
-// a 502 or transport failure where Bifrost cannot prove the provider rejected it.
+// a transient server or transport failure where Bifrost cannot prove the provider rejected it.
 // Resource creates and uploads fail closed unless the concrete provider operation
 // carries an idempotency key that is actually sent upstream.
 func canRetryAmbiguousProviderFailure(requestType schemas.RequestType, providerKey schemas.ModelProvider, req *schemas.BifrostRequest) bool {
@@ -9159,7 +9159,7 @@ func (bifrost *Bifrost) selectKeyFromProviderForModelWithPool(ctx *schemas.Bifro
 	if len(supportedKeys) == 0 {
 		if pinnedKeyID != "" || pinnedKeyName != "" {
 			kind, value := pinnedAPIKeyKindAndValue(pinnedKeyID, pinnedKeyName)
-			return nil, false, fmt.Errorf("%w: configured key %s %q is not eligible for provider: %v and model: %s", errPinnedAPIKeyIneligible, kind, value, providerKey, model)
+			return nil, false, fmt.Errorf("%w: configured key %s %q is not eligible for provider: %v and model: %s", ErrPinnedAPIKeyIneligible, kind, value, providerKey, model)
 		}
 		return nil, false, fmt.Errorf("no keys found that support model: %s", model)
 	}
@@ -9170,7 +9170,7 @@ func (bifrost *Bifrost) selectKeyFromProviderForModelWithPool(ctx *schemas.Bifro
 			return []schemas.Key{key}, false, nil
 		}
 		kind, value := pinnedAPIKeyKindAndValue(pinnedKeyID, pinnedKeyName)
-		return nil, false, fmt.Errorf("%w: configured key %s %q is not eligible for provider: %v and model: %s", errPinnedAPIKeyIneligible, kind, value, providerKey, model)
+		return nil, false, fmt.Errorf("%w: configured key %s %q is not eligible for provider: %v and model: %s", ErrPinnedAPIKeyIneligible, kind, value, providerKey, model)
 	}
 
 	// Single key: no rotation possible, skip session stickiness (no KV write needed).
