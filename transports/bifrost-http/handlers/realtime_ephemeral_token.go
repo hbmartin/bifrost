@@ -17,9 +17,9 @@ const (
 	realtimeEphemeralTokenPrefix    = "ek_bf_"
 	realtimeEphemeralTokenVersion   = 1
 	realtimeEphemeralTokenMaxLength = 16 * 1024
-	// Reserve part of the maximum token lifetime for replica clock skew. The
-	// verifier keeps the strict MaxTTL ceiling, while official issuers clamp
-	// below it so a modestly slower replica still accepts a fresh token.
+	// Bound replica clock-skew tolerance on both expiry checks. Issuers clamp
+	// below MaxTTL for slower verifiers, while verifiers allow the same reserve
+	// at the lower bound when their clock is modestly ahead.
 	realtimeEphemeralTokenClockSkew = time.Minute
 )
 
@@ -66,7 +66,7 @@ func (codec *realtimeEphemeralTokenCodec) sealWithExpiry(
 	expiresAt int64,
 ) (string, int64, error) {
 	now := codec.currentTime()
-	if codec == nil || codec.aead == nil || strings.TrimSpace(upstreamToken) == "" || strings.TrimSpace(keyID) == "" || expiresAt <= now.Unix() {
+	if codec == nil || codec.aead == nil || strings.TrimSpace(upstreamToken) == "" || strings.TrimSpace(keyID) == "" || expiresAt <= now.Add(-realtimeEphemeralTokenClockSkew).Unix() {
 		return "", 0, errInvalidRealtimeEphemeralToken
 	}
 	maxExpiresAt := now.Add(realtimeEphemeralKeyMappingMaxTTL - realtimeEphemeralTokenClockSkew).Unix()
@@ -118,7 +118,7 @@ func (codec *realtimeEphemeralTokenCodec) open(token string) (realtimeEphemeralK
 		payload.Version != realtimeEphemeralTokenVersion ||
 		strings.TrimSpace(payload.UpstreamToken) == "" ||
 		strings.TrimSpace(payload.KeyID) == "" ||
-		payload.ExpiresAt <= now.Unix() ||
+		payload.ExpiresAt <= now.Add(-realtimeEphemeralTokenClockSkew).Unix() ||
 		payload.ExpiresAt > now.Add(realtimeEphemeralKeyMappingMaxTTL).Unix() {
 		return realtimeEphemeralKeyMapping{}, false
 	}
