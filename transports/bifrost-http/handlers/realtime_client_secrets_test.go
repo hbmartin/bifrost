@@ -351,41 +351,21 @@ func TestRewriteGASessionTranscriptionModelNoOpForFullRealtimeSession(t *testing
 	}
 }
 
-func TestParseRealtimeEphemeralKeyMapping(t *testing.T) {
+func TestProbeRealtimeClientSecretsAcceptsCompatibleExpiryEncodings(t *testing.T) {
 	t.Parallel()
 
-	token, ttl, ok := parseRealtimeEphemeralKeyMapping([]byte(`{
-		"value": "ek_test_123",
-		"expires_at": 4102444800
-	}`))
-	if !ok {
-		t.Fatal("expected ephemeral mapping to be parsed")
-	}
-	if token != "ek_test_123" {
-		t.Fatalf("token = %q, want %q", token, "ek_test_123")
-	}
-	if ttl <= 0 {
-		t.Fatalf("ttl = %v, want > 0", ttl)
-	}
-}
-
-func TestParseRealtimeEphemeralKeyMapping_NestedFallback(t *testing.T) {
-	t.Parallel()
-
-	token, ttl, ok := parseRealtimeEphemeralKeyMapping([]byte(`{
-		"client_secret": {
-			"value": "ek_test_nested",
-			"expires_at": 4102444800
-		}
-	}`))
-	if !ok {
-		t.Fatal("expected nested ephemeral mapping to be parsed")
-	}
-	if token != "ek_test_nested" {
-		t.Fatalf("token = %q, want %q", token, "ek_test_nested")
-	}
-	if ttl <= 0 {
-		t.Fatalf("ttl = %v, want > 0", ttl)
+	for _, body := range []string{
+		`{"value":"ek_exponent","expires_at":4.1024448e9}`,
+		`{"value":"ek_decimal","expires_at":4102444800.0}`,
+		`{"value":"ek_string","expires_at":"4102444800"}`,
+	} {
+		t.Run(body, func(t *testing.T) {
+			t.Parallel()
+			secrets, ok := probeRealtimeClientSecrets([]byte(body))
+			if !ok || len(secrets) != 1 || secrets[0].expiresAt != 4102444800 {
+				t.Fatalf("probeRealtimeClientSecrets(%s) = %#v, %v", body, secrets, ok)
+			}
+		})
 	}
 }
 
@@ -459,6 +439,65 @@ func TestWrapRealtimeClientSecretResponseSupportsNestedShape(t *testing.T) {
 	mapping, ok := lookupRealtimeEphemeralKeyMappingWithKey(nil, response.ClientSecret.Value, masterKey)
 	if !ok || mapping.UpstreamToken != "ek_upstream_nested" || mapping.KeyID != "key_nested" {
 		t.Fatalf("resolved mapping = %#v, ok %v", mapping, ok)
+	}
+}
+
+func TestWrapRealtimeClientSecretResponseBindsEverySupportedShape(t *testing.T) {
+	t.Parallel()
+
+	masterKey := []byte("shared-cluster-encryption-key-for-tests")
+	body := []byte(`{
+		"value": "ek_upstream_top",
+		"expires_at": 4102444800,
+		"client_secret": {
+			"value": "ek_upstream_nested",
+			"expires_at": 4102444800
+		}
+	}`)
+	rewritten, wrapped, err := wrapRealtimeClientSecretResponse(body, "key_dual", "sk-bf-dual", masterKey)
+	if err != nil || !wrapped {
+		t.Fatalf("wrapRealtimeClientSecretResponse() = wrapped %v, error %v", wrapped, err)
+	}
+
+	var response struct {
+		Value        string `json:"value"`
+		ClientSecret struct {
+			Value string `json:"value"`
+		} `json:"client_secret"`
+	}
+	if err := json.Unmarshal(rewritten, &response); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	for wrappedToken, upstreamToken := range map[string]string{
+		response.Value:              "ek_upstream_top",
+		response.ClientSecret.Value: "ek_upstream_nested",
+	} {
+		mapping, ok := lookupRealtimeEphemeralKeyMappingWithKey(nil, wrappedToken, masterKey)
+		if !ok || mapping.UpstreamToken != upstreamToken || mapping.KeyID != "key_dual" || mapping.VirtualKey != "sk-bf-dual" {
+			t.Fatalf("resolved mapping = %#v, ok %v; want upstream %q with the shared binding", mapping, ok, upstreamToken)
+		}
+	}
+}
+
+func TestWrapRealtimeClientSecretResponseRejectsPartialBinding(t *testing.T) {
+	t.Parallel()
+
+	body := []byte(`{
+		"value": "ek_upstream_top",
+		"expires_at": 4102444800,
+		"client_secret": {"value": "ek_unbindable_nested"}
+	}`)
+	rewritten, wrapped, err := wrapRealtimeClientSecretResponse(
+		body,
+		"key_partial",
+		"",
+		[]byte("shared-cluster-encryption-key-for-tests"),
+	)
+	if err != nil || wrapped {
+		t.Fatalf("wrapRealtimeClientSecretResponse() = wrapped %v, error %v", wrapped, err)
+	}
+	if string(rewritten) != string(body) {
+		t.Fatalf("partially bindable response changed: %s", rewritten)
 	}
 }
 
@@ -557,6 +596,29 @@ func TestCacheRealtimeEphemeralKeyMappingStoresKeyID(t *testing.T) {
 	}
 	if mapping.VirtualKey != "sk-bf-test" {
 		t.Fatalf("mapping.VirtualKey = %q, want %q", mapping.VirtualKey, "sk-bf-test")
+	}
+}
+
+func TestCacheRealtimeEphemeralKeyMappingStoresEverySupportedShape(t *testing.T) {
+	t.Parallel()
+
+	store, err := kvstore.New(kvstore.Config{})
+	if err != nil {
+		t.Fatalf("kvstore.New() error = %v", err)
+	}
+	defer store.Close()
+
+	body := []byte(`{
+		"value": "ek_top",
+		"expires_at": 4102444800,
+		"client_secret": {"value": "ek_nested", "expires_at": 4102444800}
+	}`)
+	cacheRealtimeEphemeralKeyMapping(store, body, "key_dual", "sk-bf-dual")
+
+	for _, token := range []string{"ek_top", "ek_nested"} {
+		if _, err := store.Get(buildRealtimeEphemeralKeyMappingKey(token)); err != nil {
+			t.Fatalf("mapping for %s was not cached: %v", token, err)
+		}
 	}
 }
 

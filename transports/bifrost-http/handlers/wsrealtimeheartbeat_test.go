@@ -14,7 +14,7 @@ import (
 //
 // The upgrade handler is held open until cleanup runs, so the connection stays
 // valid for the duration of the test.
-func dialRealtimeTestConn(t *testing.T) (*ws.Conn, func()) {
+func dialRealtimeTestConnPair(t *testing.T) (*ws.Conn, *ws.Conn, func()) {
 	t.Helper()
 
 	upgrader := ws.FastHTTPUpgrader{
@@ -56,12 +56,18 @@ func dialRealtimeTestConn(t *testing.T) (*ws.Conn, func()) {
 		t.Fatal("timed out waiting for the server side of the connection")
 	}
 
-	return serverConn, func() {
+	return serverConn, client, func() {
 		close(release)
 		<-released
 		_ = client.Close()
 		_ = srv.Shutdown()
 	}
+}
+
+func dialRealtimeTestConn(t *testing.T) (*ws.Conn, func()) {
+	t.Helper()
+	serverConn, _, cleanup := dialRealtimeTestConnPair(t)
+	return serverConn, cleanup
 }
 
 // TestRealtimeStopHeartbeatWaitsForPingGoroutine pins the invariant that makes
