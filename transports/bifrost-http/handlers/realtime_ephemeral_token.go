@@ -29,6 +29,21 @@ type realtimeEphemeralTokenPayload struct {
 	ExpiresAt     int64  `json:"e"`
 }
 
+type realtimeEphemeralTokenCodec struct {
+	aead cipher.AEAD
+}
+
+func newRealtimeEphemeralTokenCodec(masterKey []byte) (*realtimeEphemeralTokenCodec, error) {
+	if len(masterKey) == 0 {
+		return nil, nil
+	}
+	aead, err := newRealtimeEphemeralTokenAEAD(masterKey)
+	if err != nil {
+		return nil, err
+	}
+	return &realtimeEphemeralTokenCodec{aead: aead}, nil
+}
+
 // sealRealtimeEphemeralToken binds an upstream secret to the provider key and
 // governance identity that minted it. AES-GCM keeps the upstream token and
 // virtual key confidential while allowing any replica with the same stable
@@ -40,7 +55,23 @@ func sealRealtimeEphemeralToken(
 	virtualKey string,
 	expiresAt int64,
 ) (string, error) {
-	if len(masterKey) == 0 || strings.TrimSpace(upstreamToken) == "" || strings.TrimSpace(keyID) == "" || expiresAt <= time.Now().Unix() {
+	codec, err := newRealtimeEphemeralTokenCodec(masterKey)
+	if err != nil || codec == nil {
+		if err != nil {
+			return "", err
+		}
+		return "", errInvalidRealtimeEphemeralToken
+	}
+	return codec.seal(upstreamToken, keyID, virtualKey, expiresAt)
+}
+
+func (codec *realtimeEphemeralTokenCodec) seal(
+	upstreamToken string,
+	keyID string,
+	virtualKey string,
+	expiresAt int64,
+) (string, error) {
+	if codec == nil || codec.aead == nil || strings.TrimSpace(upstreamToken) == "" || strings.TrimSpace(keyID) == "" || expiresAt <= time.Now().Unix() {
 		return "", errInvalidRealtimeEphemeralToken
 	}
 
@@ -55,21 +86,25 @@ func sealRealtimeEphemeralToken(
 		return "", err
 	}
 
-	aead, err := newRealtimeEphemeralTokenAEAD(masterKey)
-	if err != nil {
-		return "", err
-	}
-	nonce := make([]byte, aead.NonceSize())
+	nonce := make([]byte, codec.aead.NonceSize())
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
 		return "", err
 	}
-	sealed := aead.Seal(nonce, nonce, payload, []byte(realtimeEphemeralTokenPrefix))
+	sealed := codec.aead.Seal(nonce, nonce, payload, []byte(realtimeEphemeralTokenPrefix))
 	return realtimeEphemeralTokenPrefix + base64.RawURLEncoding.EncodeToString(sealed), nil
 }
 
 func openRealtimeEphemeralToken(masterKey []byte, token string) (realtimeEphemeralKeyMapping, bool) {
+	codec, err := newRealtimeEphemeralTokenCodec(masterKey)
+	if err != nil || codec == nil {
+		return realtimeEphemeralKeyMapping{}, false
+	}
+	return codec.open(token)
+}
+
+func (codec *realtimeEphemeralTokenCodec) open(token string) (realtimeEphemeralKeyMapping, bool) {
 	token = strings.TrimSpace(token)
-	if len(masterKey) == 0 || !strings.HasPrefix(token, realtimeEphemeralTokenPrefix) || len(token) > realtimeEphemeralTokenMaxLength {
+	if codec == nil || codec.aead == nil || !strings.HasPrefix(token, realtimeEphemeralTokenPrefix) || len(token) > realtimeEphemeralTokenMaxLength {
 		return realtimeEphemeralKeyMapping{}, false
 	}
 
@@ -77,12 +112,11 @@ func openRealtimeEphemeralToken(masterKey []byte, token string) (realtimeEphemer
 	if err != nil {
 		return realtimeEphemeralKeyMapping{}, false
 	}
-	aead, err := newRealtimeEphemeralTokenAEAD(masterKey)
-	if err != nil || len(sealed) < aead.NonceSize() {
+	if len(sealed) < codec.aead.NonceSize() {
 		return realtimeEphemeralKeyMapping{}, false
 	}
-	nonce, ciphertext := sealed[:aead.NonceSize()], sealed[aead.NonceSize():]
-	payloadJSON, err := aead.Open(nil, nonce, ciphertext, []byte(realtimeEphemeralTokenPrefix))
+	nonce, ciphertext := sealed[:codec.aead.NonceSize()], sealed[codec.aead.NonceSize():]
+	payloadJSON, err := codec.aead.Open(nil, nonce, ciphertext, []byte(realtimeEphemeralTokenPrefix))
 	if err != nil {
 		return realtimeEphemeralKeyMapping{}, false
 	}

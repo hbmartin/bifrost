@@ -22,6 +22,7 @@
 
 ## 🐞 Fixed
 
+- **Realtime Ephemeral Credential Compatibility** - Reuses token cryptography across requests, dual-reads previous structured mappings, and returns opaque unauthorized errors for stale mapped keys
 - **GenAI SSE Heartbeats** - GenAI streams delimit heartbeat comments so Google SDK clients preserve the following event (thanks [@dani29](https://github.com/dani29)!) (#6240)
 - **Path Normalization Auth Bypass** - Fixed a path normalization flaw that allowed auth to be bypassed (#5763)
 - **Minimal Reasoning Effort on GPT-5 Models** - `reasoning_effort: "minimal"` is preserved for GPT-5-family OpenAI models instead of being downgraded to `low` (thanks [@jitokim](https://github.com/jitokim)!) (#6046)

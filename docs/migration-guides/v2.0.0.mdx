@@ -242,6 +242,12 @@ See the [Plugin Migration Guide](/plugins/migration-guide) for the full hook con
 
 ---
 
+## Rolling Upgrades and Realtime Ephemeral Keys
+
+Current nodes read both the unversioned structured mappings written by the previous release and the versioned format written by v2, so those credentials remain usable during a mixed-version rollout. Older raw-string mappings are intentionally rejected because they do not bind the credential to a key ID; affected clients must reconnect after that mapping expires.
+
+---
+
 ## Migration Checklist
 
 <Steps>
