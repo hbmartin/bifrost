@@ -65,11 +65,23 @@ var (
 	// ErrKeySelectionUnavailable identifies failures in the key store or custom
 	// selector rather than a client-supplied key/model mismatch.
 	ErrKeySelectionUnavailable = errors.New("key selection unavailable")
+	// errPinnedAPIKeyIneligible identifies a configured pin that exists but cannot
+	// serve the requested operation/model. It stays distinct from
+	// ErrPinnedAPIKeyUnavailable so realtime callers can reserve the latter for
+	// genuinely stale mappings while HTTP serialization can sanitize both.
+	errPinnedAPIKeyIneligible = errors.New("pinned API key ineligible")
 )
 
 const (
-	keySelectionUnavailableClientMessage = "provider credentials are temporarily unavailable"
-	keySelectionUnavailableErrorType     = "key_selection_unavailable"
+	// KeySelectionUnavailableClientMessage is safe to return when credential
+	// selection fails because of an internal key-store or selector outage.
+	KeySelectionUnavailableClientMessage = "provider credentials are temporarily unavailable"
+	// KeySelectionInvalidClientMessage is safe to return for caller-visible
+	// selection failures without disclosing configured key IDs or names.
+	KeySelectionInvalidClientMessage = "provider credentials are unavailable for this request"
+
+	keySelectionUnavailableErrorType = "key_selection_unavailable"
+	keySelectionInvalidErrorType     = "invalid_request_error"
 )
 
 func newKeySelectionUnavailableBifrostError() *schemas.BifrostError {
@@ -81,8 +93,39 @@ func newKeySelectionUnavailableBifrostError() *schemas.BifrostError {
 		Type:           &errorType,
 		Error: &schemas.ErrorField{
 			Type:    &errorType,
-			Message: keySelectionUnavailableClientMessage,
+			Message: KeySelectionUnavailableClientMessage,
 		},
+	}
+}
+
+func newKeySelectionInvalidBifrostError() *schemas.BifrostError {
+	statusCode := fasthttp.StatusBadRequest
+	errorType := keySelectionInvalidErrorType
+	return &schemas.BifrostError{
+		IsBifrostError: false,
+		StatusCode:     &statusCode,
+		Type:           &errorType,
+		Error: &schemas.ErrorField{
+			Type:    &errorType,
+			Message: KeySelectionInvalidClientMessage,
+		},
+	}
+}
+
+func newKeySelectionBifrostError(err error) *schemas.BifrostError {
+	switch {
+	case errors.Is(err, ErrKeySelectionUnavailable):
+		return newKeySelectionUnavailableBifrostError()
+	case errors.Is(err, ErrPinnedAPIKeyUnavailable), errors.Is(err, errPinnedAPIKeyIneligible):
+		return newKeySelectionInvalidBifrostError()
+	default:
+		return &schemas.BifrostError{
+			IsBifrostError: false,
+			Error: &schemas.ErrorField{
+				Message: err.Error(),
+				Error:   err,
+			},
+		}
 	}
 }
 
@@ -6684,15 +6727,25 @@ func executeRequestWithRetries[T any](
 			if shouldRetry {
 				logger.Debug("detected request HTTP/network error, will retry: %s", errMessage)
 			} else {
+				blockErrorFallbacks(bifrostError)
 				logger.Debug("not retrying HTTP/network error for non-idempotent %s/%s operation", providerKey, requestType)
 			}
 		} else if (bifrostError.StatusCode != nil && transientServerStatusCodes[*bifrostError.StatusCode]) || isPerKeyFailure {
 			shouldRetry = true
-			if bifrostError.StatusCode != nil && *bifrostError.StatusCode == fasthttp.StatusBadGateway &&
-				!canRetryAmbiguousProviderFailure(requestType, providerKey, req) {
+			switch {
+			case isAcceptedUpstreamResponseError(bifrostError):
+				shouldRetry = canReplayAcceptedUpstreamResponse(requestType, providerKey, req)
+				if !shouldRetry {
+					blockErrorFallbacks(bifrostError)
+					logger.Debug("not replaying accepted invalid response for %s/%s operation", providerKey, requestType)
+				}
+			case bifrostError.StatusCode != nil && *bifrostError.StatusCode == fasthttp.StatusBadGateway &&
+				!canRetryAmbiguousProviderFailure(requestType, providerKey, req):
 				shouldRetry = false
+				blockErrorFallbacks(bifrostError)
 				logger.Debug("not retrying 502 for non-idempotent %s/%s operation", providerKey, requestType)
-			} else {
+			}
+			if shouldRetry {
 				logger.Debug("encountered error that should be retried: %s", errMessage)
 			}
 		}
@@ -6791,11 +6844,69 @@ func canRetryAmbiguousProviderFailure(requestType schemas.RequestType, providerK
 	case schemas.BatchCreateRequest:
 		return providerKey == schemas.Bedrock && req != nil &&
 			bedrock.BatchClientRequestToken(req.BatchCreateRequest) != ""
-	case schemas.CachedContentCreateRequest, schemas.FileUploadRequest:
+	case schemas.CachedContentCreateRequest,
+		schemas.CachedContentUpdateRequest,
+		schemas.FileUploadRequest,
+		schemas.ContainerCreateRequest,
+		schemas.ContainerFileCreateRequest:
 		return false
 	default:
 		return true
 	}
+}
+
+// isAcceptedUpstreamResponseError identifies a successful provider response
+// whose body violated the expected schema. Replaying such a request can repeat
+// already-completed provider work, so callers must pass the explicit replay
+// allowlist below rather than treating every 502 as transient.
+func isAcceptedUpstreamResponseError(bifrostError *schemas.BifrostError) bool {
+	return bifrostError != nil &&
+		bifrostError.StatusCode != nil && *bifrostError.StatusCode == fasthttp.StatusBadGateway &&
+		bifrostError.Error != nil && bifrostError.Error.Type != nil &&
+		*bifrostError.Error.Type == schemas.ProviderResponseInvalid
+}
+
+// canReplayAcceptedUpstreamResponse is deliberately default-deny. Only
+// read-only operations and operations carrying a provider-enforced idempotency
+// token may be repeated after the provider returned a malformed success body.
+func canReplayAcceptedUpstreamResponse(requestType schemas.RequestType, providerKey schemas.ModelProvider, req *schemas.BifrostRequest) bool {
+	switch requestType {
+	case schemas.BatchCreateRequest:
+		return providerKey == schemas.Bedrock && req != nil &&
+			bedrock.BatchClientRequestToken(req.BatchCreateRequest) != ""
+	case schemas.ListModelsRequest,
+		schemas.ResponsesRetrieveRequest,
+		schemas.ResponsesInputItemsRequest,
+		schemas.EmbeddingRequest,
+		schemas.VideoRetrieveRequest,
+		schemas.VideoDownloadRequest,
+		schemas.VideoListRequest,
+		schemas.BatchListRequest,
+		schemas.BatchRetrieveRequest,
+		schemas.BatchResultsRequest,
+		schemas.FileListRequest,
+		schemas.FileRetrieveRequest,
+		schemas.FileContentRequest,
+		schemas.CachedContentListRequest,
+		schemas.CachedContentRetrieveRequest,
+		schemas.ContainerListRequest,
+		schemas.ContainerRetrieveRequest,
+		schemas.ContainerFileListRequest,
+		schemas.ContainerFileRetrieveRequest,
+		schemas.ContainerFileContentRequest,
+		schemas.CountTokensRequest:
+		return true
+	default:
+		return false
+	}
+}
+
+func blockErrorFallbacks(bifrostError *schemas.BifrostError) {
+	if bifrostError == nil {
+		return
+	}
+	allowFallbacks := false
+	bifrostError.AllowFallbacks = &allowFallbacks
 }
 
 // clearAnthropicPassthroughForNonNativeProvider disables Anthropic raw-body passthrough when a
@@ -7034,18 +7145,7 @@ func (bifrost *Bifrost) requestWorker(provider schemas.Provider, config *schemas
 					supportedKeys, canRotate, keyPoolErr := bifrost.selectKeyFromProviderForModelWithPool(req.Context, req.RequestType, provider.GetProviderKey(), model, baseProvider)
 					if keyPoolErr != nil {
 						bifrost.logger.Warn("error building key pool for provider %s and model %s: %v", provider.GetProviderKey(), model, keyPoolErr)
-						var selectionErr *schemas.BifrostError
-						if errors.Is(keyPoolErr, ErrKeySelectionUnavailable) {
-							selectionErr = newKeySelectionUnavailableBifrostError()
-						} else {
-							selectionErr = &schemas.BifrostError{
-								IsBifrostError: false,
-								Error: &schemas.ErrorField{
-									Message: keyPoolErr.Error(),
-									Error:   keyPoolErr,
-								},
-							}
-						}
+						selectionErr := newKeySelectionBifrostError(keyPoolErr)
 						selectionErr.ExtraFields = schemas.BifrostErrorExtraFields{
 							Provider:               provider.GetProviderKey(),
 							RequestType:            req.RequestType,
@@ -8825,27 +8925,10 @@ func (bifrost *Bifrost) selectKeyFromProviderForModelWithPool(ctx *schemas.Bifro
 	// Resolve pin existence against the unfiltered provider key set. Eligibility
 	// is checked below, but only a genuinely missing ID/name should carry the
 	// ErrPinnedAPIKeyUnavailable sentinel used to classify stale ephemeral tokens.
-	if pinnedKeyID != "" {
-		found := false
-		for _, key := range keys {
-			if key.ID == pinnedKeyID {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return nil, false, fmt.Errorf("%w: key id %q not found for provider: %v", ErrPinnedAPIKeyUnavailable, pinnedKeyID, providerKey)
-		}
-	} else if pinnedKeyName != "" {
-		found := false
-		for _, key := range keys {
-			if key.Name == pinnedKeyName {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return nil, false, fmt.Errorf("%w: key name %q not found for provider: %v", ErrPinnedAPIKeyUnavailable, pinnedKeyName, providerKey)
+	if pinnedKeyID != "" || pinnedKeyName != "" {
+		if _, found := findPinnedAPIKey(keys, pinnedKeyID, pinnedKeyName); !found {
+			kind, value := pinnedAPIKeyKindAndValue(pinnedKeyID, pinnedKeyName)
+			return nil, false, fmt.Errorf("%w: key %s %q not found for provider: %v", ErrPinnedAPIKeyUnavailable, kind, value, providerKey)
 		}
 	}
 
@@ -8913,27 +8996,20 @@ func (bifrost *Bifrost) selectKeyFromProviderForModelWithPool(ctx *schemas.Bifro
 		}
 	}
 	if len(supportedKeys) == 0 {
+		if pinnedKeyID != "" || pinnedKeyName != "" {
+			kind, value := pinnedAPIKeyKindAndValue(pinnedKeyID, pinnedKeyName)
+			return nil, false, fmt.Errorf("%w: configured key %s %q is not eligible for provider: %v and model: %s", errPinnedAPIKeyIneligible, kind, value, providerKey, model)
+		}
 		return nil, false, fmt.Errorf("no keys found that support model: %s", model)
 	}
 
 	// Explicit key ID takes priority over key name — pin to that key, no rotation.
-	if ctx != nil {
-		if pinnedKeyID != "" {
-			for _, key := range supportedKeys {
-				if key.ID == pinnedKeyID {
-					return []schemas.Key{key}, false, nil
-				}
-			}
-			return nil, false, fmt.Errorf("configured key id %q is not eligible for provider: %v and model: %s", pinnedKeyID, providerKey, model)
+	if pinnedKeyID != "" || pinnedKeyName != "" {
+		if key, found := findPinnedAPIKey(supportedKeys, pinnedKeyID, pinnedKeyName); found {
+			return []schemas.Key{key}, false, nil
 		}
-		if pinnedKeyName != "" {
-			for _, key := range supportedKeys {
-				if key.Name == pinnedKeyName {
-					return []schemas.Key{key}, false, nil
-				}
-			}
-			return nil, false, fmt.Errorf("configured key name %q is not eligible for provider: %v and model: %s", pinnedKeyName, providerKey, model)
-		}
+		kind, value := pinnedAPIKeyKindAndValue(pinnedKeyID, pinnedKeyName)
+		return nil, false, fmt.Errorf("%w: configured key %s %q is not eligible for provider: %v and model: %s", errPinnedAPIKeyIneligible, kind, value, providerKey, model)
 	}
 
 	// Single key: no rotation possible, skip session stickiness (no KV write needed).
@@ -9021,6 +9097,22 @@ func pinnedAPIKeyReference(ctx *schemas.BifrostContext) (keyID string, keyName s
 		keyName = strings.TrimSpace(value)
 	}
 	return "", keyName
+}
+
+func findPinnedAPIKey(keys []schemas.Key, keyID, keyName string) (schemas.Key, bool) {
+	for _, key := range keys {
+		if (keyID != "" && key.ID == keyID) || (keyID == "" && keyName != "" && key.Name == keyName) {
+			return key, true
+		}
+	}
+	return schemas.Key{}, false
+}
+
+func pinnedAPIKeyKindAndValue(keyID, keyName string) (kind, value string) {
+	if keyID != "" {
+		return "id", keyID
+	}
+	return "name", keyName
 }
 
 // getCachedKeyFromStore retrieves a key ID from the KV store and looks it up in supportedKeys.

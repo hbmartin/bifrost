@@ -284,10 +284,8 @@ func (h *WSResponsesHandler) tryNativeWSUpstream(
 
 	key, err := h.client.SelectKeyForProviderRequestType(ctx, schemas.WebSocketResponsesRequest, req.Provider, req.Model)
 	if err != nil {
-		if logger != nil {
-			logger.Warn("WebSocket Responses key selection failed: provider=%s model=%s error=%v", req.Provider, req.Model, err)
-		}
-		status, errorType, message := classifyRealtimeKeySelectionError(err, false)
+		status, errorType, message := classifyKeySelectionError(err)
+		logKeySelectionFailure("WebSocket Responses", req.Provider, req.Model, false, status, err)
 		writeWSError(session, status, errorType, message)
 		return true
 	}
