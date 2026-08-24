@@ -56,6 +56,15 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
+var (
+	// ErrPinnedAPIKeyUnavailable identifies an explicit API key ID or name that
+	// no longer resolves to an eligible provider key.
+	ErrPinnedAPIKeyUnavailable = errors.New("pinned API key unavailable")
+	// ErrKeySelectionUnavailable identifies failures in the key store or custom
+	// selector rather than a client-supplied key/model mismatch.
+	ErrKeySelectionUnavailable = errors.New("key selection unavailable")
+)
+
 // ChannelMessage represents a message passed through the request channel.
 // It contains the request, response and error channels, and the request type.
 type ChannelMessage struct {
@@ -4678,7 +4687,11 @@ func (bifrost *Bifrost) SelectKeyForProviderRequestType(ctx *schemas.BifrostCont
 	if len(supportedKeys) == 1 {
 		return supportedKeys[0], nil
 	}
-	return bifrost.keySelector(ctx, supportedKeys, providerKey, model)
+	key, err := bifrost.keySelector(ctx, supportedKeys, providerKey, model)
+	if err != nil {
+		return schemas.Key{}, fmt.Errorf("%w: %w", ErrKeySelectionUnavailable, err)
+	}
+	return key, nil
 }
 
 // baseProviderTypeFor resolves a custom provider key to the built-in provider
@@ -8914,9 +8927,12 @@ func (bifrost *Bifrost) selectKeyFromProviderForModelWithPool(ctx *schemas.Bifro
 	// Get keys for provider
 	keys, err := bifrost.account.GetKeysForProvider(ctx, providerKey)
 	if err != nil {
-		return nil, false, err
+		return nil, false, fmt.Errorf("%w: %w", ErrKeySelectionUnavailable, err)
 	}
 	if len(keys) == 0 {
+		if hasPinnedAPIKey(ctx) {
+			return nil, false, fmt.Errorf("%w: no keys found for provider: %v and model: %s", ErrPinnedAPIKeyUnavailable, providerKey, model)
+		}
 		return nil, false, fmt.Errorf("no keys found for provider: %v and model: %s", providerKey, model)
 	}
 
@@ -8984,6 +9000,9 @@ func (bifrost *Bifrost) selectKeyFromProviderForModelWithPool(ctx *schemas.Bifro
 		}
 	}
 	if len(supportedKeys) == 0 {
+		if hasPinnedAPIKey(ctx) {
+			return nil, false, fmt.Errorf("%w: no keys support provider: %v and model: %s", ErrPinnedAPIKeyUnavailable, providerKey, model)
+		}
 		return nil, false, fmt.Errorf("no keys found that support model: %s", model)
 	}
 
@@ -8996,7 +9015,7 @@ func (bifrost *Bifrost) selectKeyFromProviderForModelWithPool(ctx *schemas.Bifro
 						return []schemas.Key{key}, false, nil
 					}
 				}
-				return nil, false, fmt.Errorf("no supported key found with id %q for provider: %v and model: %s", keyID, providerKey, model)
+				return nil, false, fmt.Errorf("%w: no supported key found with id %q for provider: %v and model: %s", ErrPinnedAPIKeyUnavailable, keyID, providerKey, model)
 			}
 		}
 		if keyName, ok := ctx.Value(schemas.BifrostContextKeyAPIKeyName).(string); ok {
@@ -9006,7 +9025,7 @@ func (bifrost *Bifrost) selectKeyFromProviderForModelWithPool(ctx *schemas.Bifro
 						return []schemas.Key{key}, false, nil
 					}
 				}
-				return nil, false, fmt.Errorf("no supported key found with name %q for provider: %v and model: %s", keyName, providerKey, model)
+				return nil, false, fmt.Errorf("%w: no supported key found with name %q for provider: %v and model: %s", ErrPinnedAPIKeyUnavailable, keyName, providerKey, model)
 			}
 		}
 	}
@@ -9052,7 +9071,7 @@ func (bifrost *Bifrost) selectKeyFromProviderForModelWithPool(ctx *schemas.Bifro
 
 		selectedKey, err := bifrost.keySelector(ctx, supportedKeys, providerKey, model)
 		if err != nil {
-			return nil, false, err
+			return nil, false, fmt.Errorf("%w: %w", ErrKeySelectionUnavailable, err)
 		}
 
 		wasSet, err := bifrost.kvStore.SetNXWithTTL(kvKey, selectedKey.ID, ttl)
@@ -9079,6 +9098,17 @@ func (bifrost *Bifrost) selectKeyFromProviderForModelWithPool(ctx *schemas.Bifro
 
 	// Normal case: return the full filtered pool with rotation enabled.
 	return supportedKeys, true, nil
+}
+
+func hasPinnedAPIKey(ctx *schemas.BifrostContext) bool {
+	if ctx == nil {
+		return false
+	}
+	if keyID, ok := ctx.Value(schemas.BifrostContextKeyAPIKeyID).(string); ok && strings.TrimSpace(keyID) != "" {
+		return true
+	}
+	keyName, _ := ctx.Value(schemas.BifrostContextKeyAPIKeyName).(string)
+	return strings.TrimSpace(keyName) != ""
 }
 
 // getCachedKeyFromStore retrieves a key ID from the KV store and looks it up in supportedKeys.

@@ -11,7 +11,6 @@ import (
 	bifrost "github.com/maximhq/bifrost/core"
 	providerUtils "github.com/maximhq/bifrost/core/providers/utils"
 	"github.com/maximhq/bifrost/core/schemas"
-	"github.com/maximhq/bifrost/framework/encrypt"
 	"github.com/maximhq/bifrost/framework/kvstore"
 	"github.com/maximhq/bifrost/plugins/governance"
 	"github.com/maximhq/bifrost/plugins/modelcatalogresolver"
@@ -31,11 +30,7 @@ type RealtimeClientSecretsHandler struct {
 	tokenCodec   *realtimeEphemeralTokenCodec
 }
 
-func NewRealtimeClientSecretsHandler(client *bifrost.Bifrost, config *lib.Config) *RealtimeClientSecretsHandler {
-	tokenCodec, err := newRealtimeEphemeralTokenCodec(encrypt.Key())
-	if err != nil {
-		panic(fmt.Sprintf("failed to initialize realtime ephemeral token codec: %v", err))
-	}
+func newRealtimeClientSecretsHandler(client *bifrost.Bifrost, config *lib.Config, tokenCodec *realtimeEphemeralTokenCodec) *RealtimeClientSecretsHandler {
 	return &RealtimeClientSecretsHandler{
 		client:       client,
 		config:       config,
@@ -408,19 +403,16 @@ const realtimeEphemeralKeyMappingPrefix = "realtime:ephemeral-key:"
 
 const realtimeEphemeralKeyMappingVersion = 1
 
+// Local compatibility mappings are only a fallback for deployments without a
+// stable encryption key. Bound their lifetime so legacy structured values
+// cannot remain valid indefinitely when an upstream returns an extreme expiry.
+const realtimeEphemeralKeyMappingMaxTTL = 24 * time.Hour
+
 type realtimeEphemeralKeyMapping struct {
 	Version       int    `json:"version"`
 	KeyID         string `json:"key_id,omitempty"`
 	VirtualKey    string `json:"virtual_key,omitempty"`
 	UpstreamToken string `json:"-"`
-}
-
-func wrapRealtimeClientSecretResponse(body []byte, keyID string, virtualKey string, masterKey []byte) ([]byte, bool, error) {
-	tokenCodec, err := newRealtimeEphemeralTokenCodec(masterKey)
-	if err != nil {
-		return nil, false, err
-	}
-	return wrapRealtimeClientSecretResponseWithCodec(body, keyID, virtualKey, tokenCodec)
 }
 
 func wrapRealtimeClientSecretResponseWithCodec(body []byte, keyID string, virtualKey string, tokenCodec *realtimeEphemeralTokenCodec) ([]byte, bool, error) {
@@ -472,7 +464,7 @@ func cacheRealtimeEphemeralKeyMapping(kv *kvstore.Store, body []byte, keyID stri
 	}
 
 	for _, secret := range secrets {
-		ttl := time.Until(time.Unix(secret.expiresAt, 0))
+		ttl := realtimeEphemeralKeyMappingTTL(secret.expiresAt, time.Now())
 		if ttl <= 0 {
 			continue
 		}
@@ -480,6 +472,17 @@ func cacheRealtimeEphemeralKeyMapping(kv *kvstore.Store, body []byte, keyID stri
 			logger.Warn("failed to cache realtime ephemeral key mapping for key_id=%s: %v", keyID, err)
 		}
 	}
+}
+
+func realtimeEphemeralKeyMappingTTL(expiresAt int64, now time.Time) time.Duration {
+	ttl := time.Unix(expiresAt, 0).Sub(now)
+	if ttl <= 0 {
+		return 0
+	}
+	if ttl > realtimeEphemeralKeyMappingMaxTTL {
+		return realtimeEphemeralKeyMappingMaxTTL
+	}
+	return ttl
 }
 
 type realtimeClientSecretProbe struct {
