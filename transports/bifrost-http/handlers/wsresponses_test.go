@@ -430,6 +430,24 @@ func TestRealtimeEphemeralMappingOverridesCompetingCredentialInBothContexts(t *t
 	})
 }
 
+func TestRealtimeSessionRestoresOrdinaryRoutingPinOverClientHeader(t *testing.T) {
+	auth := &authHeaders{
+		authorization: "Bearer sk-bf-ordinary",
+		headers: []headerPair{
+			{key: "authorization", value: "Bearer sk-bf-ordinary"},
+			{key: "x-bf-api-key-id", value: "client-key-id"},
+		},
+	}
+	ctx, cancel := createBifrostContextFromAuth(testWSHandlerStore{}, auth)
+	defer cancel()
+
+	applyRealtimeSessionContextValues(ctx, map[any]any{
+		schemas.BifrostContextKeyAPIKeyID: "routing-pinned-key-id",
+	}, nil)
+
+	assert.Equal(t, "routing-pinned-key-id", ctx.Value(schemas.BifrostContextKeyAPIKeyID))
+}
+
 func TestResolveRealtimeWebSocketEphemeralMappingLeavesOrdinaryAuthorizationAlone(t *testing.T) {
 	auth := &authHeaders{authorization: "Bearer sk-bf-ordinary"}
 	mapping, isEphemeral := resolveRealtimeWebSocketEphemeralMapping(nil, auth)
@@ -471,6 +489,22 @@ func TestWSRealtimeHandleUpgradeRejectsUnmappedEphemeralTokenBeforeUpgrade(t *te
 	assert.Equal(t, fasthttp.StatusUnauthorized, fctx.Response.StatusCode())
 	assert.NotEqual(t, fasthttp.StatusSwitchingProtocols, fctx.Response.StatusCode())
 	assert.Equal(t, "application/json", string(fctx.Response.Header.ContentType()))
+	assert.Contains(t, string(fctx.Response.Body()), "ephemeral key is unknown or expired")
+}
+
+func TestWSRealtimeHandleUpgradeHandlesTypedNilKVStore(t *testing.T) {
+	var req fasthttp.Request
+	req.Header.SetMethod(fasthttp.MethodGet)
+	req.SetRequestURI("/v1/realtime?model=openai/gpt-realtime")
+	req.Header.Set("Authorization", "Bearer ek_expired")
+
+	fctx := &fasthttp.RequestCtx{}
+	fctx.Init(&req, &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 12345}, nil)
+
+	handler := &WSRealtimeHandler{handlerStore: testWSHandlerStore{}}
+	handler.handleUpgrade(fctx)
+
+	assert.Equal(t, fasthttp.StatusUnauthorized, fctx.Response.StatusCode())
 	assert.Contains(t, string(fctx.Response.Body()), "ephemeral key is unknown or expired")
 }
 
