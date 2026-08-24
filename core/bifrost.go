@@ -58,12 +58,33 @@ import (
 
 var (
 	// ErrPinnedAPIKeyUnavailable identifies an explicit API key ID or name that
-	// no longer resolves to an eligible provider key.
+	// no longer exists in the provider's configured key set. A key that still
+	// exists but is ineligible for the requested model returns a normal client
+	// selection error instead, so callers do not mistake it for a stale pin.
 	ErrPinnedAPIKeyUnavailable = errors.New("pinned API key unavailable")
 	// ErrKeySelectionUnavailable identifies failures in the key store or custom
 	// selector rather than a client-supplied key/model mismatch.
 	ErrKeySelectionUnavailable = errors.New("key selection unavailable")
 )
+
+const (
+	keySelectionUnavailableClientMessage = "provider credentials are temporarily unavailable"
+	keySelectionUnavailableErrorType     = "key_selection_unavailable"
+)
+
+func newKeySelectionUnavailableBifrostError() *schemas.BifrostError {
+	statusCode := 503
+	errorType := keySelectionUnavailableErrorType
+	return &schemas.BifrostError{
+		IsBifrostError: false,
+		StatusCode:     &statusCode,
+		Type:           &errorType,
+		Error: &schemas.ErrorField{
+			Type:    &errorType,
+			Message: keySelectionUnavailableClientMessage,
+		},
+	}
+}
 
 // ChannelMessage represents a message passed through the request channel.
 // It contains the request, response and error channels, and the request type.
@@ -6293,6 +6314,10 @@ func executeRequestWithRetries[T any](
 				// successful response. Use attempt_trail for failure attribution.
 				ctx.SetValue(schemas.BifrostContextKeySelectedKeyID, "")
 				ctx.SetValue(schemas.BifrostContextKeySelectedKeyName, "")
+				if errors.Is(err, ErrKeySelectionUnavailable) {
+					logger.Error("key selection unavailable for provider %s and model %s: %v", providerKey, model, err)
+					return zero, newKeySelectionUnavailableBifrostError()
+				}
 				// Only collapse into 502 upstream_credentials_exhausted when keyProvider
 				// explicitly signals "every key is dead" via the errAllKeysDead sentinel.
 				// Any other error (custom selector failure, etc.) propagates unchanged so
@@ -6650,6 +6675,30 @@ func executeRequestWithRetries[T any](
 
 		logger.Debug("request %s for provider %s completed", requestType, providerKey)
 
+		// Fill FailReason on every failed attempt before any terminal break. The trail
+		// field answers "why was this key skipped?", so for rotation-triggering status
+		// codes the status itself is the truthful answer — provider Type labels can be
+		// misleading (e.g. OpenAI returns Type="invalid_request_error" for 401
+		// invalid_api_key, which describes the request, not the rotation reason). Fall
+		// back to provider Type for non-rotation failures, then "unknown".
+		if bifrostError != nil {
+			if trail, ok := ctx.Value(schemas.BifrostContextKeyAttemptTrail).([]schemas.KeyAttemptRecord); ok && len(trail) > 0 {
+				reason := "unknown"
+				switch {
+				case bifrostError.StatusCode != nil && *bifrostError.StatusCode == 429:
+					reason = "rate_limit_error"
+				case bifrostError.StatusCode != nil && (*bifrostError.StatusCode == 401 || *bifrostError.StatusCode == 403):
+					reason = "authentication_error"
+				case bifrostError.StatusCode != nil && *bifrostError.StatusCode == 402:
+					reason = "billing_error"
+				case bifrostError.Error != nil && bifrostError.Error.Type != nil && *bifrostError.Error.Type != "":
+					reason = *bifrostError.Error.Type
+				}
+				trail[len(trail)-1].FailReason = &reason
+				ctx.SetValue(schemas.BifrostContextKeyAttemptTrail, trail)
+			}
+		}
+
 		// Check if successful or if we should retry
 		if bifrostError == nil ||
 			bifrostError.IsBifrostError ||
@@ -6680,28 +6729,6 @@ func executeRequestWithRetries[T any](
 		} else if (bifrostError.StatusCode != nil && transientServerStatusCodes[*bifrostError.StatusCode]) || isPerKeyFailure {
 			shouldRetry = true
 			logger.Debug("encountered error that should be retried: %s", errMessage)
-		}
-
-		// Fill FailReason on any failed attempt (retryable or terminal). The trail field
-		// answers "why was this key skipped?", so for rotation-triggering status codes the
-		// status itself is the truthful answer — provider Type labels can be misleading
-		// (e.g. OpenAI returns Type="invalid_request_error" for 401 invalid_api_key, which
-		// describes the request, not the rotation reason). Fall back to provider Type for
-		// non-rotation failures, then "unknown".
-		if trail, ok := ctx.Value(schemas.BifrostContextKeyAttemptTrail).([]schemas.KeyAttemptRecord); ok && len(trail) > 0 {
-			reason := "unknown"
-			switch {
-			case bifrostError.StatusCode != nil && *bifrostError.StatusCode == 429:
-				reason = "rate_limit_error"
-			case bifrostError.StatusCode != nil && (*bifrostError.StatusCode == 401 || *bifrostError.StatusCode == 403):
-				reason = "authentication_error"
-			case bifrostError.StatusCode != nil && *bifrostError.StatusCode == 402:
-				reason = "billing_error"
-			case bifrostError.Error != nil && bifrostError.Error.Type != nil && *bifrostError.Error.Type != "":
-				reason = *bifrostError.Error.Type
-			}
-			trail[len(trail)-1].FailReason = &reason
-			ctx.SetValue(schemas.BifrostContextKeyAttemptTrail, trail)
 		}
 
 		// Fail soft when the upstream refuses replayed encrypted reasoning. The ciphertext
@@ -7052,20 +7079,26 @@ func (bifrost *Bifrost) requestWorker(provider schemas.Provider, config *schemas
 					supportedKeys, canRotate, keyPoolErr := bifrost.selectKeyFromProviderForModelWithPool(req.Context, req.RequestType, provider.GetProviderKey(), model, baseProvider)
 					bifrost.endCoreSpan(keyPoolSpan)
 					if keyPoolErr != nil {
-						bifrost.logger.Debug("error building key pool for model %s: %v", model, keyPoolErr)
-						req.Err <- schemas.BifrostError{
-							IsBifrostError: false,
-							Error: &schemas.ErrorField{
-								Message: keyPoolErr.Error(),
-								Error:   keyPoolErr,
-							},
-							ExtraFields: schemas.BifrostErrorExtraFields{
-								Provider:               provider.GetProviderKey(),
-								RequestType:            req.RequestType,
-								OriginalModelRequested: model,
-								ResolvedModelUsed:      model,
-							},
+						bifrost.logger.Warn("error building key pool for provider %s and model %s: %v", provider.GetProviderKey(), model, keyPoolErr)
+						var selectionErr *schemas.BifrostError
+						if errors.Is(keyPoolErr, ErrKeySelectionUnavailable) {
+							selectionErr = newKeySelectionUnavailableBifrostError()
+						} else {
+							selectionErr = &schemas.BifrostError{
+								IsBifrostError: false,
+								Error: &schemas.ErrorField{
+									Message: keyPoolErr.Error(),
+									Error:   keyPoolErr,
+								},
+							}
 						}
+						selectionErr.ExtraFields = schemas.BifrostErrorExtraFields{
+							Provider:               provider.GetProviderKey(),
+							RequestType:            req.RequestType,
+							OriginalModelRequested: model,
+							ResolvedModelUsed:      model,
+						}
+						req.Err <- *selectionErr
 						continue
 					}
 
@@ -7134,7 +7167,11 @@ func (bifrost *Bifrost) requestWorker(provider schemas.Provider, config *schemas
 									delete(usedKeyIDs, id)
 								}
 							}
-							return bifrost.keySelector(req.Context, available, provKey, mdl)
+							selectedKey, err := bifrost.keySelector(req.Context, available, provKey, mdl)
+							if err != nil {
+								return schemas.Key{}, fmt.Errorf("%w: %w", ErrKeySelectionUnavailable, err)
+							}
+							return selectedKey, nil
 						}
 					}
 				}
@@ -8929,11 +8966,39 @@ func (bifrost *Bifrost) selectKeyFromProviderForModelWithPool(ctx *schemas.Bifro
 	if err != nil {
 		return nil, false, fmt.Errorf("%w: %w", ErrKeySelectionUnavailable, err)
 	}
+	pinnedKeyID, pinnedKeyName := pinnedAPIKeyReference(ctx)
 	if len(keys) == 0 {
-		if hasPinnedAPIKey(ctx) {
+		if pinnedKeyID != "" || pinnedKeyName != "" {
 			return nil, false, fmt.Errorf("%w: no keys found for provider: %v and model: %s", ErrPinnedAPIKeyUnavailable, providerKey, model)
 		}
 		return nil, false, fmt.Errorf("no keys found for provider: %v and model: %s", providerKey, model)
+	}
+
+	// Resolve pin existence against the unfiltered provider key set. Eligibility
+	// is checked below, but only a genuinely missing ID/name should carry the
+	// ErrPinnedAPIKeyUnavailable sentinel used to classify stale ephemeral tokens.
+	if pinnedKeyID != "" {
+		found := false
+		for _, key := range keys {
+			if key.ID == pinnedKeyID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil, false, fmt.Errorf("%w: key id %q not found for provider: %v", ErrPinnedAPIKeyUnavailable, pinnedKeyID, providerKey)
+		}
+	} else if pinnedKeyName != "" {
+		found := false
+		for _, key := range keys {
+			if key.Name == pinnedKeyName {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil, false, fmt.Errorf("%w: key name %q not found for provider: %v", ErrPinnedAPIKeyUnavailable, pinnedKeyName, providerKey)
+		}
 	}
 
 	// For batch API operations, filter keys to only include those with UseForBatchAPI enabled
@@ -9000,33 +9065,26 @@ func (bifrost *Bifrost) selectKeyFromProviderForModelWithPool(ctx *schemas.Bifro
 		}
 	}
 	if len(supportedKeys) == 0 {
-		if hasPinnedAPIKey(ctx) {
-			return nil, false, fmt.Errorf("%w: no keys support provider: %v and model: %s", ErrPinnedAPIKeyUnavailable, providerKey, model)
-		}
 		return nil, false, fmt.Errorf("no keys found that support model: %s", model)
 	}
 
 	// Explicit key ID takes priority over key name — pin to that key, no rotation.
 	if ctx != nil {
-		if keyID, ok := ctx.Value(schemas.BifrostContextKeyAPIKeyID).(string); ok {
-			if keyID = strings.TrimSpace(keyID); keyID != "" {
-				for _, key := range supportedKeys {
-					if key.ID == keyID {
-						return []schemas.Key{key}, false, nil
-					}
+		if pinnedKeyID != "" {
+			for _, key := range supportedKeys {
+				if key.ID == pinnedKeyID {
+					return []schemas.Key{key}, false, nil
 				}
-				return nil, false, fmt.Errorf("%w: no supported key found with id %q for provider: %v and model: %s", ErrPinnedAPIKeyUnavailable, keyID, providerKey, model)
 			}
+			return nil, false, fmt.Errorf("configured key id %q is not eligible for provider: %v and model: %s", pinnedKeyID, providerKey, model)
 		}
-		if keyName, ok := ctx.Value(schemas.BifrostContextKeyAPIKeyName).(string); ok {
-			if keyName = strings.TrimSpace(keyName); keyName != "" {
-				for _, key := range supportedKeys {
-					if key.Name == keyName {
-						return []schemas.Key{key}, false, nil
-					}
+		if pinnedKeyName != "" {
+			for _, key := range supportedKeys {
+				if key.Name == pinnedKeyName {
+					return []schemas.Key{key}, false, nil
 				}
-				return nil, false, fmt.Errorf("%w: no supported key found with name %q for provider: %v and model: %s", ErrPinnedAPIKeyUnavailable, keyName, providerKey, model)
 			}
+			return nil, false, fmt.Errorf("configured key name %q is not eligible for provider: %v and model: %s", pinnedKeyName, providerKey, model)
 		}
 	}
 
@@ -9100,15 +9158,21 @@ func (bifrost *Bifrost) selectKeyFromProviderForModelWithPool(ctx *schemas.Bifro
 	return supportedKeys, true, nil
 }
 
-func hasPinnedAPIKey(ctx *schemas.BifrostContext) bool {
+// pinnedAPIKeyReference returns the caller's explicit key pin with ID priority,
+// matching selection semantics. A non-empty ID suppresses any name value.
+func pinnedAPIKeyReference(ctx *schemas.BifrostContext) (keyID string, keyName string) {
 	if ctx == nil {
-		return false
+		return "", ""
 	}
-	if keyID, ok := ctx.Value(schemas.BifrostContextKeyAPIKeyID).(string); ok && strings.TrimSpace(keyID) != "" {
-		return true
+	if value, ok := ctx.Value(schemas.BifrostContextKeyAPIKeyID).(string); ok {
+		if keyID = strings.TrimSpace(value); keyID != "" {
+			return keyID, ""
+		}
 	}
-	keyName, _ := ctx.Value(schemas.BifrostContextKeyAPIKeyName).(string)
-	return strings.TrimSpace(keyName) != ""
+	if value, ok := ctx.Value(schemas.BifrostContextKeyAPIKeyName).(string); ok {
+		keyName = strings.TrimSpace(value)
+	}
+	return "", keyName
 }
 
 // getCachedKeyFromStore retrieves a key ID from the KV store and looks it up in supportedKeys.
