@@ -112,7 +112,7 @@ func (provider *RunwareProvider) listModelsByKey(ctx *schemas.BifrostContext, ke
 
 		var searchResponse RunwareModelSearchResponse
 		if err := sonic.Unmarshal(respBody, &searchResponse); err != nil {
-			return nil, providerUtils.NewBifrostOperationError(schemas.ErrProviderResponseUnmarshal, err)
+			return nil, providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, err)
 		}
 		if len(searchResponse.Data) == 0 {
 			if msg := firstRunwareErrorMessage(searchResponse.Errors); msg != "" {
