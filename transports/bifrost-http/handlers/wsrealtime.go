@@ -343,6 +343,13 @@ func (h *WSRealtimeHandler) runRealtimeSession(
 
 	key, err := h.client.SelectKeyForProviderRequestType(bifrostCtx, schemas.RealtimeRequest, providerKey, model)
 	if err != nil {
+		if ephemeralMapping != nil {
+			if logger != nil {
+				logger.Warn("realtime WebSocket key selection failed for mapped ephemeral credential: provider=%s model=%s error=%v", providerKey, model, err)
+			}
+			clientConn.writeRealtimeError(newRealtimeWireBifrostError(fasthttp.StatusUnauthorized, "invalid_request_error", errRealtimeEphemeralKeyUnknown.Error()))
+			return
+		}
 		clientConn.writeRealtimeError(newRealtimeWireBifrostError(400, "invalid_request_error", err.Error()))
 		return
 	}
