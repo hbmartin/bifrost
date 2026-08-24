@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"slices"
 	"sort"
 	"strings"
@@ -245,7 +246,7 @@ func Init(ctx context.Context, config schemas.BifrostConfig) (*Bifrost, error) {
 		keyPoolFilter: config.KeyPoolFilter,
 		mcpCredStore:  credstore.NewCredStore(config.OAuth2Provider, config.MCPHeadersProvider, config.Logger),
 		logger:        config.Logger,
-		kvStore:       config.KVStore,
+		kvStore:       normalizeOptionalKVStore(config.KVStore),
 		modelCatalog:  config.ModelCatalog,
 	}
 	bifrost.tracer.Store(&tracerWrapper{tracer: tracer})
@@ -376,6 +377,23 @@ func Init(ctx context.Context, config schemas.BifrostConfig) (*Bifrost, error) {
 		}
 	}
 	return bifrost, nil
+}
+
+// normalizeOptionalKVStore converts a typed-nil implementation boxed into the
+// public KVStore interface to a plain nil. Keep this reflection at the public
+// configuration boundary so hot-path callers can use an ordinary nil check.
+func normalizeOptionalKVStore(kvStore schemas.KVStore) schemas.KVStore {
+	if kvStore == nil {
+		return nil
+	}
+	value := reflect.ValueOf(kvStore)
+	switch value.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Map, reflect.Pointer, reflect.Slice:
+		if value.IsNil() {
+			return nil
+		}
+	}
+	return kvStore
 }
 
 // SetTracer sets the tracer for the Bifrost instance.

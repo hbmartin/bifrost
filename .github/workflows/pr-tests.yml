@@ -22,14 +22,24 @@ jobs:
   validate-dispatch:
     name: Validate Dispatch
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions: {}
     steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        with:
+          egress-policy: audit
+
       - name: Validate dispatch inputs and branch
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           DISPATCH_REF: ${{ github.ref }}
           PR_NUMBER: ${{ inputs.pr_number }}
         run: |
+          if [ -z "$DEFAULT_BRANCH" ]; then
+            echo "::error::repository default branch is unavailable"
+            exit 1
+          fi
           if [[ ! "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
             echo "::error::pr_number must be a positive integer"
             exit 1
