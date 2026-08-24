@@ -287,7 +287,7 @@ func TestWebRTCRealtimeRelayCloseFinalizesActiveTurnHooks(t *testing.T) {
 	}
 }
 
-func TestResolveRealtimeWebRTCKeys_UnmappedEphemeralTokenStaysAnonymous(t *testing.T) {
+func TestResolveRealtimeWebRTCKeys_UnmappedEphemeralTokenIsRejected(t *testing.T) {
 	t.Parallel()
 
 	store, err := kvstore.New(kvstore.Config{})
@@ -310,33 +310,54 @@ func TestResolveRealtimeWebRTCKeys_UnmappedEphemeralTokenStaysAnonymous(t *testi
 	bifrostCtx.SetValue(schemas.BifrostContextKeyAPIKeyName, "mapped-name")
 
 	authKey, selectedKey, err := handler.resolveRealtimeWebRTCKeys(&ctx, bifrostCtx, schemas.OpenAI, "gpt-realtime")
-	if err != nil {
-		t.Fatalf("resolveRealtimeWebRTCKeys() error = %v", err)
+	if err != errRealtimeEphemeralKeyUnknown {
+		t.Fatalf("resolveRealtimeWebRTCKeys() error = %v, want %v", err, errRealtimeEphemeralKeyUnknown)
 	}
-	if got := authKey.Value.GetValue(); got != "ek_test_unmapped" {
-		t.Fatalf("auth key value = %q, want %q", got, "ek_test_unmapped")
+	if got := authKey.Value.GetValue(); got != "" {
+		t.Fatalf("auth key value = %q, want empty", got)
 	}
 	if selectedKey != nil {
 		t.Fatalf("selectedKey = %#v, want nil", selectedKey)
 	}
-	if got := bifrostCtx.Value(schemas.BifrostContextKeySelectedKeyID); got != nil {
-		t.Fatalf("selected key id context = %#v, want nil", got)
+}
+
+func TestRunWebRTCRelayRejectsUnmappedEphemeralTokenAsUnauthorized(t *testing.T) {
+	t.Parallel()
+
+	store, err := kvstore.New(kvstore.Config{})
+	if err != nil {
+		t.Fatalf("kvstore.New() error = %v", err)
 	}
-	if got := bifrostCtx.Value(schemas.BifrostContextKeySelectedKeyName); got != nil {
-		t.Fatalf("selected key name context = %#v, want nil", got)
-	}
-	if got := bifrostCtx.Value(schemas.BifrostContextKeyAPIKeyID); got != nil {
-		t.Fatalf("api key id context = %#v, want nil", got)
-	}
-	if got := bifrostCtx.Value(schemas.BifrostContextKeyAPIKeyName); got != nil {
-		t.Fatalf("api key name context = %#v, want nil", got)
+	defer store.Close()
+
+	handler := &WebRTCRealtimeHandler{handlerStore: testHandlerStore{kv: store}}
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.Set("Authorization", "Bearer ek_test_unmapped")
+
+	handler.runWebRTCRelay(&ctx, nil, schemas.OpenAI, "gpt-realtime", "v=0\r\n", nil)
+
+	if got := ctx.Response.StatusCode(); got != fasthttp.StatusUnauthorized {
+		t.Fatalf("status = %d, want %d", got, fasthttp.StatusUnauthorized)
 	}
 }
 
-func TestApplyRealtimeEphemeralKeyMapping_RestoresVirtualKeyAndKeyID(t *testing.T) {
+func TestLookupRealtimeEphemeralKeyMappingHandlesTypedNilStore(t *testing.T) {
+	t.Parallel()
+
+	var store *kvstore.Store
+	if mapping, ok := lookupRealtimeEphemeralKeyMapping(store, "ek_test"); ok {
+		t.Fatalf("lookupRealtimeEphemeralKeyMapping() = %#v, true; want no mapping", mapping)
+	}
+}
+
+func TestApplyRealtimeEphemeralKeyMapping_ReplacesCompetingCredentialAliases(t *testing.T) {
 	t.Parallel()
 
 	bifrostCtx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
+	bifrostCtx.SetValue(schemas.BifrostContextKeyVirtualKey, "sk-bf-competing")
+	bifrostCtx.SetValue(schemas.BifrostContextKeyAPIKeyID, "competing-id")
+	bifrostCtx.SetValue(schemas.BifrostContextKeyAPIKeyName, "competing-name")
+	bifrostCtx.SetValue(schemas.BifrostContextKeySelectedKeyID, "routing-selected-id")
 	applyRealtimeEphemeralKeyMapping(bifrostCtx, realtimeEphemeralKeyMapping{
 		KeyID:      "key_123",
 		VirtualKey: "sk-bf-test",
@@ -347,5 +368,31 @@ func TestApplyRealtimeEphemeralKeyMapping_RestoresVirtualKeyAndKeyID(t *testing.
 	}
 	if got := bifrostCtx.Value(schemas.BifrostContextKeyAPIKeyID); got != "key_123" {
 		t.Fatalf("api key id context = %#v, want %q", got, "key_123")
+	}
+	if got := bifrostCtx.Value(schemas.BifrostContextKeyAPIKeyName); got != nil {
+		t.Fatalf("api key name context = %#v, want nil", got)
+	}
+	if got := bifrostCtx.Value(schemas.BifrostContextKeySelectedKeyID); got != "routing-selected-id" {
+		t.Fatalf("selected key id context = %#v, want preserved routing metadata", got)
+	}
+}
+
+func TestApplyRealtimeEphemeralKeyMapping_ClearsAliasesMissingFromMapping(t *testing.T) {
+	t.Parallel()
+
+	bifrostCtx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
+	bifrostCtx.SetValue(schemas.BifrostContextKeyVirtualKey, "sk-bf-competing")
+	bifrostCtx.SetValue(schemas.BifrostContextKeyAPIKeyID, "competing-id")
+	bifrostCtx.SetValue(schemas.BifrostContextKeyAPIKeyName, "competing-name")
+	applyRealtimeEphemeralKeyMapping(bifrostCtx, realtimeEphemeralKeyMapping{VirtualKey: "sk-bf-mapped"})
+
+	if got := bifrostCtx.Value(schemas.BifrostContextKeyVirtualKey); got != "sk-bf-mapped" {
+		t.Fatalf("virtual key context = %#v, want %q", got, "sk-bf-mapped")
+	}
+	if got := bifrostCtx.Value(schemas.BifrostContextKeyAPIKeyID); got != nil {
+		t.Fatalf("api key id context = %#v, want nil", got)
+	}
+	if got := bifrostCtx.Value(schemas.BifrostContextKeyAPIKeyName); got != nil {
+		t.Fatalf("api key name context = %#v, want nil", got)
 	}
 }

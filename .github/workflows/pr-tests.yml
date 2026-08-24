@@ -19,8 +19,28 @@ permissions:
   contents: read
 
 jobs:
+  validate-dispatch:
+    name: Validate Dispatch
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Validate dispatch inputs and branch
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          DISPATCH_REF: ${{ github.ref }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+        run: |
+          if [[ ! "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::pr_number must be a positive integer"
+            exit 1
+          fi
+          if [ "$DISPATCH_REF" != "refs/heads/$DEFAULT_BRANCH" ]; then
+            echo "::error::PR Tests must be dispatched from the default branch ($DEFAULT_BRANCH), got $DISPATCH_REF"
+            exit 1
+          fi
+
   run-tests:
-    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    needs: validate-dispatch
     name: Run Tests (Awaiting Approval)
     runs-on: ubuntu-latest
 
@@ -38,15 +58,6 @@ jobs:
         uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         with:
           egress-policy: audit
-
-      - name: Validate PR number
-        env:
-          PR_NUMBER: ${{ inputs.pr_number }}
-        run: |
-          if [[ ! "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
-            echo "::error::pr_number must be a positive integer"
-            exit 1
-          fi
 
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -101,6 +112,7 @@ jobs:
       - name: Report test results
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           PR_NUMBER: ${{ inputs.pr_number }}
           TEST_RESULT: ${{ needs.run-tests.result }}
         run: |

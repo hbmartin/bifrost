@@ -30,6 +30,8 @@ const (
 	webrtcRealtimeMaxPendingMessages = 1000
 )
 
+var errRealtimeEphemeralKeyUnknown = errors.New("ephemeral key is unknown or expired")
+
 var defaultAudioCodec = webrtc.RTPCodecCapability{
 	MimeType:    webrtc.MimeTypeOpus,
 	ClockRate:   48000,
@@ -305,7 +307,11 @@ func (h *WebRTCRealtimeHandler) runWebRTCRelay(
 
 	authKey, selectedKey, err := h.resolveRealtimeWebRTCKeys(ctx, bifrostCtx, providerKey, model)
 	if err != nil {
-		SendBifrostError(ctx, newRealtimeWebRTCError(fasthttp.StatusBadRequest, "invalid_request_error", err.Error(), nil))
+		status := fasthttp.StatusBadRequest
+		if errors.Is(err, errRealtimeEphemeralKeyUnknown) {
+			status = fasthttp.StatusUnauthorized
+		}
+		SendBifrostError(ctx, newRealtimeWebRTCError(status, "invalid_request_error", err.Error(), nil))
 		return
 	}
 
@@ -351,12 +357,7 @@ func (h *WebRTCRealtimeHandler) resolveRealtimeWebRTCKeys(
 		applyRealtimeEphemeralKeyMapping(bifrostCtx, mapping)
 	}
 	if isRealtimeEphemeralToken(inboundToken) && !mapped {
-		bifrostCtx.ClearValue(schemas.BifrostContextKeyAPIKeyID)
-		bifrostCtx.ClearValue(schemas.BifrostContextKeyAPIKeyName)
-		bifrostCtx.ClearValue(schemas.BifrostContextKeySelectedKeyID)
-		bifrostCtx.ClearValue(schemas.BifrostContextKeySelectedKeyName)
-		authKey := schemas.Key{Value: *schemas.NewSecretVar(inboundToken)}
-		return authKey, nil, nil
+		return schemas.Key{}, nil, errRealtimeEphemeralKeyUnknown
 	}
 
 	selectedKey, err := h.client.SelectKeyForProviderRequestType(bifrostCtx, schemas.RealtimeRequest, providerKey, model)
@@ -376,7 +377,7 @@ func (h *WebRTCRealtimeHandler) resolveRealtimeWebRTCKeys(
 }
 
 func lookupRealtimeEphemeralKeyMapping(kv schemas.KVStore, token string) (realtimeEphemeralKeyMapping, bool) {
-	if kv == nil || strings.TrimSpace(token) == "" {
+	if isNilKVStore(kv) || strings.TrimSpace(token) == "" {
 		return realtimeEphemeralKeyMapping{}, false
 	}
 
@@ -429,6 +430,13 @@ func applyRealtimeEphemeralKeyMapping(bifrostCtx *schemas.BifrostContext, mappin
 	if bifrostCtx == nil {
 		return
 	}
+	// The ephemeral credential is the sole source of request identity. Remove
+	// every caller-controlled credential alias before restoring the values bound
+	// when the token was minted. Internal selected-key metadata from routing is
+	// preserved because it is not populated by request headers.
+	bifrostCtx.ClearValue(schemas.BifrostContextKeyVirtualKey)
+	bifrostCtx.ClearValue(schemas.BifrostContextKeyAPIKeyID)
+	bifrostCtx.ClearValue(schemas.BifrostContextKeyAPIKeyName)
 	if mapping.VirtualKey != "" {
 		bifrostCtx.SetValue(schemas.BifrostContextKeyVirtualKey, mapping.VirtualKey)
 	}
