@@ -404,6 +404,9 @@ func createBedrockBatchRouteConfigs(pathPrefix string, handlerStore lib.HandlerS
 					"role_arn":      bedrockReq.RoleArn,
 					"output_s3_uri": bedrockReq.OutputDataConfig.S3OutputDataConfig.S3Uri,
 				}
+				if bedrockReq.ClientRequestToken != "" {
+					createReq.ExtraParams["client_request_token"] = bedrockReq.ClientRequestToken
+				}
 
 				if bedrockReq.TimeoutDurationInHours > 0 {
 					createReq.ExtraParams["timeout_duration_in_hours"] = bedrockReq.TimeoutDurationInHours
