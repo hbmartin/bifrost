@@ -927,6 +927,9 @@ func convertMessages(ctx context.Context, bifrostMessages []schemas.ChatMessage)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to convert message: %w", err)
 			}
+			if len(bedrockMsg.Content) == 0 {
+				return nil, nil, fmt.Errorf("failed to convert message: %s message content must not be blank", msg.Role)
+			}
 			messages = append(messages, bedrockMsg)
 
 		case schemas.ChatMessageRoleTool:
@@ -1166,6 +1169,7 @@ func convertToolMessages(ctx context.Context, msgs []schemas.ChatMessage) (Bedro
 		}
 
 		var toolResultContent []BedrockContentBlock
+		var cachePointBlocks []BedrockContentBlock
 		if msg.Content != nil && msg.Content.ContentStr != nil && strings.TrimSpace(*msg.Content.ContentStr) != "" {
 			// Bedrock expects JSON to be a parsed object, not a string
 			// Validate and compact JSON without parsing into Go types (preserves key ordering)
@@ -1205,11 +1209,24 @@ func convertToolMessages(ctx context.Context, msgs []schemas.ChatMessage) (Bedro
 			}
 		} else if msg.Content != nil && msg.Content.ContentBlocks != nil {
 			for _, block := range msg.Content.ContentBlocks {
+				if block.Type == schemas.ChatContentBlockTypeFile && block.File != nil && block.File.FileURL != nil {
+					fileURL := strings.TrimSpace(*block.File.FileURL)
+					if colon := strings.IndexByte(fileURL, ':'); colon > 0 &&
+						(strings.EqualFold(fileURL[:colon], "http") || strings.EqualFold(fileURL[:colon], "https")) {
+						return BedrockMessage{}, fmt.Errorf("failed to convert content block in tool result: HTTP(S) file URLs are not supported")
+					}
+				}
 				converted, err := convertContentBlock(ctx, block)
 				if err != nil {
 					return BedrockMessage{}, fmt.Errorf("failed to convert content block in tool result: %w", err)
 				}
-				toolResultContent = append(toolResultContent, converted...)
+				for _, convertedBlock := range converted {
+					if convertedBlock.CachePoint != nil {
+						cachePointBlocks = append(cachePointBlocks, convertedBlock)
+						continue
+					}
+					toolResultContent = append(toolResultContent, convertedBlock)
+				}
 			}
 		}
 		if len(toolResultContent) == 0 {
@@ -1235,6 +1252,7 @@ func convertToolMessages(ctx context.Context, msgs []schemas.ChatMessage) (Bedro
 		}
 
 		contentBlocks = append(contentBlocks, toolResultBlock)
+		contentBlocks = append(contentBlocks, cachePointBlocks...)
 	}
 
 	bedrockMsg.Content = contentBlocks
