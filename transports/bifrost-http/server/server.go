@@ -2539,10 +2539,10 @@ func (s *BifrostHTTPServer) Bootstrap(ctx context.Context) error {
 	if s.Config.ConfigStore == nil {
 		logger.Error("auth middleware requires config store, skipping auth middleware initialization")
 	} else {
-		// Use a signed (stateless) ticket store when an encryption key is configured
-		// so tickets are verifiable across nodes; otherwise fall back to in-memory.
-		// NewSignedWSTicketStore handles empty key by degrading to in-memory mode.
-		s.WSTicketStore = handlers.NewSignedWSTicketStore(encrypt.Key())
+		// Signed tickets can be verified across nodes, while the shared config store
+		// atomically burns their nonces so they remain single-use across replicas.
+		// Missing signing or storage dependencies safely degrade to in-memory mode.
+		s.WSTicketStore = handlers.NewSignedWSTicketStore(encrypt.Key(), s.Config.ConfigStore)
 		// Initialize the temp-token service and register all scopes owned by the
 		// handlers package. The service is the seam every "scoped, anonymous,
 		// browser-only" workflow plugs into (currently just the MCP per-user OAuth
