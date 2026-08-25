@@ -1,1 +1,1 @@
-- fix: ignore unusable provider weights during load balancing [@hbmartin](https://github.com/hbmartin)
+- fix: ignore negative and non-finite provider weights during primary load balancing while retaining zero-weight providers as generated fallbacks [@hbmartin](https://github.com/hbmartin)
