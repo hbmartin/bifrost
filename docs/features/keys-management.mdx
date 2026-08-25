@@ -28,6 +28,8 @@ Random selection ensures statistical distribution over time
 3. Select key based on cumulative weight ranges
 4. If selected key fails, automatic fallback to next available key
 
+A key with `weight: 0` receives no primary traffic while at least one positive-weight key is available, but it remains a reserve candidate during retry rotation. If every eligible key has weight `0`, Bifrost selects uniformly across that pool. Negative and non-finite weights supplied through the Go SDK are rejected from selection.
+
 ## Model Whitelisting and Filtering
 
 Keys can be restricted to specific models for access control and cost management:
