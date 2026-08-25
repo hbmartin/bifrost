@@ -2,6 +2,7 @@ package bedrock
 
 import (
 	"encoding/json"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -27,9 +28,24 @@ func TestGenerateBatchInputS3KeyIsStableForIdempotentReplay(t *testing.T) {
 		t.Fatalf("input key = %q, want stable token-derived prefix", first)
 	}
 
-	differentContent := generateBatchInputS3Key(jobName, token, []byte("{\"recordId\":\"two\"}\n"))
-	if differentContent != first {
-		t.Fatalf("same idempotency token produced a different input key: %q != %q", differentContent, first)
+	sameTokenDifferentContent := generateBatchInputS3Key(jobName, token, []byte("{\"recordId\":\"two\"}\n"))
+	if sameTokenDifferentContent != first {
+		t.Fatalf("same idempotency token produced a different input key: %q != %q", sameTokenDifferentContent, first)
+	}
+}
+
+func TestIsDefinitiveBatchCreateRejection(t *testing.T) {
+	t.Parallel()
+
+	for _, statusCode := range []int{http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusUnprocessableEntity} {
+		if !isDefinitiveBatchCreateRejection(statusCode) {
+			t.Fatalf("status %d should permit rejected-input cleanup", statusCode)
+		}
+	}
+	for _, statusCode := range []int{http.StatusRequestTimeout, http.StatusConflict, http.StatusTooEarly, http.StatusTooManyRequests, http.StatusInternalServerError, http.StatusBadGateway, http.StatusServiceUnavailable} {
+		if isDefinitiveBatchCreateRejection(statusCode) {
+			t.Fatalf("status %d must retain input for ambiguous replay", statusCode)
+		}
 	}
 }
 

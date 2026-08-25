@@ -349,6 +349,9 @@ func (provider *MistralProvider) Transcription(ctx *schemas.BifrostContext, key 
 				},
 			}
 		}
+		// A 2xx response was already accepted by Mistral. Classify the malformed
+		// payload as upstream-invalid; core intentionally blocks replay/fallback
+		// for this non-idempotent transcription operation.
 		return nil, providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, err)
 	}
 
@@ -710,6 +713,9 @@ func (provider *MistralProvider) OCR(ctx *schemas.BifrostContext, key schemas.Ke
 				},
 			}, requestBody, copiedResponseBody, provider.sendBackRawRequest, provider.sendBackRawResponse, latency)
 		}
+		// A 2xx response was already accepted by Mistral. Classify the malformed
+		// payload as upstream-invalid; core intentionally blocks replay/fallback
+		// for this non-idempotent OCR operation.
 		return nil, providerUtils.EnrichError(ctx, providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, err), requestBody, copiedResponseBody, provider.sendBackRawRequest, provider.sendBackRawResponse, latency)
 	}
 
