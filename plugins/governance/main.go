@@ -459,13 +459,11 @@ func (p *GovernancePlugin) LoadBalanceProvider(ctx *schemas.BifrostContext, req 
 		return nil
 	}
 
-	fallbackConfigs, assignedWeightCount := providerFallbackConfigs(allowedProviderConfigs)
 	selectedConfig, ok := selectWeightedProviderConfigAt(allowedProviderConfigs, rand.Float64())
 	if !ok {
+		assignedWeightCount := assignedProviderWeightCount(allowedProviderConfigs)
 		if assignedWeightCount == 0 {
 			ctx.AppendRoutingEngineLog(schemas.RoutingEngineGovernance, schemas.LogLevelInfo, fmt.Sprintf("No weighted configs for model %s — none of the allowed VK provider configs have a weight assigned; skipping load balancing", modelStr))
-		} else if len(fallbackConfigs) > 0 {
-			ctx.AppendRoutingEngineLog(schemas.RoutingEngineGovernance, schemas.LogLevelInfo, fmt.Sprintf("No positive provider weights for model %s; zero-weight providers remain fallback-only, skipping load balancing", modelStr))
 		} else {
 			ctx.AppendRoutingEngineLog(schemas.RoutingEngineGovernance, schemas.LogLevelInfo, fmt.Sprintf("No usable weighted configs for model %s — all assigned weights are negative or non-finite; skipping load balancing", modelStr))
 		}
@@ -491,10 +489,13 @@ func (p *GovernancePlugin) LoadBalanceProvider(ctx *schemas.BifrostContext, req 
 
 	schemas.AppendToContextList(ctx, schemas.BifrostContextKeyRoutingEnginesUsed, schemas.RoutingEngineGovernance)
 
-	if len(existingFallbacks) == 0 && len(fallbackConfigs) > 1 {
-		fallbackConfigs = append([]configstoreTables.TableVirtualKeyProviderConfig(nil), fallbackConfigs...)
+	if len(existingFallbacks) == 0 {
+		fallbackConfigs := providerFallbackConfigs(allowedProviderConfigs)
+		if len(fallbackConfigs) <= 1 {
+			return nil
+		}
 		sort.Slice(fallbackConfigs, func(i, j int) bool {
-			return getWeight(fallbackConfigs[i].Weight) > getWeight(fallbackConfigs[j].Weight)
+			return *fallbackConfigs[i].Weight > *fallbackConfigs[j].Weight
 		})
 
 		// Filter out the selected provider and create fallbacks array
