@@ -128,9 +128,79 @@ func TestToolResultContentBlocksUseSharedConverter(t *testing.T) {
 		t.Fatalf("convert tool-result blocks: %v", err)
 	}
 
+	if len(converted.Content) != 2 || converted.Content[0].ToolResult == nil || converted.Content[1].CachePoint == nil {
+		t.Fatalf("expected tool result and sibling cache point, got %#v", converted.Content)
+	}
 	content := converted.Content[0].ToolResult.Content
-	if len(content) != 2 || content[0].Document == nil || content[1].CachePoint == nil {
-		t.Fatalf("expected document and standalone cache point to survive, got %#v", content)
+	if len(content) != 2 || content[0].Text == nil || content[1].Document == nil {
+		t.Fatalf("expected placeholder text and document inside the tool result, got %#v", content)
+	}
+	if strings.TrimSpace(*content[0].Text) == "" {
+		t.Fatalf("document placeholder must be usable text, got %q", *content[0].Text)
+	}
+}
+
+func TestBlankToolResultIDUsesAssistantToolUseAlias(t *testing.T) {
+	for _, toolCallID := range []string{"", "  "} {
+		t.Run(fmt.Sprintf("id_%q", toolCallID), func(t *testing.T) {
+			assistantBlock := convertToolCallToContentBlock(context.Background(), schemas.ChatAssistantMessageToolCall{
+				ID: &toolCallID,
+				Function: schemas.ChatAssistantMessageToolCallFunction{
+					Name:      schemas.Ptr("lookup"),
+					Arguments: `{}`,
+				},
+			})
+			converted, err := convertToolMessages(context.Background(), []schemas.ChatMessage{{
+				Role:            schemas.ChatMessageRoleTool,
+				ChatToolMessage: &schemas.ChatToolMessage{ToolCallID: &toolCallID},
+			}})
+			if err != nil {
+				t.Fatalf("convert blank tool result ID: %v", err)
+			}
+
+			resultID := converted.Content[0].ToolResult.ToolUseID
+			if assistantBlock.ToolUse == nil || resultID == "" || resultID != assistantBlock.ToolUse.ToolUseID {
+				t.Fatalf("assistant alias = %#v, result alias = %q", assistantBlock.ToolUse, resultID)
+			}
+		})
+	}
+}
+
+func TestToolResultRejectsHTTPFileURLBeforeConversion(t *testing.T) {
+	for _, fileURL := range []string{"http://127.0.0.1:1/result.pdf", "HTTPS://127.0.0.1:1/result.pdf"} {
+		t.Run(fileURL[:strings.IndexByte(fileURL, ':')], func(t *testing.T) {
+			_, err := convertToolMessages(context.Background(), []schemas.ChatMessage{{
+				Role:            schemas.ChatMessageRoleTool,
+				ChatToolMessage: &schemas.ChatToolMessage{ToolCallID: schemas.Ptr("toolu_url")},
+				Content: &schemas.ChatMessageContent{ContentBlocks: []schemas.ChatContentBlock{{
+					Type: schemas.ChatContentBlockTypeFile,
+					File: &schemas.ChatInputFile{FileURL: &fileURL},
+				}}},
+			}})
+			if err == nil || !strings.Contains(err.Error(), "HTTP(S) file URLs are not supported") {
+				t.Fatalf("expected tool-result HTTP URL rejection, got %v", err)
+			}
+		})
+	}
+}
+
+func TestBlankRegularMessageContentReturnsError(t *testing.T) {
+	tests := []struct {
+		name    string
+		message schemas.ChatMessage
+	}{
+		{name: "nil user content", message: schemas.ChatMessage{Role: schemas.ChatMessageRoleUser}},
+		{name: "blank user text", message: schemas.ChatMessage{Role: schemas.ChatMessageRoleUser, Content: &schemas.ChatMessageContent{ContentStr: schemas.Ptr(" \t\n ")}}},
+		{name: "empty assistant blocks", message: schemas.ChatMessage{Role: schemas.ChatMessageRoleAssistant, Content: &schemas.ChatMessageContent{ContentBlocks: []schemas.ChatContentBlock{}}}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, _, err := convertMessages(context.Background(), []schemas.ChatMessage{tc.message})
+			if err == nil || !strings.Contains(err.Error(), "message content must not be blank") {
+				t.Fatalf("expected blank regular-message error, got %v", err)
+			}
+		})
 	}
 }
 
@@ -157,14 +227,6 @@ func TestMalformedToolMessagesReturnErrors(t *testing.T) {
 			message: schemas.ChatMessage{
 				Role:            schemas.ChatMessageRoleTool,
 				ChatToolMessage: &schemas.ChatToolMessage{},
-			},
-			want: "missing required ToolCallID",
-		},
-		{
-			name: "empty tool call id",
-			message: schemas.ChatMessage{
-				Role:            schemas.ChatMessageRoleTool,
-				ChatToolMessage: &schemas.ChatToolMessage{ToolCallID: schemas.Ptr("  ")},
 			},
 			want: "missing required ToolCallID",
 		},

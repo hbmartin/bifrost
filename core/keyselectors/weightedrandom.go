@@ -19,48 +19,109 @@ func WeightedRandom(ctx *schemas.BifrostContext, keys []schemas.Key, providerKey
 // weightedRandomAt selects a key using unitRandom in [0, 1). It is split from
 // WeightedRandom so the boundary behavior can be tested deterministically.
 func weightedRandomAt(keys []schemas.Key, providerKey schemas.ModelProvider, model string, unitRandom float64) (schemas.Key, error) {
-	maxWeight := 0.0
-	eligibleCount := 0
+	if selected, ok := SelectPositiveWeightedAt(keys, func(key *schemas.Key) float64 {
+		return key.Weight
+	}, unitRandom); ok {
+		return selected, nil
+	}
+
+	// A zero weight keeps a key out of normal weighted traffic while positive
+	// alternatives exist, but it remains a reserve for retry rotation. Preserve
+	// the historical all-zero behavior by selecting uniformly among finite zero
+	// weights when the current candidate slice contains no positive weight.
+	zeroCount := 0
 	for _, key := range keys {
-		weight := key.Weight
-		if !isUsableWeight(weight) {
+		if key.Weight == 0 {
+			zeroCount++
+		}
+	}
+	if zeroCount > 0 {
+		selectedZero := int(unitRandom * float64(zeroCount))
+		if selectedZero < 0 {
+			selectedZero = 0
+		} else if selectedZero >= zeroCount {
+			selectedZero = zeroCount - 1
+		}
+		for _, key := range keys {
+			if key.Weight != 0 {
+				continue
+			}
+			if selectedZero == 0 {
+				return key, nil
+			}
+			selectedZero--
+		}
+	}
+
+	return schemas.Key{}, fmt.Errorf("no keys with a non-negative finite weight available for provider %s and model %s", providerKey, model)
+}
+
+// IsPositiveFiniteWeight reports whether weight can participate in weighted
+// selection. NaN is rejected by the positive comparison itself.
+func IsPositiveFiniteWeight(weight float64) bool {
+	return weight > 0 && !math.IsInf(weight, 0)
+}
+
+// SelectPositiveWeightedAt selects an item using its finite, strictly positive
+// weight and unitRandom in [0, 1). The normal finite-total path uses two passes
+// and no divisions. Normalization is reserved for the exceptional overflow path
+// where summing otherwise-valid weights produces positive infinity.
+func SelectPositiveWeightedAt[T any](items []T, weightOf func(*T) float64, unitRandom float64) (T, bool) {
+	var zero T
+	totalWeight := 0.0
+	maxWeight := 0.0
+	lastEligible := -1
+	for i := range items {
+		weight := weightOf(&items[i])
+		if !IsPositiveFiniteWeight(weight) {
 			continue
 		}
-		eligibleCount++
+		totalWeight += weight
 		if weight > maxWeight {
 			maxWeight = weight
 		}
+		lastEligible = i
+	}
+	if lastEligible < 0 {
+		return zero, false
 	}
 
-	if eligibleCount == 0 {
-		return schemas.Key{}, fmt.Errorf("no keys with a positive finite weight available for provider %s and model %s", providerKey, model)
+	if !math.IsInf(totalWeight, 1) {
+		randomValue := unitRandom * totalWeight
+		currentWeight := 0.0
+		for i := range items {
+			weight := weightOf(&items[i])
+			if !IsPositiveFiniteWeight(weight) {
+				continue
+			}
+			currentWeight += weight
+			if randomValue < currentWeight {
+				return items[i], true
+			}
+		}
+		return items[lastEligible], true
 	}
 
-	// Normalize by the largest weight before summing. This keeps the cumulative
-	// range finite even when callers supply weights near math.MaxFloat64, while
-	// preserving small positive weights without fixed-precision truncation.
-	totalWeight := 0.0
-	for _, key := range keys {
-		if isUsableWeight(key.Weight) {
-			totalWeight += key.Weight / maxWeight
+	// Extremely large finite weights can overflow their raw sum. Normalize only
+	// this exceptional path so the ordinary selector stays division-free.
+	totalWeight = 0
+	for i := range items {
+		weight := weightOf(&items[i])
+		if IsPositiveFiniteWeight(weight) {
+			totalWeight += weight / maxWeight
 		}
 	}
-
 	randomValue := unitRandom * totalWeight
 	currentWeight := 0.0
-	for _, key := range keys {
-		if !isUsableWeight(key.Weight) {
+	for i := range items {
+		weight := weightOf(&items[i])
+		if !IsPositiveFiniteWeight(weight) {
 			continue
 		}
-		currentWeight += key.Weight / maxWeight
+		currentWeight += weight / maxWeight
 		if randomValue < currentWeight {
-			return key, nil
+			return items[i], true
 		}
 	}
-
-	return schemas.Key{}, fmt.Errorf("weighted key selection failed for provider %s and model %s", providerKey, model)
-}
-
-func isUsableWeight(weight float64) bool {
-	return weight > 0 && !math.IsNaN(weight) && !math.IsInf(weight, 0)
+	return items[lastEligible], true
 }
