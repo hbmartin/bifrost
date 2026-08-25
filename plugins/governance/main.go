@@ -450,42 +450,15 @@ func (p *GovernancePlugin) LoadBalanceProvider(ctx *schemas.BifrostContext, req 
 		return nil
 	}
 
-	weighted := make([]schemas.ProviderCandidate, 0, len(eligible))
-	for _, candidate := range eligible {
-		if candidate.Weight != nil {
-			weighted = append(weighted, candidate)
-		}
-	}
-
-	if len(weighted) == 0 {
-		// Everything survived the model-allowance / budget / rate-limit filters, but none of it
-		// carries a weight: there is nothing to feed weighted selection. Say so explicitly, so
-		// the routing trail explains why governance stops here instead of trailing off after
-		// "Allowed providers after filtering: [...]".
-		ctx.AppendRoutingEngineLog(schemas.RoutingEngineGovernance, schemas.LogLevelInfo, fmt.Sprintf("No weighted providers for model %s: none of the allowed providers have a weight assigned; skipping load balancing", modelStr))
+	selectedCandidate, weighted, ok := selectWeightedProviderConfigAt(eligible, rand.Float64())
+	if !ok {
+		// Nil opts out of weighted routing; non-positive and non-finite values are
+		// unusable. Keep the existing behavior of leaving the incoming provider
+		// untouched when nothing can participate in load balancing.
+		ctx.AppendRoutingEngineLog(schemas.RoutingEngineGovernance, schemas.LogLevelInfo, fmt.Sprintf("No usable weighted providers for model %s; skipping load balancing", modelStr))
 		return nil
 	}
-
-	var selectedProvider schemas.ModelProvider
-	totalWeight := 0.0
-	for _, candidate := range weighted {
-		totalWeight += getWeight(candidate.Weight)
-	}
-	// Generate random number between 0 and totalWeight
-	randomValue := rand.Float64() * totalWeight
-	// Select provider based on weighted random selection
-	currentWeight := 0.0
-	for _, candidate := range weighted {
-		currentWeight += getWeight(candidate.Weight)
-		if randomValue <= currentWeight {
-			selectedProvider = schemas.ModelProvider(candidate.Provider)
-			break
-		}
-	}
-	// Fallback: if no provider was selected (shouldn't happen but guard against FP issues)
-	if selectedProvider == "" {
-		selectedProvider = schemas.ModelProvider(weighted[0].Provider)
-	}
+	selectedProvider := schemas.ModelProvider(selectedCandidate.Provider)
 
 	p.logger.Debug("[governance] Selected provider: %s", selectedProvider)
 	ctx.AppendRoutingEngineLog(schemas.RoutingEngineGovernance, schemas.LogLevelInfo, fmt.Sprintf("Selected provider %s for model %s (from %d eligible: %v)", selectedProvider, modelStr, len(eligible), eligibleProviders))

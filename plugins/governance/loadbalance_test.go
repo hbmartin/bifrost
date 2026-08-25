@@ -3,6 +3,7 @@ package governance
 import (
 	"context"
 	"errors"
+	"math"
 	"strings"
 	"testing"
 
@@ -363,4 +364,54 @@ func TestCandidateExclusionReason(t *testing.T) {
 	// An error carries its own words, which are better than any this could invent.
 	assert.Equal(t, "budget 'team-daily' is exhausted",
 		candidateExclusionReason(DecisionAllow, errors.New("budget 'team-daily' is exhausted")))
+}
+
+func TestSelectWeightedProviderConfigIgnoresUnusableWeights(t *testing.T) {
+	candidates := []schemas.ProviderCandidate{
+		{Provider: "zero", Weight: schemas.Ptr(0.0)},
+		{Provider: "negative", Weight: schemas.Ptr(-1.0)},
+		{Provider: "nan", Weight: schemas.Ptr(math.NaN())},
+		{Provider: "infinity", Weight: schemas.Ptr(math.Inf(1))},
+		{Provider: "positive", Weight: schemas.Ptr(1.0)},
+	}
+
+	selected, eligible, ok := selectWeightedProviderConfigAt(candidates, 0.5)
+	require.True(t, ok)
+	assert.Equal(t, "positive", selected.Provider)
+	require.Len(t, eligible, 1)
+	assert.Equal(t, "positive", eligible[0].Provider)
+}
+
+func TestSelectWeightedProviderConfigRejectsOnlyUnusableWeights(t *testing.T) {
+	candidates := []schemas.ProviderCandidate{
+		{Provider: "unset"},
+		{Provider: "zero", Weight: schemas.Ptr(0.0)},
+		{Provider: "nan", Weight: schemas.Ptr(math.NaN())},
+	}
+
+	_, eligible, ok := selectWeightedProviderConfigAt(candidates, 0.5)
+	assert.False(t, ok)
+	assert.Empty(t, eligible)
+}
+
+func TestSelectWeightedProviderConfigPreservesTinyWeights(t *testing.T) {
+	candidates := []schemas.ProviderCandidate{
+		{Provider: "normal", Weight: schemas.Ptr(1.0)},
+		{Provider: "tiny", Weight: schemas.Ptr(0.001)},
+	}
+
+	selected, _, ok := selectWeightedProviderConfigAt(candidates, math.Nextafter(1, 0))
+	require.True(t, ok)
+	assert.Equal(t, "tiny", selected.Provider)
+}
+
+func TestSelectWeightedProviderConfigHandlesVeryLargeWeights(t *testing.T) {
+	candidates := []schemas.ProviderCandidate{
+		{Provider: "first", Weight: schemas.Ptr(math.MaxFloat64)},
+		{Provider: "second", Weight: schemas.Ptr(math.MaxFloat64)},
+	}
+
+	selected, _, ok := selectWeightedProviderConfigAt(candidates, 0.75)
+	require.True(t, ok)
+	assert.Equal(t, "second", selected.Provider)
 }
