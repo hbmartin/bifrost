@@ -74,16 +74,21 @@ done
 # Update transport dependencies to use plugin versions from version files
 echo "🔧 Using plugin versions from version files for transport..."
 
+# Every Go command below must resolve transports as a standalone release module.
+# Without this, the repository go.work can silently substitute local core,
+# framework, and plugin sources for the versions declared in transports/go.mod.
+export GOWORK=off
+
 # Track which plugins are actually used by the transport
 cd transports
 
-# Release modules must be independently buildable. A checked-in local replace
-# can make workspace builds pass while breaking Docker/release builds, and the
-# same hazard applies to core, framework, and every plugin dependency.
+# The transport release module must not use local replaces. Combined with
+# GOWORK=off, this makes both dependency resolution and the later build validate
+# exactly the module graph that will be consumed outside this repository.
 GO_MOD_JSON="$(go mod edit -json)"
-if grep -q '"Replace"' <<<"$GO_MOD_JSON"; then
+if jq -e '(.Replace // []) | length > 0' >/dev/null <<<"$GO_MOD_JSON"; then
   echo "❌ transports/go.mod contains a replace directive; release modules must not depend on local paths"
-  sed -n '/"Replace"/,/]/p' <<<"$GO_MOD_JSON"
+  jq '.Replace' <<<"$GO_MOD_JSON"
   exit 1
 fi
 
@@ -113,6 +118,26 @@ go mod edit -require="github.com/maximhq/bifrost/framework@$FRAMEWORK_VERSION"
 # Re-normalize before tidy in case any edit reintroduced a toolchain line
 go mod edit -go=1.27.0 -toolchain=none
 go mod tidy
+
+assert_module_version() {
+  local module_path="$1"
+  local expected_version="$2"
+  local actual_version
+  actual_version="$(go list -m -f '{{.Version}}' "$module_path")"
+  if [ "$actual_version" != "$expected_version" ]; then
+    echo "❌ $module_path resolved to $actual_version; expected $expected_version" >&2
+    exit 1
+  fi
+}
+
+echo "🔍 Verifying standalone transport dependency versions..."
+assert_module_version "github.com/maximhq/bifrost/core" "$CORE_VERSION"
+assert_module_version "github.com/maximhq/bifrost/framework" "$FRAMEWORK_VERSION"
+for plugin_name in "${!PLUGIN_VERSIONS[@]}"; do
+  if grep -q "github.com/maximhq/bifrost/plugins/$plugin_name" go.mod; then
+    assert_module_version "github.com/maximhq/bifrost/plugins/$plugin_name" "${PLUGIN_VERSIONS[$plugin_name]}"
+  fi
+done
 
 cd ..
 
