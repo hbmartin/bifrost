@@ -218,7 +218,7 @@ func TestClassifyRealtimeKeySelectionError(t *testing.T) {
 		},
 		{
 			name:       "mapped pin became ineligible",
-			err:        errors.New("configured key id sensitive-id is not eligible for this model"),
+			err:        fmt.Errorf("%w: configured key id sensitive-id cannot serve this model", bifrost.ErrPinnedAPIKeyIneligible),
 			mapped:     true,
 			wantStatus: fasthttp.StatusUnauthorized,
 			wantType:   "invalid_request_error",
@@ -242,6 +242,14 @@ func TestClassifyRealtimeKeySelectionError(t *testing.T) {
 		{
 			name:       "unclassified selection failure",
 			err:        errors.New("no supported key found with id sensitive-id and name customer-production"),
+			wantStatus: fasthttp.StatusBadRequest,
+			wantType:   "invalid_request_error",
+			wantMsg:    realtimeKeySelectionInvalidMessage,
+		},
+		{
+			name:       "unclassified mapped selection failure",
+			err:        errors.New("selector rejected the request"),
+			mapped:     true,
 			wantStatus: fasthttp.StatusBadRequest,
 			wantType:   "invalid_request_error",
 			wantMsg:    realtimeKeySelectionInvalidMessage,
