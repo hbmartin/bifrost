@@ -16,6 +16,7 @@ import (
 
 const (
 	wsTicketTTL       = 30 * time.Second
+	wsTicketClockSkew = 2 * time.Second
 	wsTicketCleanupHz = 60 * time.Second
 	wsTicketVersion   = 1
 )
@@ -188,7 +189,11 @@ func (s *WSTicketStore) consumeSigned(ticket string) string {
 	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
 		return ""
 	}
-	if payload.Version != wsTicketVersion || payload.SessionToken == "" || payload.ExpiresAt <= time.Now().Unix() {
+	// Signed tickets are verified on any replica. Allow only a small clock-skew
+	// window between nodes; this is deliberately much tighter than the realtime
+	// ephemeral-token skew because the ticket itself lives for just 30 seconds.
+	if payload.Version != wsTicketVersion || payload.SessionToken == "" ||
+		time.Unix(payload.ExpiresAt, 0).Add(wsTicketClockSkew).Before(time.Now()) {
 		return ""
 	}
 	return payload.SessionToken
