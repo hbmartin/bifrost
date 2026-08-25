@@ -1800,7 +1800,7 @@ func (provider *VertexProvider) Embedding(ctx *schemas.BifrostContext, key schem
 	// Parse Vertex's native embedding response using typed response
 	var vertexResponse VertexEmbeddingResponse
 	if err := sonic.Unmarshal(responseBody, &vertexResponse); err != nil {
-		return nil, providerUtils.EnrichError(ctx, providerUtils.NewBifrostOperationError(schemas.ErrProviderResponseUnmarshal, err), jsonBody, responseBody, provider.sendBackRawRequest, provider.sendBackRawResponse)
+		return nil, providerUtils.EnrichError(ctx, newVertexEmbeddingResponseUnmarshalError(err), jsonBody, responseBody, provider.sendBackRawRequest, provider.sendBackRawResponse)
 	}
 
 	// Use centralized Vertex converter
