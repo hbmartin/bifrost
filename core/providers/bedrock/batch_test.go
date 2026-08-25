@@ -23,13 +23,13 @@ func TestGenerateBatchInputS3KeyIsStableForIdempotentReplay(t *testing.T) {
 	if first != second {
 		t.Fatalf("replayed input keys differ: %q != %q", first, second)
 	}
-	if !strings.HasPrefix(first, "bifrost-batch-input/"+jobName+"-") {
-		t.Fatalf("input key = %q, want stable job-name prefix", first)
+	if !strings.HasPrefix(first, "bifrost-batch-input/token-") {
+		t.Fatalf("input key = %q, want stable token-derived prefix", first)
 	}
 
 	differentContent := generateBatchInputS3Key(jobName, token, []byte("{\"recordId\":\"two\"}\n"))
-	if differentContent == first {
-		t.Fatalf("different JSONL reused input key %q", first)
+	if differentContent != first {
+		t.Fatalf("same idempotency token produced a different input key: %q != %q", differentContent, first)
 	}
 }
 

@@ -49,12 +49,27 @@ func TestSignedWSTicketRejectsExpiredTicket(t *testing.T) {
 	ticket := buildSignedWSTicketForTest(t, store.signingKey, signedWSTicketPayload{
 		Version:      wsTicketVersion,
 		SessionToken: "session-token",
-		ExpiresAt:    time.Now().Add(-time.Second).Unix(),
+		ExpiresAt:    time.Now().Add(-5 * time.Second).Unix(),
 		Nonce:        "nonce",
 	})
 
 	if got := store.Consume(ticket); got != "" {
 		t.Fatalf("Consume() = %q, want empty string", got)
+	}
+}
+
+func TestSignedWSTicketAllowsBoundedVerifierClockSkew(t *testing.T) {
+	key := []byte("0123456789abcdef0123456789abcdef")
+	store := NewSignedWSTicketStore(key)
+	ticket := buildSignedWSTicketForTest(t, store.signingKey, signedWSTicketPayload{
+		Version:      wsTicketVersion,
+		SessionToken: "session-token",
+		ExpiresAt:    time.Now().Unix(),
+		Nonce:        "nonce",
+	})
+
+	if got := store.Consume(ticket); got != "session-token" {
+		t.Fatalf("Consume() = %q, want bounded clock skew to preserve the signed ticket", got)
 	}
 }
 

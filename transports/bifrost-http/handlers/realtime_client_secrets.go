@@ -492,7 +492,10 @@ func cacheRealtimeEphemeralKeyMapping(kv *kvstore.Store, body []byte, keyID stri
 }
 
 func realtimeEphemeralKeyMappingTTL(expiresAt int64, now time.Time) time.Duration {
-	ttl := time.Unix(expiresAt, 0).Sub(now)
+	// Keep the cache entry for the same bounded skew window accepted by the
+	// verifier. Otherwise a no-encryption deployment can accept the credential
+	// from the provider response and immediately lose its key mapping.
+	ttl := time.Unix(expiresAt, 0).Add(realtimeEphemeralTokenClockSkew).Sub(now)
 	if ttl <= 0 {
 		return 0
 	}
