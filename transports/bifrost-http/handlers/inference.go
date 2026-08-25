@@ -2177,9 +2177,21 @@ func (h *CompletionHandler) handleStreamingResponse(ctx *fasthttp.RequestCtx, bi
 				}
 			}
 
-			// Convert response to JSON (transport-goroutine CPU).
+			// Convert response to JSON (transport-goroutine CPU). Error chunks
+			// must pass through the same client-facing sanitizer as unary and
+			// compatibility responses. Copy the
+			// chunk so status normalization/redaction cannot mutate provider/plugin
+			// state that may still be observed after this send.
 			cpuStart := time.Now()
-			chunkJSON, err := sonic.Marshal(chunk)
+			chunkForClient := chunk
+			if chunk.BifrostError != nil {
+				if sanitizedErr := lib.SanitizeBifrostErrorForClient(chunk.BifrostError); sanitizedErr != nil {
+					chunkCopy := *chunk
+					chunkCopy.BifrostError = sanitizedErr
+					chunkForClient = &chunkCopy
+				}
+			}
+			chunkJSON, err := sonic.Marshal(chunkForClient)
 			streamTransportCPUNs += time.Since(cpuStart).Nanoseconds()
 			if err != nil {
 				logger.Warn("Failed to marshal streaming response: %v", err)
