@@ -125,6 +125,17 @@ func truncationErrorChunk() *schemas.BifrostStreamChunk {
 	}
 }
 
+func cancellationErrorChunk() *schemas.BifrostStreamChunk {
+	return &schemas.BifrostStreamChunk{
+		BifrostError: &schemas.BifrostError{
+			Error: &schemas.ErrorField{
+				Type:    schemas.Ptr(schemas.RequestCancelled),
+				Message: schemas.ErrRequestCancelled,
+			},
+		},
+	}
+}
+
 // A stream that ends on an error frame is already terminated for the client;
 // appending [DONE] would report it as a clean finish.
 func TestStreamingResponseSkipsDoneAfterErrorChunk(t *testing.T) {
@@ -150,5 +161,42 @@ func TestStreamingResponseSendsDoneOnCleanStream(t *testing.T) {
 
 	if !strings.Contains(body, "data: [DONE]") {
 		t.Errorf("expected [DONE] to terminate a clean stream, got:\n%s", body)
+	}
+}
+
+func TestStreamingResponseNormalizesCancellationWithoutMutatingChunk(t *testing.T) {
+	chunk := cancellationErrorChunk()
+	body := serveStreamingResponse(t, []*schemas.BifrostStreamChunk{chunk})
+
+	if !strings.Contains(body, `"status_code":499`) {
+		t.Fatalf("expected cancellation status in native SSE error, got:\n%s", body)
+	}
+	if chunk.BifrostError.StatusCode != nil {
+		t.Fatal("expected native SSE serialization not to mutate the original error")
+	}
+	if strings.Contains(body, "data: [DONE]") {
+		t.Errorf("[DONE] must not follow a cancellation frame, got:\n%s", body)
+	}
+}
+
+func TestStreamingResponseSanitizesSensitiveErrorDetails(t *testing.T) {
+	chunk := &schemas.BifrostStreamChunk{
+		BifrostError: &schemas.BifrostError{
+			Error: &schemas.ErrorField{
+				Message: "panic: secret database detail",
+			},
+		},
+	}
+
+	body := serveStreamingResponse(t, []*schemas.BifrostStreamChunk{chunk})
+
+	if strings.Contains(body, "secret database detail") {
+		t.Fatalf("sensitive error detail reached native SSE client:\n%s", body)
+	}
+	if !strings.Contains(body, lib.ClientSafeInternalErrorMessage) {
+		t.Fatalf("expected sanitized client-safe message, got:\n%s", body)
+	}
+	if chunk.BifrostError.Error.Message != "panic: secret database detail" {
+		t.Fatal("expected native SSE serialization not to mutate the original message")
 	}
 }
