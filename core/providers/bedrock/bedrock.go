@@ -3155,6 +3155,7 @@ func (provider *BedrockProvider) BatchCreate(ctx *schemas.BifrostContext, key sc
 			bucket,
 			s3Key,
 			jsonlData,
+			clientRequestToken != "",
 		); bifrostErr != nil {
 			return nil, bifrostErr
 		}
@@ -3272,11 +3273,18 @@ func (provider *BedrockProvider) BatchCreate(ctx *schemas.BifrostContext, key sc
 		}, nil
 	}
 
+	// Use the provider-reported input URI when an idempotent replay returned an
+	// already-existing job. The locally attempted URI may not belong to that job.
+	retrievedInputFileID := inputFileID
+	if retrieveResp.InputFileID != "" {
+		retrievedInputFileID = retrieveResp.InputFileID
+	}
+
 	// Use retrieved response for complete data
 	result := &schemas.BifrostBatchCreateResponse{
 		ID:          retrieveResp.ID,
 		Object:      "batch",
-		InputFileID: inputFileID,
+		InputFileID: retrievedInputFileID,
 		Status:      retrieveResp.Status,
 		CreatedAt:   retrieveResp.CreatedAt,
 		ExtraFields: schemas.BifrostResponseExtraFields{

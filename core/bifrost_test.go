@@ -700,6 +700,47 @@ func TestExecuteRequestWithRetries_529RetriesSameKeyWithoutRotation(t *testing.T
 	}
 }
 
+func TestExecuteRequestWithRetries_RotatesPerKeyFailureWithTransientStatus(t *testing.T) {
+	config := createTestConfig(1, 0, 0)
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
+	ctx.SetValue(schemas.BifrostContextKeyTracer, &schemas.NoOpTracer{})
+
+	keyA := schemas.Key{ID: "key-a", Name: "Key A", Value: *schemas.NewSecretVar("sk-a"), Weight: 1}
+	keyB := schemas.Key{ID: "key-b", Name: "Key B", Value: *schemas.NewSecretVar("sk-b"), Weight: 1}
+	keyProvider := func(usedKeyIDs, deadKeyIDs map[string]bool) (schemas.Key, error) {
+		if usedKeyIDs[keyA.ID] || deadKeyIDs[keyA.ID] {
+			return keyB, nil
+		}
+		return keyA, nil
+	}
+
+	var seenKeyIDs []string
+	result, bifrostErr := executeRequestWithRetries(
+		ctx,
+		config,
+		func(key schemas.Key) (string, *schemas.BifrostError) {
+			seenKeyIDs = append(seenKeyIDs, key.ID)
+			if len(seenKeyIDs) == 1 {
+				return "", createBifrostError("rate limit exceeded", Ptr(503), Ptr("rate_limit_error"), false)
+			}
+			return "recovered", nil
+		},
+		keyProvider,
+		schemas.FileUploadRequest,
+		schemas.Gemini,
+		"test-model",
+		&schemas.BifrostRequest{FileUploadRequest: &schemas.BifrostFileUploadRequest{}},
+		NewDefaultLogger(schemas.LogLevelError),
+	)
+
+	if bifrostErr != nil || result != "recovered" {
+		t.Fatalf("result=%q error=%v, want recovery after rotating the throttled key", result, bifrostErr)
+	}
+	if len(seenKeyIDs) != 2 || seenKeyIDs[0] != keyA.ID || seenKeyIDs[1] != keyB.ID {
+		t.Fatalf("key sequence = %v, want [%s %s]", seenKeyIDs, keyA.ID, keyB.ID)
+	}
+}
+
 // Test that perKeyFailureStatusCodes are properly defined.
 // These are credential/account-bound failures — rotate to the next key instead of retrying
 // the same one.
@@ -1655,6 +1696,60 @@ func TestBedrockBatchReplayPredicatesRecognizeClientRequestToken(t *testing.T) {
 			}
 			if !canReplayAcceptedUpstreamResponse(schemas.BatchCreateRequest, schemas.Bedrock, req) {
 				t.Fatal("accepted-response predicate rejected an idempotent Bedrock batch request")
+			}
+		})
+	}
+}
+
+func TestExecuteRequestWithRetries_CustomBedrockBatchTokenAllowsReplay(t *testing.T) {
+	testCases := []struct {
+		name       string
+		firstError func() *schemas.BifrostError
+	}{
+		{
+			name: "connection failure",
+			firstError: func() *schemas.BifrostError {
+				return providerUtils.NewBifrostUpstreamConnectionError(schemas.ErrProviderDoRequest, errors.New("connection reset"))
+			},
+		},
+		{
+			name: "accepted malformed response",
+			firstError: func() *schemas.BifrostError {
+				return providerUtils.NewBifrostUpstreamResponseError(schemas.ErrProviderResponseUnmarshal, errors.New("malformed response"))
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
+			ctx.SetValue(schemas.BifrostContextKeyTracer, &schemas.NoOpTracer{})
+			ctx.SetValue(schemas.BifrostContextKeyBaseProviderType, schemas.Bedrock)
+			attempts := 0
+			request := &schemas.BifrostRequest{BatchCreateRequest: &schemas.BifrostBatchCreateRequest{
+				ExtraParams: map[string]any{"clientRequestToken": "stable-token"},
+			}}
+
+			result, bifrostErr := executeRequestWithRetries(
+				ctx,
+				createTestConfig(1, 0, 0),
+				func(schemas.Key) (string, *schemas.BifrostError) {
+					attempts++
+					if attempts == 1 {
+						return "", testCase.firstError()
+					}
+					return "ok", nil
+				},
+				nil,
+				schemas.BatchCreateRequest,
+				schemas.ModelProvider("custom-bedrock"),
+				"test-model",
+				request,
+				NewDefaultLogger(schemas.LogLevelError),
+			)
+
+			if bifrostErr != nil || result != "ok" || attempts != 2 {
+				t.Fatalf("result=%q error=%v attempts=%d, want token-protected replay success", result, bifrostErr, attempts)
 			}
 		})
 	}
