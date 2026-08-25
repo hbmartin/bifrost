@@ -85,6 +85,8 @@ curl -X POST http://localhost:8080/v1/chat/completions \
 Weights are automatically normalized to a sum 1.0 based on the weights of all providers available on the VK for the given model.
 </Info>
 
+A provider with `weight: 0` receives no primary load-balanced traffic, but remains in an automatically generated fallback chain. This supports warm-standby providers without assigning them normal request volume.
+
 **Example with Wildcard `allowed_models` (allow all via Model Catalog):**
 ```json
 {

@@ -1,4 +1,4 @@
-- fix: harden Bedrock tool results and weighted key selection edge cases [@hbmartin](https://github.com/hbmartin)
+- fix: preserve zero-weight API keys as uniform all-zero pools and retry reserves, share overflow-safe weighted selection with governance, and harden Bedrock tool-result IDs, documents, cache points, and blank content [@hbmartin](https://github.com/hbmartin)
 - fix: harden OpenAI stream finalization and upstream error handling while avoiding single-choice map allocations
 - fix: strip the encrypted reasoning signature when the upstream reports the field as unsupported (e.g. Bedrock Converse replaying a Claude signature onto a non-Anthropic model after a mid-conversation model switch), extending the existing unverifiable-signature fail-soft
 - fix: clear Anthropic raw-body passthrough based on the resolved provider and model pair, so non-Claude models on multi-family providers (Vertex, Azure, Bedrock Mantle) convert the request instead of passing the Anthropic payload through
