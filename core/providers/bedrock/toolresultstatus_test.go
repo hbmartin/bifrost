@@ -132,8 +132,37 @@ func TestToolResultContentBlocksUseSharedConverter(t *testing.T) {
 		t.Fatalf("expected tool result and sibling cache point, got %#v", converted.Content)
 	}
 	content := converted.Content[0].ToolResult.Content
-	if len(content) != 1 || content[0].Document == nil {
-		t.Fatalf("expected only the document inside the tool result, got %#v", content)
+	if len(content) != 2 || content[0].Text == nil || content[1].Document == nil {
+		t.Fatalf("expected placeholder text and document inside the tool result, got %#v", content)
+	}
+	if strings.TrimSpace(*content[0].Text) == "" {
+		t.Fatalf("document placeholder must be usable text, got %q", *content[0].Text)
+	}
+}
+
+func TestBlankToolResultIDUsesAssistantToolUseAlias(t *testing.T) {
+	for _, toolCallID := range []string{"", "  "} {
+		t.Run(fmt.Sprintf("id_%q", toolCallID), func(t *testing.T) {
+			assistantBlock := convertToolCallToContentBlock(context.Background(), schemas.ChatAssistantMessageToolCall{
+				ID: &toolCallID,
+				Function: schemas.ChatAssistantMessageToolCallFunction{
+					Name:      schemas.Ptr("lookup"),
+					Arguments: `{}`,
+				},
+			})
+			converted, err := convertToolMessages(context.Background(), []schemas.ChatMessage{{
+				Role:            schemas.ChatMessageRoleTool,
+				ChatToolMessage: &schemas.ChatToolMessage{ToolCallID: &toolCallID},
+			}})
+			if err != nil {
+				t.Fatalf("convert blank tool result ID: %v", err)
+			}
+
+			resultID := converted.Content[0].ToolResult.ToolUseID
+			if assistantBlock.ToolUse == nil || resultID == "" || resultID != assistantBlock.ToolUse.ToolUseID {
+				t.Fatalf("assistant alias = %#v, result alias = %q", assistantBlock.ToolUse, resultID)
+			}
+		})
 	}
 }
 
@@ -198,14 +227,6 @@ func TestMalformedToolMessagesReturnErrors(t *testing.T) {
 			message: schemas.ChatMessage{
 				Role:            schemas.ChatMessageRoleTool,
 				ChatToolMessage: &schemas.ChatToolMessage{},
-			},
-			want: "missing required ToolCallID",
-		},
-		{
-			name: "empty tool call id",
-			message: schemas.ChatMessage{
-				Role:            schemas.ChatMessageRoleTool,
-				ChatToolMessage: &schemas.ChatToolMessage{ToolCallID: schemas.Ptr("  ")},
 			},
 			want: "missing required ToolCallID",
 		},
