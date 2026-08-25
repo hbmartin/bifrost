@@ -3178,6 +3178,17 @@ func (provider *BedrockProvider) BatchCreate(ctx *schemas.BifrostContext, key sc
 
 	// Determine input file ID (S3 URI)
 	inputFileID := request.InputFileID
+	var uploadedInput *batchInputS3Upload
+	cleanupRejectedUpload := func() {
+		if uploadedInput == nil || !uploadedInput.created {
+			return
+		}
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if cleanupErr := uploadedInput.deleteIfCreated(cleanupCtx); cleanupErr != nil {
+			provider.logger.Warn("failed to clean up rejected Bedrock batch input %s: %s", inputFileID, cleanupErr.GetErrorString())
+		}
+	}
 
 	// If no S3 URI provided but inline requests are available, upload them to S3 first
 	if inputFileID == "" && len(request.Requests) > 0 {
@@ -3207,7 +3218,8 @@ func (provider *BedrockProvider) BatchCreate(ctx *schemas.BifrostContext, key sc
 		bucket, s3Key := parseS3URI(inputS3URI)
 
 		// Upload to S3 using Bedrock credentials
-		if bifrostErr := uploadToS3(
+		var bifrostErr *schemas.BifrostError
+		uploadedInput, bifrostErr = uploadToS3(
 			ctx,
 			key.BedrockKeyConfig.AccessKey.GetValue(),
 			key.BedrockKeyConfig.SecretKey.GetValue(),
@@ -3217,7 +3229,8 @@ func (provider *BedrockProvider) BatchCreate(ctx *schemas.BifrostContext, key sc
 			s3Key,
 			jsonlData,
 			clientRequestToken != "",
-		); bifrostErr != nil {
+		)
+		if bifrostErr != nil {
 			return nil, bifrostErr
 		}
 
@@ -3259,6 +3272,7 @@ func (provider *BedrockProvider) BatchCreate(ctx *schemas.BifrostContext, key sc
 
 	jsonData, err := providerUtils.MarshalSorted(bedrockReq)
 	if err != nil {
+		cleanupRejectedUpload()
 		return nil, providerUtils.NewBifrostOperationError(schemas.ErrProviderRequestMarshal, err)
 	}
 
@@ -3274,11 +3288,13 @@ func (provider *BedrockProvider) BatchCreate(ctx *schemas.BifrostContext, key sc
 	reqURL := fmt.Sprintf("https://%s/model-invocation-job", resolveBedrockHost(bedrockEndpoints(key.BedrockKeyConfig), bedrockServiceControlPlane, region))
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, reqURL, bytes.NewBuffer(jsonData))
 	if err != nil {
+		cleanupRejectedUpload()
 		return nil, providerUtils.EnrichError(ctx, providerUtils.NewBifrostOperationError("error creating request", err), jsonData, nil, sendBackRawRequest, sendBackRawResponse)
 	}
 
 	// Sign request
 	if err := signAWSRequest(ctx, httpReq, key.BedrockKeyConfig, region, bedrockSigningService); err != nil {
+		cleanupRejectedUpload()
 		return nil, providerUtils.EnrichError(ctx, err, jsonData, nil, sendBackRawRequest, sendBackRawResponse)
 	}
 
@@ -3307,6 +3323,9 @@ func (provider *BedrockProvider) BatchCreate(ctx *schemas.BifrostContext, key sc
 	}
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		if isDefinitiveBatchCreateRejection(resp.StatusCode) {
+			cleanupRejectedUpload()
+		}
 		return nil, providerUtils.EnrichError(ctx, parseBedrockHTTPError(resp.StatusCode, resp.Header, body), jsonData, body, sendBackRawRequest, sendBackRawResponse)
 	}
 
@@ -3364,6 +3383,21 @@ func (provider *BedrockProvider) BatchCreate(ctx *schemas.BifrostContext, key sc
 	}
 
 	return result, nil
+}
+
+// isDefinitiveBatchCreateRejection reports whether Bedrock explicitly rejected
+// the create before accepting a job. Timeouts, conflicts, and throttling remain
+// ambiguous/retryable, so their uploaded input must stay available for replay.
+func isDefinitiveBatchCreateRejection(statusCode int) bool {
+	if statusCode < http.StatusBadRequest || statusCode >= http.StatusInternalServerError {
+		return false
+	}
+	switch statusCode {
+	case http.StatusRequestTimeout, http.StatusConflict, http.StatusTooEarly, http.StatusTooManyRequests:
+		return false
+	default:
+		return true
+	}
 }
 
 // BatchList lists batch inference jobs using serial pagination across keys.
