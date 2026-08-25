@@ -3,10 +3,10 @@ package governance
 
 import (
 	"fmt"
-	"math"
 	"strings"
 
 	bifrost "github.com/maximhq/bifrost/core"
+	"github.com/maximhq/bifrost/core/keyselectors"
 	"github.com/maximhq/bifrost/core/schemas"
 	"github.com/valyala/fasthttp"
 )
@@ -88,46 +88,34 @@ func getWeight(w *float64) float64 {
 	return *w
 }
 
-// selectWeightedProviderConfigAt selects among provider candidates whose weights
-// are finite and strictly positive. Normalizing by the largest weight prevents
-// overflow when malformed persisted data contains extremely large values.
-func selectWeightedProviderConfigAt(candidates []schemas.ProviderCandidate, unitRandom float64) (schemas.ProviderCandidate, []schemas.ProviderCandidate, bool) {
-	eligibleCandidates := make([]schemas.ProviderCandidate, 0, len(candidates))
-	maxWeight := 0.0
+// selectWeightedProviderConfigAt selects a primary provider using the same
+// overflow-safe finite-positive algorithm as core API-key selection.
+func selectWeightedProviderConfigAt(candidates []schemas.ProviderCandidate, unitRandom float64) (schemas.ProviderCandidate, bool) {
+	return keyselectors.SelectPositiveWeightedAt(candidates, func(candidate *schemas.ProviderCandidate) float64 {
+		if candidate.Weight == nil {
+			return 0
+		}
+		return *candidate.Weight
+	}, unitRandom)
+}
+
+// providerFallbackConfigs returns the candidates carrying an assigned, non-negative finite
+// weight. Zero-weight providers are excluded from primary traffic but remain available as
+// generated fallbacks. assignedCount includes malformed assigned values so routing diagnostics
+// can distinguish them from an entirely unset configuration.
+func providerFallbackConfigs(candidates []schemas.ProviderCandidate) (fallbacks []schemas.ProviderCandidate, assignedCount int) {
+	fallbacks = make([]schemas.ProviderCandidate, 0, len(candidates))
 	for _, candidate := range candidates {
 		if candidate.Weight == nil {
 			continue
 		}
+		assignedCount++
 		weight := *candidate.Weight
-		if weight <= 0 || math.IsNaN(weight) || math.IsInf(weight, 0) {
-			continue
-		}
-		eligibleCandidates = append(eligibleCandidates, candidate)
-		if weight > maxWeight {
-			maxWeight = weight
+		if weight == 0 || keyselectors.IsPositiveFiniteWeight(weight) {
+			fallbacks = append(fallbacks, candidate)
 		}
 	}
-	if len(eligibleCandidates) == 0 {
-		return schemas.ProviderCandidate{}, nil, false
-	}
-
-	totalWeight := 0.0
-	for _, candidate := range eligibleCandidates {
-		totalWeight += *candidate.Weight / maxWeight
-	}
-
-	randomValue := unitRandom * totalWeight
-	currentWeight := 0.0
-	for _, candidate := range eligibleCandidates {
-		currentWeight += *candidate.Weight / maxWeight
-		if randomValue < currentWeight {
-			return candidate, eligibleCandidates, true
-		}
-	}
-
-	// unitRandom comes from rand.Float64 and is always below 1. Return the final
-	// eligible candidate defensively if floating-point rounding reaches the boundary.
-	return eligibleCandidates[len(eligibleCandidates)-1], eligibleCandidates, true
+	return fallbacks, assignedCount
 }
 
 // filterModelsForAccess drops the models a request may not use from a listing. The access decides,

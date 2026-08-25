@@ -4174,7 +4174,7 @@
         "weight": {
           "type": "number",
           "minimum": 0,
-          "description": "Weight for load balancing"
+          "description": "Weight for load balancing. A zero-weight key receives no primary traffic while a positive-weight key is available, but remains eligible for retry rotation; an all-zero key pool is selected uniformly."
         },
         "use_for_batch_api": {
           "type": "boolean",
