@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"time"
 
@@ -11,9 +12,17 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/smithy-go"
 	providerUtils "github.com/maximhq/bifrost/core/providers/utils"
 	"github.com/maximhq/bifrost/core/schemas"
 )
+
+const batchInputContentDigestMetadataKey = "bifrost-content-sha256"
+
+type batchInputS3Client interface {
+	PutObject(context.Context, *s3.PutObjectInput, ...func(*s3.Options)) (*s3.PutObjectOutput, error)
+	HeadObject(context.Context, *s3.HeadObjectInput, ...func(*s3.Options)) (*s3.HeadObjectOutput, error)
+}
 
 // uploadToS3 uploads content to an S3 bucket using the provided credentials.
 func uploadToS3(
@@ -23,6 +32,7 @@ func uploadToS3(
 	region string,
 	bucket, key string,
 	content []byte,
+	replayProtected bool,
 ) *schemas.BifrostError {
 	// Create AWS config with credentials
 	var cfg aws.Config
@@ -53,29 +63,66 @@ func uploadToS3(
 	// Create S3 client
 	client := s3.NewFromConfig(cfg)
 
-	// Upload the content
-	_, err = client.PutObject(ctx, &s3.PutObjectInput{
+	return putBatchInputS3Object(ctx, client, bucket, key, content, replayProtected)
+}
+
+func putBatchInputS3Object(
+	ctx context.Context,
+	client batchInputS3Client,
+	bucket, key string,
+	content []byte,
+	replayProtected bool,
+) *schemas.BifrostError {
+	contentDigest := fmt.Sprintf("%x", sha256.Sum256(content))
+	input := &s3.PutObjectInput{
 		Bucket:      aws.String(bucket),
 		Key:         aws.String(key),
 		Body:        bytes.NewReader(content),
 		ContentType: aws.String("application/jsonl"),
-	})
-
-	if err != nil {
-		return providerUtils.NewBifrostOperationError(fmt.Sprintf("failed to upload to s3: %s/%s", bucket, key), err)
+		Metadata: map[string]string{
+			batchInputContentDigestMetadataKey: contentDigest,
+		},
+	}
+	if replayProtected {
+		// A stable token-derived key is safe only if retries cannot overwrite the
+		// object that AWS associated with the first accepted request.
+		input.IfNoneMatch = aws.String("*")
 	}
 
-	return nil
+	_, err := client.PutObject(ctx, input)
+	if err == nil {
+		return nil
+	}
+	if replayProtected && isS3PreconditionFailed(err) {
+		existing, headErr := client.HeadObject(ctx, &s3.HeadObjectInput{
+			Bucket: aws.String(bucket),
+			Key:    aws.String(key),
+		})
+		if headErr != nil {
+			return providerUtils.NewBifrostOperationError(fmt.Sprintf("failed to verify existing s3 batch input: %s/%s", bucket, key), headErr)
+		}
+		if existing.Metadata[batchInputContentDigestMetadataKey] == contentDigest {
+			return nil
+		}
+		return providerUtils.NewBifrostOperationError("bedrock batch client_request_token was reused with different inline request content", nil)
+	}
+
+	return providerUtils.NewBifrostOperationError(fmt.Sprintf("failed to upload to s3: %s/%s", bucket, key), err)
+}
+
+func isS3PreconditionFailed(err error) bool {
+	var apiError smithy.APIError
+	return errors.As(err, &apiError) && apiError.ErrorCode() == "PreconditionFailed"
 }
 
 // generateBatchInputS3Key generates a stable key for replayable batch creates
-// and a unique key for calls that do not carry an idempotency token. Including
-// the content digest keeps an accidental token reuse with different JSONL from
-// overwriting the input object accepted for the original request.
-func generateBatchInputS3Key(jobName, clientRequestToken string, content []byte) string {
+// and a unique key for calls that do not carry an idempotency token. Tokenized
+// calls must address the same object on every replay; conditional upload plus
+// digest metadata rejects accidental token reuse with different JSONL.
+func generateBatchInputS3Key(jobName, clientRequestToken string, _ []byte) string {
 	if clientRequestToken != "" {
-		digest := sha256.Sum256(content)
-		return fmt.Sprintf("bifrost-batch-input/%s-%x.jsonl", jobName, digest)
+		digest := sha256.Sum256([]byte(clientRequestToken))
+		return fmt.Sprintf("bifrost-batch-input/token-%x.jsonl", digest)
 	}
 	timestamp := time.Now().UnixNano()
 	return fmt.Sprintf("bifrost-batch-input/%s-%d.jsonl", jobName, timestamp)
