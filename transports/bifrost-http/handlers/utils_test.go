@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/maximhq/bifrost/core/schemas"
 	"github.com/valyala/fasthttp"
 )
 
@@ -85,5 +86,27 @@ func TestSendJSONWithStatus_MarshalError(t *testing.T) {
 	}
 	if body := string(ctx.Response.Body()); !strings.Contains(body, "Failed to encode response") {
 		t.Errorf("expected SendError body, got %q", body)
+	}
+}
+
+func TestSendBifrostError_NormalizesMissingCancellationStatus(t *testing.T) {
+	ctx := &fasthttp.RequestCtx{}
+	bifrostErr := &schemas.BifrostError{
+		Error: &schemas.ErrorField{
+			Type:    schemas.Ptr(schemas.RequestCancelled),
+			Message: schemas.ErrRequestCancelled,
+		},
+	}
+
+	SendBifrostError(ctx, bifrostErr)
+
+	if got := ctx.Response.StatusCode(); got != 499 {
+		t.Fatalf("status = %d, want 499", got)
+	}
+	if bifrostErr.StatusCode != nil {
+		t.Fatal("expected client serialization not to mutate the original error")
+	}
+	if body := string(ctx.Response.Body()); !strings.Contains(body, `"status_code":499`) {
+		t.Fatalf("expected normalized status in response body, got %q", body)
 	}
 }
