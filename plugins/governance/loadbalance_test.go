@@ -375,11 +375,9 @@ func TestSelectWeightedProviderConfigIgnoresUnusableWeights(t *testing.T) {
 		{Provider: "positive", Weight: schemas.Ptr(1.0)},
 	}
 
-	selected, eligible, ok := selectWeightedProviderConfigAt(candidates, 0.5)
+	selected, ok := selectWeightedProviderConfigAt(candidates, 0.5)
 	require.True(t, ok)
 	assert.Equal(t, "positive", selected.Provider)
-	require.Len(t, eligible, 1)
-	assert.Equal(t, "positive", eligible[0].Provider)
 }
 
 func TestSelectWeightedProviderConfigRejectsOnlyUnusableWeights(t *testing.T) {
@@ -389,9 +387,8 @@ func TestSelectWeightedProviderConfigRejectsOnlyUnusableWeights(t *testing.T) {
 		{Provider: "nan", Weight: schemas.Ptr(math.NaN())},
 	}
 
-	_, eligible, ok := selectWeightedProviderConfigAt(candidates, 0.5)
+	_, ok := selectWeightedProviderConfigAt(candidates, 0.5)
 	assert.False(t, ok)
-	assert.Empty(t, eligible)
 }
 
 func TestSelectWeightedProviderConfigPreservesTinyWeights(t *testing.T) {
@@ -400,7 +397,7 @@ func TestSelectWeightedProviderConfigPreservesTinyWeights(t *testing.T) {
 		{Provider: "tiny", Weight: schemas.Ptr(0.001)},
 	}
 
-	selected, _, ok := selectWeightedProviderConfigAt(candidates, math.Nextafter(1, 0))
+	selected, ok := selectWeightedProviderConfigAt(candidates, math.Nextafter(1, 0))
 	require.True(t, ok)
 	assert.Equal(t, "tiny", selected.Provider)
 }
@@ -411,7 +408,40 @@ func TestSelectWeightedProviderConfigHandlesVeryLargeWeights(t *testing.T) {
 		{Provider: "second", Weight: schemas.Ptr(math.MaxFloat64)},
 	}
 
-	selected, _, ok := selectWeightedProviderConfigAt(candidates, 0.75)
+	selected, ok := selectWeightedProviderConfigAt(candidates, 0.75)
 	require.True(t, ok)
 	assert.Equal(t, "second", selected.Provider)
+}
+
+func TestLoadBalanceProviderKeepsZeroWeightProviderAsFallback(t *testing.T) {
+	primary := buildProviderConfig("openai", []string{"*"})
+	reserve := buildProviderConfig("anthropic", []string{"*"})
+	reserve.Weight = schemas.Ptr(0.0)
+	vk := buildVirtualKeyWithProviders("vk1", "sk-bf-lb", "LB VK", []configstoreTables.TableVirtualKeyProviderConfig{primary, reserve})
+	p := newLoadBalanceTestPlugin(t, vk)
+	ctx := presentCtx("sk-bf-lb")
+	req := &schemas.BifrostRequest{
+		RequestType: schemas.ChatCompletionRequest,
+		ChatRequest: &schemas.BifrostChatRequest{Model: "gpt-4o"},
+	}
+
+	require.NoError(t, p.LoadBalanceProvider(ctx, req))
+	provider, _, fallbacks := req.GetRequestFields()
+	assert.Equal(t, schemas.OpenAI, provider)
+	require.Len(t, fallbacks, 1)
+	assert.Equal(t, schemas.Anthropic, fallbacks[0].Provider)
+}
+
+func TestLoadBalanceProviderPreservesUnsetWeightDiagnostic(t *testing.T) {
+	config := buildProviderConfig("openai", []string{"*"})
+	config.Weight = nil
+	vk := buildVirtualKeyWithProviders("vk1", "sk-bf-lb", "LB VK", []configstoreTables.TableVirtualKeyProviderConfig{config})
+	p := newLoadBalanceTestPlugin(t, vk)
+	ctx := presentCtx("sk-bf-lb")
+
+	_, err := loadBalance(t, p, ctx, "gpt-4o")
+	require.NoError(t, err)
+	logs := ctx.GetRoutingEngineLogs()
+	require.NotEmpty(t, logs)
+	assert.True(t, strings.Contains(logs[len(logs)-1].Message, "none of the allowed providers have a weight assigned"), "logs: %#v", logs)
 }
