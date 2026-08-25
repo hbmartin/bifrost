@@ -817,11 +817,35 @@ func TestRealtimeEphemeralKeyMappingTTLIsBounded(t *testing.T) {
 	if got := realtimeEphemeralKeyMappingTTL(now.Add(7*24*time.Hour).Unix(), now); got != realtimeEphemeralKeyMappingMaxTTL {
 		t.Fatalf("far-future TTL = %s, want %s", got, realtimeEphemeralKeyMappingMaxTTL)
 	}
-	if got := realtimeEphemeralKeyMappingTTL(now.Add(5*time.Minute).Unix(), now); got != 5*time.Minute {
-		t.Fatalf("short TTL = %s, want %s", got, 5*time.Minute)
+	if got := realtimeEphemeralKeyMappingTTL(now.Add(5*time.Minute).Unix(), now); got != 5*time.Minute+realtimeEphemeralTokenClockSkew {
+		t.Fatalf("short TTL = %s, want %s", got, 5*time.Minute+realtimeEphemeralTokenClockSkew)
 	}
-	if got := realtimeEphemeralKeyMappingTTL(now.Unix(), now); got != 0 {
+	if got := realtimeEphemeralKeyMappingTTL(now.Unix(), now); got != realtimeEphemeralTokenClockSkew {
+		t.Fatalf("boundary TTL = %s, want %s", got, realtimeEphemeralTokenClockSkew)
+	}
+	if got := realtimeEphemeralKeyMappingTTL(now.Add(-realtimeEphemeralTokenClockSkew-time.Second).Unix(), now); got != 0 {
 		t.Fatalf("expired TTL = %s, want 0", got)
+	}
+}
+
+func TestCacheRealtimeEphemeralKeyMappingStoresSecretWithinClockSkew(t *testing.T) {
+	t.Parallel()
+
+	store, err := kvstore.New(kvstore.Config{})
+	if err != nil {
+		t.Fatalf("kvstore.New() error = %v", err)
+	}
+	defer store.Close()
+
+	expiresWithinSkew := time.Now().Add(-realtimeEphemeralTokenClockSkew / 2).Unix()
+	body := fmt.Appendf(nil, `{
+		"value": "ek_within_skew",
+		"expires_at": %d
+	}`, expiresWithinSkew)
+	cacheRealtimeEphemeralKeyMapping(store, body, "key_123", "")
+
+	if _, err := store.Get(buildRealtimeEphemeralKeyMappingKey("ek_within_skew")); err != nil {
+		t.Fatalf("mapping accepted by the verifier was not cached: %v", err)
 	}
 }
 
@@ -857,7 +881,7 @@ func TestCacheRealtimeEphemeralKeyMappingSkipsExpiredSecrets(t *testing.T) {
 	}
 	defer store.Close()
 
-	expired := time.Now().Add(-time.Minute).Unix()
+	expired := time.Now().Add(-realtimeEphemeralTokenClockSkew - time.Second).Unix()
 	body := fmt.Appendf(nil, `{
 		"value": "ek_expired",
 		"expires_at": %d
