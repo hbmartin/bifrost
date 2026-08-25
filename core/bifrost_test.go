@@ -700,7 +700,51 @@ func TestExecuteRequestWithRetries_529RetriesSameKeyWithoutRotation(t *testing.T
 	}
 }
 
-func TestExecuteRequestWithRetries_RotatesPerKeyFailureWithTransientStatus(t *testing.T) {
+func TestExecuteRequestWithRetries_DoesNotReplayPerKeyLookingTransientFailureForNonIdempotentOperation(t *testing.T) {
+	config := createTestConfig(1, 0, 0)
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
+	ctx.SetValue(schemas.BifrostContextKeyTracer, &schemas.NoOpTracer{})
+
+	keyA := schemas.Key{ID: "key-a", Name: "Key A", Value: *schemas.NewSecretVar("sk-a"), Weight: 1}
+	keyB := schemas.Key{ID: "key-b", Name: "Key B", Value: *schemas.NewSecretVar("sk-b"), Weight: 1}
+	keyProvider := func(usedKeyIDs, deadKeyIDs map[string]bool) (schemas.Key, error) {
+		if usedKeyIDs[keyA.ID] || deadKeyIDs[keyA.ID] {
+			return keyB, nil
+		}
+		return keyA, nil
+	}
+
+	var seenKeyIDs []string
+	_, bifrostErr := executeRequestWithRetries(
+		ctx,
+		config,
+		func(key schemas.Key) (string, *schemas.BifrostError) {
+			seenKeyIDs = append(seenKeyIDs, key.ID)
+			if len(seenKeyIDs) == 1 {
+				return "", createBifrostError("rate limit exceeded", Ptr(503), Ptr("rate_limit_error"), false)
+			}
+			return "recovered", nil
+		},
+		keyProvider,
+		schemas.FileUploadRequest,
+		schemas.Gemini,
+		"test-model",
+		&schemas.BifrostRequest{FileUploadRequest: &schemas.BifrostFileUploadRequest{}},
+		NewDefaultLogger(schemas.LogLevelError),
+	)
+
+	if bifrostErr == nil {
+		t.Fatal("expected the ambiguous non-idempotent failure to be returned")
+	}
+	if len(seenKeyIDs) != 1 || seenKeyIDs[0] != keyA.ID {
+		t.Fatalf("key sequence = %v, want only [%s]", seenKeyIDs, keyA.ID)
+	}
+	if bifrostErr.AllowFallbacks == nil || *bifrostErr.AllowFallbacks {
+		t.Fatalf("AllowFallbacks = %v, want false", bifrostErr.AllowFallbacks)
+	}
+}
+
+func TestExecuteRequestWithRetries_RotatesPerKeyFailureWithTransientStatusForReplaySafeOperation(t *testing.T) {
 	config := createTestConfig(1, 0, 0)
 	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	ctx.SetValue(schemas.BifrostContextKeyTracer, &schemas.NoOpTracer{})
@@ -726,10 +770,10 @@ func TestExecuteRequestWithRetries_RotatesPerKeyFailureWithTransientStatus(t *te
 			return "recovered", nil
 		},
 		keyProvider,
-		schemas.FileUploadRequest,
+		schemas.ChatCompletionRequest,
 		schemas.Gemini,
 		"test-model",
-		&schemas.BifrostRequest{FileUploadRequest: &schemas.BifrostFileUploadRequest{}},
+		&schemas.BifrostRequest{ChatRequest: &schemas.BifrostChatRequest{}},
 		NewDefaultLogger(schemas.LogLevelError),
 	)
 
@@ -1532,6 +1576,18 @@ func TestExecuteRequestWithRetries_DoesNotReplayAcceptedNonIdempotentOperations(
 			requestType: schemas.ChatCompletionRequest,
 			provider:    schemas.OpenAI,
 			req:         &schemas.BifrostRequest{ChatRequest: &schemas.BifrostChatRequest{}},
+		},
+		{
+			name:        "mistral transcription",
+			requestType: schemas.TranscriptionRequest,
+			provider:    schemas.Mistral,
+			req:         &schemas.BifrostRequest{TranscriptionRequest: &schemas.BifrostTranscriptionRequest{}},
+		},
+		{
+			name:        "mistral ocr",
+			requestType: schemas.OCRRequest,
+			provider:    schemas.Mistral,
+			req:         &schemas.BifrostRequest{OCRRequest: &schemas.BifrostOCRRequest{}},
 		},
 	}
 
