@@ -1,14 +1,67 @@
 package bedrock
 
 import (
+	"context"
 	"encoding/json"
+	"io"
 	"strings"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/smithy-go"
 	schemas "github.com/maximhq/bifrost/core/schemas"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type storedBatchInputObject struct {
+	body     []byte
+	metadata map[string]string
+}
+
+type fakeBatchInputS3Client struct {
+	objects map[string]storedBatchInputObject
+}
+
+func (f *fakeBatchInputS3Client) PutObject(_ context.Context, input *s3.PutObjectInput, _ ...func(*s3.Options)) (*s3.PutObjectOutput, error) {
+	key := aws.ToString(input.Key)
+	if input.IfNoneMatch != nil {
+		if _, exists := f.objects[key]; exists {
+			return nil, &smithy.GenericAPIError{Code: "PreconditionFailed", Message: "object already exists"}
+		}
+	}
+	body, err := io.ReadAll(input.Body)
+	if err != nil {
+		return nil, err
+	}
+	f.objects[key] = storedBatchInputObject{body: body, metadata: input.Metadata}
+	return &s3.PutObjectOutput{}, nil
+}
+
+func (f *fakeBatchInputS3Client) HeadObject(_ context.Context, input *s3.HeadObjectInput, _ ...func(*s3.Options)) (*s3.HeadObjectOutput, error) {
+	object, exists := f.objects[aws.ToString(input.Key)]
+	if !exists {
+		return nil, &smithy.GenericAPIError{Code: "NoSuchKey", Message: "object not found"}
+	}
+	return &s3.HeadObjectOutput{Metadata: object.metadata}, nil
+}
+
+func TestPutBatchInputS3ObjectRejectsTokenReuseWithDifferentContent(t *testing.T) {
+	t.Parallel()
+
+	client := &fakeBatchInputS3Client{objects: make(map[string]storedBatchInputObject)}
+	ctx := context.Background()
+	const key = "bifrost-batch-input/token-digest.jsonl"
+	firstContent := []byte("first batch input")
+
+	require.Nil(t, putBatchInputS3Object(ctx, client, "bucket", key, firstContent, true))
+	require.Nil(t, putBatchInputS3Object(ctx, client, "bucket", key, firstContent, true), "same-content replay should reuse the object")
+
+	bifrostErr := putBatchInputS3Object(ctx, client, "bucket", key, []byte("different batch input"), true)
+	require.NotNil(t, bifrostErr, "different-content replay must fail before AWS reuses the original job")
+	assert.Equal(t, firstContent, client.objects[key].body, "idempotent replay must not overwrite the original input")
+}
 
 // TestConvertBedrockRequestsToJSONL_NoModelIDInModelInput guards against
 // regressing the Bedrock batch bug where modelId was injected into each
