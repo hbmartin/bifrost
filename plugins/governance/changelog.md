@@ -1,0 +1,1 @@
+- fix: ignore unusable provider weights during load balancing [@hbmartin](https://github.com/hbmartin)
