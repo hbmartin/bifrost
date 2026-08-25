@@ -140,47 +140,117 @@ func TestToolResultContentBlocksUseSharedConverter(t *testing.T) {
 	}
 }
 
-func TestBlankToolResultIDUsesAssistantToolUseAlias(t *testing.T) {
-	for _, toolCallID := range []string{"", "  "} {
-		t.Run(fmt.Sprintf("id_%q", toolCallID), func(t *testing.T) {
-			assistantBlock := convertToolCallToContentBlock(context.Background(), schemas.ChatAssistantMessageToolCall{
-				ID: &toolCallID,
-				Function: schemas.ChatAssistantMessageToolCallFunction{
-					Name:      schemas.Ptr("lookup"),
-					Arguments: `{}`,
-				},
-			})
-			converted, err := convertToolMessages(context.Background(), []schemas.ChatMessage{{
-				Role:            schemas.ChatMessageRoleTool,
-				ChatToolMessage: &schemas.ChatToolMessage{ToolCallID: &toolCallID},
-			}})
-			if err != nil {
-				t.Fatalf("convert blank tool result ID: %v", err)
-			}
+func TestToolResultHTTPFileURLUsesSharedSafeFetcher(t *testing.T) {
+	fileURL := "http://127.0.0.1:1/result.pdf"
+	_, err := convertToolMessages(context.Background(), []schemas.ChatMessage{{
+		Role:            schemas.ChatMessageRoleTool,
+		ChatToolMessage: &schemas.ChatToolMessage{ToolCallID: schemas.Ptr("toolu_url")},
+		Content: &schemas.ChatMessageContent{ContentBlocks: []schemas.ChatContentBlock{{
+			Type: schemas.ChatContentBlockTypeFile,
+			File: &schemas.ChatInputFile{FileURL: &fileURL},
+		}}},
+	}})
+	if err == nil {
+		t.Fatal("expected the SSRF-safe fetcher to block a loopback URL")
+	}
+	if strings.Contains(err.Error(), "HTTP(S) file URLs are not supported") {
+		t.Fatalf("tool-result file URL was rejected before shared conversion: %v", err)
+	}
+}
 
-			resultID := converted.Content[0].ToolResult.ToolUseID
-			if assistantBlock.ToolUse == nil || resultID == "" || resultID != assistantBlock.ToolUse.ToolUseID {
-				t.Fatalf("assistant alias = %#v, result alias = %q", assistantBlock.ToolUse, resultID)
+func TestAssistantMetadataOnlyMessagesConvertUsableText(t *testing.T) {
+	tests := []struct {
+		name    string
+		message schemas.ChatMessage
+		want    string
+	}{
+		{
+			name: "refusal",
+			message: schemas.ChatMessage{Role: schemas.ChatMessageRoleAssistant, ChatAssistantMessage: &schemas.ChatAssistantMessage{
+				Refusal: schemas.Ptr("I cannot help with that."),
+			}},
+			want: "I cannot help with that.",
+		},
+		{
+			name: "audio transcript",
+			message: schemas.ChatMessage{Role: schemas.ChatMessageRoleAssistant, ChatAssistantMessage: &schemas.ChatAssistantMessage{
+				Audio: &schemas.ChatAudioMessageAudio{Transcript: "Spoken answer"},
+			}},
+			want: "Spoken answer",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			messages, _, err := convertMessages(context.Background(), []schemas.ChatMessage{tc.message})
+			if err != nil {
+				t.Fatalf("convert assistant metadata: %v", err)
+			}
+			if len(messages) != 1 || len(messages[0].Content) != 1 || messages[0].Content[0].Text == nil || *messages[0].Content[0].Text != tc.want {
+				t.Fatalf("converted assistant metadata = %#v, want text %q", messages, tc.want)
 			}
 		})
 	}
 }
 
-func TestToolResultRejectsHTTPFileURLBeforeConversion(t *testing.T) {
-	for _, fileURL := range []string{"http://127.0.0.1:1/result.pdf", "HTTPS://127.0.0.1:1/result.pdf"} {
-		t.Run(fileURL[:strings.IndexByte(fileURL, ':')], func(t *testing.T) {
-			_, err := convertToolMessages(context.Background(), []schemas.ChatMessage{{
-				Role:            schemas.ChatMessageRoleTool,
-				ChatToolMessage: &schemas.ChatToolMessage{ToolCallID: schemas.Ptr("toolu_url")},
-				Content: &schemas.ChatMessageContent{ContentBlocks: []schemas.ChatContentBlock{{
-					Type: schemas.ChatContentBlockTypeFile,
-					File: &schemas.ChatInputFile{FileURL: &fileURL},
-				}}},
-			}})
-			if err == nil || !strings.Contains(err.Error(), "HTTP(S) file URLs are not supported") {
-				t.Fatalf("expected tool-result HTTP URL rejection, got %v", err)
-			}
+func TestAssistantReasoningAliasAndSummaryConvert(t *testing.T) {
+	tests := []schemas.ChatAssistantMessage{
+		{Reasoning: schemas.Ptr("programmatic reasoning")},
+		{ReasoningDetails: []schemas.ChatReasoningDetails{{Type: schemas.BifrostReasoningDetailsTypeSummary, Summary: schemas.Ptr("summary reasoning")}}},
+	}
+	for _, assistant := range tests {
+		converted, err := convertMessage(context.Background(), schemas.ChatMessage{
+			Role:                 schemas.ChatMessageRoleAssistant,
+			ChatAssistantMessage: &assistant,
 		})
+		if err != nil {
+			t.Fatalf("convert reasoning-only assistant message: %v", err)
+		}
+		if len(converted.Content) != 1 || converted.Content[0].ReasoningContent == nil || converted.Content[0].ReasoningContent.ReasoningText == nil {
+			t.Fatalf("expected reasoning content, got %#v", converted.Content)
+		}
+	}
+}
+
+func TestAnnotationOnlyAssistantMessageReturnsExplicitError(t *testing.T) {
+	_, err := convertMessage(context.Background(), schemas.ChatMessage{
+		Role: schemas.ChatMessageRoleAssistant,
+		ChatAssistantMessage: &schemas.ChatAssistantMessage{
+			Annotations: []schemas.ChatAssistantMessageAnnotation{{Type: "url_citation"}},
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "annotations without Bedrock-convertible content") {
+		t.Fatalf("expected explicit annotation-only error, got %v", err)
+	}
+}
+
+func TestResponsesRefusalOnlyMessageConvertsToText(t *testing.T) {
+	role := schemas.ResponsesInputMessageRoleAssistant
+	converted, err := convertBifrostMessageToBedrockMessage(context.Background(), &schemas.ResponsesMessage{
+		Role: &role,
+		Content: &schemas.ResponsesMessageContent{ContentBlocks: []schemas.ResponsesMessageContentBlock{{
+			Type: schemas.ResponsesOutputMessageContentTypeRefusal,
+			ResponsesOutputMessageContentRefusal: &schemas.ResponsesOutputMessageContentRefusal{
+				Refusal: "I cannot help with that.",
+			},
+		}}},
+	})
+	if err != nil {
+		t.Fatalf("convert refusal-only Responses message: %v", err)
+	}
+	if converted == nil || len(converted.Content) != 1 || converted.Content[0].Text == nil || *converted.Content[0].Text != "I cannot help with that." {
+		t.Fatalf("expected refusal text, got %#v", converted)
+	}
+}
+
+func TestBlankResponsesMessageReturnsError(t *testing.T) {
+	role := schemas.ResponsesInputMessageRoleAssistant
+	_, err := convertBifrostMessageToBedrockMessage(context.Background(), &schemas.ResponsesMessage{
+		Role:    &role,
+		Content: &schemas.ResponsesMessageContent{ContentBlocks: []schemas.ResponsesMessageContentBlock{}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "content must not be blank or unsupported") {
+		t.Fatalf("expected blank Responses message error, got %v", err)
 	}
 }
 
@@ -230,6 +300,14 @@ func TestMalformedToolMessagesReturnErrors(t *testing.T) {
 			},
 			want: "missing required ToolCallID",
 		},
+		{
+			name: "empty tool call id",
+			message: schemas.ChatMessage{
+				Role:            schemas.ChatMessageRoleTool,
+				ChatToolMessage: &schemas.ChatToolMessage{ToolCallID: schemas.Ptr("  ")},
+			},
+			want: "missing required ToolCallID",
+		},
 	}
 
 	for _, tc := range tests {
@@ -239,5 +317,23 @@ func TestMalformedToolMessagesReturnErrors(t *testing.T) {
 				t.Fatalf("expected error containing %q, got %v", tc.want, err)
 			}
 		})
+	}
+}
+
+func TestBlankAssistantToolCallIDReturnsError(t *testing.T) {
+	for _, id := range []*string{nil, schemas.Ptr("  ")} {
+		_, err := convertMessage(context.Background(), schemas.ChatMessage{
+			Role: schemas.ChatMessageRoleAssistant,
+			ChatAssistantMessage: &schemas.ChatAssistantMessage{ToolCalls: []schemas.ChatAssistantMessageToolCall{{
+				ID: id,
+				Function: schemas.ChatAssistantMessageToolCallFunction{
+					Name:      schemas.Ptr("lookup"),
+					Arguments: `{}`,
+				},
+			}}},
+		})
+		if err == nil || !strings.Contains(err.Error(), "assistant tool call missing required ID") {
+			t.Fatalf("expected blank assistant tool-call ID error, got %v", err)
+		}
 	}
 }

@@ -3877,33 +3877,7 @@ func ConvertBifrostMessagesToBedrockMessages(ctx context.Context, bifrostMessage
 	// placeholder so it still validates ("A text block must be included when
 	// using documents").
 	for i := range bedrockMessages {
-		if !hasBedrockDocumentBlock(bedrockMessages[i].Content) {
-			continue
-		}
-		content := bedrockMessages[i].Content
-		filtered := content[:0]
-		hasUsableText := false
-		for _, b := range content {
-			if b.Text != nil {
-				if strings.TrimSpace(*b.Text) == "" {
-					continue
-				}
-				hasUsableText = true
-			}
-			filtered = append(filtered, b)
-		}
-		content = filtered
-		if !hasUsableText {
-			at := leadingBedrockReasoningBlockCount(content)
-			withPlaceholder := make([]BedrockContentBlock, 0, len(content)+1)
-			withPlaceholder = append(withPlaceholder, content[:at]...)
-			withPlaceholder = append(withPlaceholder, BedrockContentBlock{
-				Text: schemas.Ptr(bedrockDocumentPlaceholderText),
-			})
-			withPlaceholder = append(withPlaceholder, content[at:]...)
-			content = withPlaceholder
-		}
-		bedrockMessages[i].Content = content
+		bedrockMessages[i].Content = ensureBedrockDocumentText(bedrockMessages[i].Content)
 	}
 
 	return bedrockMessages, systemMessages, nil
@@ -4051,6 +4025,9 @@ func convertBifrostMessageToBedrockMessage(ctx context.Context, msg *schemas.Res
 	contentBlocks, err := convertBifrostResponsesMessageContentBlocksToBedrockContentBlocks(ctx, *msg.Content)
 	if err != nil {
 		return nil, err
+	}
+	if len(contentBlocks) == 0 {
+		return nil, fmt.Errorf("%s response message content must not be blank or unsupported", *msg.Role)
 	}
 	bedrockMsg.Content = contentBlocks
 
@@ -4544,26 +4521,8 @@ func convertSingleBedrockMessageToBifrostMessages(ctx *schemas.BifrostContext, m
 			// Create a copy of the value to avoid range loop variable capture
 			toolResultID := block.ToolResult.ToolUseID
 
-			// A cache_control nested inside the tool_result's own content (independent of one on
-			// the tool_result block itself, which the block.CachePoint sibling handler below
-			// already covers) surfaces here as a standalone CachePoint block within Content.
-			// Bifrost's canonical form has no per-nested-block cache granularity for tool results
-			// (mirrors the single ToolResult.CacheControl field on the egress side), so fold it
-			// into the message-level CacheControl, same as the sibling-CachePoint fallback below.
-			var nestedCacheControl *schemas.CacheControl
-			for _, c := range block.ToolResult.Content {
-				if c.CachePoint != nil {
-					nestedCacheControl = &schemas.CacheControl{
-						Type: schemas.CacheControlTypeEphemeral,
-						TTL:  c.CachePoint.TTL,
-					}
-					break
-				}
-			}
-
 			resultMsg := schemas.ResponsesMessage{
-				Type:         schemas.Ptr(schemas.ResponsesMessageTypeFunctionCallOutput),
-				CacheControl: nestedCacheControl,
+				Type: schemas.Ptr(schemas.ResponsesMessageTypeFunctionCallOutput),
 				ResponsesToolMessage: &schemas.ResponsesToolMessage{
 					CallID: &toolResultID,
 					Output: &schemas.ResponsesToolMessageOutputStruct{
@@ -4757,6 +4716,12 @@ func convertBifrostResponsesMessageContentBlocksToBedrockContentBlocks(ctx conte
 						},
 					}
 				}
+			case schemas.ResponsesOutputMessageContentTypeRefusal:
+				if block.ResponsesOutputMessageContentRefusal != nil && strings.TrimSpace(block.ResponsesOutputMessageContentRefusal.Refusal) != "" {
+					bedrockBlock.Text = &block.ResponsesOutputMessageContentRefusal.Refusal
+				}
+			case schemas.ResponsesInputMessageContentBlockTypeAudio:
+				return nil, fmt.Errorf("audio input is not supported by the Bedrock Responses converter")
 			case schemas.ResponsesOutputMessageContentTypeCompaction:
 				// Convert compaction to text block for Bedrock (compaction is Anthropic-specific)
 				if block.ResponsesOutputMessageContentCompaction != nil {
@@ -4841,23 +4806,6 @@ func convertBifrostResponsesMessageContentBlocksToBedrockContentBlocks(ctx conte
 
 					// URL-sourced document: fetch and inline the bytes (Bedrock Converse
 					// only accepts inline source bytes, not remote URLs).
-					if file.FileURL != nil && *file.FileURL != "" {
-						fetchedMediaType, fetchedB64, fetchErr := providerUtils.FetchAndEncodeURL(ctx, *file.FileURL)
-						if fetchErr != nil {
-							return nil, fetchErr
-						}
-						// Refine format from response Content-Type when present (more
-						// reliable than file extension or upstream-declared media type).
-						if fetchedFormat, _, ok := bedrockDocumentFormat(fetchedMediaType); ok {
-							doc.Format = fetchedFormat
-						}
-						doc.Source.Bytes = &fetchedB64
-						bedrockBlock.Document = doc
-						break
-					}
-
-					// URL-sourced document: fetch and inline the bytes. Converse has no
-					// url member on DocumentSource.
 					if file.FileURL != nil && *file.FileURL != "" {
 						fetchedMediaType, fetchedB64, fetchErr := providerUtils.FetchAndEncodeURL(ctx, *file.FileURL)
 						if fetchErr != nil {

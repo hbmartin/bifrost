@@ -856,11 +856,11 @@ func TestBedrockInvokeRequest_UnmarshalJSON_ToolResultContentBlockCacheControlSu
 	assert.Equal(t, BedrockCachePointTypeDefault, req.Messages[0].Content[1].CachePoint.Type)
 }
 
-// TestBedrockInvokeRequest_UnmarshalJSON_ToolResultNestedContentCacheControlSurvives is the
-// recursion case: cache_control nested inside a tool_result block's own array-form content
-// (Anthropic allows an independent cache breakpoint there, separate from one on the tool_result
-// block itself). applyMessageContentCacheControl must recurse into ToolResult.Content.
-func TestBedrockInvokeRequest_UnmarshalJSON_ToolResultNestedContentCacheControlSurvives(t *testing.T) {
+// TestBedrockInvokeRequest_UnmarshalJSON_ToolResultNestedContentCacheControlIsHoisted covers
+// cache_control nested inside a tool_result block's array-form content. Converse's
+// ToolResultContentBlock union does not allow cachePoint, so the marker must become an outer
+// sibling immediately after the containing ToolResult.
+func TestBedrockInvokeRequest_UnmarshalJSON_ToolResultNestedContentCacheControlIsHoisted(t *testing.T) {
 	raw := `{
 		"anthropic_version": "bedrock-2023-05-31",
 		"max_tokens": 16,
@@ -875,19 +875,18 @@ func TestBedrockInvokeRequest_UnmarshalJSON_ToolResultNestedContentCacheControlS
 	require.NoError(t, sonic.Unmarshal([]byte(raw), &req))
 
 	require.Len(t, req.Messages, 1)
-	require.Len(t, req.Messages[0].Content, 1, "no cache_control on the tool_result block itself, so no top-level sibling")
+	require.Len(t, req.Messages[0].Content, 2, "nested cache_control must be hoisted after the tool result")
 
 	toolResult := req.Messages[0].Content[0].ToolResult
 	require.NotNil(t, toolResult)
-	require.Len(t, toolResult.Content, 2, "expected the nested text block plus a trailing standalone cachePoint entry")
+	require.Len(t, toolResult.Content, 1, "tool result content must contain only legal union members")
 
 	require.NotNil(t, toolResult.Content[0].Text)
 	assert.Equal(t, "Screenshot captured", *toolResult.Content[0].Text)
 	assert.Nil(t, toolResult.Content[0].CachePoint)
 
-	assert.Nil(t, toolResult.Content[1].Text)
-	require.NotNil(t, toolResult.Content[1].CachePoint)
-	assert.Equal(t, BedrockCachePointTypeDefault, toolResult.Content[1].CachePoint.Type)
+	require.NotNil(t, req.Messages[0].Content[1].CachePoint)
+	assert.Equal(t, BedrockCachePointTypeDefault, req.Messages[0].Content[1].CachePoint.Type)
 }
 
 // TestBedrockInvokeRequest_UnmarshalJSON_ContentBlockNoCacheControlUnaffected is the regression

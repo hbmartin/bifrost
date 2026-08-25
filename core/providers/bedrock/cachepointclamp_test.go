@@ -29,11 +29,6 @@ func textBlock(s string) BedrockContentBlock {
 }
 
 // countCachePointsInRequest returns markers per render region plus the total.
-//
-// `messages` includes markers nested inside ToolResult.Content. AWS counts checkpoints across
-// `messages` as a whole, so a helper that walked only direct content would report a total the
-// provider disagrees with — and every test built on it would be blind to a nested-counting
-// regression, which is the exact class of bug clampBedrockCachePoints originally shipped with.
 func countCachePointsInRequest(req *BedrockConverseRequest) (tools, system, messages, total int) {
 	if req.ToolConfig != nil {
 		for _, t := range req.ToolConfig.Tools {
@@ -51,13 +46,6 @@ func countCachePointsInRequest(req *BedrockConverseRequest) (tools, system, mess
 		for _, b := range m.Content {
 			if b.CachePoint != nil {
 				messages++
-			}
-			if b.ToolResult != nil {
-				for _, inner := range b.ToolResult.Content {
-					if inner.CachePoint != nil {
-						messages++
-					}
-				}
 			}
 		}
 	}
@@ -160,80 +148,4 @@ func TestClampBedrockCachePoints_DropsCachePointOnlyEntries(t *testing.T) {
 func TestClampBedrockCachePoints_NilSafe(t *testing.T) {
 	assert.Equal(t, 0, clampBedrockCachePoints(nil))
 	assert.Equal(t, 0, clampBedrockCachePoints(&BedrockConverseRequest{}))
-}
-
-// TestClampBedrockCachePoints_CountsNestedToolResultMarkers covers the case flagged in review on
-// PR #5931: convertToolMessages emits a CachePoint *inside* ToolResult.Content whenever a client
-// puts cache_control on a tool-result block (utils.go, the ChatContentBlockTypeText and
-// ChatContentBlockTypeImage arms). AWS counts checkpoints across `messages` as a whole, so those
-// nested markers spend the same 4-per-request budget as direct ones.
-//
-// This fixture is over the cap ONLY because of the nested marker — 2 system + 2 direct message
-// markers + 1 nested = 5. A clamp that walks direct content alone sees 4, concludes there is
-// nothing to do, and forwards 5 to Bedrock, which rejects the request with the very
-// ValidationException the clamp exists to avoid.
-// Both sibling passes (stripCachePointsFromBedrockRequest, downgradeExtendedCacheTTLInBedrockRequest)
-// already recurse here; this pins the clamp to the same shape.
-func TestClampBedrockCachePoints_CountsNestedToolResultMarkers(t *testing.T) {
-	req := &BedrockConverseRequest{
-		System: []BedrockSystemMessage{
-			{Text: schemas.Ptr("system prompt")},
-			{CachePoint: &BedrockCachePoint{Type: BedrockCachePointTypeDefault}},
-			{Text: schemas.Ptr("tool definitions")},
-			{CachePoint: &BedrockCachePoint{Type: BedrockCachePointTypeDefault}},
-		},
-		Messages: []BedrockMessage{
-			{Role: BedrockMessageRoleUser, Content: []BedrockContentBlock{
-				// A tool result whose NESTED content carries a marker.
-				{ToolResult: &BedrockToolResult{
-					ToolUseID: "tooluse_1",
-					Content: []BedrockContentBlock{
-						textBlock("tool output"),
-						cachePointBlock(),
-					},
-				}},
-				cachePointBlock(),
-			}},
-			{Role: BedrockMessageRoleUser, Content: []BedrockContentBlock{
-				textBlock("<system-reminder>\nstay concise\n</system-reminder>\n"), cachePointBlock(),
-			}},
-		},
-	}
-
-	// 2 system + 2 direct + 1 nested = 5, one over the cap. countCachePointsInRequest folds
-	// nested tool-result markers into its `messages` figure, matching how AWS counts them.
-	_, systemBefore, messagesBefore, totalBefore := countCachePointsInRequest(req)
-	require.Equal(t, 2, systemBefore)
-	require.Equal(t, 3, messagesBefore, "2 direct + 1 nested tool-result marker")
-	require.Equal(t, 5, totalBefore, "fixture should start one over the cap")
-
-	dropped := clampBedrockCachePoints(req)
-	assert.Equal(t, 1, dropped, "the nested marker must be counted, so exactly one must be dropped")
-
-	_, systemAfter, messagesAfter, totalAfter := countCachePointsInRequest(req)
-	assert.Equal(t, BedrockMaxCachePoints, totalAfter,
-		"total markers including nested tool-result content must land on the cap")
-	assert.Equal(t, 3, messagesAfter, "no message-level marker, direct or nested, may be dropped here")
-
-	// Earliest-first: the sacrificed marker is a system one, and the conversation anchor survives.
-	assert.Equal(t, 1, systemAfter, "the earlier system marker is the one dropped")
-	last := req.Messages[len(req.Messages)-1]
-	assert.NotNil(t, last.Content[len(last.Content)-1].CachePoint,
-		"the final breakpoint must survive — it anchors the longest cached prefix")
-
-	// Nested payload text must be preserved; only markers are removable.
-	for _, m := range req.Messages {
-		for _, b := range m.Content {
-			if b.ToolResult == nil {
-				continue
-			}
-			var hasText bool
-			for _, inner := range b.ToolResult.Content {
-				if inner.Text != nil {
-					hasText = true
-				}
-			}
-			assert.True(t, hasText, "clamping must not delete tool-result text, only markers")
-		}
-	}
 }

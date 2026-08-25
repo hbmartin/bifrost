@@ -966,21 +966,57 @@ func applyMessageContentCacheControl(msgs []BedrockMessage, raw json.RawMessage)
 // injectContentBlockCachePoints walks the already-parsed blocks by index and, for each one,
 // queries "<basePath>.<index>.cache_control" directly against the raw JSON via gjson. A block
 // carrying cache_control gets a trailing standalone CachePoint sibling appended after it.
-// Recurses into tool_result blocks first, whose own nested content array can carry an
-// independent cache_control breakpoint of its own.
+// ToolResultContentBlock is a separate union that does not admit cachePoint, so a marker on
+// nested Anthropic tool_result content is hoisted after the containing ToolResult block.
 func injectContentBlockCachePoints(blocks []BedrockContentBlock, raw json.RawMessage, basePath string) []BedrockContentBlock {
 	result := make([]BedrockContentBlock, 0, len(blocks))
 	for j, block := range blocks {
 		blockPath := fmt.Sprintf("%s.%d", basePath, j)
+		var trailingCachePoint *BedrockCachePoint
 		if block.ToolResult != nil {
-			block.ToolResult.Content = injectContentBlockCachePoints(block.ToolResult.Content, raw, blockPath+".content")
+			block.ToolResult.Content, trailingCachePoint = hoistToolResultContentCachePoint(block.ToolResult.Content, raw, blockPath+".content")
 		}
 		result = append(result, block)
 		if cc := gjson.GetBytes(raw, blockPath+".cache_control"); cc.Exists() {
-			result = append(result, BedrockContentBlock{CachePoint: newBedrockCachePoint(cacheControlTTLFromJSON(cc))})
+			// A marker on the ToolResult itself closes over the same outer content
+			// region as a nested marker and is later in source order, so it wins.
+			trailingCachePoint = newBedrockCachePoint(cacheControlTTLFromJSON(cc))
+		}
+		if trailingCachePoint != nil {
+			result = append(result, BedrockContentBlock{CachePoint: trailingCachePoint})
 		}
 	}
 	return result
+}
+
+// hoistToolResultContentCachePoint removes cachePoint members from the nested
+// ToolResultContentBlock union and returns the last one for placement immediately
+// after the containing ToolResult. Multiple nested markers collapse to the last
+// because they all map to the same legal outer boundary.
+func hoistToolResultContentCachePoint(blocks []BedrockContentBlock, raw json.RawMessage, basePath string) ([]BedrockContentBlock, *BedrockCachePoint) {
+	content := blocks[:0]
+	var trailing *BedrockCachePoint
+	for i, block := range blocks {
+		if block.CachePoint != nil {
+			trailing = block.CachePoint
+			block.CachePoint = nil
+			if !bedrockContentBlockHasPayload(block) {
+				continue
+			}
+		}
+		content = append(content, block)
+		if cc := gjson.GetBytes(raw, fmt.Sprintf("%s.%d.cache_control", basePath, i)); cc.Exists() {
+			trailing = newBedrockCachePoint(cacheControlTTLFromJSON(cc))
+		}
+	}
+	return content, trailing
+}
+
+func bedrockContentBlockHasPayload(block BedrockContentBlock) bool {
+	return block.Text != nil || block.Image != nil || block.Video != nil || block.Document != nil ||
+		block.ToolUse != nil || block.ToolResult != nil || block.GuardContent != nil ||
+		block.ReasoningContent != nil || len(block.JSON) > 0 || block.SearchResult != nil ||
+		block.CitationsContent != nil
 }
 
 // cacheControlTTLFromJSON extracts the optional "ttl" string from a gjson-parsed cache_control

@@ -6,7 +6,7 @@ require gorm.io/gorm v1.31.1
 
 require (
 	github.com/google/uuid v1.6.0
-	github.com/maximhq/bifrost/core v1.7.11
+	github.com/maximhq/bifrost/core v1.7.14
 	github.com/maximhq/bifrost/framework v1.5.9
 	github.com/stretchr/testify v1.11.1
 	github.com/valyala/fasthttp v1.71.0

@@ -1058,6 +1058,15 @@ func leadingBedrockReasoningBlockCount(blocks []BedrockContentBlock) int {
 	return count
 }
 
+func hasBedrockTextBlock(blocks []BedrockContentBlock) bool {
+	for _, block := range blocks {
+		if block.Text != nil && strings.TrimSpace(*block.Text) != "" {
+			return true
+		}
+	}
+	return false
+}
+
 // ensureBedrockDocumentText removes blank text blocks and inserts a minimal
 // text block when a content region contains a document without usable text.
 // Bedrock applies this constraint both to ordinary message content and to the
@@ -1101,10 +1110,23 @@ func convertMessage(ctx context.Context, msg schemas.ChatMessage) (BedrockMessag
 
 	var contentBlocks []BedrockContentBlock
 
-	// Add reasoning content first
-	if msg.ChatAssistantMessage != nil && len(msg.ChatAssistantMessage.ReasoningDetails) > 0 {
-		for _, detail := range msg.ChatAssistantMessage.ReasoningDetails {
-			if detail.Type == schemas.BifrostReasoningDetailsTypeText {
+	// Add reasoning content first. ChatMessage.UnmarshalJSON normally synthesizes
+	// ReasoningDetails from Reasoning, but Go SDK callers can construct the schema
+	// directly, so preserve the alias here too.
+	if msg.ChatAssistantMessage != nil {
+		reasoningDetails := msg.ChatAssistantMessage.ReasoningDetails
+		if len(reasoningDetails) == 0 && msg.ChatAssistantMessage.Reasoning != nil {
+			reasoningDetails = []schemas.ChatReasoningDetails{{
+				Type: schemas.BifrostReasoningDetailsTypeText,
+				Text: msg.ChatAssistantMessage.Reasoning,
+			}}
+		}
+		for _, detail := range reasoningDetails {
+			text := detail.Text
+			if detail.Type == schemas.BifrostReasoningDetailsTypeSummary {
+				text = detail.Summary
+			}
+			if detail.Type == schemas.BifrostReasoningDetailsTypeText || detail.Type == schemas.BifrostReasoningDetailsTypeSummary {
 				// Text must never reach Bedrock as nil. It is
 				// `*string json:"text,omitempty"`, so a nil pointer drops the key
 				// from the request rather than sending an explicit null, and
@@ -1117,7 +1139,6 @@ func convertMessage(ctx context.Context, msg schemas.ChatMessage) (BedrockMessag
 				// sends it straight back. Same defect as the Responses converter
 				// (convertBifrostReasoningToBedrockReasoning), different entry
 				// point.
-				text := detail.Text
 				if text == nil {
 					text = schemas.Ptr("")
 				}
@@ -1142,9 +1163,23 @@ func convertMessage(ctx context.Context, msg schemas.ChatMessage) (BedrockMessag
 		contentBlocks = append(contentBlocks, textBlocks...)
 	}
 
+	// OpenAI assistant refusals and audio responses can legitimately carry no
+	// message.content. Bedrock has no equivalent metadata fields, so preserve the
+	// usable prose as ordinary assistant text instead of producing an empty message.
+	if msg.ChatAssistantMessage != nil && !hasBedrockTextBlock(contentBlocks) {
+		if refusal := msg.ChatAssistantMessage.Refusal; refusal != nil && strings.TrimSpace(*refusal) != "" {
+			contentBlocks = append(contentBlocks, BedrockContentBlock{Text: refusal})
+		} else if audio := msg.ChatAssistantMessage.Audio; audio != nil && strings.TrimSpace(audio.Transcript) != "" {
+			contentBlocks = append(contentBlocks, BedrockContentBlock{Text: &audio.Transcript})
+		}
+	}
+
 	// Add tool calls last (for assistant messages)
 	if msg.ChatAssistantMessage != nil && msg.ChatAssistantMessage.ToolCalls != nil {
 		for _, toolCall := range msg.ChatAssistantMessage.ToolCalls {
+			if toolCall.ID == nil || strings.TrimSpace(*toolCall.ID) == "" {
+				return BedrockMessage{}, fmt.Errorf("assistant tool call missing required ID")
+			}
 			contentBlocks = append(contentBlocks, convertToolCallToContentBlock(ctx, toolCall))
 		}
 	}
@@ -1153,6 +1188,18 @@ func convertMessage(ctx context.Context, msg schemas.ChatMessage) (BedrockMessag
 	// accompanying text block ("A text block must be included when using
 	// documents"). Insert a placeholder so document-only messages still validate.
 	contentBlocks = ensureBedrockDocumentText(contentBlocks)
+	if len(contentBlocks) == 0 && msg.ChatAssistantMessage != nil {
+		switch {
+		case len(msg.ChatAssistantMessage.Annotations) > 0:
+			return BedrockMessage{}, fmt.Errorf("assistant message contains annotations without Bedrock-convertible content")
+		case msg.ChatAssistantMessage.Audio != nil:
+			return BedrockMessage{}, fmt.Errorf("assistant audio message has no transcript to convert for Bedrock")
+		case msg.ChatAssistantMessage.Refusal != nil:
+			return BedrockMessage{}, fmt.Errorf("assistant refusal message has no non-blank text to convert for Bedrock")
+		case msg.ChatAssistantMessage.Reasoning != nil || len(msg.ChatAssistantMessage.ReasoningDetails) > 0:
+			return BedrockMessage{}, fmt.Errorf("assistant reasoning message has no Bedrock-convertible reasoning content")
+		}
+	}
 
 	bedrockMsg.Content = contentBlocks
 	return bedrockMsg, nil
@@ -1175,7 +1222,7 @@ func convertToolMessages(ctx context.Context, msgs []schemas.ChatMessage) (Bedro
 		if msg.ChatToolMessage == nil {
 			return BedrockMessage{}, fmt.Errorf("tool message missing required ChatToolMessage")
 		}
-		if msg.ChatToolMessage.ToolCallID == nil {
+		if msg.ChatToolMessage.ToolCallID == nil || strings.TrimSpace(*msg.ChatToolMessage.ToolCallID) == "" {
 			return BedrockMessage{}, fmt.Errorf("tool message missing required ToolCallID")
 		}
 
@@ -1220,13 +1267,6 @@ func convertToolMessages(ctx context.Context, msgs []schemas.ChatMessage) (Bedro
 			}
 		} else if msg.Content != nil && msg.Content.ContentBlocks != nil {
 			for _, block := range msg.Content.ContentBlocks {
-				if block.Type == schemas.ChatContentBlockTypeFile && block.File != nil && block.File.FileURL != nil {
-					fileURL := strings.TrimSpace(*block.File.FileURL)
-					if colon := strings.IndexByte(fileURL, ':'); colon > 0 &&
-						(strings.EqualFold(fileURL[:colon], "http") || strings.EqualFold(fileURL[:colon], "https")) {
-						return BedrockMessage{}, fmt.Errorf("failed to convert content block in tool result: HTTP(S) file URLs are not supported")
-					}
-				}
 				converted, err := convertContentBlock(ctx, block)
 				if err != nil {
 					return BedrockMessage{}, fmt.Errorf("failed to convert content block in tool result: %w", err)
@@ -2720,20 +2760,6 @@ func clampBedrockCachePoints(req *BedrockConverseRequest) int {
 			if req.Messages[i].Content[j].CachePoint != nil {
 				total++
 			}
-			// Nested tool-result markers count against the same per-request cap — AWS counts
-			// checkpoints across `messages` as a whole, and convertToolMessages emits a CachePoint
-			// inside ToolResult.Content whenever a client puts cache_control on a tool-result
-			// block. Both sibling passes (stripCachePointsFromBedrockRequest,
-			// downgradeExtendedCacheTTLInBedrockRequest) already recurse here; missing it would
-			// let a request with 4 direct plus 1 nested marker reach Bedrock at 5 and be rejected
-			// by the very limit this clamp exists to respect.
-			if tr := req.Messages[i].Content[j].ToolResult; tr != nil {
-				for k := range tr.Content {
-					if tr.Content[k].CachePoint != nil {
-						total++
-					}
-				}
-			}
 		}
 	}
 
@@ -2780,22 +2806,6 @@ func clampBedrockCachePoints(req *BedrockConverseRequest) int {
 		nc := 0
 		for j := range content {
 			block := content[j]
-			// Nested tool-result markers render at their parent block's position, so they are
-			// visited before the parent to keep the earliest-first removal order intact.
-			// ToolResult is a pointer, so trimming through the local copy mutates the real one.
-			if tr := block.ToolResult; tr != nil && dropped < excess {
-				inner := tr.Content
-				ni := 0
-				for k := range inner {
-					if inner[k].CachePoint != nil && dropped < excess {
-						dropped++
-						continue
-					}
-					inner[ni] = inner[k]
-					ni++
-				}
-				tr.Content = inner[:ni]
-			}
 			if block.CachePoint != nil && dropped < excess {
 				dropped++
 				// cachePoint elements are standalone in Converse (same assumption
@@ -2815,24 +2825,13 @@ func clampBedrockCachePoints(req *BedrockConverseRequest) int {
 // BedrockConverseRequest. Called for models that don't support prompt caching
 // (e.g. GLM, Llama) so their requests don't get a 400 from the Converse API.
 func stripCachePointsFromBedrockRequest(req *BedrockConverseRequest) {
-	// Strip cache points from message content blocks (including nested tool results).
+	// Strip standalone cache points from message content blocks.
 	for i := range req.Messages {
 		content := req.Messages[i].Content
 		n := 0
 		for j := range content {
 			if content[j].CachePoint != nil {
 				continue
-			}
-			if content[j].ToolResult != nil {
-				inner := content[j].ToolResult.Content
-				m := 0
-				for k := range inner {
-					if inner[k].CachePoint == nil {
-						inner[m] = inner[k]
-						m++
-					}
-				}
-				content[j].ToolResult.Content = inner[:m]
 			}
 			content[n] = content[j]
 			n++
@@ -2877,11 +2876,6 @@ func downgradeExtendedCacheTTLInBedrockRequest(req *BedrockConverseRequest) {
 	for i := range req.Messages {
 		for j := range req.Messages[i].Content {
 			downgrade(req.Messages[i].Content[j].CachePoint)
-			if req.Messages[i].Content[j].ToolResult != nil {
-				for k := range req.Messages[i].Content[j].ToolResult.Content {
-					downgrade(req.Messages[i].Content[j].ToolResult.Content[k].CachePoint)
-				}
-			}
 		}
 	}
 	for i := range req.System {

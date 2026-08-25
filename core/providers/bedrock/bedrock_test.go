@@ -3022,13 +3022,15 @@ func TestToolResultJSONParsingResponsesAPI(t *testing.T) {
 }
 
 // TestConvertBifrostResponsesMessageContentBlocksToBedrockContentBlocks_EmptyBlocks tests that
-// empty ContentBlocks are not created when required fields are missing, preventing the Bedrock API error:
+// empty ContentBlocks are not created when required fields are missing and that an
+// assistant message made entirely of invalid blocks is rejected before reaching Bedrock:
 // "ContentBlock object at messages.1.content.0 must set one of the following keys: text, image, toolUse, toolResult, document, video, cachePoint, reasoningContent, citationsContent, searchResult."
 func TestConvertBifrostResponsesMessageContentBlocksToBedrockContentBlocks_EmptyBlocks(t *testing.T) {
 	tests := []struct {
 		name           string
 		input          *schemas.BifrostResponsesResponse
 		expectedBlocks int // Expected number of ContentBlocks in the output
+		expectedError  bool
 		description    string
 	}{
 		{
@@ -3053,6 +3055,7 @@ func TestConvertBifrostResponsesMessageContentBlocksToBedrockContentBlocks_Empty
 				},
 			},
 			expectedBlocks: 0,
+			expectedError:  true,
 			description:    "Image block with nil ImageURL should not create an empty ContentBlock",
 		},
 		{
@@ -3075,6 +3078,7 @@ func TestConvertBifrostResponsesMessageContentBlocksToBedrockContentBlocks_Empty
 				},
 			},
 			expectedBlocks: 0,
+			expectedError:  true,
 			description:    "Image block with nil ResponsesInputMessageContentBlockImage should not create an empty ContentBlock",
 		},
 		{
@@ -3097,6 +3101,7 @@ func TestConvertBifrostResponsesMessageContentBlocksToBedrockContentBlocks_Empty
 				},
 			},
 			expectedBlocks: 0,
+			expectedError:  true,
 			description:    "Reasoning block with nil Text should not create an empty ContentBlock",
 		},
 		{
@@ -3123,6 +3128,7 @@ func TestConvertBifrostResponsesMessageContentBlocksToBedrockContentBlocks_Empty
 				},
 			},
 			expectedBlocks: 0,
+			expectedError:  true,
 			description:    "File block with nil FileData should not create an empty ContentBlock",
 		},
 		{
@@ -3145,6 +3151,7 @@ func TestConvertBifrostResponsesMessageContentBlocksToBedrockContentBlocks_Empty
 				},
 			},
 			expectedBlocks: 0,
+			expectedError:  true,
 			description:    "File block with nil ResponsesInputMessageContentBlockFile should not create an empty ContentBlock",
 		},
 		{
@@ -3289,6 +3296,10 @@ func TestConvertBifrostResponsesMessageContentBlocksToBedrockContentBlocks_Empty
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			actual, err := bedrock.ToBedrockConverseResponse(tt.input)
+			if tt.expectedError {
+				require.ErrorContains(t, err, "assistant response message content must not be blank or unsupported")
+				return
+			}
 			require.NoError(t, err, "Conversion should not error")
 			require.NotNil(t, actual, "Response should not be nil")
 			require.NotNil(t, actual.Output, "Output should not be nil")
