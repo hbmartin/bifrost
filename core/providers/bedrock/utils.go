@@ -930,6 +930,9 @@ func convertMessages(ctx context.Context, model string, bifrostMessages []schema
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to convert message: %w", err)
 			}
+			if len(bedrockMsg.Content) == 0 {
+				return nil, nil, fmt.Errorf("failed to convert message: %s message content must not be blank", msg.Role)
+			}
 			messages = append(messages, bedrockMsg)
 
 		case schemas.ChatMessageRoleTool:
@@ -1058,6 +1061,40 @@ func leadingBedrockReasoningBlockCount(blocks []BedrockContentBlock) int {
 	return count
 }
 
+// ensureBedrockDocumentText removes blank text blocks and inserts a minimal
+// text block when a content region contains a document without usable text.
+// Bedrock applies this constraint both to ordinary message content and to the
+// nested content array of a tool result.
+func ensureBedrockDocumentText(contentBlocks []BedrockContentBlock) []BedrockContentBlock {
+	if !hasBedrockDocumentBlock(contentBlocks) {
+		return contentBlocks
+	}
+
+	filtered := contentBlocks[:0]
+	hasUsableText := false
+	for _, block := range contentBlocks {
+		if block.Text != nil {
+			if strings.TrimSpace(*block.Text) == "" {
+				continue
+			}
+			hasUsableText = true
+		}
+		filtered = append(filtered, block)
+	}
+	if hasUsableText {
+		return filtered
+	}
+
+	at := leadingBedrockReasoningBlockCount(filtered)
+	withPlaceholder := make([]BedrockContentBlock, 0, len(filtered)+1)
+	withPlaceholder = append(withPlaceholder, filtered[:at]...)
+	withPlaceholder = append(withPlaceholder, BedrockContentBlock{
+		Text: schemas.Ptr(bedrockDocumentPlaceholderText),
+	})
+	withPlaceholder = append(withPlaceholder, filtered[at:]...)
+	return withPlaceholder
+}
+
 // convertMessage converts a Bifrost message to Bedrock format.
 // The ctx is propagated to URL fetches inside content blocks.
 func convertMessage(ctx context.Context, model string, msg schemas.ChatMessage) (BedrockMessage, error) {
@@ -1118,30 +1155,7 @@ func convertMessage(ctx context.Context, model string, msg schemas.ChatMessage) 
 	// Bedrock rejects a message whose content contains a document block with no
 	// accompanying text block ("A text block must be included when using
 	// documents"). Insert a placeholder so document-only messages still validate.
-	if hasBedrockDocumentBlock(contentBlocks) {
-		filtered := contentBlocks[:0]
-		hasUsableText := false
-		for _, b := range contentBlocks {
-			if b.Text != nil {
-				if strings.TrimSpace(*b.Text) == "" {
-					continue
-				}
-				hasUsableText = true
-			}
-			filtered = append(filtered, b)
-		}
-		contentBlocks = filtered
-		if !hasUsableText {
-			at := leadingBedrockReasoningBlockCount(contentBlocks)
-			withPlaceholder := make([]BedrockContentBlock, 0, len(contentBlocks)+1)
-			withPlaceholder = append(withPlaceholder, contentBlocks[:at]...)
-			withPlaceholder = append(withPlaceholder, BedrockContentBlock{
-				Text: schemas.Ptr(bedrockDocumentPlaceholderText),
-			})
-			withPlaceholder = append(withPlaceholder, contentBlocks[at:]...)
-			contentBlocks = withPlaceholder
-		}
-	}
+	contentBlocks = ensureBedrockDocumentText(contentBlocks)
 
 	bedrockMsg.Content = contentBlocks
 	return bedrockMsg, nil
@@ -1164,11 +1178,12 @@ func convertToolMessages(ctx context.Context, model string, msgs []schemas.ChatM
 		if msg.ChatToolMessage == nil {
 			return BedrockMessage{}, fmt.Errorf("tool message missing required ChatToolMessage")
 		}
-		if msg.ChatToolMessage.ToolCallID == nil || strings.TrimSpace(*msg.ChatToolMessage.ToolCallID) == "" {
+		if msg.ChatToolMessage.ToolCallID == nil {
 			return BedrockMessage{}, fmt.Errorf("tool message missing required ToolCallID")
 		}
 
 		var toolResultContent []BedrockContentBlock
+		var cachePointBlocks []BedrockContentBlock
 		if msg.Content != nil && msg.Content.ContentStr != nil && strings.TrimSpace(*msg.Content.ContentStr) != "" {
 			// Bedrock expects JSON to be a parsed object, not a string
 			// Validate and compact JSON without parsing into Go types (preserves key ordering)
@@ -1208,12 +1223,26 @@ func convertToolMessages(ctx context.Context, model string, msgs []schemas.ChatM
 			}
 		} else if msg.Content != nil && msg.Content.ContentBlocks != nil {
 			for _, block := range msg.Content.ContentBlocks {
+				if block.Type == schemas.ChatContentBlockTypeFile && block.File != nil && block.File.FileURL != nil {
+					fileURL := strings.TrimSpace(*block.File.FileURL)
+					if colon := strings.IndexByte(fileURL, ':'); colon > 0 &&
+						(strings.EqualFold(fileURL[:colon], "http") || strings.EqualFold(fileURL[:colon], "https")) {
+						return BedrockMessage{}, fmt.Errorf("failed to convert content block in tool result: HTTP(S) file URLs are not supported")
+					}
+				}
 				converted, err := convertContentBlock(ctx, model, block)
 				if err != nil {
 					return BedrockMessage{}, fmt.Errorf("failed to convert content block in tool result: %w", err)
 				}
-				toolResultContent = append(toolResultContent, converted...)
+				for _, convertedBlock := range converted {
+					if convertedBlock.CachePoint != nil {
+						cachePointBlocks = append(cachePointBlocks, convertedBlock)
+						continue
+					}
+					toolResultContent = append(toolResultContent, convertedBlock)
+				}
 			}
+			toolResultContent = ensureBedrockDocumentText(toolResultContent)
 		}
 		if len(toolResultContent) == 0 {
 			// Converse requires toolResult.content to be an array. Preserve a
@@ -1238,6 +1267,7 @@ func convertToolMessages(ctx context.Context, model string, msgs []schemas.ChatM
 		}
 
 		contentBlocks = append(contentBlocks, toolResultBlock)
+		contentBlocks = append(contentBlocks, cachePointBlocks...)
 	}
 
 	bedrockMsg.Content = contentBlocks
