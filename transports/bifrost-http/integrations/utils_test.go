@@ -49,6 +49,29 @@ func newTestBifrostContext() *schemas.BifrostContext {
 	return schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 }
 
+func TestSendError_NormalizesMissingCancellationStatus(t *testing.T) {
+	router := newTestGenericRouter()
+	ctx := &fasthttp.RequestCtx{}
+	original := &schemas.BifrostError{
+		Error: &schemas.ErrorField{
+			Type:    schemas.Ptr(schemas.RequestCancelled),
+			Message: schemas.ErrRequestCancelled,
+		},
+	}
+	var converted *schemas.BifrostError
+
+	router.sendError(ctx, nil, func(_ *schemas.BifrostContext, err *schemas.BifrostError) interface{} {
+		converted = err
+		return err
+	}, original)
+
+	require.Equal(t, 499, ctx.Response.StatusCode())
+	require.NotNil(t, converted)
+	require.NotNil(t, converted.StatusCode)
+	assert.Equal(t, 499, *converted.StatusCode)
+	assert.Nil(t, original.StatusCode, "client serialization must not mutate the original error")
+}
+
 func TestExtractAndParseFallbacks_GeminiGenerationRequest(t *testing.T) {
 	router := newTestGenericRouter()
 	geminiReq := &gemini.GeminiGenerationRequest{
