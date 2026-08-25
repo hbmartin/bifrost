@@ -6196,6 +6196,7 @@ func executeRequestWithRetries[T any](
 	logger schemas.Logger,
 ) (result T, bifrostError *schemas.BifrostError) {
 	var attempts int
+	baseProviderKey := schemas.ResolveBaseProvider(ctx, providerKey)
 
 	// Emit the terminal routing-engine entry on every return path — including
 	// early returns from key-selection failures and tracer-missing — so the
@@ -6723,7 +6724,7 @@ func executeRequestWithRetries[T any](
 		if bifrostError.Error != nil &&
 			(bifrostError.Error.Message == schemas.ErrProviderDoRequest ||
 				bifrostError.Error.Message == schemas.ErrProviderNetworkError) {
-			shouldRetry = canRetryAmbiguousProviderFailure(requestType, providerKey, req)
+			shouldRetry = canRetryAmbiguousProviderFailure(requestType, baseProviderKey, req)
 			if shouldRetry {
 				logger.Debug("detected request HTTP/network error, will retry: %s", errMessage)
 			} else {
@@ -6734,16 +6735,20 @@ func executeRequestWithRetries[T any](
 			shouldRetry = true
 			switch {
 			case isAcceptedUpstreamResponseError(bifrostError):
-				shouldRetry = canReplayAcceptedUpstreamResponse(requestType, providerKey, req)
+				shouldRetry = canReplayAcceptedUpstreamResponse(requestType, baseProviderKey, req)
 				if !shouldRetry {
 					blockErrorFallbacks(bifrostError)
 					logger.Debug("not replaying accepted invalid response for %s/%s operation", providerKey, requestType)
 				}
+			case isPerKeyFailure:
+				// An explicit credential/account classification takes precedence over a
+				// generic 5xx status. Rotating the key does not replay against the same
+				// account and is the only useful recovery for hybrid provider errors.
 			case bifrostError.StatusCode != nil && transientServerStatusCodes[*bifrostError.StatusCode] &&
-				!canRetryAmbiguousProviderFailure(requestType, providerKey, req):
+				!canRetryAmbiguousProviderFailure(requestType, baseProviderKey, req):
 				shouldRetry = false
 				blockErrorFallbacks(bifrostError)
-				logger.Debug("not retrying transient server error for non-idempotent %s/%s operation", providerKey, requestType)
+				logger.Debug("not retrying transient server error with status %d for non-idempotent %s/%s operation", *bifrostError.StatusCode, providerKey, requestType)
 			}
 			if shouldRetry {
 				logger.Debug("encountered error that should be retried: %s", errMessage)

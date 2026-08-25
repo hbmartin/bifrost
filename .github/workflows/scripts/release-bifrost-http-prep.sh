@@ -77,6 +77,16 @@ echo "🔧 Using plugin versions from version files for transport..."
 # Track which plugins are actually used by the transport
 cd transports
 
+# Release modules must be independently buildable. A checked-in local replace
+# can make workspace builds pass while breaking Docker/release builds, and the
+# same hazard applies to core, framework, and every plugin dependency.
+GO_MOD_JSON="$(go mod edit -json)"
+if grep -q '"Replace"' <<<"$GO_MOD_JSON"; then
+  echo "❌ transports/go.mod contains a replace directive; release modules must not depend on local paths"
+  sed -n '/"Replace"/,/]/p' <<<"$GO_MOD_JSON"
+  exit 1
+fi
+
 # Normalize the local go.mod directive up front so prior-release artifacts
 # (e.g. `go 1.26.2` written by earlier `go get` runs) don't trip GOTOOLCHAIN=local.
 go mod edit -go=1.26.4 -toolchain=none
@@ -95,12 +105,6 @@ done
 # Also ensure core and framework are up to date
 
 echo "  🔧 Updating core to $CORE_VERSION"
-# Normalize any version-qualified local replacement before removing it. The
-# checked-in replacement can point at the previous core version when releases
-# are prepared out of order, while -dropreplace requires an exact left-hand
-# path/version match.
-go mod edit -replace="github.com/maximhq/bifrost/core=../core"
-go mod edit -dropreplace="github.com/maximhq/bifrost/core"
 go mod edit -require="github.com/maximhq/bifrost/core@$CORE_VERSION"
 
 echo "  📦 Updating framework to $FRAMEWORK_VERSION"
