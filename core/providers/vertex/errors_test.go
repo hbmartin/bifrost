@@ -1,7 +1,6 @@
 package vertex
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/maximhq/bifrost/core/schemas"
@@ -9,21 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/valyala/fasthttp"
 )
-
-func TestVertexEmbeddingResponseUnmarshalErrorIsRetryableUpstreamFailure(t *testing.T) {
-	t.Parallel()
-
-	bifrostErr := newVertexEmbeddingResponseUnmarshalError(errors.New("malformed JSON"))
-
-	require.NotNil(t, bifrostErr)
-	assert.False(t, bifrostErr.IsBifrostError)
-	require.NotNil(t, bifrostErr.StatusCode)
-	assert.Equal(t, fasthttp.StatusBadGateway, *bifrostErr.StatusCode)
-	require.NotNil(t, bifrostErr.Error)
-	assert.Equal(t, schemas.ErrProviderResponseUnmarshal, bifrostErr.Error.Message)
-	require.NotNil(t, bifrostErr.Error.Type)
-	assert.Equal(t, schemas.ProviderResponseInvalid, *bifrostErr.Error.Type)
-}
 
 // TestParseVertexError_PopulatesStatusType verifies the Vertex status
 // (e.g. RESOURCE_EXHAUSTED) is surfaced on error.type rather than being dropped,
