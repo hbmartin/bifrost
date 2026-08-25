@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/hmac"
@@ -12,13 +13,19 @@ import (
 	"errors"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/maximhq/bifrost/framework/configstore/tables"
+	frameworkEncrypt "github.com/maximhq/bifrost/framework/encrypt"
+	"gorm.io/gorm"
 )
 
 const (
-	wsTicketTTL       = 30 * time.Second
-	wsTicketClockSkew = 2 * time.Second
-	wsTicketCleanupHz = 60 * time.Second
-	wsTicketVersion   = 1
+	wsTicketTTL        = 30 * time.Second
+	wsTicketClockSkew  = 2 * time.Second
+	wsTicketCleanupHz  = 60 * time.Second
+	wsTicketVersion    = 1
+	wsTicketNonceScope = "ws_ticket"
 )
 
 var errInvalidWSTicketPayload = errors.New("invalid websocket ticket payload")
@@ -35,6 +42,14 @@ type signedWSTicketPayload struct {
 	Nonce        string `json:"n"`
 }
 
+// wsTicketNonceStore is the shared, atomic single-use ledger for signed ticket
+// nonces. ConfigStore satisfies this interface; keeping it narrow makes the
+// ticket store independent of the rest of the configuration API.
+type wsTicketNonceStore interface {
+	CreateTempToken(ctx context.Context, token *tables.TempToken, tx ...*gorm.DB) error
+	DeleteTempTokensByResourceID(ctx context.Context, scope, resourceID string, tx ...*gorm.DB) (int64, error)
+}
+
 // WSTicketStore provides short-lived, single-use tickets for WebSocket authentication.
 // Instead of putting the long-lived session token in the WS URL (visible in logs/history),
 // clients exchange their session for a 30-second one-time ticket via an authenticated endpoint.
@@ -44,6 +59,7 @@ type WSTicketStore struct {
 	done       chan struct{}
 	stopOnce   sync.Once
 	signingKey []byte
+	nonceStore wsTicketNonceStore
 }
 
 // NewWSTicketStore creates a new ticket store and starts a background goroutine
@@ -58,20 +74,18 @@ func NewWSTicketStore() *WSTicketStore {
 }
 
 // NewSignedWSTicketStore creates a ticket store that signs self-verifying tickets.
-// If signingKey is empty, falls back to the in-memory NewWSTicketStore flow:
-// passing a zero-length key would otherwise derive a publicly-knowable HMAC key
-// (sha256 of just the purpose label) and silently activate signed mode with a
-// forgeable key. Falling back to the in-memory store keeps single-node
-// deployments safe while letting multi-node deployments opt into signed mode by
-// supplying a real shared key.
-func NewSignedWSTicketStore(signingKey []byte) *WSTicketStore {
-	if len(signingKey) == 0 {
+// Signed mode also requires a shared nonce store so Consume remains single-use
+// across replicas. If either dependency is absent, fall back to the in-memory
+// flow rather than weakening either authentication or replay protection.
+func NewSignedWSTicketStore(signingKey []byte, nonceStore wsTicketNonceStore) *WSTicketStore {
+	if len(signingKey) == 0 || nonceStore == nil {
 		return NewWSTicketStore()
 	}
 	key := deriveWSTicketKey("sig", signingKey)
 	return &WSTicketStore{
 		signingKey: key,
 		done:       make(chan struct{}),
+		nonceStore: nonceStore,
 	}
 }
 
@@ -149,7 +163,20 @@ func (s *WSTicketStore) issueSigned(sessionToken string) (string, error) {
 	mac := hmac.New(sha256.New, s.signingKey)
 	mac.Write([]byte(encodedPayload))
 	signature := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
-	return encodedPayload + "." + signature, nil
+	ticket := encodedPayload + "." + signature
+
+	// Persist only the nonce, not the session token or signed ticket. Deleting
+	// this unique ledger row is the atomic consume operation shared by replicas.
+	if err := s.nonceStore.CreateTempToken(context.Background(), &tables.TempToken{
+		ID:         uuid.NewString(),
+		Token:      payload.Nonce,
+		Scope:      wsTicketNonceScope,
+		ResourceID: frameworkEncrypt.HashSHA256(payload.Nonce),
+		ExpiresAt:  time.Unix(payload.ExpiresAt, 0).Add(wsTicketClockSkew),
+	}); err != nil {
+		return "", err
+	}
+	return ticket, nil
 }
 
 // consumeSigned validates an HMAC-signed ticket and returns its session token.
@@ -192,8 +219,16 @@ func (s *WSTicketStore) consumeSigned(ticket string) string {
 	// Signed tickets are verified on any replica. Allow only a small clock-skew
 	// window between nodes; this is deliberately much tighter than the realtime
 	// ephemeral-token skew because the ticket itself lives for just 30 seconds.
-	if payload.Version != wsTicketVersion || payload.SessionToken == "" ||
+	if payload.Version != wsTicketVersion || payload.SessionToken == "" || payload.Nonce == "" ||
 		time.Unix(payload.ExpiresAt, 0).Add(wsTicketClockSkew).Before(time.Now()) {
+		return ""
+	}
+	deleted, err := s.nonceStore.DeleteTempTokensByResourceID(
+		context.Background(),
+		wsTicketNonceScope,
+		frameworkEncrypt.HashSHA256(payload.Nonce),
+	)
+	if err != nil || deleted != 1 {
 		return ""
 	}
 	return payload.SessionToken
