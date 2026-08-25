@@ -6786,9 +6786,16 @@ func executeRequestWithRetries[T any](
 					logger.Debug("not replaying accepted invalid response for %s/%s operation", providerKey, requestType)
 				}
 			case isPerKeyFailure:
-				// An explicit credential/account classification takes precedence over a
-				// generic 5xx status. Rotating the key does not replay against the same
-				// account and is the only useful recovery for hybrid provider errors.
+				// A hybrid 5xx can still carry a credential/rate-limit signal and should
+				// rotate for replay-safe operations. Rotation is nevertheless a replay:
+				// never let the broad message/type/code heuristic bypass the ambiguity
+				// guard for creates, uploads, or other non-idempotent operations.
+				if bifrostError.StatusCode != nil && transientServerStatusCodes[*bifrostError.StatusCode] &&
+					!canRetryAmbiguousProviderFailure(requestType, baseProviderKey, req) {
+					shouldRetry = false
+					blockErrorFallbacks(bifrostError)
+					logger.Debug("not retrying per-key-looking transient server error with status %d for non-idempotent %s/%s operation", *bifrostError.StatusCode, providerKey, requestType)
+				}
 			case bifrostError.StatusCode != nil && transientServerStatusCodes[*bifrostError.StatusCode] &&
 				!canRetryAmbiguousProviderFailure(requestType, baseProviderKey, req):
 				shouldRetry = false
