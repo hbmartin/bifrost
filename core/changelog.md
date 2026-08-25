@@ -1,3 +1,4 @@
+- fix: harden Bedrock tool results and weighted key selection edge cases [@hbmartin](https://github.com/hbmartin)
 - fix: harden OpenAI stream finalization and upstream error handling while avoiding single-choice map allocations
 - fix: forward OpenCode Responses requests directly to /v1/responses [@mohammadrezwankhan](https://github.com/mohammadrezwankhan)
 - feat: add the `VideoEdit` operation with `BifrostVideoEditRequest`, `VideoEditInput` and `VideoEditParameters` for prompt-driven edits, upscaling and background removal on an existing video supplied as bytes, a URL or a provider video ID; implemented for OpenAI (`/v1/videos/edits`) and Runware (`videoInference`, `upscale`, `removeBackground`), with the model optional when the source is a video ID and the prompt optional for asset-driven task types (#6270)
