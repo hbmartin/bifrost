@@ -1317,8 +1317,8 @@ func TestSelectKeyFromProviderForModel_DoesNotClassifyIneligiblePinnedKeyAsMissi
 	if errors.Is(err, ErrPinnedAPIKeyUnavailable) {
 		t.Fatalf("existing but ineligible pin was classified as missing: %v", err)
 	}
-	if !strings.Contains(err.Error(), "not eligible") {
-		t.Fatalf("unexpected error: %v", err)
+	if !errors.Is(err, ErrPinnedAPIKeyIneligible) {
+		t.Fatalf("error = %v, want ErrPinnedAPIKeyIneligible", err)
 	}
 }
 
@@ -1406,7 +1406,7 @@ func TestPinnedKeySelectionErrorsAreClientSafe(t *testing.T) {
 
 	for _, selectionErr := range []error{
 		fmt.Errorf("%w: key id %q not found", ErrPinnedAPIKeyUnavailable, sensitiveKeyID),
-		fmt.Errorf("%w: configured key id %q is not eligible", errPinnedAPIKeyIneligible, sensitiveKeyID),
+		fmt.Errorf("%w: configured key id %q is not eligible", ErrPinnedAPIKeyIneligible, sensitiveKeyID),
 	} {
 		bifrostErr := newKeySelectionBifrostError(selectionErr)
 		if bifrostErr.StatusCode == nil || *bifrostErr.StatusCode != fasthttp.StatusBadRequest {
@@ -1608,6 +1608,55 @@ func TestExecuteRequestWithRetries_DoesNotReplayNetworkFailureForNonIdempotentOp
 	}
 	if bifrostErr.AllowFallbacks == nil || *bifrostErr.AllowFallbacks {
 		t.Fatalf("AllowFallbacks = %v, want false", bifrostErr.AllowFallbacks)
+	}
+}
+
+func TestExecuteRequestWithRetries_DoesNotReplayTransientServerFailureForNonIdempotentOperation(t *testing.T) {
+	for statusCode := range transientServerStatusCodes {
+		t.Run(fmt.Sprintf("status_%d", statusCode), func(t *testing.T) {
+			ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
+			ctx.SetValue(schemas.BifrostContextKeyTracer, &schemas.NoOpTracer{})
+			attempts := 0
+
+			_, bifrostErr := executeRequestWithRetries(
+				ctx,
+				createTestConfig(1, 0, 0),
+				func(schemas.Key) (string, *schemas.BifrostError) {
+					attempts++
+					return "", createBifrostError("transient server failure", Ptr(statusCode), nil, false)
+				},
+				nil,
+				schemas.FileUploadRequest,
+				schemas.Gemini,
+				"test-model",
+				&schemas.BifrostRequest{FileUploadRequest: &schemas.BifrostFileUploadRequest{}},
+				NewDefaultLogger(schemas.LogLevelError),
+			)
+
+			if bifrostErr == nil || attempts != 1 {
+				t.Fatalf("error=%v attempts=%d, want terminal first-attempt error", bifrostErr, attempts)
+			}
+			if bifrostErr.AllowFallbacks == nil || *bifrostErr.AllowFallbacks {
+				t.Fatalf("AllowFallbacks = %v, want false", bifrostErr.AllowFallbacks)
+			}
+		})
+	}
+}
+
+func TestBedrockBatchReplayPredicatesRecognizeClientRequestToken(t *testing.T) {
+	for _, key := range []string{"clientRequestToken", "client_request_token"} {
+		t.Run(key, func(t *testing.T) {
+			req := &schemas.BifrostRequest{BatchCreateRequest: &schemas.BifrostBatchCreateRequest{
+				ExtraParams: map[string]any{key: "stable-token"},
+			}}
+
+			if !canRetryAmbiguousProviderFailure(schemas.BatchCreateRequest, schemas.Bedrock, req) {
+				t.Fatal("ambiguous-failure predicate rejected an idempotent Bedrock batch request")
+			}
+			if !canReplayAcceptedUpstreamResponse(schemas.BatchCreateRequest, schemas.Bedrock, req) {
+				t.Fatal("accepted-response predicate rejected an idempotent Bedrock batch request")
+			}
+		})
 	}
 }
 
