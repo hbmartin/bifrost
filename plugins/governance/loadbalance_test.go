@@ -383,12 +383,29 @@ func TestSelectWeightedProviderConfigIgnoresUnusableWeights(t *testing.T) {
 func TestSelectWeightedProviderConfigRejectsOnlyUnusableWeights(t *testing.T) {
 	candidates := []schemas.ProviderCandidate{
 		{Provider: "unset"},
-		{Provider: "zero", Weight: schemas.Ptr(0.0)},
+		{Provider: "negative", Weight: schemas.Ptr(-1.0)},
 		{Provider: "nan", Weight: schemas.Ptr(math.NaN())},
 	}
 
 	_, ok := selectWeightedProviderConfigAt(candidates, 0.5)
 	assert.False(t, ok)
+}
+
+func TestSelectWeightedProviderConfigUsesAllZeroPoolUniformly(t *testing.T) {
+	candidates := []schemas.ProviderCandidate{
+		{Provider: "unset"},
+		{Provider: "zero-first", Weight: schemas.Ptr(0.0)},
+		{Provider: "negative", Weight: schemas.Ptr(-1.0)},
+		{Provider: "zero-second", Weight: schemas.Ptr(0.0)},
+	}
+
+	selected, ok := selectWeightedProviderConfigAt(candidates, 0)
+	require.True(t, ok)
+	assert.Equal(t, "zero-first", selected.Provider)
+
+	selected, ok = selectWeightedProviderConfigAt(candidates, math.Nextafter(1, 0))
+	require.True(t, ok)
+	assert.Equal(t, "zero-second", selected.Provider)
 }
 
 func TestSelectWeightedProviderConfigPreservesTinyWeights(t *testing.T) {
@@ -430,6 +447,26 @@ func TestLoadBalanceProviderKeepsZeroWeightProviderAsFallback(t *testing.T) {
 	assert.Equal(t, schemas.OpenAI, provider)
 	require.Len(t, fallbacks, 1)
 	assert.Equal(t, schemas.Anthropic, fallbacks[0].Provider)
+}
+
+func TestLoadBalanceProviderBuildsAllZeroPrimaryAndFallback(t *testing.T) {
+	first := buildProviderConfig("openai", []string{"*"})
+	second := buildProviderConfig("anthropic", []string{"*"})
+	first.Weight = schemas.Ptr(0.0)
+	second.Weight = schemas.Ptr(0.0)
+	vk := buildVirtualKeyWithProviders("vk1", "sk-bf-lb", "LB VK", []configstoreTables.TableVirtualKeyProviderConfig{first, second})
+	p := newLoadBalanceTestPlugin(t, vk)
+	ctx := presentCtx("sk-bf-lb")
+	req := &schemas.BifrostRequest{
+		RequestType: schemas.ChatCompletionRequest,
+		ChatRequest: &schemas.BifrostChatRequest{Model: "gpt-4o"},
+	}
+
+	require.NoError(t, p.LoadBalanceProvider(ctx, req))
+	provider, _, fallbacks := req.GetRequestFields()
+	assert.Contains(t, []schemas.ModelProvider{schemas.OpenAI, schemas.Anthropic}, provider)
+	require.Len(t, fallbacks, 1)
+	assert.NotEqual(t, provider, fallbacks[0].Provider)
 }
 
 func TestLoadBalanceProviderPreservesUnsetWeightDiagnostic(t *testing.T) {

@@ -3,6 +3,7 @@ package governance
 
 import (
 	"fmt"
+	"math"
 	"strings"
 
 	bifrost "github.com/maximhq/bifrost/core"
@@ -79,43 +80,43 @@ func IsModelCheckedWhenPresent(requestType schemas.RequestType) bool {
 	}
 }
 
-// getWeight safely dereferences a *float64 weight pointer, returning 1.0 as default if nil.
-// This allows distinguishing between "not set" (nil -> 1.0) and "explicitly set to 0" (0.0).
-func getWeight(w *float64) float64 {
-	if w == nil {
-		return 1.0
-	}
-	return *w
-}
-
 // selectWeightedProviderConfigAt selects a primary provider using the same
-// overflow-safe finite-positive algorithm as core API-key selection.
+// overflow-safe positive and all-zero reserve behavior as core API-key selection.
+// Nil weights opt out rather than joining the zero-weight reserve pool.
 func selectWeightedProviderConfigAt(candidates []schemas.ProviderCandidate, unitRandom float64) (schemas.ProviderCandidate, bool) {
-	return keyselectors.SelectPositiveWeightedAt(candidates, func(candidate *schemas.ProviderCandidate) float64 {
+	return keyselectors.SelectWeightedAt(candidates, func(candidate *schemas.ProviderCandidate) float64 {
 		if candidate.Weight == nil {
-			return 0
+			return math.NaN()
 		}
 		return *candidate.Weight
 	}, unitRandom)
 }
 
 // providerFallbackConfigs returns the candidates carrying an assigned, non-negative finite
-// weight. Zero-weight providers are excluded from primary traffic but remain available as
-// generated fallbacks. assignedCount includes malformed assigned values so routing diagnostics
-// can distinguish them from an entirely unset configuration.
-func providerFallbackConfigs(candidates []schemas.ProviderCandidate) (fallbacks []schemas.ProviderCandidate, assignedCount int) {
-	fallbacks = make([]schemas.ProviderCandidate, 0, len(candidates))
+// weight. Zero-weight providers are excluded from primary traffic while a positive alternative
+// exists, remain generated fallbacks, and participate in an all-zero primary pool.
+func providerFallbackConfigs(candidates []schemas.ProviderCandidate) []schemas.ProviderCandidate {
+	fallbacks := make([]schemas.ProviderCandidate, 0, len(candidates))
 	for _, candidate := range candidates {
 		if candidate.Weight == nil {
 			continue
 		}
-		assignedCount++
 		weight := *candidate.Weight
 		if weight == 0 || keyselectors.IsPositiveFiniteWeight(weight) {
 			fallbacks = append(fallbacks, candidate)
 		}
 	}
-	return fallbacks, assignedCount
+	return fallbacks
+}
+
+func assignedProviderWeightCount(candidates []schemas.ProviderCandidate) int {
+	assigned := 0
+	for i := range candidates {
+		if candidates[i].Weight != nil {
+			assigned++
+		}
+	}
+	return assigned
 }
 
 // filterModelsForAccess drops the models a request may not use from a listing. The access decides,
