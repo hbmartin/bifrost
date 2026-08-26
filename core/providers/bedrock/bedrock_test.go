@@ -3024,7 +3024,7 @@ func TestToolResultJSONParsingResponsesAPI(t *testing.T) {
 // TestConvertBifrostResponsesMessageContentBlocksToBedrockContentBlocks_EmptyBlocks tests that
 // empty ContentBlocks are not created when required fields are missing and that an
 // assistant message made entirely of invalid blocks is rejected before reaching Bedrock:
-// "ContentBlock object at messages.1.content.0 must set one of the following keys: text, image, toolUse, toolResult, document, video, cachePoint, reasoningContent, citationsContent, searchResult."
+// "ContentBlock object at messages.1.content.0 must set one of the following keys: text, image, audio, toolUse, toolResult, document, video, cachePoint, reasoningContent, citationsContent, searchResult."
 func TestConvertBifrostResponsesMessageContentBlocksToBedrockContentBlocks_EmptyBlocks(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -3312,6 +3312,8 @@ func TestConvertBifrostResponsesMessageContentBlocksToBedrockContentBlocks_Empty
 			for i, block := range actual.Output.Message.Content {
 				hasRequiredField := block.Text != nil ||
 					block.Image != nil ||
+					block.Audio != nil ||
+					block.Video != nil ||
 					block.Document != nil ||
 					block.ToolUse != nil ||
 					block.ToolResult != nil ||
@@ -3321,7 +3323,7 @@ func TestConvertBifrostResponsesMessageContentBlocksToBedrockContentBlocks_Empty
 					block.GuardContent != nil
 
 				assert.True(t, hasRequiredField,
-					"ContentBlock at index %d must have at least one required field set (text, image, toolUse, toolResult, document, video, cachePoint, reasoningContent, citationsContent, searchResult)",
+					"ContentBlock at index %d must have at least one required field set (text, image, audio, toolUse, toolResult, document, video, cachePoint, reasoningContent, citationsContent, searchResult)",
 					i)
 			}
 		})
@@ -5687,7 +5689,8 @@ func TestToolResultImageContentResponsesAPI(t *testing.T) {
 
 		toolResult := messages[0].Content[0].ToolResult
 		require.NotNil(t, toolResult)
-		assert.Empty(t, toolResult.Content, "remote URL image should be dropped (Bedrock only supports base64)")
+		require.Len(t, toolResult.Content, 1, "a dropped image must still leave valid non-empty toolResult.content")
+		assert.JSONEq(t, `{}`, string(toolResult.Content[0].JSON))
 	})
 }
 

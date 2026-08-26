@@ -217,6 +217,9 @@ type BedrockContentBlock struct {
 	// Video content
 	Video *BedrockVideoBlock `json:"video,omitempty"`
 
+	// Audio content
+	Audio *BedrockAudioBlock `json:"audio,omitempty"`
+
 	// Document content
 	Document *BedrockDocumentSource `json:"document,omitempty"`
 
@@ -300,6 +303,20 @@ type BedrockVideoBlock struct {
 type BedrockVideoSource struct {
 	Bytes      *string            `json:"bytes,omitempty"`      // Optional: base64-encoded video bytes (<25MB)
 	S3Location *BedrockS3Location `json:"s3Location,omitempty"` // Optional: S3 location
+}
+
+// BedrockAudioBlock represents audio content accepted by Converse.
+// See: https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_AudioBlock.html
+type BedrockAudioBlock struct {
+	Format string             `json:"format"`
+	Source BedrockAudioSource `json:"source"`
+}
+
+// BedrockAudioSource is a tagged union. OpenAI-compatible input_audio blocks
+// carry inline base64, while Bedrock-native passthrough may use S3.
+type BedrockAudioSource struct {
+	Bytes      *string            `json:"bytes,omitempty"`
+	S3Location *BedrockS3Location `json:"s3Location,omitempty"`
 }
 
 // BedrockS3Location represents a storage location in an Amazon S3 bucket.

@@ -3462,7 +3462,10 @@ func ConvertBifrostMessagesToBedrockMessages(ctx context.Context, bifrostMessage
 		switch msgType {
 		case schemas.ResponsesMessageTypeFunctionCall:
 			// Register tool call in state manager
-			if msg.ResponsesToolMessage != nil && msg.ResponsesToolMessage.CallID != nil {
+			if msg.ResponsesToolMessage == nil || msg.ResponsesToolMessage.CallID == nil || strings.TrimSpace(*msg.ResponsesToolMessage.CallID) == "" {
+				return nil, nil, fmt.Errorf("function call missing required call_id")
+			}
+			{
 				toolName := ""
 				if msg.ResponsesToolMessage.Name != nil {
 					toolName = bedrockAliasToolName(ctx, *msg.ResponsesToolMessage.Name)
@@ -3477,8 +3480,12 @@ func ConvertBifrostMessagesToBedrockMessages(ctx context.Context, bifrostMessage
 
 		case schemas.ResponsesMessageTypeFunctionCallOutput:
 			// Register tool result in state manager
-			if msg.ResponsesToolMessage != nil && msg.ResponsesToolMessage.CallID != nil {
+			if msg.ResponsesToolMessage == nil || msg.ResponsesToolMessage.CallID == nil || strings.TrimSpace(*msg.ResponsesToolMessage.CallID) == "" {
+				return nil, nil, fmt.Errorf("function call output missing required call_id")
+			}
+			{
 				resultContent := []BedrockContentBlock{}
+				resultCacheControl := msg.CacheControl
 				status := "success"
 				if msg.Status != nil && *msg.Status != "" {
 					// Converse accepts only success|error on toolResult.status
@@ -3505,7 +3512,15 @@ func ConvertBifrostMessagesToBedrockMessages(ctx context.Context, bifrostMessage
 					if msg.ResponsesToolMessage.Output.ResponsesToolCallOutputStr != nil {
 						outputStr := *msg.ResponsesToolMessage.Output.ResponsesToolCallOutputStr
 						if blocks, ok := decodeBedrockToolResultEnvelope(outputStr); ok {
+							var trailingCachePoint *BedrockCachePoint
+							blocks, trailingCachePoint = hoistToolResultContentCachePoint(blocks, nil, "")
 							resultContent = append(resultContent, blocks...)
+							if resultCacheControl == nil && trailingCachePoint != nil {
+								resultCacheControl = &schemas.CacheControl{
+									Type: schemas.CacheControlTypeEphemeral,
+									TTL:  trailingCachePoint.TTL,
+								}
+							}
 						} else {
 							resultContent = append(resultContent, tryParseJSONIntoContentBlock(outputStr))
 						}
@@ -3530,8 +3545,11 @@ func ConvertBifrostMessagesToBedrockMessages(ctx context.Context, bifrostMessage
 						}
 					}
 				}
+				if len(resultContent) == 0 {
+					resultContent = []BedrockContentBlock{{JSON: json.RawMessage(`{}`)}}
+				}
 
-				stateManager.RegisterToolResult(*msg.ResponsesToolMessage.CallID, resultContent, status, msg.CacheControl)
+				stateManager.RegisterToolResult(*msg.ResponsesToolMessage.CallID, resultContent, status, resultCacheControl)
 			}
 
 			// Check if next message is not a function call output - if so, flush tool calls and results
@@ -4027,11 +4045,26 @@ func convertBifrostMessageToBedrockMessage(ctx context.Context, msg *schemas.Res
 		return nil, err
 	}
 	if len(contentBlocks) == 0 {
+		if responsesMessageContentIsIntentionallySkippable(*msg.Content) {
+			return nil, nil
+		}
 		return nil, fmt.Errorf("%s response message content must not be blank or unsupported", *msg.Role)
 	}
 	bedrockMsg.Content = contentBlocks
 
 	return &bedrockMsg, nil
+}
+
+func responsesMessageContentIsIntentionallySkippable(content schemas.ResponsesMessageContent) bool {
+	if len(content.ContentBlocks) == 0 {
+		return false
+	}
+	for _, block := range content.ContentBlocks {
+		if block.Type != schemas.ResponsesOutputMessageContentTypeFallback {
+			return false
+		}
+	}
+	return true
 }
 
 // convertBedrockSystemMessageToBifrostMessages converts a Bedrock system message to Bifrost messages
@@ -4489,7 +4522,7 @@ func convertSingleBedrockMessageToBifrostMessages(ctx *schemas.BifrostContext, m
 			var resultContent string
 			hasUnrepresentableBlock := false
 			for _, c := range block.ToolResult.Content {
-				if c.SearchResult != nil || c.Video != nil {
+				if c.SearchResult != nil || c.Video != nil || c.Audio != nil {
 					hasUnrepresentableBlock = true
 					break
 				}
@@ -4721,7 +4754,15 @@ func convertBifrostResponsesMessageContentBlocksToBedrockContentBlocks(ctx conte
 					bedrockBlock.Text = &block.ResponsesOutputMessageContentRefusal.Refusal
 				}
 			case schemas.ResponsesInputMessageContentBlockTypeAudio:
-				return nil, fmt.Errorf("audio input is not supported by the Bedrock Responses converter")
+				if block.Audio == nil {
+					return nil, fmt.Errorf("input_audio content block missing input_audio data")
+				}
+				format := block.Audio.Format
+				audio, err := convertInputAudioToBedrock(block.Audio.Data, &format)
+				if err != nil {
+					return nil, fmt.Errorf("failed to convert Responses input_audio block: %w", err)
+				}
+				bedrockBlock.Audio = audio
 			case schemas.ResponsesOutputMessageContentTypeCompaction:
 				// Convert compaction to text block for Bedrock (compaction is Anthropic-specific)
 				if block.ResponsesOutputMessageContentCompaction != nil {
@@ -4869,6 +4910,7 @@ func convertBifrostResponsesMessageContentBlocksToBedrockContentBlocks(ctx conte
 			// Only append if at least one required field is set
 			if bedrockBlock.Text != nil ||
 				bedrockBlock.Image != nil ||
+				bedrockBlock.Audio != nil ||
 				bedrockBlock.Document != nil ||
 				bedrockBlock.ToolUse != nil ||
 				bedrockBlock.ToolResult != nil ||

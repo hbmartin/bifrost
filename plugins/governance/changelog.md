@@ -1,4 +1,4 @@
-- fix: ignore negative and non-finite provider weights during load balancing, retain zero-weight providers as generated fallbacks, and select uniformly when every participating provider has zero weight [@hbmartin](https://github.com/hbmartin)
+- fix: ignore zero, negative, and non-finite provider weights during primary load balancing while retaining zero-weight providers as generated fallbacks [@hbmartin](https://github.com/hbmartin)
 - fix: skip list models call for budgets and rate-limits (#6051)
 - feat: honor the auth-skip context path in the governance resolver
 - chore: upgraded core to v1.7.11 and framework to v1.5.9

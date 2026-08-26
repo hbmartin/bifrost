@@ -1536,6 +1536,18 @@ type ChatInputImage struct {
 	URL    string  `json:"url,omitempty"`
 	FileID *string `json:"file_id,omitempty"` // Reference to an uploaded file (in place of URL)
 	Detail *string `json:"detail,omitempty"`
+
+	// ResolvedAsset is provider-preparation scratch state. It keeps fetched bytes
+	// structural instead of forcing providers to allocate and immediately re-parse
+	// a large synthetic data URL. It never reaches JSON.
+	ResolvedAsset *ResolvedInputAsset `json:"-"`
+}
+
+// ResolvedInputAsset carries provider-fetched media between an I/O preparation
+// phase and a pure converter without synthesizing a duplicate data URL string.
+type ResolvedInputAsset struct {
+	Data      string
+	MediaType string
 }
 
 // ChatInputAudio represents audio data in a message.
@@ -1553,6 +1565,9 @@ type ChatInputFile struct {
 	FileID   *string `json:"file_id,omitempty"`   // Reference to uploaded file
 	Filename *string `json:"filename,omitempty"`  // Name of the file
 	FileType *string `json:"file_type,omitempty"` // Type of the file
+
+	// Provider-preparation scratch state; see ChatInputImage.ResolvedAsset.
+	ResolvedAsset *ResolvedInputAsset `json:"-"`
 }
 
 // ChatToolMessage represents a tool message in a chat conversation.

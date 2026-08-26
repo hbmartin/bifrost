@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	bifrost "github.com/maximhq/bifrost/core"
-	"github.com/maximhq/bifrost/core/keyselectors"
 	"github.com/maximhq/bifrost/core/schemas"
 	configstoreTables "github.com/maximhq/bifrost/framework/configstore/tables"
 	"github.com/valyala/fasthttp"
@@ -102,22 +101,76 @@ func parseVirtualKeyFromHTTPRequest(req *schemas.HTTPRequest) *string {
 	return nil
 }
 
-// selectWeightedProviderConfigAt selects a primary provider using the same
-// overflow-safe positive and all-zero reserve behavior as core API-key selection.
-// Nil weights opt out rather than joining the zero-weight reserve pool.
+// selectWeightedProviderConfigAt selects a primary provider from finite,
+// strictly positive weights. Nil and zero weights do not participate in primary
+// selection; zero weights remain eligible for the generated fallback chain.
 func selectWeightedProviderConfigAt(configs []configstoreTables.TableVirtualKeyProviderConfig, unitRandom float64) (configstoreTables.TableVirtualKeyProviderConfig, bool) {
-	return keyselectors.SelectWeightedAt(configs, func(config *configstoreTables.TableVirtualKeyProviderConfig) float64 {
-		if config.Weight == nil {
-			return math.NaN()
+	var zero configstoreTables.TableVirtualKeyProviderConfig
+	totalWeight := 0.0
+	maxWeight := 0.0
+	lastEligible := -1
+	for i := range configs {
+		if configs[i].Weight == nil {
+			continue
 		}
-		return *config.Weight
-	}, unitRandom)
+		weight := *configs[i].Weight
+		if !isPositiveFiniteProviderWeight(weight) {
+			continue
+		}
+		totalWeight += weight
+		if weight > maxWeight {
+			maxWeight = weight
+		}
+		lastEligible = i
+	}
+	if lastEligible < 0 {
+		return zero, false
+	}
+
+	if !math.IsInf(totalWeight, 1) {
+		randomValue := unitRandom * totalWeight
+		currentWeight := 0.0
+		for i := range configs {
+			if configs[i].Weight == nil || !isPositiveFiniteProviderWeight(*configs[i].Weight) {
+				continue
+			}
+			currentWeight += *configs[i].Weight
+			if randomValue < currentWeight {
+				return configs[i], true
+			}
+		}
+		return configs[lastEligible], true
+	}
+
+	// Normalize only the overflow path so even MaxFloat64-sized weights keep
+	// their intended proportions without changing the ordinary hot path.
+	totalWeight = 0
+	for i := range configs {
+		if configs[i].Weight != nil && isPositiveFiniteProviderWeight(*configs[i].Weight) {
+			totalWeight += *configs[i].Weight / maxWeight
+		}
+	}
+	randomValue := unitRandom * totalWeight
+	currentWeight := 0.0
+	for i := range configs {
+		if configs[i].Weight == nil || !isPositiveFiniteProviderWeight(*configs[i].Weight) {
+			continue
+		}
+		currentWeight += *configs[i].Weight / maxWeight
+		if randomValue < currentWeight {
+			return configs[i], true
+		}
+	}
+	return configs[lastEligible], true
+}
+
+func isPositiveFiniteProviderWeight(weight float64) bool {
+	return weight > 0 && !math.IsInf(weight, 0)
 }
 
 // providerFallbackConfigs returns assigned, non-negative finite provider
 // weights. Zero-weight providers are excluded from primary traffic while a
-// positive alternative exists, remain generated fallbacks, and participate in
-// an all-zero primary pool.
+// positive alternative exists and remain generated fallbacks.
 func providerFallbackConfigs(configs []configstoreTables.TableVirtualKeyProviderConfig) []configstoreTables.TableVirtualKeyProviderConfig {
 	fallbacks := make([]configstoreTables.TableVirtualKeyProviderConfig, 0, len(configs))
 	for _, config := range configs {
@@ -125,7 +178,7 @@ func providerFallbackConfigs(configs []configstoreTables.TableVirtualKeyProvider
 			continue
 		}
 		weight := *config.Weight
-		if weight == 0 || keyselectors.IsPositiveFiniteWeight(weight) {
+		if weight == 0 || isPositiveFiniteProviderWeight(weight) {
 			fallbacks = append(fallbacks, config)
 		}
 	}

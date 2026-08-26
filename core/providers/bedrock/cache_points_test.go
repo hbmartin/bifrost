@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/maximhq/bifrost/core/schemas"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func cachePoint() *BedrockCachePoint {
@@ -161,7 +163,7 @@ func TestDowngradeExtendedCacheTTL(t *testing.T) {
 		t.Errorf("expected 5m cache point preserved, got %+v", cp)
 	}
 	if cp := blocks[3].CachePoint; cp == nil || cp.TTL != nil {
-		t.Errorf("expected 1h tool-result cache point downgraded, got %+v", cp)
+		t.Errorf("expected 1h standalone cache point downgraded, got %+v", cp)
 	}
 	if cp := req.System[0].CachePoint; cp == nil || cp.TTL != nil {
 		t.Errorf("expected 1h system cache point downgraded, got %+v", cp)
@@ -169,6 +171,23 @@ func TestDowngradeExtendedCacheTTL(t *testing.T) {
 	if cp := req.ToolConfig.Tools[0].CachePoint; cp == nil || cp.TTL != nil {
 		t.Errorf("expected 1h tool cache point downgraded, got %+v", cp)
 	}
+}
+
+func TestStripCachePointsPreservesToolResultBesideStandaloneMarker(t *testing.T) {
+	req := &BedrockConverseRequest{Messages: []BedrockMessage{{
+		Role: BedrockMessageRoleUser,
+		Content: []BedrockContentBlock{
+			{ToolResult: &BedrockToolResult{ToolUseID: "call_1", Content: []BedrockContentBlock{{Text: schemas.Ptr("result")}}}},
+			{CachePoint: cachePoint()},
+		},
+	}}}
+
+	stripCachePointsFromBedrockRequest(req)
+
+	require.Len(t, req.Messages[0].Content, 1)
+	require.NotNil(t, req.Messages[0].Content[0].ToolResult)
+	require.Len(t, req.Messages[0].Content[0].ToolResult.Content, 1)
+	assert.Equal(t, "result", *req.Messages[0].Content[0].ToolResult.Content[0].Text)
 }
 
 // TestDowngradeExtendedCacheTTL_NilSafe — no panic on nil tool config / cache points.
