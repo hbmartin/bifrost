@@ -3617,6 +3617,13 @@ func ConvertBifrostMessagesToBedrockMessages(ctx context.Context, model string, 
 						for _, block := range msg.ResponsesToolMessage.Output.ResponsesFunctionToolCallOutputBlocks {
 							if block.Text != nil {
 								resultContent = append(resultContent, tryParseJSONIntoContentBlock(*block.Text))
+							} else if block.Type == schemas.ResponsesInputMessageContentBlockTypeAudio && block.Audio != nil {
+								format := block.Audio.Format
+								audio, err := convertInputAudioToBedrock(block.Audio.Data, &format)
+								if err != nil {
+									return nil, nil, fmt.Errorf("failed to convert audio in function call output: %w", err)
+								}
+								resultContent = append(resultContent, BedrockContentBlock{Audio: audio})
 							} else if block.Type == schemas.ResponsesInputMessageContentBlockTypeImage &&
 								block.ResponsesInputMessageContentBlockImage != nil &&
 								block.ResponsesInputMessageContentBlockImage.ImageURL != nil {
@@ -4143,6 +4150,12 @@ func convertBifrostMessageToBedrockMessage(ctx context.Context, model string, ms
 }
 
 func convertBifrostMessageToBedrockMessageWithDisposition(ctx context.Context, model string, msg *schemas.ResponsesMessage) (*BedrockMessage, bedrockResponsesContentDisposition, error) {
+	if msg == nil {
+		return nil, bedrockResponsesContentAbsent, fmt.Errorf("response message must not be nil")
+	}
+	if msg.Role == nil {
+		return nil, bedrockResponsesContentAbsent, fmt.Errorf("response message missing required role")
+	}
 	bedrockMsg := BedrockMessage{
 		Role: BedrockMessageRole(*msg.Role),
 	}
