@@ -4,6 +4,7 @@ package governance
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 
 	bifrost "github.com/maximhq/bifrost/core"
@@ -118,44 +119,44 @@ func parseVirtualKeyFromHTTPRequest(req *schemas.HTTPRequest) *string {
 	return nil
 }
 
-// getWeight safely dereferences a *float64 weight pointer, returning 1.0 as default if nil.
-// This allows distinguishing between "not set" (nil -> 1.0) and "explicitly set to 0" (0.0).
-func getWeight(w *float64) float64 {
-	if w == nil {
-		return 1.0
-	}
-	return *w
-}
-
 // selectWeightedProviderConfigAt selects a primary provider using the same
-// overflow-safe finite-positive algorithm as core API-key selection.
+// overflow-safe positive and all-zero reserve behavior as core API-key selection.
+// Nil weights opt out rather than joining the zero-weight reserve pool.
 func selectWeightedProviderConfigAt(configs []configstoreTables.TableVirtualKeyProviderConfig, unitRandom float64) (configstoreTables.TableVirtualKeyProviderConfig, bool) {
-	return keyselectors.SelectPositiveWeightedAt(configs, func(config *configstoreTables.TableVirtualKeyProviderConfig) float64 {
+	return keyselectors.SelectWeightedAt(configs, func(config *configstoreTables.TableVirtualKeyProviderConfig) float64 {
 		if config.Weight == nil {
-			return 0
+			return math.NaN()
 		}
 		return *config.Weight
 	}, unitRandom)
 }
 
 // providerFallbackConfigs returns assigned, non-negative finite provider
-// weights. Zero-weight providers are excluded from primary traffic but remain
-// available as generated fallbacks. assignedCount includes malformed assigned
-// values so routing diagnostics can distinguish them from an entirely unset
-// configuration.
-func providerFallbackConfigs(configs []configstoreTables.TableVirtualKeyProviderConfig) (fallbacks []configstoreTables.TableVirtualKeyProviderConfig, assignedCount int) {
-	fallbacks = make([]configstoreTables.TableVirtualKeyProviderConfig, 0, len(configs))
+// weights. Zero-weight providers are excluded from primary traffic while a
+// positive alternative exists, remain generated fallbacks, and participate in
+// an all-zero primary pool.
+func providerFallbackConfigs(configs []configstoreTables.TableVirtualKeyProviderConfig) []configstoreTables.TableVirtualKeyProviderConfig {
+	fallbacks := make([]configstoreTables.TableVirtualKeyProviderConfig, 0, len(configs))
 	for _, config := range configs {
 		if config.Weight == nil {
 			continue
 		}
-		assignedCount++
 		weight := *config.Weight
 		if weight == 0 || keyselectors.IsPositiveFiniteWeight(weight) {
 			fallbacks = append(fallbacks, config)
 		}
 	}
-	return fallbacks, assignedCount
+	return fallbacks
+}
+
+func assignedProviderWeightCount(configs []configstoreTables.TableVirtualKeyProviderConfig) int {
+	assigned := 0
+	for i := range configs {
+		if configs[i].Weight != nil {
+			assigned++
+		}
+	}
+	return assigned
 }
 
 // stampGovernanceCtxFromVK copies team/customer identifiers from the VK onto ctx so
