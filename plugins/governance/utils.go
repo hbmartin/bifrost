@@ -82,6 +82,12 @@ func IsModelCheckedWhenPresent(requestType schemas.RequestType) bool {
 // selectWeightedProviderConfigAt selects a primary provider from finite,
 // strictly positive weights. Nil and zero weights do not participate in primary
 // selection; zero weights remain eligible for the generated fallback chain.
+//
+// Keep this algorithm in lockstep with core/keyselectors.SelectPositiveWeightedAt.
+// The governance module intentionally remains buildable against released core
+// v1.7.11, which predates that exported generic helper; importing it here would
+// make the standalone plugin module depend on an unreleased core version. Remove
+// this local copy once governance can advance its minimum core dependency.
 func selectWeightedProviderConfigAt(candidates []schemas.ProviderCandidate, unitRandom float64) (schemas.ProviderCandidate, bool) {
 	var zero schemas.ProviderCandidate
 	totalWeight := 0.0
