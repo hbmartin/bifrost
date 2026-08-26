@@ -456,7 +456,7 @@ func (p *GovernancePlugin) LoadBalanceProvider(ctx *schemas.BifrostContext, req 
 		if assignedWeightCount == 0 {
 			ctx.AppendRoutingEngineLog(schemas.RoutingEngineGovernance, schemas.LogLevelInfo, fmt.Sprintf("No weighted providers for model %s — none of the allowed providers have a weight assigned; skipping load balancing", modelStr))
 		} else {
-			ctx.AppendRoutingEngineLog(schemas.RoutingEngineGovernance, schemas.LogLevelInfo, fmt.Sprintf("No usable weighted providers for model %s — all assigned weights are negative or non-finite; skipping load balancing", modelStr))
+			ctx.AppendRoutingEngineLog(schemas.RoutingEngineGovernance, schemas.LogLevelInfo, fmt.Sprintf("No usable weighted providers for model %s — all assigned weights are zero, negative, or non-finite; skipping load balancing", modelStr))
 		}
 		return nil
 	}

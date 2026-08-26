@@ -979,6 +979,9 @@ func injectContentBlockCachePoints(blocks []BedrockContentBlock, raw json.RawMes
 		var trailingCachePoint *BedrockCachePoint
 		if block.ToolResult != nil {
 			block.ToolResult.Content, trailingCachePoint = hoistToolResultContentCachePoint(block.ToolResult.Content, raw, blockPath+".content")
+			if len(block.ToolResult.Content) == 0 {
+				block.ToolResult.Content = []BedrockContentBlock{{JSON: json.RawMessage(`{}`)}}
+			}
 		}
 		result = append(result, block)
 		if cc := gjson.GetBytes(raw, blockPath+".cache_control"); cc.Exists() {
@@ -1017,7 +1020,7 @@ func hoistToolResultContentCachePoint(blocks []BedrockContentBlock, raw json.Raw
 }
 
 func bedrockContentBlockHasPayload(block BedrockContentBlock) bool {
-	return block.Text != nil || block.Image != nil || block.Video != nil || block.Document != nil ||
+	return block.Text != nil || block.Image != nil || block.Video != nil || block.Audio != nil || block.Document != nil ||
 		block.ToolUse != nil || block.ToolResult != nil || block.GuardContent != nil ||
 		block.ReasoningContent != nil || len(block.JSON) > 0 || block.SearchResult != nil ||
 		block.CitationsContent != nil

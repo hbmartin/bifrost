@@ -48,7 +48,7 @@ When you configure provider restrictions on a Virtual Key, Bifrost validates tha
 
 ## Weighted Load Balancing
 
-When you configure multiple providers on a Virtual Key, Bifrost automatically implements weighted load balancing. Each provider can be assigned a weight, and requests are distributed proportionally. The `weight` field is optional - omitting it (or setting it to `null`) excludes the provider from weighted selection while still allowing it to be used for direct `provider/model` requests or as a fallback.
+When you configure multiple providers on a Virtual Key, Bifrost automatically implements weighted load balancing. Each provider can be assigned a weight, and requests are distributed proportionally. The `weight` field is optional - omitting it (or setting it to `null`) excludes the provider from weighted selection and from the automatically generated fallback chain, while still allowing it to be used for direct `provider/model` requests or an explicitly configured fallback.
 
 **Example Configuration:**
 ```
@@ -85,7 +85,7 @@ curl -X POST http://localhost:8080/v1/chat/completions \
 Assigned weights are automatically normalized to a sum of 1.0 across participating providers available on the VK for the given model.
 </Info>
 
-A provider with a null or omitted `weight` is excluded from both weighted selection and the automatically generated fallback chain. An explicitly assigned `weight: 0` receives no primary load-balanced traffic while a positive-weight provider is available, but remains in the generated fallback chain; positive finite weights participate as well. If every participating provider has weight `0`, Bifrost selects uniformly across that pool and uses the remaining providers as fallbacks. This supports warm-standby providers without making an all-zero configuration unroutable.
+A provider with a null or omitted `weight` is excluded from both weighted selection and the automatically generated fallback chain. An explicitly assigned `weight: 0` receives no primary load-balanced traffic but remains in the generated fallback chain when a positive-weight primary exists; positive finite weights participate in primary selection. If every assigned weight is `0`, governance skips load balancing and leaves provider selection unchanged.
 
 **Example with Wildcard `allowed_models` (allow all via Model Catalog):**
 ```json
@@ -114,7 +114,7 @@ With this configuration:
 When multiple providers are configured on a Virtual Key, Bifrost automatically creates fallback chains for resilience. This feature provides automatic failover without manual intervention.
 
 **How It Works:**
-- **Only activated when**: Your request has no existing `fallbacks` array in the request body
+- **Only activated when**: At least one eligible provider has a positive weight and your request has no existing `fallbacks` array in the request body
 - **Fallback creation**: Providers are sorted by weight (highest first) and added as fallbacks
 - **Respects existing fallbacks**: If you manually specify fallbacks, they are preserved
 
@@ -158,7 +158,7 @@ curl -X POST http://localhost:8080/v1/chat/completions \
    - **Specify models**: Enter specific models (e.g., `["gpt-4o", "gpt-4o-mini"]`) to explicitly whitelist only those models
    - **`["*"]`**: Allow all models (uses the Model Catalog for validation).
    - **Leave blank**: Deny all models (deny-by-default).
-5. Optionally add a weight for this provider (numeric value for weighted load balancing, or leave blank to exclude from weighted routing while keeping the provider available for direct requests and fallbacks)
+5. Optionally add a weight for this provider (numeric value for weighted load balancing, or leave blank to exclude from weighted routing and automatic fallbacks while keeping the provider available for direct requests and explicitly configured fallbacks)
 6. Click on the **Save** button
 </Tab>
 
