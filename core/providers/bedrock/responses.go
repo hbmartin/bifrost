@@ -2351,6 +2351,9 @@ func ToBedrockResponsesRequest(ctx *schemas.BifrostContext, bifrostReq *schemas.
 			return nil, fmt.Errorf("failed to convert Responses messages: %w", err)
 		}
 		bedrockReq.Messages = messages
+		if err := validateBedrockMessageAudioInput(ctx, bifrostReq.Provider, capModel, messages); err != nil {
+			return nil, err
+		}
 		if len(systemMessages) > 0 {
 			bedrockReq.System = systemMessages
 		} else {
@@ -3494,6 +3497,24 @@ func ConvertBifrostMessagesToBedrockMessages(ctx context.Context, model string, 
 			msgType = *msg.Type
 		}
 
+		// Convert ordinary user/assistant messages before advancing any state-machine
+		// buffers. A fallback-only content array is an Anthropic boundary marker with
+		// no Bedrock turn of its own; treating it as a transparent item prevents it
+		// from flushing or consuming reasoning, server-tool, and tool-result state.
+		var convertedRegularMessage *BedrockMessage
+		if msgType == schemas.ResponsesMessageTypeMessage && msg.Role != nil &&
+			*msg.Role != schemas.ResponsesInputMessageRoleSystem && *msg.Role != schemas.ResponsesInputMessageRoleDeveloper {
+			var disposition bedrockResponsesContentDisposition
+			var err error
+			convertedRegularMessage, disposition, err = convertBifrostMessageToBedrockMessageWithDisposition(ctx, model, &msg)
+			if err != nil {
+				return nil, nil, err
+			}
+			if disposition == bedrockResponsesContentIntentionallySkipped {
+				continue
+			}
+		}
+
 		// First non-system message closes the leading system-prompt run (see seenNonSystemMessage).
 		isSystemMessage := msgType == schemas.ResponsesMessageTypeMessage && msg.Role != nil &&
 			(*msg.Role == schemas.ResponsesInputMessageRoleSystem || *msg.Role == schemas.ResponsesInputMessageRoleDeveloper)
@@ -3622,9 +3643,7 @@ func ConvertBifrostMessagesToBedrockMessages(ctx context.Context, model string, 
 						}
 					}
 				}
-				if len(resultContent) == 0 {
-					resultContent = []BedrockContentBlock{{JSON: json.RawMessage(`{}`)}}
-				}
+				resultContent = ensureBedrockToolResultContent(resultContent)
 
 				stateManager.RegisterToolResult(*msg.ResponsesToolMessage.CallID, resultContent, status, resultCacheControl)
 			}
@@ -3789,10 +3808,7 @@ func ConvertBifrostMessagesToBedrockMessages(ctx context.Context, model string, 
 				}
 			} else {
 				// Convert user/assistant text message
-				bedrockMsg, err := convertBifrostMessageToBedrockMessage(ctx, model, &msg)
-				if err != nil {
-					return nil, nil, err
-				}
+				bedrockMsg := convertedRegularMessage
 				if bedrockMsg != nil {
 					// Prepend buffered server-managed tool blocks (nova_grounding / nova_code_interpreter)
 					// to the assistant message they belong to — they're part of the same turn.
@@ -4102,14 +4118,33 @@ func convertBifrostSystemReminderToBedrockUserMessage(msg *schemas.ResponsesMess
 	}
 }
 
+type bedrockResponsesContentDisposition uint8
+
+const (
+	bedrockResponsesContentConverted bedrockResponsesContentDisposition = iota
+	bedrockResponsesContentIntentionallySkipped
+	bedrockResponsesContentAbsent
+	bedrockResponsesContentUnsupported
+)
+
+type bedrockResponsesContentConversion struct {
+	Blocks      []BedrockContentBlock
+	Disposition bedrockResponsesContentDisposition
+}
+
 // convertBifrostMessageToBedrockMessage converts a regular Bifrost message to Bedrock message.
 // The ctx is propagated to URL fetches inside content blocks. A conversion failure
 // (e.g. an image or document URL that can't be fetched) is returned rather than
 // swallowed - dropping the message would send Bedrock a request missing the turn.
 func convertBifrostMessageToBedrockMessage(ctx context.Context, model string, msg *schemas.ResponsesMessage) (*BedrockMessage, error) {
+	bedrockMsg, _, err := convertBifrostMessageToBedrockMessageWithDisposition(ctx, model, msg)
+	return bedrockMsg, err
+}
+
+func convertBifrostMessageToBedrockMessageWithDisposition(ctx context.Context, model string, msg *schemas.ResponsesMessage) (*BedrockMessage, bedrockResponsesContentDisposition, error) {
 	// Ensure Content is present
 	if msg.Content == nil {
-		return nil, nil
+		return nil, bedrockResponsesContentAbsent, nil
 	}
 
 	bedrockMsg := BedrockMessage{
@@ -4117,31 +4152,19 @@ func convertBifrostMessageToBedrockMessage(ctx context.Context, model string, ms
 	}
 
 	// Convert content
-	contentBlocks, err := convertBifrostResponsesMessageContentBlocksToBedrockContentBlocks(ctx, model, *msg.Content)
+	conversion, err := convertBifrostResponsesMessageContentBlocksToBedrockContentBlocksWithDisposition(ctx, model, *msg.Content)
 	if err != nil {
-		return nil, err
+		return nil, bedrockResponsesContentUnsupported, err
 	}
-	if len(contentBlocks) == 0 {
-		if responsesMessageContentIsIntentionallySkippable(*msg.Content) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("%s response message content must not be blank or unsupported", *msg.Role)
+	if conversion.Disposition == bedrockResponsesContentIntentionallySkipped {
+		return nil, conversion.Disposition, nil
 	}
-	bedrockMsg.Content = contentBlocks
+	if conversion.Disposition != bedrockResponsesContentConverted {
+		return nil, conversion.Disposition, fmt.Errorf("%s response message content must not be blank or unsupported", *msg.Role)
+	}
+	bedrockMsg.Content = conversion.Blocks
 
-	return &bedrockMsg, nil
-}
-
-func responsesMessageContentIsIntentionallySkippable(content schemas.ResponsesMessageContent) bool {
-	if len(content.ContentBlocks) == 0 {
-		return false
-	}
-	for _, block := range content.ContentBlocks {
-		if block.Type != schemas.ResponsesOutputMessageContentTypeFallback {
-			return false
-		}
-	}
-	return true
+	return &bedrockMsg, conversion.Disposition, nil
 }
 
 // convertBedrockSystemMessageToBifrostMessages converts a Bedrock system message to Bifrost messages
@@ -4793,7 +4816,14 @@ func convertBifrostReasoningToBedrockReasoning(msg *schemas.ResponsesMessage) []
 // convertBifrostResponsesMessageContentBlocksToBedrockContentBlocks converts Bifrost content to Bedrock content blocks.
 // The ctx is propagated to URL fetches inside image blocks.
 func convertBifrostResponsesMessageContentBlocksToBedrockContentBlocks(ctx context.Context, model string, content schemas.ResponsesMessageContent) ([]BedrockContentBlock, error) {
+	conversion, err := convertBifrostResponsesMessageContentBlocksToBedrockContentBlocksWithDisposition(ctx, model, content)
+	return conversion.Blocks, err
+}
+
+func convertBifrostResponsesMessageContentBlocksToBedrockContentBlocksWithDisposition(ctx context.Context, model string, content schemas.ResponsesMessageContent) (bedrockResponsesContentConversion, error) {
 	var blocks []BedrockContentBlock
+	sawDroppable := false
+	sawNonDroppable := false
 
 	if content.ContentStr != nil {
 		blocks = append(blocks, BedrockContentBlock{
@@ -4801,6 +4831,11 @@ func convertBifrostResponsesMessageContentBlocksToBedrockContentBlocks(ctx conte
 		})
 	} else if content.ContentBlocks != nil {
 		for _, block := range content.ContentBlocks {
+			if block.Type == schemas.ResponsesOutputMessageContentTypeFallback {
+				sawDroppable = true
+			} else {
+				sawNonDroppable = true
+			}
 
 			bedrockBlock := BedrockContentBlock{}
 			switch block.Type {
@@ -4813,7 +4848,7 @@ func convertBifrostResponsesMessageContentBlocksToBedrockContentBlocks(ctx conte
 				if block.ResponsesInputMessageContentBlockImage != nil && block.ResponsesInputMessageContentBlockImage.ImageURL != nil {
 					imageSource, err := convertImageToBedrockSource(ctx, model, *block.ResponsesInputMessageContentBlockImage.ImageURL)
 					if err != nil {
-						return nil, fmt.Errorf("failed to convert image in responses content block: %w", err)
+						return bedrockResponsesContentConversion{Disposition: bedrockResponsesContentUnsupported}, fmt.Errorf("failed to convert image in responses content block: %w", err)
 					}
 					bedrockBlock.Image = imageSource
 				}
@@ -4832,12 +4867,12 @@ func convertBifrostResponsesMessageContentBlocksToBedrockContentBlocks(ctx conte
 				}
 			case schemas.ResponsesInputMessageContentBlockTypeAudio:
 				if block.Audio == nil {
-					return nil, fmt.Errorf("input_audio content block missing input_audio data")
+					return bedrockResponsesContentConversion{Disposition: bedrockResponsesContentUnsupported}, fmt.Errorf("input_audio content block missing input_audio data")
 				}
 				format := block.Audio.Format
 				audio, err := convertInputAudioToBedrock(block.Audio.Data, &format)
 				if err != nil {
-					return nil, fmt.Errorf("failed to convert Responses input_audio block: %w", err)
+					return bedrockResponsesContentConversion{Disposition: bedrockResponsesContentUnsupported}, fmt.Errorf("failed to convert Responses input_audio block: %w", err)
 				}
 				bedrockBlock.Audio = audio
 			case schemas.ResponsesOutputMessageContentTypeCompaction:
@@ -4898,7 +4933,7 @@ func convertBifrostResponsesMessageContentBlocksToBedrockContentBlocks(ctx conte
 							// Same gate as the chat path, ahead of format resolution for the
 							// same reason: see schemas.BedrockModelSupportsS3Location.
 							if !schemas.BedrockModelSupportsS3Location(model) {
-								return nil, bedrockS3LocationUnsupportedError(model, "document", *file.FileURL, "as base64 file_data")
+								return bedrockResponsesContentConversion{Disposition: bedrockResponsesContentUnsupported}, bedrockS3LocationUnsupportedError(model, "document", *file.FileURL, "as base64 file_data")
 							}
 							// Last resort: the object key's own extension, which the
 							// refusal below already instructs the caller to supply. See
@@ -4910,7 +4945,7 @@ func convertBifrostResponsesMessageContentBlocksToBedrockContentBlocks(ctx conte
 								}
 							}
 							if format == "" {
-								return nil, providerUtils.InvalidRequestErrorf("cannot determine document format for %q: set file_type or give the object a file extension", *file.FileURL)
+								return bedrockResponsesContentConversion{Disposition: bedrockResponsesContentUnsupported}, providerUtils.InvalidRequestErrorf("cannot determine document format for %q: set file_type or give the object a file extension", *file.FileURL)
 							}
 							doc.Source.S3Location = s3Loc
 							bedrockBlock.Document = doc
@@ -4920,7 +4955,7 @@ func convertBifrostResponsesMessageContentBlocksToBedrockContentBlocks(ctx conte
 							// particular reference is malformed (a bucket with no object
 							// key), and the http(s) fetch path's "unsupported URL scheme"
 							// error would say the opposite.
-							return nil, providerUtils.InvalidRequestErrorf("invalid s3:// document reference %q: expected s3://bucket/key", *file.FileURL)
+							return bedrockResponsesContentConversion{Disposition: bedrockResponsesContentUnsupported}, providerUtils.InvalidRequestErrorf("invalid s3:// document reference %q: expected s3://bucket/key", *file.FileURL)
 						}
 					}
 					if format != "" {
@@ -4932,7 +4967,7 @@ func convertBifrostResponsesMessageContentBlocksToBedrockContentBlocks(ctx conte
 					if file.FileURL != nil && *file.FileURL != "" {
 						fetchedMediaType, fetchedB64, fetchErr := providerUtils.FetchAndEncodeURL(ctx, *file.FileURL)
 						if fetchErr != nil {
-							return nil, fetchErr
+							return bedrockResponsesContentConversion{Disposition: bedrockResponsesContentUnsupported}, fetchErr
 						}
 						// Refine format from response Content-Type when present (more
 						// reliable than file extension or upstream-declared media type).
@@ -4956,7 +4991,7 @@ func convertBifrostResponsesMessageContentBlocksToBedrockContentBlocks(ctx conte
 								// Inline percent-encoded payload (data:text/plain,Hello%20World)
 								decoded, err := url.PathUnescape(dataURLPayload)
 								if err != nil {
-									return nil, fmt.Errorf("invalid percent-encoded data URL payload: %w", err)
+									return bedrockResponsesContentConversion{Disposition: bedrockResponsesContentUnsupported}, fmt.Errorf("invalid percent-encoded data URL payload: %w", err)
 								}
 								dataURLPayload = decoded
 								if isTextFile {
@@ -5037,5 +5072,13 @@ func convertBifrostResponsesMessageContentBlocksToBedrockContentBlocks(ctx conte
 		}
 	}
 
-	return blocks, nil
+	disposition := bedrockResponsesContentUnsupported
+	if len(blocks) > 0 {
+		disposition = bedrockResponsesContentConverted
+	} else if sawDroppable && !sawNonDroppable {
+		disposition = bedrockResponsesContentIntentionallySkipped
+	} else if content.ContentStr == nil && content.ContentBlocks == nil {
+		disposition = bedrockResponsesContentAbsent
+	}
+	return bedrockResponsesContentConversion{Blocks: blocks, Disposition: disposition}, nil
 }
