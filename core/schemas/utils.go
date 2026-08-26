@@ -875,6 +875,10 @@ func deepCopyChatContentBlock(original ChatContentBlock) ChatContentBlock {
 			copyDetail := *original.ImageURLStruct.Detail
 			copyImage.Detail = &copyDetail
 		}
+		if original.ImageURLStruct.ResolvedAsset != nil {
+			copyResolvedAsset := *original.ImageURLStruct.ResolvedAsset
+			copyImage.ResolvedAsset = &copyResolvedAsset
+		}
 		copy.ImageURLStruct = &copyImage
 	}
 
@@ -895,6 +899,10 @@ func deepCopyChatContentBlock(original ChatContentBlock) ChatContentBlock {
 			copyFileData := *original.File.FileData
 			copyFile.FileData = &copyFileData
 		}
+		if original.File.FileURL != nil {
+			copyFileURL := *original.File.FileURL
+			copyFile.FileURL = &copyFileURL
+		}
 		if original.File.FileID != nil {
 			copyFileID := *original.File.FileID
 			copyFile.FileID = &copyFileID
@@ -902,6 +910,14 @@ func deepCopyChatContentBlock(original ChatContentBlock) ChatContentBlock {
 		if original.File.Filename != nil {
 			copyFilename := *original.File.Filename
 			copyFile.Filename = &copyFilename
+		}
+		if original.File.FileType != nil {
+			copyFileType := *original.File.FileType
+			copyFile.FileType = &copyFileType
+		}
+		if original.File.ResolvedAsset != nil {
+			copyResolvedAsset := *original.File.ResolvedAsset
+			copyFile.ResolvedAsset = &copyResolvedAsset
 		}
 		copy.File = &copyFile
 	}

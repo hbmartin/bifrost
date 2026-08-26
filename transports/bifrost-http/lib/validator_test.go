@@ -671,6 +671,38 @@ func TestValidateConfigSchema_VirtualKeyProviderConfig_Valid(t *testing.T) {
 	}
 }
 
+func TestValidateConfigSchema_VirtualKeyProviderWeightBounds(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		weight  string
+		wantErr bool
+	}{
+		{name: "zero is a valid warm standby", weight: "0"},
+		{name: "negative is invalid configuration", weight: "-1", wantErr: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			config := `{
+				"governance": {
+					"virtual_keys": [{
+						"id": "vk-1",
+						"name": "Test Virtual Key",
+						"value": "vk_test_123456",
+						"provider_configs": [{"provider": "openai", "weight": ` + tc.weight + `}]
+					}]
+				}
+			}`
+
+			err := ValidateConfigSchema([]byte(config), loadLocalSchema(t))
+			if tc.wantErr && err == nil {
+				t.Fatal("expected negative provider weight to fail schema validation")
+			}
+			if !tc.wantErr && err != nil {
+				t.Fatalf("expected zero provider weight to pass schema validation: %v", err)
+			}
+		})
+	}
+}
+
 func TestValidateConfigSchema_VirtualKeyProviderConfig_MissingProvider(t *testing.T) {
 	// Missing required field: provider
 	invalidConfig := `{
