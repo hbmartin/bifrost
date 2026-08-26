@@ -87,6 +87,8 @@ Assigned weights are automatically normalized to a sum of 1.0 across participati
 
 A provider with a null or omitted `weight` is excluded from both weighted selection and the automatically generated fallback chain. An explicitly assigned `weight: 0` receives no primary load-balanced traffic but remains in the generated fallback chain when a positive-weight primary exists; positive finite weights participate in primary selection. If every assigned weight is `0`, governance skips load balancing and leaves provider selection unchanged.
 
+This differs intentionally from provider API-key selection, where an all-zero eligible key pool is selected uniformly for backward compatibility. See [Key Management](/features/keys-management#weighted-load-balancing).
+
 **Example with Wildcard `allowed_models` (allow all via Model Catalog):**
 ```json
 {
