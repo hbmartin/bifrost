@@ -37,6 +37,9 @@ func ToBedrockChatCompletionRequest(ctx *schemas.BifrostContext, bifrostReq *sch
 		}
 		input = input[:trimmed]
 	}
+	if err := validateBedrockAudioInput(ctx, bifrostReq.Provider, capModel, bifrostChatMessagesHaveAudio(input)); err != nil {
+		return nil, err
+	}
 	input, err := prepareBedrockChatMessages(ctx, input)
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare messages: %w", err)
@@ -48,9 +51,6 @@ func ToBedrockChatCompletionRequest(ctx *schemas.BifrostContext, bifrostReq *sch
 		return nil, fmt.Errorf("failed to convert messages: %w", err)
 	}
 	bedrockReq.Messages = messages
-	if err := validateBedrockMessageAudioInput(ctx, bifrostReq.Provider, capModel, messages); err != nil {
-		return nil, err
-	}
 	if len(systemMessages) > 0 {
 		bedrockReq.System = systemMessages
 	}

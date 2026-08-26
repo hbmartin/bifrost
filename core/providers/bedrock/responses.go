@@ -2276,6 +2276,9 @@ func ToBedrockResponsesRequest(ctx *schemas.BifrostContext, bifrostReq *schemas.
 			}
 			input = input[:trimmed]
 		}
+		if err := validateBedrockAudioInput(ctx, bifrostReq.Provider, capModel, bifrostResponsesMessagesHaveAudio(input)); err != nil {
+			return nil, err
+		}
 
 		// Inline mid-conversation system reminders for Anthropic models (keeps Bedrock's
 		// prefix-based prompt cache stable); hoist-everything for other families.
@@ -2284,9 +2287,6 @@ func ToBedrockResponsesRequest(ctx *schemas.BifrostContext, bifrostReq *schemas.
 			return nil, fmt.Errorf("failed to convert Responses messages: %w", err)
 		}
 		bedrockReq.Messages = messages
-		if err := validateBedrockMessageAudioInput(ctx, bifrostReq.Provider, capModel, messages); err != nil {
-			return nil, err
-		}
 		if len(systemMessages) > 0 {
 			bedrockReq.System = systemMessages
 		} else {
@@ -4044,7 +4044,8 @@ func convertBifrostSystemReminderToBedrockUserMessage(msg *schemas.ResponsesMess
 type bedrockResponsesContentDisposition uint8
 
 const (
-	bedrockResponsesContentConverted bedrockResponsesContentDisposition = iota
+	bedrockResponsesContentUnknown bedrockResponsesContentDisposition = iota
+	bedrockResponsesContentConverted
 	bedrockResponsesContentIntentionallySkipped
 	bedrockResponsesContentAbsent
 	bedrockResponsesContentUnsupported
@@ -4065,19 +4066,17 @@ func convertBifrostMessageToBedrockMessage(ctx context.Context, msg *schemas.Res
 }
 
 func convertBifrostMessageToBedrockMessageWithDisposition(ctx context.Context, msg *schemas.ResponsesMessage) (*BedrockMessage, bedrockResponsesContentDisposition, error) {
-	// Ensure Content is present
-	if msg.Content == nil {
-		return nil, bedrockResponsesContentAbsent, nil
-	}
-
 	bedrockMsg := BedrockMessage{
 		Role: BedrockMessageRole(*msg.Role),
 	}
 
-	// Convert content
-	conversion, err := convertBifrostResponsesMessageContentBlocksToBedrockContentBlocksWithDisposition(ctx, *msg.Content)
-	if err != nil {
-		return nil, bedrockResponsesContentUnsupported, err
+	conversion := bedrockResponsesContentConversion{Disposition: bedrockResponsesContentAbsent}
+	if msg.Content != nil {
+		var err error
+		conversion, err = convertBifrostResponsesMessageContentBlocksToBedrockContentBlocksWithDisposition(ctx, *msg.Content)
+		if err != nil {
+			return nil, bedrockResponsesContentUnsupported, err
+		}
 	}
 	if conversion.Disposition == bedrockResponsesContentIntentionallySkipped {
 		return nil, conversion.Disposition, nil
@@ -4734,13 +4733,6 @@ func convertBifrostReasoningToBedrockReasoning(msg *schemas.ResponsesMessage) []
 	}
 
 	return reasoningBlocks
-}
-
-// convertBifrostResponsesMessageContentBlocksToBedrockContentBlocks converts Bifrost content to Bedrock content blocks.
-// The ctx is propagated to URL fetches inside image blocks.
-func convertBifrostResponsesMessageContentBlocksToBedrockContentBlocks(ctx context.Context, content schemas.ResponsesMessageContent) ([]BedrockContentBlock, error) {
-	conversion, err := convertBifrostResponsesMessageContentBlocksToBedrockContentBlocksWithDisposition(ctx, content)
-	return conversion.Blocks, err
 }
 
 func convertBifrostResponsesMessageContentBlocksToBedrockContentBlocksWithDisposition(ctx context.Context, content schemas.ResponsesMessageContent) (bedrockResponsesContentConversion, error) {

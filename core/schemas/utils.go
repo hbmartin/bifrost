@@ -1562,6 +1562,50 @@ func deepCopyResponsesMessageContentBlock(original ResponsesMessageContentBlock)
 	copy := ResponsesMessageContentBlock{
 		Type: original.Type,
 	}
+	if original.CacheControl != nil {
+		copyCacheControl := *original.CacheControl
+		if original.CacheControl.TTL != nil {
+			copyTTL := *original.CacheControl.TTL
+			copyCacheControl.TTL = &copyTTL
+		}
+		if original.CacheControl.Scope != nil {
+			copyScope := *original.CacheControl.Scope
+			copyCacheControl.Scope = &copyScope
+		}
+		copy.CacheControl = &copyCacheControl
+	}
+	if original.Citations != nil {
+		copyCitations := *original.Citations
+		if original.Citations.Enabled != nil {
+			copyEnabled := *original.Citations.Enabled
+			copyCitations.Enabled = &copyEnabled
+		}
+		copy.Citations = &copyCitations
+	}
+	if original.PromptCacheBreakpoint != nil {
+		copyBreakpoint := *original.PromptCacheBreakpoint
+		if original.PromptCacheBreakpoint.Mode != nil {
+			copyMode := *original.PromptCacheBreakpoint.Mode
+			copyBreakpoint.Mode = &copyMode
+		}
+		copy.PromptCacheBreakpoint = &copyBreakpoint
+	}
+	if original.ResponsesOutputMessageContentRenderedContent != nil {
+		copyRenderedContent := *original.ResponsesOutputMessageContentRenderedContent
+		copy.ResponsesOutputMessageContentRenderedContent = &copyRenderedContent
+	}
+	if original.ResponsesOutputMessageContentCompaction != nil {
+		copyCompaction := *original.ResponsesOutputMessageContentCompaction
+		copy.ResponsesOutputMessageContentCompaction = &copyCompaction
+	}
+	if original.ResponsesOutputMessageContentFallback != nil {
+		copyFallback := *original.ResponsesOutputMessageContentFallback
+		if original.ResponsesOutputMessageContentFallback.TriggerCategory != nil {
+			copyTriggerCategory := *original.ResponsesOutputMessageContentFallback.TriggerCategory
+			copyFallback.TriggerCategory = &copyTriggerCategory
+		}
+		copy.ResponsesOutputMessageContentFallback = &copyFallback
+	}
 
 	// Copy FileID if present
 	if original.FileID != nil {
@@ -1613,6 +1657,10 @@ func deepCopyResponsesMessageContentBlock(original ResponsesMessageContentBlock)
 		if original.ResponsesInputMessageContentBlockFile.Filename != nil {
 			copyFilename := *original.ResponsesInputMessageContentBlockFile.Filename
 			copyFile.Filename = &copyFilename
+		}
+		if original.ResponsesInputMessageContentBlockFile.FileType != nil {
+			copyFileType := *original.ResponsesInputMessageContentBlockFile.FileType
+			copyFile.FileType = &copyFileType
 		}
 		copy.ResponsesInputMessageContentBlockFile = copyFile
 	}
