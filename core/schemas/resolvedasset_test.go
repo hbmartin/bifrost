@@ -79,3 +79,52 @@ func TestResolvedInputAssetIsTransientAndDeepCopied(t *testing.T) {
 		assert.NotContains(t, string(raw), "ResolvedAsset")
 	}
 }
+
+func TestDeepCopyResponsesMessageContentBlockPreservesMetadataAndPayloads(t *testing.T) {
+	cacheTTL := "1h"
+	cacheScope := "user"
+	citationsEnabled := true
+	breakpointMode := "explicit"
+	triggerCategory := "policy"
+	fileType := "application/pdf"
+	original := ResponsesMessageContentBlock{
+		Type: ResponsesInputMessageContentBlockTypeFile,
+		ResponsesInputMessageContentBlockFile: &ResponsesInputMessageContentBlockFile{
+			FileData: Ptr("ZmlsZQ=="), Filename: Ptr("report.pdf"), FileType: &fileType,
+		},
+		CacheControl:          &CacheControl{Type: CacheControlTypeEphemeral, TTL: &cacheTTL, Scope: &cacheScope},
+		Citations:             &Citations{Enabled: &citationsEnabled},
+		PromptCacheBreakpoint: &PromptCacheBreakpoint{Mode: &breakpointMode},
+		ResponsesOutputMessageContentRenderedContent: &ResponsesOutputMessageContentRenderedContent{RenderedContent: "<p>result</p>"},
+		ResponsesOutputMessageContentCompaction:      &ResponsesOutputMessageContentCompaction{Summary: "summary"},
+		ResponsesOutputMessageContentFallback: &ResponsesOutputMessageContentFallback{
+			FromModel: "old", ToModel: "new", TriggerType: "refusal", TriggerCategory: &triggerCategory,
+		},
+	}
+
+	copied := deepCopyResponsesMessageContentBlock(original)
+	require.NotNil(t, copied.ResponsesInputMessageContentBlockFile)
+	require.NotNil(t, copied.ResponsesInputMessageContentBlockFile.FileType)
+	assert.Equal(t, fileType, *copied.ResponsesInputMessageContentBlockFile.FileType)
+	assert.NotSame(t, original.ResponsesInputMessageContentBlockFile.FileType, copied.ResponsesInputMessageContentBlockFile.FileType)
+
+	require.NotNil(t, copied.CacheControl)
+	require.NotNil(t, copied.Citations)
+	require.NotNil(t, copied.PromptCacheBreakpoint)
+	assert.NotSame(t, original.CacheControl, copied.CacheControl)
+	assert.NotSame(t, original.CacheControl.TTL, copied.CacheControl.TTL)
+	assert.NotSame(t, original.CacheControl.Scope, copied.CacheControl.Scope)
+	assert.NotSame(t, original.Citations.Enabled, copied.Citations.Enabled)
+	assert.NotSame(t, original.PromptCacheBreakpoint.Mode, copied.PromptCacheBreakpoint.Mode)
+
+	require.NotNil(t, copied.ResponsesOutputMessageContentRenderedContent)
+	require.NotNil(t, copied.ResponsesOutputMessageContentCompaction)
+	require.NotNil(t, copied.ResponsesOutputMessageContentFallback)
+	assert.Equal(t, "<p>result</p>", copied.ResponsesOutputMessageContentRenderedContent.RenderedContent)
+	assert.Equal(t, "summary", copied.ResponsesOutputMessageContentCompaction.Summary)
+	assert.Equal(t, "old", copied.ResponsesOutputMessageContentFallback.FromModel)
+	assert.Equal(t, "new", copied.ResponsesOutputMessageContentFallback.ToModel)
+	require.NotNil(t, copied.ResponsesOutputMessageContentFallback.TriggerCategory)
+	assert.Equal(t, triggerCategory, *copied.ResponsesOutputMessageContentFallback.TriggerCategory)
+	assert.NotSame(t, original.ResponsesOutputMessageContentFallback.TriggerCategory, copied.ResponsesOutputMessageContentFallback.TriggerCategory)
+}
