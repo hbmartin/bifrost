@@ -940,7 +940,10 @@ func resolveBedrockChatContentBlock(ctx context.Context, block schemas.ChatConte
 			return block, false, nil
 		}
 		parsed, err := url.Parse(*block.File.FileURL)
-		if err != nil || (strings.ToLower(parsed.Scheme) != "http" && strings.ToLower(parsed.Scheme) != "https") {
+		if err != nil {
+			return block, false, err
+		}
+		if strings.ToLower(parsed.Scheme) != "http" && strings.ToLower(parsed.Scheme) != "https" {
 			return block, false, nil
 		}
 
