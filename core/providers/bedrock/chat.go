@@ -48,6 +48,9 @@ func ToBedrockChatCompletionRequest(ctx *schemas.BifrostContext, bifrostReq *sch
 		return nil, fmt.Errorf("failed to convert messages: %w", err)
 	}
 	bedrockReq.Messages = messages
+	if err := validateBedrockMessageAudioInput(ctx, bifrostReq.Provider, capModel, messages); err != nil {
+		return nil, err
+	}
 	if len(systemMessages) > 0 {
 		bedrockReq.System = systemMessages
 	}
