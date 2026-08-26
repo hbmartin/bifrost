@@ -978,10 +978,10 @@ func injectContentBlockCachePoints(blocks []BedrockContentBlock, raw json.RawMes
 		blockPath := fmt.Sprintf("%s.%d", basePath, j)
 		var trailingCachePoint *BedrockCachePoint
 		if block.ToolResult != nil {
-			block.ToolResult.Content, trailingCachePoint = hoistToolResultContentCachePoint(block.ToolResult.Content, raw, blockPath+".content")
-			if len(block.ToolResult.Content) == 0 {
-				block.ToolResult.Content = []BedrockContentBlock{{JSON: json.RawMessage(`{}`)}}
-			}
+			toolResult := *block.ToolResult
+			toolResult.Content, trailingCachePoint = hoistToolResultContentCachePoint(toolResult.Content, raw, blockPath+".content")
+			toolResult.Content = ensureBedrockToolResultContent(toolResult.Content)
+			block.ToolResult = &toolResult
 		}
 		result = append(result, block)
 		if cc := gjson.GetBytes(raw, blockPath+".cache_control"); cc.Exists() {
