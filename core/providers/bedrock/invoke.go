@@ -998,7 +998,7 @@ func injectContentBlockCachePoints(blocks []BedrockContentBlock, raw json.RawMes
 // after the containing ToolResult. Multiple nested markers collapse to the last
 // because they all map to the same legal outer boundary.
 func hoistToolResultContentCachePoint(blocks []BedrockContentBlock, raw json.RawMessage, basePath string) ([]BedrockContentBlock, *BedrockCachePoint) {
-	content := blocks[:0]
+	content := make([]BedrockContentBlock, 0, len(blocks))
 	var trailing *BedrockCachePoint
 	for i, block := range blocks {
 		if block.CachePoint != nil {
