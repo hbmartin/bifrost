@@ -1285,28 +1285,40 @@ func convertMessage(ctx context.Context, model string, msg schemas.ChatMessage) 
 
 // convertChatReasoningDetailsToBedrock mirrors the Responses replay precedence:
 // provider-native reasoning.text blocks with visible text win when present.
-// Streaming text and signature deltas are merged by index before conversion.
-// When there is no visible reasoning text, summary signatures stay paired with
-// their own text and a detached replay token is attached to the first unsigned
-// summary. An empty signed block is emitted only when there is no text or summary
-// to carry the token; conflicting extra tokens are not fabricated into blocks.
+// Streaming text and signature deltas are merged by index before conversion,
+// while a completed signed block starts a new accumulator even if a malformed
+// producer reuses the same index. A detached signature is never attached to text
+// from another block: it stays on its own required empty-text replay block.
 func convertChatReasoningDetailsToBedrock(details []schemas.ChatReasoningDetails) []BedrockContentBlock {
 	type reasoningTextAccumulator struct {
 		text      strings.Builder
 		signature *string
 	}
 
-	textByIndex := make(map[int]*reasoningTextAccumulator)
+	activeByIndex := make(map[int]*reasoningTextAccumulator)
 	textOrder := make([]*reasoningTextAccumulator, 0, len(details))
+	newAccumulator := func(index int) *reasoningTextAccumulator {
+		accumulator := &reasoningTextAccumulator{}
+		activeByIndex[index] = accumulator
+		textOrder = append(textOrder, accumulator)
+		return accumulator
+	}
 	for _, detail := range details {
 		if detail.Type != schemas.BifrostReasoningDetailsTypeText {
 			continue
 		}
-		accumulator, ok := textByIndex[detail.Index]
+		accumulator, ok := activeByIndex[detail.Index]
 		if !ok {
-			accumulator = &reasoningTextAccumulator{}
-			textByIndex[detail.Index] = accumulator
-			textOrder = append(textOrder, accumulator)
+			accumulator = newAccumulator(detail.Index)
+		} else if detail.Text != nil && *detail.Text != "" && accumulator.text.Len() > 0 && accumulator.signature != nil {
+			// A signature completes a reasoning block. Text arriving afterward is a
+			// distinct block even if the producer incorrectly reused its index.
+			accumulator = newAccumulator(detail.Index)
+		} else if signature := reasoningSignatureForBedrock(detail.Signature); signature != nil &&
+			accumulator.signature != nil && *signature != *accumulator.signature {
+			// Never let a later signature replace the signature paired with text that
+			// was already accumulated for this block.
+			accumulator = newAccumulator(detail.Index)
 		}
 		if detail.Text != nil && *detail.Text != "" {
 			accumulator.text.WriteString(*detail.Text)
@@ -1317,15 +1329,16 @@ func convertChatReasoningDetailsToBedrock(details []schemas.ChatReasoningDetails
 	}
 
 	blocks := make([]BedrockContentBlock, 0, len(details))
-	var detachedSignatures []*string
+	hasVisibleReasoningText := false
 	for _, accumulator := range textOrder {
-		if accumulator.text.Len() == 0 {
-			if accumulator.signature != nil {
-				detachedSignatures = append(detachedSignatures, accumulator.signature)
-			}
+		if accumulator.text.Len() == 0 && accumulator.signature == nil {
 			continue
 		}
-		text := accumulator.text.String()
+		text := ""
+		if accumulator.text.Len() > 0 {
+			text = accumulator.text.String()
+			hasVisibleReasoningText = true
+		}
 		blocks = append(blocks, BedrockContentBlock{ReasoningContent: &BedrockReasoningContent{
 			ReasoningText: &BedrockReasoningContentText{
 				Text:      &text,
@@ -1333,21 +1346,14 @@ func convertChatReasoningDetailsToBedrock(details []schemas.ChatReasoningDetails
 			},
 		}})
 	}
-	if len(blocks) > 0 {
-		for _, signature := range detachedSignatures {
-			if reasoningSignatureAlreadyUsed(blocks, signature) {
-				continue
-			}
-			for i := range blocks {
-				if blocks[i].ReasoningContent.ReasoningText.Signature == nil {
-					blocks[i].ReasoningContent.ReasoningText.Signature = signature
-					break
-				}
-			}
-		}
+	if hasVisibleReasoningText {
 		return blocks
 	}
+	// Signature-only reasoning.text details must not shadow visible summaries.
+	// Rebuild the fallback blocks below, keeping detached tokens separate.
+	blocks = blocks[:0]
 
+	var detachedSignatures []*string
 	for _, detail := range details {
 		switch detail.Type {
 		case schemas.BifrostReasoningDetailsTypeSummary:
@@ -1361,6 +1367,10 @@ func convertChatReasoningDetailsToBedrock(details []schemas.ChatReasoningDetails
 					Signature: reasoningSignatureForBedrock(detail.Signature),
 				},
 			}})
+		case schemas.BifrostReasoningDetailsTypeText:
+			if replayToken := reasoningSignatureForBedrock(detail.Signature); replayToken != nil {
+				detachedSignatures = append(detachedSignatures, replayToken)
+			}
 		case schemas.BifrostReasoningDetailsTypeEncrypted:
 			if replayToken := reasoningSignatureForBedrock(detail.Data); replayToken != nil {
 				detachedSignatures = append(detachedSignatures, replayToken)
@@ -1368,25 +1378,17 @@ func convertChatReasoningDetailsToBedrock(details []schemas.ChatReasoningDetails
 		}
 	}
 	for _, detachedSignature := range detachedSignatures {
-		if reasoningSignatureAlreadyUsed(blocks, detachedSignature) {
-			continue
-		}
-		attached := false
-		for i := range blocks {
-			reasoningText := blocks[i].ReasoningContent.ReasoningText
-			if reasoningText.Signature == nil {
-				reasoningText.Signature = detachedSignature
-				attached = true
-				break
-			}
-		}
-		if !attached && len(blocks) == 0 {
-			blocks = append(blocks, BedrockContentBlock{ReasoningContent: &BedrockReasoningContent{
-				ReasoningText: &BedrockReasoningContentText{Text: schemas.Ptr(""), Signature: detachedSignature},
-			}})
+		if !reasoningSignatureAlreadyUsed(blocks, detachedSignature) {
+			blocks = append(blocks, emptyBedrockReasoningBlock(detachedSignature))
 		}
 	}
 	return blocks
+}
+
+func emptyBedrockReasoningBlock(signature *string) BedrockContentBlock {
+	return BedrockContentBlock{ReasoningContent: &BedrockReasoningContent{
+		ReasoningText: &BedrockReasoningContentText{Text: schemas.Ptr(""), Signature: signature},
+	}}
 }
 
 func reasoningSignatureAlreadyUsed(blocks []BedrockContentBlock, signature *string) bool {
@@ -1554,18 +1556,7 @@ func convertContentBlock(model string, block schemas.ChatContentBlock) ([]Bedroc
 			// Skip nil or empty text as Bedrock rejects blank text content blocks
 			return []BedrockContentBlock{}, nil
 		}
-		blocks := []BedrockContentBlock{
-			{
-				Text: block.Text,
-			},
-		}
-		// Cache point must be in a separate block
-		if block.CacheControl != nil {
-			blocks = append(blocks, BedrockContentBlock{
-				CachePoint: newBedrockCachePoint(block.CacheControl.TTL),
-			})
-		}
-		return blocks, nil
+		return bedrockContentBlocksWithCachePoint(BedrockContentBlock{Text: block.Text}, block.CacheControl), nil
 
 	case schemas.ChatContentBlockTypeImage:
 		if block.ImageURLStruct == nil {
@@ -1582,18 +1573,7 @@ func convertContentBlock(model string, block schemas.ChatContentBlock) ([]Bedroc
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert image: %w", err)
 		}
-		blocks := []BedrockContentBlock{
-			{
-				Image: imageSource,
-			},
-		}
-		// Cache point must be in a separate block
-		if block.CacheControl != nil {
-			blocks = append(blocks, BedrockContentBlock{
-				CachePoint: newBedrockCachePoint(block.CacheControl.TTL),
-			})
-		}
-		return blocks, nil
+		return bedrockContentBlocksWithCachePoint(BedrockContentBlock{Image: imageSource}, block.CacheControl), nil
 
 	case schemas.ChatContentBlockTypeFile:
 		if block.File == nil {
@@ -1644,7 +1624,7 @@ func convertContentBlock(model string, block schemas.ChatContentBlock) ([]Bedroc
 		// the resolved asset. Never reject or re-resolve a source we already own.
 		if block.File.ResolvedAsset != nil {
 			documentSource.Source.Bytes = &block.File.ResolvedAsset.Data
-			return bedrockDocumentContentBlocks(documentSource, block.CacheControl), nil
+			return bedrockContentBlocksWithCachePoint(BedrockContentBlock{Document: documentSource}, block.CacheControl), nil
 		}
 
 		// s3:// document: hand Converse the object reference. Bytes and s3Location are
@@ -1675,7 +1655,7 @@ func convertContentBlock(model string, block schemas.ChatContentBlock) ([]Bedroc
 					return nil, providerUtils.InvalidRequestErrorf("cannot determine document format for %q: set file_type or give the object a file extension", *block.File.FileURL)
 				}
 				documentSource.Source.S3Location = s3Loc
-				return bedrockDocumentContentBlocks(documentSource, block.CacheControl), nil
+				return bedrockContentBlocksWithCachePoint(BedrockContentBlock{Document: documentSource}, block.CacheControl), nil
 			} else if strings.HasPrefix(*block.File.FileURL, "s3://") {
 				// The scheme is right but the reference is not: bedrockS3LocationFromURL
 				// rejects a bucket with no object key. Falling through would hand it to
@@ -1722,7 +1702,7 @@ func convertContentBlock(model string, block schemas.ChatContentBlock) ([]Bedroc
 					encoded := base64.StdEncoding.EncodeToString([]byte(dataURLPayload))
 					documentSource.Source.Bytes = &encoded
 				}
-				return bedrockDocumentContentBlocks(documentSource, block.CacheControl), nil
+				return bedrockContentBlocksWithCachePoint(BedrockContentBlock{Document: documentSource}, block.CacheControl), nil
 			}
 
 			// Set text or bytes based on file type
@@ -1735,7 +1715,7 @@ func convertContentBlock(model string, block schemas.ChatContentBlock) ([]Bedroc
 			}
 		}
 
-		return bedrockDocumentContentBlocks(documentSource, block.CacheControl), nil
+		return bedrockContentBlocksWithCachePoint(BedrockContentBlock{Document: documentSource}, block.CacheControl), nil
 	case schemas.ChatContentBlockTypeInputAudio:
 		if block.InputAudio == nil {
 			return nil, fmt.Errorf("input_audio block missing input_audio field")
@@ -1744,11 +1724,7 @@ func convertContentBlock(model string, block schemas.ChatContentBlock) ([]Bedroc
 		if err != nil {
 			return nil, err
 		}
-		blocks := []BedrockContentBlock{{Audio: audio}}
-		if block.CacheControl != nil {
-			blocks = append(blocks, BedrockContentBlock{CachePoint: newBedrockCachePoint(block.CacheControl.TTL)})
-		}
-		return blocks, nil
+		return bedrockContentBlocksWithCachePoint(BedrockContentBlock{Audio: audio}, block.CacheControl), nil
 
 	default:
 		// Handle cache-point-only blocks (Type is empty but CachePoint is set)
@@ -1765,12 +1741,11 @@ func convertContentBlock(model string, block schemas.ChatContentBlock) ([]Bedroc
 
 var bedrockAudioFormats = map[string]struct{}{
 	"mp3": {}, "opus": {}, "wav": {}, "aac": {}, "flac": {}, "mp4": {},
-	"ogg": {}, "mkv": {}, "mka": {}, "x-aac": {}, "m4a": {}, "mpeg": {},
-	"mpga": {}, "pcm": {}, "webm": {},
+	"ogg": {}, "mkv": {}, "mka": {}, "pcm": {}, "webm": {},
 }
 
-func bedrockDocumentContentBlocks(document *BedrockDocumentSource, cacheControl *schemas.CacheControl) []BedrockContentBlock {
-	blocks := []BedrockContentBlock{{Document: document}}
+func bedrockContentBlocksWithCachePoint(block BedrockContentBlock, cacheControl *schemas.CacheControl) []BedrockContentBlock {
+	blocks := []BedrockContentBlock{block}
 	if cacheControl != nil {
 		blocks = append(blocks, BedrockContentBlock{CachePoint: newBedrockCachePoint(cacheControl.TTL)})
 	}
@@ -1826,21 +1801,21 @@ func normalizeBedrockAudioFormat(format string) string {
 	}
 }
 
-func bedrockContentBlocksHaveAudio(blocks []BedrockContentBlock) bool {
-	for _, block := range blocks {
-		if block.Audio != nil {
-			return true
-		}
-		if block.ToolResult != nil && bedrockContentBlocksHaveAudio(block.ToolResult.Content) {
-			return true
-		}
-	}
-	return false
-}
-
 func bifrostChatMessagesHaveAudio(messages []schemas.ChatMessage) bool {
 	for _, message := range messages {
+		switch message.Role {
+		case schemas.ChatMessageRoleSystem, schemas.ChatMessageRoleDeveloper:
+			if len(messages) != 1 {
+				continue
+			}
+		case schemas.ChatMessageRoleUser, schemas.ChatMessageRoleAssistant, schemas.ChatMessageRoleTool:
+		default:
+			continue
+		}
 		if message.Content == nil {
+			continue
+		}
+		if message.Content.ContentStr != nil && strings.TrimSpace(*message.Content.ContentStr) != "" {
 			continue
 		}
 		for _, block := range message.Content.ContentBlocks {
@@ -1854,29 +1829,74 @@ func bifrostChatMessagesHaveAudio(messages []schemas.ChatMessage) bool {
 
 func bifrostResponsesMessagesHaveAudio(messages []schemas.ResponsesMessage) bool {
 	for _, message := range messages {
-		if message.Content != nil {
+		msgType := schemas.ResponsesMessageTypeMessage
+		if message.Type != nil {
+			msgType = *message.Type
+		}
+		isSystemMessage := message.Role != nil &&
+			(*message.Role == schemas.ResponsesInputMessageRoleSystem || *message.Role == schemas.ResponsesInputMessageRoleDeveloper)
+		if msgType == schemas.ResponsesMessageTypeMessage && message.Role != nil &&
+			message.Content != nil && message.Content.ContentStr == nil && (!isSystemMessage || len(messages) == 1) {
 			for _, block := range message.Content.ContentBlocks {
 				if block.Type == schemas.ResponsesInputMessageContentBlockTypeAudio && block.Audio != nil {
 					return true
 				}
 			}
 		}
-		if message.ResponsesToolMessage == nil || message.ResponsesToolMessage.Output == nil {
+		if msgType != schemas.ResponsesMessageTypeFunctionCallOutput ||
+			message.ResponsesToolMessage == nil || message.ResponsesToolMessage.Output == nil {
 			continue
 		}
 		output := message.ResponsesToolMessage.Output
-		for _, block := range output.ResponsesFunctionToolCallOutputBlocks {
-			if block.Type == schemas.ResponsesInputMessageContentBlockTypeAudio && block.Audio != nil {
+		if output.ResponsesToolCallOutputStr != nil {
+			if bedrockToolResultEnvelopeHasAudio(*output.ResponsesToolCallOutputStr) {
 				return true
 			}
+			continue
 		}
-		if output.ResponsesToolCallOutputStr != nil {
-			if blocks, ok := decodeBedrockToolResultEnvelope(*output.ResponsesToolCallOutputStr); ok && bedrockContentBlocksHaveAudio(blocks) {
+		for _, block := range output.ResponsesFunctionToolCallOutputBlocks {
+			if block.Text == nil && block.Type == schemas.ResponsesInputMessageContentBlockTypeAudio && block.Audio != nil {
 				return true
 			}
 		}
 	}
 	return false
+}
+
+func bedrockToolResultEnvelopeHasAudio(s string) bool {
+	if len(s) == 0 || s[0] != '{' || !strings.Contains(s, bedrockToolResultEnvelopeKey) {
+		return false
+	}
+	root := gjson.Parse(s)
+	if !root.IsObject() {
+		return false
+	}
+	fieldCount := 0
+	isEnvelope := true
+	root.ForEach(func(key, _ gjson.Result) bool {
+		fieldCount++
+		if key.String() != bedrockToolResultEnvelopeKey {
+			isEnvelope = false
+		}
+		return true
+	})
+	content := root.Get(bedrockToolResultEnvelopeKey)
+	return fieldCount == 1 && isEnvelope && bedrockJSONContentBlocksHaveAudio(content)
+}
+
+func bedrockJSONContentBlocksHaveAudio(blocks gjson.Result) bool {
+	if !blocks.IsArray() {
+		return false
+	}
+	found := false
+	blocks.ForEach(func(_, block gjson.Result) bool {
+		if block.Get("audio").Exists() || bedrockJSONContentBlocksHaveAudio(block.Get("toolResult.content")) {
+			found = true
+			return false
+		}
+		return true
+	})
+	return found
 }
 
 // validateBedrockAudioInput rejects audio before request conversion performs
