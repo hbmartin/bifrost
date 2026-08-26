@@ -391,7 +391,7 @@ func TestSelectWeightedProviderConfigRejectsOnlyUnusableWeights(t *testing.T) {
 	assert.False(t, ok)
 }
 
-func TestSelectWeightedProviderConfigUsesAllZeroPoolUniformly(t *testing.T) {
+func TestSelectWeightedProviderConfigRejectsAllZeroPool(t *testing.T) {
 	candidates := []schemas.ProviderCandidate{
 		{Provider: "unset"},
 		{Provider: "zero-first", Weight: schemas.Ptr(0.0)},
@@ -399,13 +399,11 @@ func TestSelectWeightedProviderConfigUsesAllZeroPoolUniformly(t *testing.T) {
 		{Provider: "zero-second", Weight: schemas.Ptr(0.0)},
 	}
 
-	selected, ok := selectWeightedProviderConfigAt(candidates, 0)
-	require.True(t, ok)
-	assert.Equal(t, "zero-first", selected.Provider)
+	_, ok := selectWeightedProviderConfigAt(candidates, 0)
+	assert.False(t, ok)
 
-	selected, ok = selectWeightedProviderConfigAt(candidates, math.Nextafter(1, 0))
-	require.True(t, ok)
-	assert.Equal(t, "zero-second", selected.Provider)
+	_, ok = selectWeightedProviderConfigAt(candidates, math.Nextafter(1, 0))
+	assert.False(t, ok)
 }
 
 func TestSelectWeightedProviderConfigPreservesTinyWeights(t *testing.T) {
@@ -449,7 +447,7 @@ func TestLoadBalanceProviderKeepsZeroWeightProviderAsFallback(t *testing.T) {
 	assert.Equal(t, schemas.Anthropic, fallbacks[0].Provider)
 }
 
-func TestLoadBalanceProviderBuildsAllZeroPrimaryAndFallback(t *testing.T) {
+func TestLoadBalanceProviderSkipsAllZeroPool(t *testing.T) {
 	first := buildProviderConfig("openai", []string{"*"})
 	second := buildProviderConfig("anthropic", []string{"*"})
 	first.Weight = schemas.Ptr(0.0)
@@ -464,9 +462,11 @@ func TestLoadBalanceProviderBuildsAllZeroPrimaryAndFallback(t *testing.T) {
 
 	require.NoError(t, p.LoadBalanceProvider(ctx, req))
 	provider, _, fallbacks := req.GetRequestFields()
-	assert.Contains(t, []schemas.ModelProvider{schemas.OpenAI, schemas.Anthropic}, provider)
-	require.Len(t, fallbacks, 1)
-	assert.NotEqual(t, provider, fallbacks[0].Provider)
+	assert.Empty(t, provider)
+	assert.Empty(t, fallbacks)
+	logs := ctx.GetRoutingEngineLogs()
+	require.NotEmpty(t, logs)
+	assert.Contains(t, logs[len(logs)-1].Message, "all assigned weights are zero")
 }
 
 func TestLoadBalanceProviderPreservesUnsetWeightDiagnostic(t *testing.T) {

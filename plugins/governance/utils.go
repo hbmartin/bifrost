@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	bifrost "github.com/maximhq/bifrost/core"
-	"github.com/maximhq/bifrost/core/keyselectors"
 	"github.com/maximhq/bifrost/core/schemas"
 	"github.com/valyala/fasthttp"
 )
@@ -80,21 +79,76 @@ func IsModelCheckedWhenPresent(requestType schemas.RequestType) bool {
 	}
 }
 
-// selectWeightedProviderConfigAt selects a primary provider using the same
-// overflow-safe positive and all-zero reserve behavior as core API-key selection.
-// Nil weights opt out rather than joining the zero-weight reserve pool.
+// selectWeightedProviderConfigAt selects a primary provider from finite,
+// strictly positive weights. Nil and zero weights do not participate in primary
+// selection; zero weights remain eligible for the generated fallback chain.
 func selectWeightedProviderConfigAt(candidates []schemas.ProviderCandidate, unitRandom float64) (schemas.ProviderCandidate, bool) {
-	return keyselectors.SelectWeightedAt(candidates, func(candidate *schemas.ProviderCandidate) float64 {
-		if candidate.Weight == nil {
-			return math.NaN()
+	var zero schemas.ProviderCandidate
+	totalWeight := 0.0
+	maxWeight := 0.0
+	lastEligible := -1
+	for i := range candidates {
+		if candidates[i].Weight == nil {
+			continue
 		}
-		return *candidate.Weight
-	}, unitRandom)
+		weight := *candidates[i].Weight
+		if !isPositiveFiniteProviderWeight(weight) {
+			continue
+		}
+		totalWeight += weight
+		if weight > maxWeight {
+			maxWeight = weight
+		}
+		lastEligible = i
+	}
+	if lastEligible < 0 {
+		return zero, false
+	}
+
+	if !math.IsInf(totalWeight, 1) {
+		randomValue := unitRandom * totalWeight
+		currentWeight := 0.0
+		for i := range candidates {
+			if candidates[i].Weight == nil || !isPositiveFiniteProviderWeight(*candidates[i].Weight) {
+				continue
+			}
+			currentWeight += *candidates[i].Weight
+			if randomValue < currentWeight {
+				return candidates[i], true
+			}
+		}
+		return candidates[lastEligible], true
+	}
+
+	// Normalize only the overflow path so even MaxFloat64-sized weights keep
+	// their intended proportions without changing the ordinary hot path.
+	totalWeight = 0
+	for i := range candidates {
+		if candidates[i].Weight != nil && isPositiveFiniteProviderWeight(*candidates[i].Weight) {
+			totalWeight += *candidates[i].Weight / maxWeight
+		}
+	}
+	randomValue := unitRandom * totalWeight
+	currentWeight := 0.0
+	for i := range candidates {
+		if candidates[i].Weight == nil || !isPositiveFiniteProviderWeight(*candidates[i].Weight) {
+			continue
+		}
+		currentWeight += *candidates[i].Weight / maxWeight
+		if randomValue < currentWeight {
+			return candidates[i], true
+		}
+	}
+	return candidates[lastEligible], true
+}
+
+func isPositiveFiniteProviderWeight(weight float64) bool {
+	return weight > 0 && !math.IsInf(weight, 0)
 }
 
 // providerFallbackConfigs returns the candidates carrying an assigned, non-negative finite
 // weight. Zero-weight providers are excluded from primary traffic while a positive alternative
-// exists, remain generated fallbacks, and participate in an all-zero primary pool.
+// exists and remain generated fallbacks.
 func providerFallbackConfigs(candidates []schemas.ProviderCandidate) []schemas.ProviderCandidate {
 	fallbacks := make([]schemas.ProviderCandidate, 0, len(candidates))
 	for _, candidate := range candidates {
@@ -102,7 +156,7 @@ func providerFallbackConfigs(candidates []schemas.ProviderCandidate) []schemas.P
 			continue
 		}
 		weight := *candidate.Weight
-		if weight == 0 || keyselectors.IsPositiveFiniteWeight(weight) {
+		if weight == 0 || isPositiveFiniteProviderWeight(weight) {
 			fallbacks = append(fallbacks, candidate)
 		}
 	}
