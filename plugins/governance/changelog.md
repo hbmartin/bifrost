@@ -1,1 +1,1 @@
-- fix: ignore negative and non-finite provider weights during load balancing, retain zero-weight providers as generated fallbacks, and select uniformly when every participating provider has zero weight [@hbmartin](https://github.com/hbmartin)
+- fix: ignore zero, negative, and non-finite provider weights during primary load balancing while retaining zero-weight providers as generated fallbacks [@hbmartin](https://github.com/hbmartin)
