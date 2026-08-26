@@ -82,10 +82,10 @@ curl -X POST http://localhost:8080/v1/chat/completions \
 ```
 
 <Info>
-Weights are automatically normalized to a sum 1.0 based on the weights of all providers available on the VK for the given model.
+Assigned weights are automatically normalized to a sum of 1.0 across participating providers available on the VK for the given model.
 </Info>
 
-A provider with `weight: 0` receives no primary load-balanced traffic while a positive-weight provider is available, but remains in an automatically generated fallback chain. If every participating provider has weight `0`, Bifrost selects uniformly across that pool and uses the remaining providers as fallbacks. This supports warm-standby providers without making an all-zero configuration unroutable.
+A provider with a null or omitted `weight` is excluded from both weighted selection and the automatically generated fallback chain. An explicitly assigned `weight: 0` receives no primary load-balanced traffic while a positive-weight provider is available, but remains in the generated fallback chain; positive finite weights participate as well. If every participating provider has weight `0`, Bifrost selects uniformly across that pool and uses the remaining providers as fallbacks. This supports warm-standby providers without making an all-zero configuration unroutable.
 
 **Example with Wildcard `allowed_models` (allow all via Model Catalog):**
 ```json

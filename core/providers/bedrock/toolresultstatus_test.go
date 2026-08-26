@@ -10,6 +10,8 @@ import (
 	"github.com/maximhq/bifrost/core/schemas"
 )
 
+const toolResultTestModel = "anthropic.claude-sonnet-4-5-20250929-v1:0"
+
 // TestToolResultStatusFromIsError verifies that a tool message carrying
 // IsError converts to a Converse toolResult with status "error", and that
 // non-error results keep the "success" default. Before IsError existed on
@@ -29,7 +31,7 @@ func TestToolResultStatusFromIsError(t *testing.T) {
 		},
 	}
 
-	converted, err := convertToolMessages(context.Background(), "anthropic.claude-sonnet-4-5-20250929-v1:0", msgs)
+	converted, err := convertToolMessages(toolResultTestModel, msgs)
 	if err != nil {
 		t.Fatalf("convert tool messages: %v", err)
 	}
@@ -56,7 +58,7 @@ func TestToolResultStatusFromIsError(t *testing.T) {
 }
 
 func TestToolResultWithoutContentStillEmitsResult(t *testing.T) {
-	converted, err := convertToolMessages(context.Background(), []schemas.ChatMessage{
+	converted, err := convertToolMessages(toolResultTestModel, []schemas.ChatMessage{
 		{
 			Role:            schemas.ChatMessageRoleTool,
 			ChatToolMessage: &schemas.ChatToolMessage{ToolCallID: schemas.Ptr("toolu_void")},
@@ -88,7 +90,7 @@ func TestToolResultWithoutContentStillEmitsResult(t *testing.T) {
 func TestBlankToolResultContentUsesEmptyJSON(t *testing.T) {
 	for _, content := range []string{"", " \t\n "} {
 		t.Run(fmt.Sprintf("content_%q", content), func(t *testing.T) {
-			converted, err := convertToolMessages(context.Background(), []schemas.ChatMessage{
+			converted, err := convertToolMessages(toolResultTestModel, []schemas.ChatMessage{
 				{
 					Role:            schemas.ChatMessageRoleTool,
 					ChatToolMessage: &schemas.ChatToolMessage{ToolCallID: schemas.Ptr("toolu_blank")},
@@ -107,7 +109,7 @@ func TestBlankToolResultContentUsesEmptyJSON(t *testing.T) {
 }
 
 func TestToolResultContentBlocksUseSharedConverter(t *testing.T) {
-	converted, err := convertToolMessages(context.Background(), []schemas.ChatMessage{
+	converted, err := convertToolMessages(toolResultTestModel, []schemas.ChatMessage{
 		{
 			Role:            schemas.ChatMessageRoleTool,
 			ChatToolMessage: &schemas.ChatToolMessage{ToolCallID: schemas.Ptr("toolu_blocks")},
@@ -142,7 +144,30 @@ func TestToolResultContentBlocksUseSharedConverter(t *testing.T) {
 
 func TestToolResultHTTPFileURLUsesSharedSafeFetcher(t *testing.T) {
 	fileURL := "http://127.0.0.1:1/result.pdf"
-	_, err := convertToolMessages(context.Background(), []schemas.ChatMessage{{
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
+	_, err := ToBedrockChatCompletionRequest(ctx, &schemas.BifrostChatRequest{
+		Provider: schemas.Bedrock,
+		Model:    "anthropic.claude-sonnet-4-5-20250929-v1:0",
+		Input: []schemas.ChatMessage{{
+			Role:            schemas.ChatMessageRoleTool,
+			ChatToolMessage: &schemas.ChatToolMessage{ToolCallID: schemas.Ptr("toolu_url")},
+			Content: &schemas.ChatMessageContent{ContentBlocks: []schemas.ChatContentBlock{{
+				Type: schemas.ChatContentBlockTypeFile,
+				File: &schemas.ChatInputFile{FileURL: &fileURL},
+			}}},
+		}},
+	})
+	if err == nil {
+		t.Fatal("expected the SSRF-safe fetcher to block a loopback URL")
+	}
+	if !strings.Contains(err.Error(), "blocked connection to non-public address") {
+		t.Fatalf("tool-result file URL did not reach the shared safe fetcher: %v", err)
+	}
+}
+
+func TestToolResultConversionDoesNotFetchUnresolvedFileURL(t *testing.T) {
+	fileURL := "http://127.0.0.1:1/result.pdf"
+	_, err := convertToolMessages(toolResultTestModel, []schemas.ChatMessage{{
 		Role:            schemas.ChatMessageRoleTool,
 		ChatToolMessage: &schemas.ChatToolMessage{ToolCallID: schemas.Ptr("toolu_url")},
 		Content: &schemas.ChatMessageContent{ContentBlocks: []schemas.ChatContentBlock{{
@@ -150,11 +175,8 @@ func TestToolResultHTTPFileURLUsesSharedSafeFetcher(t *testing.T) {
 			File: &schemas.ChatInputFile{FileURL: &fileURL},
 		}}},
 	}})
-	if err == nil {
-		t.Fatal("expected the SSRF-safe fetcher to block a loopback URL")
-	}
-	if strings.Contains(err.Error(), "HTTP(S) file URLs are not supported") {
-		t.Fatalf("tool-result file URL was rejected before shared conversion: %v", err)
+	if err == nil || !strings.Contains(err.Error(), "must be resolved before Bedrock content conversion") {
+		t.Fatalf("expected pure conversion to reject unresolved file URL, got %v", err)
 	}
 }
 
@@ -182,7 +204,7 @@ func TestAssistantMetadataOnlyMessagesConvertUsableText(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			messages, _, err := convertMessages(context.Background(), []schemas.ChatMessage{tc.message})
+			messages, _, err := convertMessages(context.Background(), toolResultTestModel, []schemas.ChatMessage{tc.message})
 			if err != nil {
 				t.Fatalf("convert assistant metadata: %v", err)
 			}
@@ -199,7 +221,7 @@ func TestAssistantReasoningAliasAndSummaryConvert(t *testing.T) {
 		{ReasoningDetails: []schemas.ChatReasoningDetails{{Type: schemas.BifrostReasoningDetailsTypeSummary, Summary: schemas.Ptr("summary reasoning")}}},
 	}
 	for _, assistant := range tests {
-		converted, err := convertMessage(context.Background(), schemas.ChatMessage{
+		converted, err := convertMessage(context.Background(), toolResultTestModel, schemas.ChatMessage{
 			Role:                 schemas.ChatMessageRoleAssistant,
 			ChatAssistantMessage: &assistant,
 		})
@@ -213,7 +235,7 @@ func TestAssistantReasoningAliasAndSummaryConvert(t *testing.T) {
 }
 
 func TestAnnotationOnlyAssistantMessageReturnsExplicitError(t *testing.T) {
-	_, err := convertMessage(context.Background(), schemas.ChatMessage{
+	_, err := convertMessage(context.Background(), toolResultTestModel, schemas.ChatMessage{
 		Role: schemas.ChatMessageRoleAssistant,
 		ChatAssistantMessage: &schemas.ChatAssistantMessage{
 			Annotations: []schemas.ChatAssistantMessageAnnotation{{Type: "url_citation"}},
@@ -226,7 +248,7 @@ func TestAnnotationOnlyAssistantMessageReturnsExplicitError(t *testing.T) {
 
 func TestResponsesRefusalOnlyMessageConvertsToText(t *testing.T) {
 	role := schemas.ResponsesInputMessageRoleAssistant
-	converted, err := convertBifrostMessageToBedrockMessage(context.Background(), &schemas.ResponsesMessage{
+	converted, err := convertBifrostMessageToBedrockMessage(context.Background(), toolResultTestModel, &schemas.ResponsesMessage{
 		Role: &role,
 		Content: &schemas.ResponsesMessageContent{ContentBlocks: []schemas.ResponsesMessageContentBlock{{
 			Type: schemas.ResponsesOutputMessageContentTypeRefusal,
@@ -245,7 +267,7 @@ func TestResponsesRefusalOnlyMessageConvertsToText(t *testing.T) {
 
 func TestBlankResponsesMessageReturnsError(t *testing.T) {
 	role := schemas.ResponsesInputMessageRoleAssistant
-	_, err := convertBifrostMessageToBedrockMessage(context.Background(), &schemas.ResponsesMessage{
+	_, err := convertBifrostMessageToBedrockMessage(context.Background(), toolResultTestModel, &schemas.ResponsesMessage{
 		Role:    &role,
 		Content: &schemas.ResponsesMessageContent{ContentBlocks: []schemas.ResponsesMessageContentBlock{}},
 	})
@@ -266,7 +288,7 @@ func TestBlankRegularMessageContentReturnsError(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			_, _, err := convertMessages(context.Background(), []schemas.ChatMessage{tc.message})
+			_, _, err := convertMessages(context.Background(), toolResultTestModel, []schemas.ChatMessage{tc.message})
 			if err == nil || !strings.Contains(err.Error(), "message content must not be blank") {
 				t.Fatalf("expected blank regular-message error, got %v", err)
 			}
@@ -275,7 +297,7 @@ func TestBlankRegularMessageContentReturnsError(t *testing.T) {
 }
 
 func TestNilSystemMessageContentReturnsError(t *testing.T) {
-	_, _, err := convertMessages(context.Background(), []schemas.ChatMessage{{Role: schemas.ChatMessageRoleSystem}})
+	_, _, err := convertMessages(context.Background(), toolResultTestModel, []schemas.ChatMessage{{Role: schemas.ChatMessageRoleSystem}})
 	if err == nil || !strings.Contains(err.Error(), "system message missing required content") {
 		t.Fatalf("expected missing system content error, got %v", err)
 	}
@@ -312,7 +334,7 @@ func TestMalformedToolMessagesReturnErrors(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := convertToolMessages(context.Background(), []schemas.ChatMessage{tc.message})
+			_, err := convertToolMessages(toolResultTestModel, []schemas.ChatMessage{tc.message})
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("expected error containing %q, got %v", tc.want, err)
 			}
@@ -322,7 +344,7 @@ func TestMalformedToolMessagesReturnErrors(t *testing.T) {
 
 func TestBlankAssistantToolCallIDReturnsError(t *testing.T) {
 	for _, id := range []*string{nil, schemas.Ptr("  ")} {
-		_, err := convertMessage(context.Background(), schemas.ChatMessage{
+		_, err := convertMessage(context.Background(), toolResultTestModel, schemas.ChatMessage{
 			Role: schemas.ChatMessageRoleAssistant,
 			ChatAssistantMessage: &schemas.ChatAssistantMessage{ToolCalls: []schemas.ChatAssistantMessageToolCall{{
 				ID: id,
