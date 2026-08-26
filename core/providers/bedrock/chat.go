@@ -37,6 +37,10 @@ func ToBedrockChatCompletionRequest(ctx *schemas.BifrostContext, bifrostReq *sch
 		}
 		input = input[:trimmed]
 	}
+	input, err := prepareBedrockChatMessages(ctx, input)
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare messages: %w", err)
+	}
 
 	// Convert messages and system messages
 	messages, systemMessages, err := convertMessages(ctx, input)

@@ -889,6 +889,26 @@ func TestBedrockInvokeRequest_UnmarshalJSON_ToolResultNestedContentCacheControlI
 	assert.Equal(t, BedrockCachePointTypeDefault, req.Messages[0].Content[1].CachePoint.Type)
 }
 
+func TestHoistToolResultContentCachePointDoesNotMutateInputSlice(t *testing.T) {
+	cachePoint := newBedrockCachePoint(nil)
+	text := schemas.Ptr("kept")
+	blocks := []BedrockContentBlock{
+		{CachePoint: cachePoint},
+		{Text: text},
+	}
+	alias := blocks[:]
+
+	content, trailing := hoistToolResultContentCachePoint(blocks, nil, "content")
+
+	require.Len(t, content, 1)
+	assert.Same(t, text, content[0].Text)
+	assert.Same(t, cachePoint, trailing)
+	require.Len(t, alias, 2)
+	assert.Same(t, cachePoint, alias[0].CachePoint)
+	assert.Nil(t, alias[0].Text)
+	assert.Same(t, text, alias[1].Text)
+}
+
 // TestBedrockInvokeRequest_UnmarshalJSON_ContentBlockNoCacheControlUnaffected is the regression
 // guard: with no cache_control anywhere in the message content, applyMessageContentCacheControl
 // must be a no-op — no injected CachePoint siblings, content byte-identical to pre-fix behavior.
