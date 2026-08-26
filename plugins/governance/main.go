@@ -450,13 +450,11 @@ func (p *GovernancePlugin) LoadBalanceProvider(ctx *schemas.BifrostContext, req 
 		return nil
 	}
 
-	fallbackCandidates, assignedWeightCount := providerFallbackConfigs(eligible)
 	selectedCandidate, ok := selectWeightedProviderConfigAt(eligible, rand.Float64())
 	if !ok {
+		assignedWeightCount := assignedProviderWeightCount(eligible)
 		if assignedWeightCount == 0 {
 			ctx.AppendRoutingEngineLog(schemas.RoutingEngineGovernance, schemas.LogLevelInfo, fmt.Sprintf("No weighted providers for model %s — none of the allowed providers have a weight assigned; skipping load balancing", modelStr))
-		} else if len(fallbackCandidates) > 0 {
-			ctx.AppendRoutingEngineLog(schemas.RoutingEngineGovernance, schemas.LogLevelInfo, fmt.Sprintf("No positive provider weights for model %s; zero-weight providers remain fallback-only, skipping load balancing", modelStr))
 		} else {
 			ctx.AppendRoutingEngineLog(schemas.RoutingEngineGovernance, schemas.LogLevelInfo, fmt.Sprintf("No usable weighted providers for model %s — all assigned weights are negative or non-finite; skipping load balancing", modelStr))
 		}
@@ -482,10 +480,13 @@ func (p *GovernancePlugin) LoadBalanceProvider(ctx *schemas.BifrostContext, req 
 
 	schemas.AppendToContextList(ctx, schemas.BifrostContextKeyRoutingEnginesUsed, schemas.RoutingEngineGovernance)
 
-	if len(existingFallbacks) == 0 && len(fallbackCandidates) > 1 {
-		fallbackCandidates = append([]schemas.ProviderCandidate(nil), fallbackCandidates...)
+	if len(existingFallbacks) == 0 {
+		fallbackCandidates := providerFallbackConfigs(eligible)
+		if len(fallbackCandidates) <= 1 {
+			return nil
+		}
 		sort.Slice(fallbackCandidates, func(i, j int) bool {
-			return getWeight(fallbackCandidates[i].Weight) > getWeight(fallbackCandidates[j].Weight)
+			return *fallbackCandidates[i].Weight > *fallbackCandidates[j].Weight
 		})
 
 		// Filter out the selected provider and create fallbacks array

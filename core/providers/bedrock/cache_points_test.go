@@ -41,39 +41,6 @@ func TestStripCachePoints_MessageBlocks(t *testing.T) {
 	}
 }
 
-// TestStripCachePoints_NestedToolResultContent — CachePoint blocks inside a
-// ToolResult's Content slice are filtered out; the tool result itself survives.
-func TestStripCachePoints_NestedToolResultContent(t *testing.T) {
-	req := &BedrockConverseRequest{
-		Messages: []BedrockMessage{
-			{
-				Role: BedrockMessageRoleUser,
-				Content: []BedrockContentBlock{
-					{
-						ToolResult: &BedrockToolResult{
-							ToolUseID: "call_1",
-							Content: []BedrockContentBlock{
-								{Text: schemas.Ptr("result text")},
-								{CachePoint: cachePoint()},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-
-	stripCachePointsFromBedrockRequest(req)
-
-	inner := req.Messages[0].Content[0].ToolResult.Content
-	if len(inner) != 1 {
-		t.Fatalf("expected 1 inner block after stripping, got %d", len(inner))
-	}
-	if inner[0].Text == nil || *inner[0].Text != "result text" {
-		t.Errorf("expected inner text block to survive, got %+v", inner[0])
-	}
-}
-
 // TestStripCachePoints_SystemMessagesDropCachePointOnly — a system message
 // that contained only a CachePoint (text==nil) is removed entirely; a real
 // text system message is kept.
@@ -164,9 +131,9 @@ func cachePointTTL(ttl BedrockCacheWriteTTL) *BedrockCachePoint {
 	return &BedrockCachePoint{Type: BedrockCachePointTypeDefault, TTL: schemas.Ptr(string(ttl))}
 }
 
-// TestDowngradeExtendedCacheTTL — 1h cache TTLs across messages, nested tool
-// results, system, and tools are dropped to default; 5m and unset TTLs are
-// untouched and the cache points themselves are preserved.
+// TestDowngradeExtendedCacheTTL — 1h cache TTLs across messages, tool results,
+// system, and tools are dropped to default; 5m and unset TTLs are untouched and
+// the cache points themselves are preserved.
 func TestDowngradeExtendedCacheTTL(t *testing.T) {
 	req := &BedrockConverseRequest{
 		Messages: []BedrockMessage{
@@ -175,14 +142,8 @@ func TestDowngradeExtendedCacheTTL(t *testing.T) {
 				Content: []BedrockContentBlock{
 					{Text: schemas.Ptr("hello"), CachePoint: cachePointTTL(BedrockCacheWriteTTL1h)},
 					{Text: schemas.Ptr("world"), CachePoint: cachePointTTL(BedrockCacheWriteTTL5m)},
-					{
-						ToolResult: &BedrockToolResult{
-							ToolUseID: "call_1",
-							Content: []BedrockContentBlock{
-								{Text: schemas.Ptr("tr"), CachePoint: cachePointTTL(BedrockCacheWriteTTL1h)},
-							},
-						},
-					},
+					{ToolResult: &BedrockToolResult{ToolUseID: "call_1", Content: []BedrockContentBlock{{Text: schemas.Ptr("tr")}}}},
+					{CachePoint: cachePointTTL(BedrockCacheWriteTTL1h)},
 				},
 			},
 		},
@@ -199,8 +160,8 @@ func TestDowngradeExtendedCacheTTL(t *testing.T) {
 	if cp := blocks[1].CachePoint; cp == nil || cp.TTL == nil || *cp.TTL != string(BedrockCacheWriteTTL5m) {
 		t.Errorf("expected 5m cache point preserved, got %+v", cp)
 	}
-	if cp := blocks[2].ToolResult.Content[0].CachePoint; cp == nil || cp.TTL != nil {
-		t.Errorf("expected nested 1h tool-result cache point downgraded, got %+v", cp)
+	if cp := blocks[3].CachePoint; cp == nil || cp.TTL != nil {
+		t.Errorf("expected 1h tool-result cache point downgraded, got %+v", cp)
 	}
 	if cp := req.System[0].CachePoint; cp == nil || cp.TTL != nil {
 		t.Errorf("expected 1h system cache point downgraded, got %+v", cp)

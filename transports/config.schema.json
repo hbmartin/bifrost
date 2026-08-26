@@ -3742,7 +3742,8 @@
         },
         "weight": {
           "type": ["number", "null"],
-          "description": "Weight for load balancing (null opts out of weighted routing)",
+          "minimum": 0,
+          "description": "Weight for load balancing. Null opts out of weighted routing. A zero-weight provider receives no primary traffic while a positive-weight provider is available, but remains in the generated fallback chain; an all-zero provider pool is selected uniformly.",
           "default": null
         },
         "allowed_models": {
@@ -7178,7 +7179,8 @@
         },
         "weight": {
           "type": ["number", "null"],
-          "description": "Load-balancer seed weight for this provider (null opts out of weighted routing / no override)",
+          "minimum": 0,
+          "description": "Load-balancer seed weight for this provider. Null opts out of weighted routing. A zero-weight provider receives no primary traffic while a positive-weight provider is available, but remains in the generated fallback chain; an all-zero provider pool is selected uniformly.",
           "default": null
         },
         "model_budgets": {
