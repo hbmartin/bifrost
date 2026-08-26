@@ -180,6 +180,36 @@ func TestToolResultConversionDoesNotFetchUnresolvedFileURL(t *testing.T) {
 	}
 }
 
+func TestResolveBedrockChatFileURLValidation(t *testing.T) {
+	t.Run("malformed URL returns parse error", func(t *testing.T) {
+		fileURL := "https://example.com/%zz"
+		_, changed, err := resolveBedrockChatContentBlock(context.Background(), schemas.ChatContentBlock{
+			Type: schemas.ChatContentBlockTypeFile,
+			File: &schemas.ChatInputFile{FileURL: &fileURL},
+		})
+		if err == nil {
+			t.Fatal("expected malformed URL to return its parse error")
+		}
+		if changed {
+			t.Fatal("malformed URL must not change the content block")
+		}
+	})
+
+	t.Run("unsupported scheme remains unresolved", func(t *testing.T) {
+		fileURL := "s3://bucket/result.pdf"
+		_, changed, err := resolveBedrockChatContentBlock(context.Background(), schemas.ChatContentBlock{
+			Type: schemas.ChatContentBlockTypeFile,
+			File: &schemas.ChatInputFile{FileURL: &fileURL},
+		})
+		if err != nil {
+			t.Fatalf("expected valid non-HTTP URL to remain unresolved: %v", err)
+		}
+		if changed {
+			t.Fatal("valid non-HTTP URL must not change the content block")
+		}
+	})
+}
+
 func TestAssistantMetadataOnlyMessagesConvertUsableText(t *testing.T) {
 	tests := []struct {
 		name    string
