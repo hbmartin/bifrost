@@ -492,6 +492,10 @@ func (chunk *BedrockStreamEvent) ToBifrostChatCompletionStream(state *BedrockStr
 		case chunk.Delta.ReasoningContent != nil:
 			// Handle reasoning content delta
 			reasoningContentDelta := chunk.Delta.ReasoningContent
+			reasoningDetailIndex := 0
+			if chunk.ContentBlockIndex != nil {
+				reasoningDetailIndex = *chunk.ContentBlockIndex
+			}
 
 			// Only construct and return a response when either Text or Signature is set
 			if (reasoningContentDelta.Text == nil || *reasoningContentDelta.Text == "") && reasoningContentDelta.Signature == nil {
@@ -510,7 +514,7 @@ func (chunk *BedrockStreamEvent) ToBifrostChatCompletionStream(state *BedrockStr
 									Reasoning: reasoningContentDelta.Text,
 									ReasoningDetails: []schemas.ChatReasoningDetails{
 										{
-											Index: 0,
+											Index: reasoningDetailIndex,
 											Type:  schemas.BifrostReasoningDetailsTypeText,
 											Text:  reasoningContentDelta.Text,
 										},
@@ -530,7 +534,7 @@ func (chunk *BedrockStreamEvent) ToBifrostChatCompletionStream(state *BedrockStr
 								Delta: &schemas.ChatStreamResponseChoiceDelta{
 									ReasoningDetails: []schemas.ChatReasoningDetails{
 										{
-											Index:     0,
+											Index:     reasoningDetailIndex,
 											Type:      schemas.BifrostReasoningDetailsTypeText,
 											Signature: reasoningContentDelta.Signature,
 										},
