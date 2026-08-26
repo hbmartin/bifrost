@@ -8,6 +8,11 @@ import (
 )
 
 func TestResolvedInputAssetIsTransientAndDeepCopied(t *testing.T) {
+	cacheTTL := "1h"
+	cacheScope := "user"
+	cachePointTTL := "5m"
+	citationsEnabled := true
+	breakpointMode := "explicit"
 	for _, block := range []ChatContentBlock{
 		{
 			Type: ChatContentBlockTypeImage,
@@ -17,7 +22,13 @@ func TestResolvedInputAssetIsTransientAndDeepCopied(t *testing.T) {
 			},
 		},
 		{
-			Type: ChatContentBlockTypeFile,
+			Type:         ChatContentBlockTypeFile,
+			CacheControl: &CacheControl{Type: CacheControlTypeEphemeral, TTL: &cacheTTL, Scope: &cacheScope},
+			CachePoint:   &CachePoint{Type: "default", TTL: &cachePointTTL},
+			Citations:    &Citations{Enabled: &citationsEnabled},
+			PromptCacheBreakpoint: &PromptCacheBreakpoint{
+				Mode: &breakpointMode,
+			},
 			File: &ChatInputFile{
 				FileURL:       Ptr("https://example.com/file.pdf"),
 				FileType:      Ptr("application/pdf"),
@@ -34,6 +45,19 @@ func TestResolvedInputAssetIsTransientAndDeepCopied(t *testing.T) {
 			require.NotNil(t, copied.File.FileType)
 			assert.Equal(t, *block.File.FileURL, *copied.File.FileURL)
 			assert.Equal(t, *block.File.FileType, *copied.File.FileType)
+			require.NotNil(t, copied.CacheControl)
+			require.NotNil(t, copied.CachePoint)
+			require.NotNil(t, copied.Citations)
+			require.NotNil(t, copied.PromptCacheBreakpoint)
+			assert.NotSame(t, block.CacheControl, copied.CacheControl)
+			assert.NotSame(t, block.CacheControl.TTL, copied.CacheControl.TTL)
+			assert.NotSame(t, block.CacheControl.Scope, copied.CacheControl.Scope)
+			assert.NotSame(t, block.CachePoint, copied.CachePoint)
+			assert.NotSame(t, block.CachePoint.TTL, copied.CachePoint.TTL)
+			assert.NotSame(t, block.Citations, copied.Citations)
+			assert.NotSame(t, block.Citations.Enabled, copied.Citations.Enabled)
+			assert.NotSame(t, block.PromptCacheBreakpoint, copied.PromptCacheBreakpoint)
+			assert.NotSame(t, block.PromptCacheBreakpoint.Mode, copied.PromptCacheBreakpoint.Mode)
 		}
 
 		var originalAsset, copiedAsset *ResolvedInputAsset
