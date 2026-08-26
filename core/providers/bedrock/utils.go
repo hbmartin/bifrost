@@ -1281,22 +1281,28 @@ func convertMessage(ctx context.Context, msg schemas.ChatMessage) (BedrockMessag
 }
 
 // convertChatReasoningDetailsToBedrock mirrors the Responses replay precedence:
-// provider-native reasoning.text blocks win when present. Otherwise summary
-// blocks carry the opaque replay token once, on the first block; a token with no
-// visible summary is represented by the required empty text string.
+// provider-native reasoning.text blocks with visible text win when present.
+// Signature-only text details are replay-token fallbacks, not visible text, so
+// they must not shadow available summary blocks. Summary signatures stay paired
+// with their own text; a detached replay token is attached to the first unsigned
+// summary, or represented by the required empty text string when no such summary
+// exists.
 func convertChatReasoningDetailsToBedrock(details []schemas.ChatReasoningDetails) []BedrockContentBlock {
 	blocks := make([]BedrockContentBlock, 0, len(details))
+	var detachedSignature *string
 	for _, detail := range details {
 		if detail.Type != schemas.BifrostReasoningDetailsTypeText {
 			continue
 		}
-		text := detail.Text
-		if text == nil {
-			text = schemas.Ptr("")
+		if detail.Text == nil || *detail.Text == "" {
+			if detachedSignature == nil {
+				detachedSignature = reasoningSignatureForBedrock(detail.Signature)
+			}
+			continue
 		}
 		blocks = append(blocks, BedrockContentBlock{ReasoningContent: &BedrockReasoningContent{
 			ReasoningText: &BedrockReasoningContentText{
-				Text:      text,
+				Text:      detail.Text,
 				Signature: reasoningSignatureForBedrock(detail.Signature),
 			},
 		}})
@@ -1305,8 +1311,6 @@ func convertChatReasoningDetailsToBedrock(details []schemas.ChatReasoningDetails
 		return blocks
 	}
 
-	var summaries []*string
-	var signature *string
 	for _, detail := range details {
 		switch detail.Type {
 		case schemas.BifrostReasoningDetailsTypeSummary:
@@ -1314,31 +1318,44 @@ func convertChatReasoningDetailsToBedrock(details []schemas.ChatReasoningDetails
 			if text == nil {
 				text = schemas.Ptr("")
 			}
-			summaries = append(summaries, text)
-			if signature == nil {
-				signature = reasoningSignatureForBedrock(detail.Signature)
-			}
+			blocks = append(blocks, BedrockContentBlock{ReasoningContent: &BedrockReasoningContent{
+				ReasoningText: &BedrockReasoningContentText{
+					Text:      text,
+					Signature: reasoningSignatureForBedrock(detail.Signature),
+				},
+			}})
 		case schemas.BifrostReasoningDetailsTypeEncrypted:
 			if replayToken := reasoningSignatureForBedrock(detail.Data); replayToken != nil {
-				signature = replayToken
+				detachedSignature = replayToken
 			}
 		}
 	}
-	for i, text := range summaries {
-		block := BedrockContentBlock{ReasoningContent: &BedrockReasoningContent{
-			ReasoningText: &BedrockReasoningContentText{Text: text},
-		}}
-		if i == 0 {
-			block.ReasoningContent.ReasoningText.Signature = signature
+	if detachedSignature != nil {
+		for i := range blocks {
+			reasoningText := blocks[i].ReasoningContent.ReasoningText
+			if reasoningText.Signature == nil {
+				reasoningText.Signature = detachedSignature
+				detachedSignature = nil
+				break
+			}
 		}
-		blocks = append(blocks, block)
 	}
-	if len(blocks) == 0 && signature != nil {
+	if detachedSignature != nil {
 		blocks = append(blocks, BedrockContentBlock{ReasoningContent: &BedrockReasoningContent{
-			ReasoningText: &BedrockReasoningContentText{Text: schemas.Ptr(""), Signature: signature},
+			ReasoningText: &BedrockReasoningContentText{Text: schemas.Ptr(""), Signature: detachedSignature},
 		}})
 	}
 	return blocks
+}
+
+// ensureBedrockToolResultContent enforces Converse's non-empty
+// toolResult.content invariant. Return a fresh placeholder for every call so a
+// caller cannot mutate shared package state.
+func ensureBedrockToolResultContent(content []BedrockContentBlock) []BedrockContentBlock {
+	if len(content) > 0 {
+		return content
+	}
+	return []BedrockContentBlock{{JSON: json.RawMessage(`{}`)}}
 }
 
 // convertToolMessages converts multiple consecutive Bifrost tool messages to a single Bedrock message.
@@ -1416,14 +1433,7 @@ func convertToolMessages(msgs []schemas.ChatMessage) (BedrockMessage, error) {
 			}
 			toolResultContent = ensureBedrockDocumentText(toolResultContent)
 		}
-		if len(toolResultContent) == 0 {
-			// Converse requires toolResult.content to be an array. Preserve a
-			// content-less tool result as an empty JSON object instead of emitting
-			// content:null or an invalid blank text block.
-			toolResultContent = append(toolResultContent, BedrockContentBlock{
-				JSON: json.RawMessage(`{}`),
-			})
-		}
+		toolResultContent = ensureBedrockToolResultContent(toolResultContent)
 
 		// Create tool result content block for this tool message
 		status := "success"
@@ -1573,6 +1583,14 @@ func convertContentBlock(block schemas.ChatContentBlock) ([]BedrockContentBlock,
 			documentSource.Format = format
 		}
 
+		// Prepared bytes are authoritative. Request preparation normally clears a
+		// fetched FileURL, but callers and plugins may retain the original URL beside
+		// the resolved asset. Never reject or re-resolve a source we already own.
+		if block.File.ResolvedAsset != nil {
+			documentSource.Source.Bytes = &block.File.ResolvedAsset.Data
+			return []BedrockContentBlock{{Document: documentSource}}, nil
+		}
+
 		// s3:// document: hand Converse the object reference. Bytes and s3Location are
 		// alternative members of the same DocumentSource union, and Converse reads the
 		// object itself, so there is nothing to download here. Format has to come from
@@ -1624,11 +1642,6 @@ func convertContentBlock(block schemas.ChatContentBlock) ([]BedrockContentBlock,
 				return nil, fmt.Errorf("unsupported URL scheme %q for Bedrock file input (allowed: http, https, s3)", scheme)
 			}
 			return nil, fmt.Errorf("HTTP(S) file URL must be resolved before Bedrock content conversion")
-		}
-
-		if block.File.ResolvedAsset != nil {
-			documentSource.Source.Bytes = &block.File.ResolvedAsset.Data
-			return []BedrockContentBlock{{Document: documentSource}}, nil
 		}
 
 		// Handle file data - strip data URL prefix if present
@@ -1702,8 +1715,7 @@ func convertContentBlock(block schemas.ChatContentBlock) ([]BedrockContentBlock,
 
 var bedrockAudioFormats = map[string]struct{}{
 	"mp3": {}, "opus": {}, "wav": {}, "aac": {}, "flac": {}, "mp4": {},
-	"ogg": {}, "mkv": {}, "mka": {}, "x-aac": {}, "m4a": {}, "mpeg": {},
-	"mpga": {}, "pcm": {}, "webm": {},
+	"ogg": {}, "mkv": {},
 }
 
 func convertInputAudioToBedrock(data string, formatHint *string) (*BedrockAudioBlock, error) {
@@ -1742,13 +1754,61 @@ func normalizeBedrockAudioFormat(format string) string {
 	}
 	format = strings.TrimPrefix(format, "audio/")
 	switch format {
-	case "mpeg3", "x-mp3":
+	case "mpeg", "mpeg3", "mpga", "x-mp3":
 		return "mp3"
 	case "wave", "x-wav":
 		return "wav"
+	case "x-aac":
+		return "aac"
+	case "m4a", "x-m4a":
+		return "mp4"
 	default:
 		return format
 	}
+}
+
+// validateBedrockMessageAudioInput rejects audio before it reaches a model that
+// cannot consume the ContentBlock.audio union member. The model catalog is the
+// authoritative source when it has explicit input modalities. Core-only SDK
+// users may not have a catalog wired, so retain a conservative name fallback for
+// the Nova message models AWS documents as audio-capable.
+func validateBedrockMessageAudioInput(ctx *schemas.BifrostContext, provider schemas.ModelProvider, model string, messages []BedrockMessage) error {
+	hasAudio := false
+	for _, message := range messages {
+		for _, block := range message.Content {
+			if block.Audio != nil {
+				hasAudio = true
+				break
+			}
+		}
+		if hasAudio {
+			break
+		}
+	}
+	if !hasAudio {
+		return nil
+	}
+
+	if provider == "" {
+		provider = schemas.Bedrock
+	}
+	if ctx != nil {
+		if info := ctx.GetModelInfo(provider, model); info != nil && info.Architecture != nil && len(info.Architecture.InputModalities) > 0 {
+			for _, modality := range info.Architecture.InputModalities {
+				if strings.EqualFold(strings.TrimSpace(modality), "audio") {
+					return nil
+				}
+			}
+			return fmt.Errorf("Bedrock model %q does not support audio message input", model)
+		}
+	}
+
+	normalizedModel := strings.ToLower(model)
+	if strings.Contains(normalizedModel, "nova") &&
+		(strings.Contains(normalizedModel, "sonic") || strings.Contains(normalizedModel, "omni")) {
+		return nil
+	}
+	return fmt.Errorf("Bedrock model %q does not support audio message input", model)
 }
 
 // bedrockDocumentFormatFromPath resolves a Converse document format from a URL's
@@ -1820,17 +1880,6 @@ func resolveBedrockRemoteImageData(ctx context.Context, imageURL string) (string
 	}
 	mediaType = normalizedFetchedMediaType(mediaType)
 	return mediaType, encoded, true, nil
-}
-
-// resolveBedrockImageURL is retained for callers that explicitly need a data
-// URL. Production conversion paths use resolveBedrockRemoteImageData directly
-// so the encoded asset is not copied into another request-sized string.
-func resolveBedrockImageURL(ctx context.Context, imageURL string) (string, bool, error) {
-	mediaType, encoded, changed, err := resolveBedrockRemoteImageData(ctx, imageURL)
-	if err != nil || !changed {
-		return imageURL, false, err
-	}
-	return fmt.Sprintf("data:%s;base64,%s", mediaType, encoded), true, nil
 }
 
 // convertImageToBedrockSource resolves a Bifrost image URL and converts it to Bedrock.

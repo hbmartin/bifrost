@@ -852,6 +852,42 @@ func deepCopyChatContentBlock(original ChatContentBlock) ChatContentBlock {
 	copy := ChatContentBlock{
 		Type: original.Type,
 	}
+	if original.CacheControl != nil {
+		copyCacheControl := *original.CacheControl
+		if original.CacheControl.TTL != nil {
+			copyTTL := *original.CacheControl.TTL
+			copyCacheControl.TTL = &copyTTL
+		}
+		if original.CacheControl.Scope != nil {
+			copyScope := *original.CacheControl.Scope
+			copyCacheControl.Scope = &copyScope
+		}
+		copy.CacheControl = &copyCacheControl
+	}
+	if original.CachePoint != nil {
+		copyCachePoint := *original.CachePoint
+		if original.CachePoint.TTL != nil {
+			copyTTL := *original.CachePoint.TTL
+			copyCachePoint.TTL = &copyTTL
+		}
+		copy.CachePoint = &copyCachePoint
+	}
+	if original.Citations != nil {
+		copyCitations := *original.Citations
+		if original.Citations.Enabled != nil {
+			copyEnabled := *original.Citations.Enabled
+			copyCitations.Enabled = &copyEnabled
+		}
+		copy.Citations = &copyCitations
+	}
+	if original.PromptCacheBreakpoint != nil {
+		copyBreakpoint := *original.PromptCacheBreakpoint
+		if original.PromptCacheBreakpoint.Mode != nil {
+			copyMode := *original.PromptCacheBreakpoint.Mode
+			copyBreakpoint.Mode = &copyMode
+		}
+		copy.PromptCacheBreakpoint = &copyBreakpoint
+	}
 
 	if original.Text != nil {
 		copyText := *original.Text
