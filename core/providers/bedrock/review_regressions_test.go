@@ -36,6 +36,33 @@ func TestChatReasoningTextTakesPrecedenceOverSummaryAndEncrypted(t *testing.T) {
 	require.Equal(t, "native-signature", *blocks[0].ReasoningContent.ReasoningText.Signature)
 }
 
+func TestChatReasoningSignatureOnlyTextDoesNotShadowSummaries(t *testing.T) {
+	blocks := convertChatReasoningDetailsToBedrock([]schemas.ChatReasoningDetails{
+		{Type: schemas.BifrostReasoningDetailsTypeText, Signature: schemas.Ptr("stream-signature")},
+		{Type: schemas.BifrostReasoningDetailsTypeSummary, Summary: schemas.Ptr("first summary")},
+		{Type: schemas.BifrostReasoningDetailsTypeSummary, Summary: schemas.Ptr("second summary")},
+	})
+
+	require.Len(t, blocks, 2)
+	require.Equal(t, "first summary", *blocks[0].ReasoningContent.ReasoningText.Text)
+	require.Equal(t, "stream-signature", *blocks[0].ReasoningContent.ReasoningText.Signature)
+	require.Equal(t, "second summary", *blocks[1].ReasoningContent.ReasoningText.Text)
+	require.Nil(t, blocks[1].ReasoningContent.ReasoningText.Signature)
+}
+
+func TestChatReasoningSummarySignaturesStayWithTheirText(t *testing.T) {
+	blocks := convertChatReasoningDetailsToBedrock([]schemas.ChatReasoningDetails{
+		{Type: schemas.BifrostReasoningDetailsTypeSummary, Summary: schemas.Ptr("unsigned first")},
+		{Type: schemas.BifrostReasoningDetailsTypeSummary, Summary: schemas.Ptr("signed second"), Signature: schemas.Ptr("second-signature")},
+		{Type: schemas.BifrostReasoningDetailsTypeSummary, Summary: schemas.Ptr("signed third"), Signature: schemas.Ptr("third-signature")},
+	})
+
+	require.Len(t, blocks, 3)
+	require.Nil(t, blocks[0].ReasoningContent.ReasoningText.Signature)
+	require.Equal(t, "second-signature", *blocks[1].ReasoningContent.ReasoningText.Signature)
+	require.Equal(t, "third-signature", *blocks[2].ReasoningContent.ReasoningText.Signature)
+}
+
 func TestChatReasoningEncryptedOnlyEmitsRequiredEmptyText(t *testing.T) {
 	blocks := convertChatReasoningDetailsToBedrock([]schemas.ChatReasoningDetails{{
 		Type: schemas.BifrostReasoningDetailsTypeEncrypted,
@@ -77,9 +104,72 @@ func TestBedrockInputAudioConversion(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, blocks, 1)
 		require.NotNil(t, blocks[0].Audio)
-		assert.Equal(t, "mpeg", blocks[0].Audio.Format)
+		assert.Equal(t, "mp3", blocks[0].Audio.Format)
 		assert.Equal(t, "SUQz", *blocks[0].Audio.Source.Bytes)
 	})
+
+	t.Run("MIME aliases use Nova wire formats", func(t *testing.T) {
+		assert.Equal(t, "mp3", normalizeBedrockAudioFormat("audio/mpeg; codecs=mp3"))
+		assert.Equal(t, "aac", normalizeBedrockAudioFormat("audio/x-aac"))
+		assert.Equal(t, "mp4", normalizeBedrockAudioFormat("audio/x-m4a"))
+	})
+}
+
+func TestBedrockInputAudioIsModelGated(t *testing.T) {
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
+	audioMessage := schemas.ChatMessage{
+		Role: schemas.ChatMessageRoleUser,
+		Content: &schemas.ChatMessageContent{ContentBlocks: []schemas.ChatContentBlock{{
+			Type: schemas.ChatContentBlockTypeInputAudio,
+			InputAudio: &schemas.ChatInputAudio{
+				Data: "UklGRg==", Format: schemas.Ptr("wav"),
+			},
+		}}},
+	}
+
+	_, err := ToBedrockChatCompletionRequest(ctx, &schemas.BifrostChatRequest{
+		Provider: schemas.Bedrock,
+		Model:    "anthropic.claude-sonnet-4-v1:0",
+		Input:    []schemas.ChatMessage{audioMessage},
+	})
+	require.ErrorContains(t, err, "does not support audio message input")
+
+	request, err := ToBedrockChatCompletionRequest(ctx, &schemas.BifrostChatRequest{
+		Provider: schemas.Bedrock,
+		Model:    "amazon.nova-2-sonic-v1:0",
+		Input:    []schemas.ChatMessage{audioMessage},
+	})
+	require.NoError(t, err)
+	require.Len(t, request.Messages, 1)
+	require.NotNil(t, request.Messages[0].Content[0].Audio)
+
+	responsesMessageType := schemas.ResponsesMessageTypeMessage
+	responsesRole := schemas.ResponsesInputMessageRoleUser
+	responsesInput := []schemas.ResponsesMessage{{
+		Type: &responsesMessageType,
+		Role: &responsesRole,
+		Content: &schemas.ResponsesMessageContent{ContentBlocks: []schemas.ResponsesMessageContentBlock{{
+			Type: schemas.ResponsesInputMessageContentBlockTypeAudio,
+			Audio: &schemas.ResponsesInputMessageContentBlockAudio{
+				Data: "UklGRg==", Format: "wav",
+			},
+		}}},
+	}}
+	_, err = ToBedrockResponsesRequest(ctx, &schemas.BifrostResponsesRequest{
+		Provider: schemas.Bedrock,
+		Model:    "anthropic.claude-sonnet-4-v1:0",
+		Input:    responsesInput,
+	})
+	require.ErrorContains(t, err, "does not support audio message input")
+
+	responsesRequest, err := ToBedrockResponsesRequest(ctx, &schemas.BifrostResponsesRequest{
+		Provider: schemas.Bedrock,
+		Model:    "amazon.nova-2-sonic-v1:0",
+		Input:    responsesInput,
+	})
+	require.NoError(t, err)
+	require.Len(t, responsesRequest.Messages, 1)
+	require.NotNil(t, responsesRequest.Messages[0].Content[0].Audio)
 }
 
 func TestPreparedAssetsConvertWithoutSyntheticDataURL(t *testing.T) {
@@ -116,6 +206,24 @@ func TestPreparedAssetsConvertWithoutSyntheticDataURL(t *testing.T) {
 		assert.Equal(t, "pdf", blocks[0].Document.Format)
 		assert.Equal(t, "ZmlsZQ==", *blocks[0].Document.Source.Bytes)
 	})
+
+	t.Run("resolved document wins over stale URL", func(t *testing.T) {
+		staleURL := "ftp://example.com/stale.pdf"
+		blocks, err := convertContentBlock(schemas.ChatContentBlock{
+			Type: schemas.ChatContentBlockTypeFile,
+			File: &schemas.ChatInputFile{
+				FileURL:  &staleURL,
+				Filename: schemas.Ptr("report.pdf"),
+				ResolvedAsset: &schemas.ResolvedInputAsset{
+					Data: "cmVzb2x2ZWQ=", MediaType: "application/pdf",
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, blocks, 1)
+		require.NotNil(t, blocks[0].Document)
+		assert.Equal(t, "cmVzb2x2ZWQ=", *blocks[0].Document.Source.Bytes)
+	})
 }
 
 func TestResponsesFallbackOnlyMessageIsDropped(t *testing.T) {
@@ -150,6 +258,47 @@ func TestResponsesUnknownOnlyMessageStillErrors(t *testing.T) {
 
 	_, err := convertBifrostMessageToBedrockMessage(context.Background(), &msg)
 	require.ErrorContains(t, err, "content must not be blank or unsupported")
+}
+
+func TestResponsesFallbackMarkerIsTransparentToLeadingSystemState(t *testing.T) {
+	assistantRole := schemas.ResponsesInputMessageRoleAssistant
+	systemRole := schemas.ResponsesInputMessageRoleSystem
+	userRole := schemas.ResponsesInputMessageRoleUser
+	msgType := schemas.ResponsesMessageTypeMessage
+	messages, system, err := ConvertBifrostMessagesToBedrockMessages(context.Background(), []schemas.ResponsesMessage{
+		{
+			Type: &msgType,
+			Role: &assistantRole,
+			Content: &schemas.ResponsesMessageContent{ContentBlocks: []schemas.ResponsesMessageContentBlock{{
+				Type:                                  schemas.ResponsesOutputMessageContentTypeFallback,
+				ResponsesOutputMessageContentFallback: &schemas.ResponsesOutputMessageContentFallback{FromModel: "old", ToModel: "new"},
+			}}},
+		},
+		{Type: &msgType, Role: &systemRole, Content: &schemas.ResponsesMessageContent{ContentStr: schemas.Ptr("leading system")}},
+		{Type: &msgType, Role: &userRole, Content: &schemas.ResponsesMessageContent{ContentStr: schemas.Ptr("hello")}},
+	}, true)
+	require.NoError(t, err)
+	require.Len(t, system, 1)
+	require.Equal(t, "leading system", *system[0].Text)
+	require.Len(t, messages, 1)
+	require.Equal(t, BedrockMessageRoleUser, messages[0].Role)
+	require.Equal(t, "hello", *messages[0].Content[0].Text)
+}
+
+func TestResponsesContentConverterReportsDroppableVersusUnknown(t *testing.T) {
+	fallback := schemas.ResponsesMessageContent{ContentBlocks: []schemas.ResponsesMessageContentBlock{{
+		Type: schemas.ResponsesOutputMessageContentTypeFallback,
+	}}}
+	conversion, err := convertBifrostResponsesMessageContentBlocksToBedrockContentBlocksWithDisposition(context.Background(), fallback)
+	require.NoError(t, err)
+	assert.Equal(t, bedrockResponsesContentIntentionallySkipped, conversion.Disposition)
+
+	unknown := schemas.ResponsesMessageContent{ContentBlocks: []schemas.ResponsesMessageContentBlock{{
+		Type: schemas.ResponsesMessageContentBlockType("future_unknown"),
+	}}}
+	conversion, err = convertBifrostResponsesMessageContentBlocksToBedrockContentBlocksWithDisposition(context.Background(), unknown)
+	require.NoError(t, err)
+	assert.Equal(t, bedrockResponsesContentUnsupported, conversion.Disposition)
 }
 
 func TestResponsesBlankToolCallIDsReturnErrors(t *testing.T) {
@@ -199,22 +348,34 @@ func TestDecodedToolResultEnvelopeHoistsCachePoint(t *testing.T) {
 }
 
 func TestCachePointOnlyToolResultGetsNonEmptyContent(t *testing.T) {
-	blocks := injectContentBlockCachePoints([]BedrockContentBlock{{
-		ToolResult: &BedrockToolResult{
-			ToolUseID: "tooluse_1",
-			Content:   []BedrockContentBlock{{CachePoint: &BedrockCachePoint{Type: BedrockCachePointTypeDefault}}},
-		},
-	}}, nil, "messages.0.content")
+	originalToolResult := &BedrockToolResult{
+		ToolUseID: "tooluse_1",
+		Content:   []BedrockContentBlock{{CachePoint: &BedrockCachePoint{Type: BedrockCachePointTypeDefault}}},
+	}
+	input := []BedrockContentBlock{{ToolResult: originalToolResult}}
+	blocks := injectContentBlockCachePoints(input, nil, "messages.0.content")
 
 	require.Len(t, blocks, 2)
 	require.NotNil(t, blocks[0].ToolResult)
+	assert.NotSame(t, originalToolResult, blocks[0].ToolResult)
 	require.Len(t, blocks[0].ToolResult.Content, 1)
 	assert.JSONEq(t, `{}`, string(blocks[0].ToolResult.Content[0].JSON))
 	require.NotNil(t, blocks[1].CachePoint)
+	require.Len(t, originalToolResult.Content, 1)
+	require.NotNil(t, originalToolResult.Content[0].CachePoint, "cache-point injection must not mutate the caller's ToolResult")
 
 	raw, err := json.Marshal(blocks)
 	require.NoError(t, err)
 	assert.NotContains(t, string(raw), `"content":[]`)
+}
+
+func TestEmptyToolResultPlaceholderIsFresh(t *testing.T) {
+	first := ensureBedrockToolResultContent(nil)
+	second := ensureBedrockToolResultContent(nil)
+	require.Len(t, first, 1)
+	require.Len(t, second, 1)
+	first[0].JSON[0] = '['
+	assert.JSONEq(t, `{}`, string(second[0].JSON))
 }
 
 func TestUnsupportedChatFileURLReportsScheme(t *testing.T) {
