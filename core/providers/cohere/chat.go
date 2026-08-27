@@ -45,11 +45,13 @@ func ToCohereChatCompletionRequest(bifrostReq *schemas.BifrostChatRequest) (*Coh
 						Text: block.Text,
 					})
 				} else if block.ImageURLStruct != nil {
+					imageURL, err := newCohereImageURL(block.ImageURLStruct.URL, block.ImageURLStruct.Detail)
+					if err != nil {
+						return nil, fmt.Errorf("invalid Cohere image in message: %w", err)
+					}
 					contentBlocks = append(contentBlocks, CohereContentBlock{
-						Type: CohereContentBlockTypeImage,
-						ImageURL: &CohereImageURL{
-							URL: block.ImageURLStruct.URL,
-						},
+						Type:     CohereContentBlockTypeImage,
+						ImageURL: imageURL,
 					})
 				}
 			}
@@ -242,6 +244,17 @@ func ToCohereChatCompletionRequest(bifrostReq *schemas.BifrostChatRequest) (*Coh
 	}
 
 	return cohereReq, nil
+}
+
+// newCohereImageURL validates and normalizes a Bifrost image reference for Cohere v2.
+// Cohere accepts public HTTP(S) URLs and base64 data URLs; raw base64 is converted to
+// a data URL only when its image media type can be inferred safely.
+func newCohereImageURL(rawURL string, detail *string) (*CohereImageURL, error) {
+	sanitizedURL, err := schemas.SanitizeImageURL(rawURL)
+	if err != nil {
+		return nil, err
+	}
+	return &CohereImageURL{URL: sanitizedURL, Detail: detail}, nil
 }
 
 // ToBifrostChatRequest converts a Cohere v2 chat request to Bifrost format

@@ -175,7 +175,8 @@ type CohereContentBlock struct {
 
 // CohereImageURL represents an image URL content block
 type CohereImageURL struct {
-	URL string `json:"url"` // Required: Image URL
+	URL    string  `json:"url"`              // Required: HTTP(S) URL or base64 data URL
+	Detail *string `json:"detail,omitempty"` // Optional: low, high, or auto
 }
 
 // CohereDocument represents a document content block

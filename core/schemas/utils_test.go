@@ -40,6 +40,18 @@ func TestSanitizeImageURLWithEmptyAllowlistRejects(t *testing.T) {
 	assert.Contains(t, err.Error(), `no schemes permitted`)
 }
 
+func TestSanitizeImageURLHandlesCaseInsensitiveSchemesAndRejectsAmbiguousPaths(t *testing.T) {
+	got, err := SanitizeImageURL("HTTP://example.com/image.png")
+	require.NoError(t, err)
+	assert.Equal(t, "http://example.com/image.png", got)
+
+	for _, value := range []string{"//example.com/image.png", "images/local.png"} {
+		_, err := SanitizeImageURL(value)
+		require.Error(t, err, value)
+		assert.Contains(t, err.Error(), "valid scheme")
+	}
+}
+
 func TestSanitizeImageURLDataURLUnaffectedByAllowlist(t *testing.T) {
 	dataURL := "data:image/png;base64,iVBORw0KGgo="
 	got, err := SanitizeImageURL(dataURL)
@@ -95,7 +107,7 @@ func TestParseDataURL(t *testing.T) {
 		// dropping the whole URL on the floor shipped "data:..." as the payload.
 		{"MediaTypeParameter", "data:text/plain;charset=utf-8;base64,QUJD", "text/plain", true, "QUJD", true},
 		{"ParameterWithoutBase64", "data:text/plain;charset=utf-8,Hello%20World", "text/plain", false, "Hello%20World", true},
-		{"Uppercase", "data:IMAGE/PNG;BASE64,iVBORw0KGgo=", "image/png", true, "iVBORw0KGgo=", true},
+		{"Uppercase", "DATA:IMAGE/PNG;BASE64,iVBORw0KGgo=", "image/png", true, "iVBORw0KGgo=", true},
 		{"OfficeDocument", "data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,UEsDBBQ", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", true, "UEsDBBQ", true},
 		{"PayloadWithNewlines", "data:image/png;base64,iVBOR\nw0KGgo=", "image/png", true, "iVBOR\nw0KGgo=", true},
 		{"MissingMediaType", "data:;base64,iVBORw0KGgo=", "", false, "", false},
@@ -111,6 +123,39 @@ func TestParseDataURL(t *testing.T) {
 			assert.Equal(t, tt.expectedBase64, isBase64)
 			assert.Equal(t, tt.expectedPayload, payload)
 		})
+	}
+}
+
+func TestSanitizeImageURLInfersRawBase64MediaTypeWithoutGuessing(t *testing.T) {
+	tests := []struct {
+		name      string
+		encoded   string
+		mediaType string
+	}{
+		{name: "JPEG", encoded: "/9j/", mediaType: "image/jpeg"},
+		{name: "PNG", encoded: "iVBORw0KGgo=", mediaType: "image/png"},
+		{name: "GIF", encoded: "R0lGODlh", mediaType: "image/gif"},
+		{name: "BMP", encoded: "Qk0=", mediaType: "image/bmp"},
+		{name: "WebP", encoded: "UklGRgAAAABXRUJQ", mediaType: "image/webp"},
+		{name: "SVG", encoded: "PHN2Zy8+", mediaType: "image/svg+xml"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := SanitizeImageURL(tt.encoded)
+			require.NoError(t, err)
+			assert.Equal(t, "data:"+tt.mediaType+";base64,"+tt.encoded, got)
+		})
+	}
+
+	got, err := SanitizeImageURL("iVBO Rw0K\nGgo=")
+	require.NoError(t, err)
+	assert.Equal(t, "data:image/png;base64,iVBORw0KGgo=", got)
+
+	for _, unknown := range []string{"QUJD", "JVBERi0xLjQ="} {
+		_, err := SanitizeImageURL(unknown)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot determine image media type")
 	}
 }
 
