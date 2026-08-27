@@ -47,6 +47,32 @@ func TestCreateGenAIRouteConfigsIncludesRerank(t *testing.T) {
 	assert.True(t, found, "expected rerank route in genai route configs")
 }
 
+func TestGenAIRequestClassificationSkipsNullParts(t *testing.T) {
+	t.Run("transcription", func(t *testing.T) {
+		req := &gemini.GeminiGenerationRequest{Contents: []gemini.Content{{
+			Parts: []*gemini.Part{
+				nil,
+				{InlineData: &gemini.Blob{MIMEType: "audio/wav", Data: "YXVkaW8="}},
+			},
+		}}}
+		assert.True(t, isTranscriptionRequest(req))
+	})
+
+	t.Run("image edit", func(t *testing.T) {
+		req := &gemini.GeminiGenerationRequest{
+			GenerationConfig: gemini.GenerationConfig{ResponseModalities: []gemini.Modality{gemini.ModalityImage}},
+			Contents: []gemini.Content{{
+				Parts: []*gemini.Part{
+					nil,
+					{Text: "edit this"},
+					{InlineData: &gemini.Blob{MIMEType: "image/png", Data: "aW1hZ2U="}},
+				},
+			}},
+		}
+		assert.True(t, isImageEditRequest(req), "the reference image need not be the first part")
+	})
+}
+
 func findGenAIRouteForTest(t *testing.T, routes []RouteConfig, path, method string) RouteConfig {
 	t.Helper()
 	for _, route := range routes {
