@@ -22,6 +22,20 @@ import (
 
 var defaultGeminiImageURLSchemes = []string{"http", "https"}
 
+func requireGeminiImageMIMEType(urlInfo schemas.URLTypeInfo, imageURL string) (string, error) {
+	if urlInfo.MediaType == nil || strings.TrimSpace(*urlInfo.MediaType) == "" {
+		return "", providerUtils.InvalidRequestErrorf("cannot determine the media type for Gemini image %q; use a recognized image URL extension or a data URL with an explicit image media type", imageURL)
+	}
+	mediaType := strings.ToLower(strings.TrimSpace(*urlInfo.MediaType))
+	if mediaType == "image/jpg" {
+		mediaType = "image/jpeg"
+	}
+	if !strings.HasPrefix(mediaType, "image/") {
+		return "", providerUtils.InvalidRequestErrorf("invalid Gemini image media type %q", mediaType)
+	}
+	return mediaType, nil
+}
+
 // isGemini3Plus returns true if the model is Gemini 3.0 or higher.
 // Uses simple string operations for hot path performance.
 func isGemini3Plus(model string) bool {
@@ -62,7 +76,6 @@ func defaultSupportsReasoning(model string) bool {
 func defaultCanDisableReasoning(model string) bool {
 	return !strings.Contains(strings.ToLower(model), "gemini-2.5-pro")
 }
-
 
 // defaultEffortControl is the thinkingLevel surface for Gemini 3+, taken from
 // the per-model rung table below. nil for models that take a budget instead,
@@ -2211,15 +2224,13 @@ func convertBifrostMessagesToGemini(messages []schemas.ChatMessage, allowedImage
 						// Sanitize and parse the image URL
 						sanitizedURL, err := schemas.SanitizeImageURLWithAllowedSchemes(imageURL, allowedImageURLSchemes...)
 						if err != nil {
-							return nil, nil, fmt.Errorf("failed to sanitize image URL: %w", err)
+							return nil, nil, providerUtils.InvalidRequestErrorf("failed to sanitize Gemini image URL: %v", err)
 						}
 
 						urlInfo := schemas.ExtractURLTypeInfo(sanitizedURL)
-
-						// Determine MIME type
-						mimeType := "image/jpeg" // default
-						if urlInfo.MediaType != nil {
-							mimeType = *urlInfo.MediaType
+						mimeType, err := requireGeminiImageMIMEType(urlInfo, imageURL)
+						if err != nil {
+							return nil, nil, err
 						}
 
 						if urlInfo.Type == schemas.ImageContentTypeBase64 {

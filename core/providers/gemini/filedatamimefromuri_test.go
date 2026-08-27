@@ -3,6 +3,7 @@ package gemini
 import (
 	"testing"
 
+	providerUtils "github.com/maximhq/bifrost/core/providers/utils"
 	"github.com/maximhq/bifrost/core/schemas"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -126,4 +127,37 @@ func TestConvertContentBlockToGeminiPart_StillOmitsMimeForExtensionlessURI(t *te
 	require.NoError(t, err)
 	require.NotNil(t, part.FileData)
 	assert.Empty(t, part.FileData.MIMEType, "no extension means no guess")
+}
+
+func TestGeminiImageConversionRejectsUnknownMediaTypeInsteadOfGuessingJPEG(t *testing.T) {
+	for _, imageURL := range []string{
+		"https://example.com/download",
+		"https://example.com/image.unknown",
+		"data:application/pdf;base64,JVBERi0xLjQ=",
+	} {
+		t.Run(imageURL, func(t *testing.T) {
+			messages := []schemas.ChatMessage{{
+				Role: schemas.ChatMessageRoleUser,
+				Content: &schemas.ChatMessageContent{ContentBlocks: []schemas.ChatContentBlock{{
+					Type:           schemas.ChatContentBlockTypeImage,
+					ImageURLStruct: &schemas.ChatInputImage{URL: imageURL},
+				}}},
+			}}
+			contents, system, err := convertBifrostMessagesToGemini(messages)
+			assert.Nil(t, contents)
+			assert.Nil(t, system)
+			require.Error(t, err)
+			assert.True(t, providerUtils.IsInvalidRequestError(err))
+
+			part, err := convertContentBlockToGeminiPart(schemas.ResponsesMessageContentBlock{
+				Type: schemas.ResponsesInputMessageContentBlockTypeImage,
+				ResponsesInputMessageContentBlockImage: &schemas.ResponsesInputMessageContentBlockImage{
+					ImageURL: &imageURL,
+				},
+			})
+			assert.Nil(t, part)
+			require.Error(t, err)
+			assert.True(t, providerUtils.IsInvalidRequestError(err))
+		})
+	}
 }

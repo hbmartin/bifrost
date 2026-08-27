@@ -2643,12 +2643,12 @@ func ConvertBifrostFinishReasonToAnthropic(bifrostReason string) AnthropicStopRe
 	return AnthropicStopReason(bifrostReason)
 }
 
-// convertToAnthropicImageBlock converts a valid Bifrost image block to Anthropic
-// format. Invalid or empty inputs are skipped instead of emitting a malformed
-// source block that Anthropic will reject.
-func convertToAnthropicImageBlock(block schemas.ChatContentBlock) *AnthropicContentBlock {
+// newAnthropicImageBlock validates and converts a Bifrost image block. Anthropic
+// accepts only JPEG, PNG, GIF, and WebP images; caller input outside that contract
+// must be rejected rather than silently removed from the containing message.
+func newAnthropicImageBlock(block schemas.ChatContentBlock) (AnthropicContentBlock, error) {
 	if block.ImageURLStruct == nil || strings.TrimSpace(block.ImageURLStruct.URL) == "" {
-		return nil
+		return AnthropicContentBlock{}, providerUtils.InvalidRequestErrorf("Anthropic image block must include a non-empty image_url")
 	}
 
 	imageBlock := AnthropicContentBlock{
@@ -2660,7 +2660,7 @@ func convertToAnthropicImageBlock(block schemas.ChatContentBlock) *AnthropicCont
 	// Use the centralized utility functions from schemas package
 	sanitizedURL, err := schemas.SanitizeImageURL(block.ImageURLStruct.URL)
 	if err != nil {
-		return nil
+		return AnthropicContentBlock{}, providerUtils.InvalidRequestErrorf("invalid Anthropic image URL: %v", err)
 	}
 	urlTypeInfo := schemas.ExtractURLTypeInfo(sanitizedURL)
 
@@ -2668,35 +2668,142 @@ func convertToAnthropicImageBlock(block schemas.ChatContentBlock) *AnthropicCont
 	if urlTypeInfo.Type == schemas.ImageContentTypeURL {
 		// Anthropic's URL source accepts remote URLs, not non-base64 data URLs.
 		if urlTypeInfo.DataURLWithoutPrefix != nil {
-			return nil
+			return AnthropicContentBlock{}, providerUtils.InvalidRequestErrorf("Anthropic image data URLs must use base64 encoding")
+		}
+		if urlTypeInfo.MediaType != nil && !isAnthropicImageMediaType(*urlTypeInfo.MediaType) {
+			return AnthropicContentBlock{}, providerUtils.InvalidRequestErrorf("Anthropic does not support image media type %q; expected image/jpeg, image/png, image/gif, or image/webp", *urlTypeInfo.MediaType)
 		}
 		imageBlock.Source.SourceObj.Type = "url"
 		imageBlock.Source.SourceObj.URL = &sanitizedURL
-		return &imageBlock
+		return imageBlock, nil
 	}
 	if urlTypeInfo.Type != schemas.ImageContentTypeBase64 || urlTypeInfo.MediaType == nil || urlTypeInfo.DataURLWithoutPrefix == nil || *urlTypeInfo.DataURLWithoutPrefix == "" {
-		return nil
+		return AnthropicContentBlock{}, providerUtils.InvalidRequestErrorf("Anthropic image block must contain a valid URL or base64 data URL")
 	}
 
-	switch *urlTypeInfo.MediaType {
+	mediaType := strings.ToLower(strings.TrimSpace(*urlTypeInfo.MediaType))
+	if mediaType == "image/jpg" {
+		mediaType = "image/jpeg"
+	}
+	if !isAnthropicImageMediaType(mediaType) {
+		return AnthropicContentBlock{}, providerUtils.InvalidRequestErrorf("Anthropic does not support image media type %q; expected image/jpeg, image/png, image/gif, or image/webp", mediaType)
+	}
+	imageBlock.Source.SourceObj.Type = "base64"
+	imageBlock.Source.SourceObj.MediaType = &mediaType
+	imageBlock.Source.SourceObj.Data = urlTypeInfo.DataURLWithoutPrefix
+	return imageBlock, nil
+}
+
+func isAnthropicImageMediaType(mediaType string) bool {
+	switch strings.ToLower(strings.TrimSpace(mediaType)) {
 	case "image/jpeg", "image/png", "image/gif", "image/webp":
-		imageBlock.Source.SourceObj.Type = "base64"
-		imageBlock.Source.SourceObj.MediaType = urlTypeInfo.MediaType
-		imageBlock.Source.SourceObj.Data = urlTypeInfo.DataURLWithoutPrefix
-		return &imageBlock
+		return true
 	default:
-		return nil
+		return false
 	}
 }
 
-// ConvertToAnthropicImageBlock converts a Bifrost image block to Anthropic format.
-// For API compatibility, invalid input yields the zero value; provider conversion
-// uses convertToAnthropicImageBlock so invalid images can be omitted explicitly.
-func ConvertToAnthropicImageBlock(block schemas.ChatContentBlock) AnthropicContentBlock {
-	if converted := convertToAnthropicImageBlock(block); converted != nil {
-		return *converted
+// convertToAnthropicImageBlock is retained for internal conversion sites whose
+// containing request has already been validated.
+func convertToAnthropicImageBlock(block schemas.ChatContentBlock) *AnthropicContentBlock {
+	converted, err := newAnthropicImageBlock(block)
+	if err != nil {
+		return nil
 	}
-	return AnthropicContentBlock{}
+	return &converted
+}
+
+// ConvertToAnthropicImageBlockWithError converts a Bifrost image block to
+// Anthropic format and reports invalid caller input.
+func ConvertToAnthropicImageBlockWithError(block schemas.ChatContentBlock) (AnthropicContentBlock, error) {
+	return newAnthropicImageBlock(block)
+}
+
+// ConvertToAnthropicImageBlock converts a Bifrost image block to Anthropic format.
+// Deprecated: use ConvertToAnthropicImageBlockWithError to distinguish malformed
+// input. This compatibility wrapper preserves the historical typed image block
+// instead of returning a type-less zero value.
+func ConvertToAnthropicImageBlock(block schemas.ChatContentBlock) AnthropicContentBlock {
+	if converted, err := newAnthropicImageBlock(block); err == nil {
+		return converted
+	}
+	return legacyAnthropicImageBlock(block)
+}
+
+func legacyAnthropicImageBlock(block schemas.ChatContentBlock) AnthropicContentBlock {
+	imageBlock := AnthropicContentBlock{
+		Type:         AnthropicContentBlockTypeImage,
+		CacheControl: block.CacheControl,
+		Source:       &AnthropicBlockSource{SourceObj: &AnthropicSource{}},
+	}
+	if block.ImageURLStruct == nil {
+		return imageBlock
+	}
+
+	sanitizedURL, err := schemas.SanitizeImageURL(block.ImageURLStruct.URL)
+	if err != nil {
+		imageBlock.Source.SourceObj.Type = "url"
+		imageBlock.Source.SourceObj.URL = &block.ImageURLStruct.URL
+		return imageBlock
+	}
+	urlTypeInfo := schemas.ExtractURLTypeInfo(sanitizedURL)
+	if urlTypeInfo.Type == schemas.ImageContentTypeURL {
+		imageBlock.Source.SourceObj.Type = "url"
+		imageBlock.Source.SourceObj.URL = &sanitizedURL
+		return imageBlock
+	}
+	imageBlock.Source.SourceObj.Type = "base64"
+	imageBlock.Source.SourceObj.MediaType = urlTypeInfo.MediaType
+	imageBlock.Source.SourceObj.Data = urlTypeInfo.DataURLWithoutPrefix
+	return imageBlock
+}
+
+func validateAnthropicResponsesRequestImages(request *schemas.BifrostResponsesRequest) error {
+	if request == nil {
+		return nil
+	}
+	for messageIndex, message := range request.Input {
+		if message.Content != nil {
+			if err := validateAnthropicResponsesImageBlocks(message.Content.ContentBlocks, fmt.Sprintf("message %d", messageIndex)); err != nil {
+				return err
+			}
+		}
+		if message.ResponsesToolMessage == nil || message.ResponsesToolMessage.Output == nil {
+			continue
+		}
+		output := message.ResponsesToolMessage.Output
+		if err := validateAnthropicResponsesImageBlocks(output.ResponsesFunctionToolCallOutputBlocks, fmt.Sprintf("tool output %d", messageIndex)); err != nil {
+			return err
+		}
+		if output.ResponsesComputerToolCallOutput != nil && output.ResponsesComputerToolCallOutput.ImageURL != nil {
+			block := schemas.ChatContentBlock{
+				Type: schemas.ChatContentBlockTypeImage,
+				ImageURLStruct: &schemas.ChatInputImage{
+					URL: *output.ResponsesComputerToolCallOutput.ImageURL,
+				},
+			}
+			if _, err := newAnthropicImageBlock(block); err != nil {
+				return providerUtils.InvalidRequestErrorf("invalid Anthropic image in computer tool output %d: %v", messageIndex, err)
+			}
+		}
+	}
+	return nil
+}
+
+func validateAnthropicResponsesImageBlocks(blocks []schemas.ResponsesMessageContentBlock, location string) error {
+	for blockIndex, block := range blocks {
+		if block.Type != schemas.ResponsesInputMessageContentBlockTypeImage && block.ResponsesInputMessageContentBlockImage == nil {
+			continue
+		}
+		chatBlock := schemas.ChatContentBlock{Type: schemas.ChatContentBlockTypeImage, CacheControl: block.CacheControl}
+		if block.ResponsesInputMessageContentBlockImage != nil && block.ResponsesInputMessageContentBlockImage.ImageURL != nil {
+			chatBlock.ImageURLStruct = &schemas.ChatInputImage{URL: *block.ResponsesInputMessageContentBlockImage.ImageURL}
+		}
+		if _, err := newAnthropicImageBlock(chatBlock); err != nil {
+			return providerUtils.InvalidRequestErrorf("invalid Anthropic image in %s block %d: %v", location, blockIndex, err)
+		}
+	}
+	return nil
 }
 
 // ConvertToAnthropicDocumentBlock converts a Bifrost file block to Anthropic document format

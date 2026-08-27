@@ -313,6 +313,16 @@ func BuildAnthropicResponsesRequestBody(ctx *schemas.BifrostContext, request *sc
 					cfg.ShouldSendBackRawResponse,
 				)
 			}
+			if badRequest, ok := providerUtils.AsBifrostBadRequestError(convErr); ok {
+				return nil, providerUtils.EnrichError(
+					ctx,
+					badRequest,
+					jsonBody,
+					nil,
+					cfg.ShouldSendBackRawRequest,
+					cfg.ShouldSendBackRawResponse,
+				)
+			}
 			return nil, newErr(schemas.ErrRequestBodyConversion, convErr, jsonBody)
 		}
 		if reqBody == nil {
@@ -568,6 +578,16 @@ func BuildAnthropicChatRequestBody(ctx *schemas.BifrostContext, request *schemas
 				return nil, providerUtils.EnrichError(
 					ctx,
 					providerUtils.NewBifrostBadRequestError(convErr.Error()),
+					jsonBody,
+					nil,
+					cfg.ShouldSendBackRawRequest,
+					cfg.ShouldSendBackRawResponse,
+				)
+			}
+			if badRequest, ok := providerUtils.AsBifrostBadRequestError(convErr); ok {
+				return nil, providerUtils.EnrichError(
+					ctx,
+					badRequest,
 					jsonBody,
 					nil,
 					cfg.ShouldSendBackRawRequest,

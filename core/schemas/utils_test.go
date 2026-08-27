@@ -1,6 +1,8 @@
 package schemas
 
 import (
+	"encoding/base64"
+	"encoding/binary"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -127,6 +129,25 @@ func TestParseDataURL(t *testing.T) {
 }
 
 func TestSanitizeImageURLInfersRawBase64MediaTypeWithoutGuessing(t *testing.T) {
+	bmpHeader := make([]byte, 54)
+	copy(bmpHeader, "BM")
+	binary.LittleEndian.PutUint32(bmpHeader[2:6], uint32(len(bmpHeader)))
+	binary.LittleEndian.PutUint32(bmpHeader[10:14], 54)
+	binary.LittleEndian.PutUint32(bmpHeader[14:18], 40)
+	binary.LittleEndian.PutUint32(bmpHeader[18:22], 1)
+	binary.LittleEndian.PutUint32(bmpHeader[22:26], 1)
+	binary.LittleEndian.PutUint16(bmpHeader[26:28], 1)
+	binary.LittleEndian.PutUint16(bmpHeader[28:30], 24)
+
+	isoImage := func(brand string) string {
+		header := make([]byte, 20)
+		binary.BigEndian.PutUint32(header[:4], uint32(len(header)))
+		copy(header[4:8], "ftyp")
+		copy(header[8:12], brand)
+		copy(header[16:20], brand)
+		return base64.StdEncoding.EncodeToString(header)
+	}
+
 	tests := []struct {
 		name      string
 		encoded   string
@@ -135,9 +156,15 @@ func TestSanitizeImageURLInfersRawBase64MediaTypeWithoutGuessing(t *testing.T) {
 		{name: "JPEG", encoded: "/9j/", mediaType: "image/jpeg"},
 		{name: "PNG", encoded: "iVBORw0KGgo=", mediaType: "image/png"},
 		{name: "GIF", encoded: "R0lGODlh", mediaType: "image/gif"},
-		{name: "BMP", encoded: "Qk0=", mediaType: "image/bmp"},
+		{name: "BMP", encoded: base64.StdEncoding.EncodeToString(bmpHeader), mediaType: "image/bmp"},
 		{name: "WebP", encoded: "UklGRgAAAABXRUJQ", mediaType: "image/webp"},
 		{name: "SVG", encoded: "PHN2Zy8+", mediaType: "image/svg+xml"},
+		{name: "HEIC", encoded: isoImage("heic"), mediaType: "image/heic"},
+		{name: "HEIF", encoded: isoImage("mif1"), mediaType: "image/heif"},
+		{name: "AVIF", encoded: isoImage("avif"), mediaType: "image/avif"},
+		{name: "little-endian TIFF", encoded: base64.StdEncoding.EncodeToString([]byte{'I', 'I', 0x2a, 0x00}), mediaType: "image/tiff"},
+		{name: "big-endian TIFF", encoded: base64.StdEncoding.EncodeToString([]byte{'M', 'M', 0x00, 0x2a}), mediaType: "image/tiff"},
+		{name: "ICO", encoded: base64.StdEncoding.EncodeToString([]byte{0x00, 0x00, 0x01, 0x00, 0x01, 0x00}), mediaType: "image/x-icon"},
 	}
 
 	for _, tt := range tests {
@@ -152,10 +179,33 @@ func TestSanitizeImageURLInfersRawBase64MediaTypeWithoutGuessing(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "data:image/png;base64,iVBORw0KGgo=", got)
 
-	for _, unknown := range []string{"QUJD", "JVBERi0xLjQ="} {
+	for _, unknown := range []string{
+		"QUJD",
+		"JVBERi0xLjQ=",
+		base64.StdEncoding.EncodeToString([]byte("BM is ordinary text, not a valid bitmap header")),
+	} {
 		_, err := SanitizeImageURL(unknown)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "cannot determine image media type")
+	}
+}
+
+func TestSanitizeImageURLNormalizesDataURLBase64Whitespace(t *testing.T) {
+	got, err := SanitizeImageURL("data:image/png;base64,iVBO Rw0K\nGgo=")
+	require.NoError(t, err)
+	assert.Equal(t, "data:image/png;base64,iVBORw0KGgo=", got)
+
+	got, err = SanitizeImageURL("data:image/png;charset=binary;base64,iVBO\r\nRw0KGgo=")
+	require.NoError(t, err)
+	assert.Equal(t, "data:image/png;charset=binary;base64,iVBORw0KGgo=", got)
+
+	for _, invalid := range []string{
+		"data:image/png;base64,iVBOR*w0KGgo=",
+		"data:image/png;base64,iVBORw0KGgo===",
+	} {
+		_, err := SanitizeImageURL(invalid)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid base64 payload")
 	}
 }
 

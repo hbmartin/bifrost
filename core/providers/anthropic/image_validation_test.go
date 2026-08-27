@@ -1,8 +1,10 @@
 package anthropic
 
 import (
+	"context"
 	"testing"
 
+	providerUtils "github.com/maximhq/bifrost/core/providers/utils"
 	"github.com/maximhq/bifrost/core/schemas"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,7 +29,15 @@ func TestConvertToAnthropicImageBlockRejectsMalformedInputs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			block := schemas.ChatContentBlock{Type: schemas.ChatContentBlockTypeImage, ImageURLStruct: tt.image}
 			assert.Nil(t, convertToAnthropicImageBlock(block))
-			assert.Equal(t, AnthropicContentBlock{}, ConvertToAnthropicImageBlock(block))
+
+			converted, err := ConvertToAnthropicImageBlockWithError(block)
+			require.Error(t, err)
+			assert.Equal(t, AnthropicContentBlock{}, converted)
+
+			// The legacy exported wrapper cannot report an error without breaking its
+			// signature, but it must never produce a type-less wire block.
+			legacy := ConvertToAnthropicImageBlock(block)
+			assert.Equal(t, AnthropicContentBlockTypeImage, legacy.Type)
 		})
 	}
 }
@@ -62,4 +72,45 @@ func TestConvertToAnthropicImageBlockAcceptsCaseInsensitiveHTTPS(t *testing.T) {
 	assert.Equal(t, "url", source.Type)
 	require.NotNil(t, source.URL)
 	assert.Equal(t, "https://example.com/image.png", *source.URL)
+}
+
+func TestConvertToAnthropicImageBlockNormalizesJPGMediaType(t *testing.T) {
+	converted, err := ConvertToAnthropicImageBlockWithError(schemas.ChatContentBlock{
+		Type:           schemas.ChatContentBlockTypeImage,
+		ImageURLStruct: &schemas.ChatInputImage{URL: "data:image/jpg;base64,/9j/"},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, converted.Source)
+	require.NotNil(t, converted.Source.SourceObj)
+	require.NotNil(t, converted.Source.SourceObj.MediaType)
+	assert.Equal(t, "image/jpeg", *converted.Source.SourceObj.MediaType)
+}
+
+func TestAnthropicImageOnlyMessageReturnsBadRequest(t *testing.T) {
+	request := &schemas.BifrostChatRequest{
+		Provider: schemas.Anthropic,
+		Model:    "claude-sonnet-4-5",
+		Input: []schemas.ChatMessage{{
+			Role: schemas.ChatMessageRoleUser,
+			Content: &schemas.ChatMessageContent{ContentBlocks: []schemas.ChatContentBlock{{
+				Type:           schemas.ChatContentBlockTypeImage,
+				ImageURLStruct: &schemas.ChatInputImage{URL: "data:image/svg+xml;base64,PHN2Zy8+"},
+			}}},
+		}},
+	}
+
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
+	converted, err := ToAnthropicChatRequest(ctx, request)
+	assert.Nil(t, converted)
+	require.Error(t, err)
+	badRequest, ok := providerUtils.AsBifrostBadRequestError(err)
+	require.True(t, ok)
+	require.NotNil(t, badRequest.StatusCode)
+	assert.Equal(t, 400, *badRequest.StatusCode)
+
+	body, buildErr := BuildAnthropicChatRequestBody(ctx, request, AnthropicRequestBuildConfig{Provider: schemas.Anthropic})
+	assert.Nil(t, body)
+	require.NotNil(t, buildErr)
+	require.NotNil(t, buildErr.StatusCode)
+	assert.Equal(t, 400, *buildErr.StatusCode)
 }
