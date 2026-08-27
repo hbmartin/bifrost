@@ -14,6 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const reviewRegressionTestModel = "amazon.nova-lite-v1:0"
+
 func TestChatReasoningSummaryKeepsEncryptedReplayTokenSeparate(t *testing.T) {
 	blocks := convertChatReasoningDetailsToBedrock([]schemas.ChatReasoningDetails{
 		{Type: schemas.BifrostReasoningDetailsTypeSummary, Summary: schemas.Ptr("first")},
@@ -181,7 +183,7 @@ func TestChatReasoningEncryptedOnlyEmitsRequiredEmptyText(t *testing.T) {
 
 func TestBedrockInputAudioConversion(t *testing.T) {
 	t.Run("chat mixed text and audio", func(t *testing.T) {
-		converted, err := convertMessage(context.Background(), schemas.ChatMessage{
+		converted, err := convertMessage(context.Background(), reviewRegressionTestModel, schemas.ChatMessage{
 			Role: schemas.ChatMessageRoleUser,
 			Content: &schemas.ChatMessageContent{ContentBlocks: []schemas.ChatContentBlock{
 				{Type: schemas.ChatContentBlockTypeText, Text: schemas.Ptr("transcribe this")},
@@ -196,7 +198,7 @@ func TestBedrockInputAudioConversion(t *testing.T) {
 	})
 
 	t.Run("responses data URL", func(t *testing.T) {
-		conversion, err := convertBifrostResponsesMessageContentBlocksToBedrockContentBlocksWithDisposition(context.Background(), schemas.ResponsesMessageContent{
+		conversion, err := convertBifrostResponsesMessageContentBlocksToBedrockContentBlocksWithDisposition(context.Background(), reviewRegressionTestModel, schemas.ResponsesMessageContent{
 			ContentBlocks: []schemas.ResponsesMessageContentBlock{{
 				Type: schemas.ResponsesInputMessageContentBlockTypeAudio,
 				Audio: &schemas.ResponsesInputMessageContentBlockAudio{
@@ -230,7 +232,7 @@ func TestBedrockInputAudioConversion(t *testing.T) {
 
 	t.Run("responses structured tool output audio", func(t *testing.T) {
 		msgType := schemas.ResponsesMessageTypeFunctionCallOutput
-		messages, _, err := ConvertBifrostMessagesToBedrockMessages(context.Background(), []schemas.ResponsesMessage{{
+		messages, _, err := ConvertBifrostMessagesToBedrockMessages(context.Background(), reviewRegressionTestModel, []schemas.ResponsesMessage{{
 			Type: &msgType,
 			ResponsesToolMessage: &schemas.ResponsesToolMessage{
 				CallID: schemas.Ptr("tool_audio"),
@@ -564,7 +566,7 @@ func TestBedrockInputAudioIsRejectedBeforeRemoteAssetsAreFetched(t *testing.T) {
 
 func TestPreparedAssetsConvertWithoutSyntheticDataURL(t *testing.T) {
 	t.Run("image", func(t *testing.T) {
-		blocks, err := convertContentBlock(schemas.ChatContentBlock{
+		blocks, err := convertContentBlock(reviewRegressionTestModel, schemas.ChatContentBlock{
 			Type: schemas.ChatContentBlockTypeImage,
 			ImageURLStruct: &schemas.ChatInputImage{
 				URL: "https://example.com/large.png",
@@ -581,7 +583,7 @@ func TestPreparedAssetsConvertWithoutSyntheticDataURL(t *testing.T) {
 	})
 
 	t.Run("document", func(t *testing.T) {
-		blocks, err := convertContentBlock(schemas.ChatContentBlock{
+		blocks, err := convertContentBlock(reviewRegressionTestModel, schemas.ChatContentBlock{
 			Type: schemas.ChatContentBlockTypeFile,
 			File: &schemas.ChatInputFile{
 				Filename: schemas.Ptr("large.pdf"),
@@ -599,7 +601,7 @@ func TestPreparedAssetsConvertWithoutSyntheticDataURL(t *testing.T) {
 
 	t.Run("resolved document wins over stale URL", func(t *testing.T) {
 		staleURL := "ftp://example.com/stale.pdf"
-		blocks, err := convertContentBlock(schemas.ChatContentBlock{
+		blocks, err := convertContentBlock(reviewRegressionTestModel, schemas.ChatContentBlock{
 			Type: schemas.ChatContentBlockTypeFile,
 			File: &schemas.ChatInputFile{
 				FileURL:  &staleURL,
@@ -634,7 +636,7 @@ func TestBedrockDocumentConversionsPreserveCacheControl(t *testing.T) {
 		{name: "inline data", file: &schemas.ChatInputFile{Filename: schemas.Ptr("report.pdf"), FileData: schemas.Ptr("ZmlsZQ==")}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			blocks, err := convertContentBlock(schemas.ChatContentBlock{
+			blocks, err := convertContentBlock(reviewRegressionTestModel, schemas.ChatContentBlock{
 				Type: schemas.ChatContentBlockTypeFile, File: tc.file, CacheControl: cacheControl,
 			})
 			require.NoError(t, err)
@@ -661,7 +663,7 @@ func TestResponsesFallbackOnlyMessageIsDropped(t *testing.T) {
 		},
 	}
 
-	converted, err := convertBifrostMessageToBedrockMessage(context.Background(), &msg)
+	converted, err := convertBifrostMessageToBedrockMessage(context.Background(), reviewRegressionTestModel, &msg)
 	require.NoError(t, err)
 	assert.Nil(t, converted)
 }
@@ -677,7 +679,7 @@ func TestResponsesUnknownOnlyMessageStillErrors(t *testing.T) {
 		},
 	}
 
-	_, err := convertBifrostMessageToBedrockMessage(context.Background(), &msg)
+	_, err := convertBifrostMessageToBedrockMessage(context.Background(), reviewRegressionTestModel, &msg)
 	require.ErrorContains(t, err, "content must not be blank or unsupported")
 }
 
@@ -686,7 +688,7 @@ func TestResponsesFallbackMarkerIsTransparentToLeadingSystemState(t *testing.T) 
 	systemRole := schemas.ResponsesInputMessageRoleSystem
 	userRole := schemas.ResponsesInputMessageRoleUser
 	msgType := schemas.ResponsesMessageTypeMessage
-	messages, system, err := ConvertBifrostMessagesToBedrockMessages(context.Background(), []schemas.ResponsesMessage{
+	messages, system, err := ConvertBifrostMessagesToBedrockMessages(context.Background(), reviewRegressionTestModel, []schemas.ResponsesMessage{
 		{
 			Type: &msgType,
 			Role: &assistantRole,
@@ -710,14 +712,14 @@ func TestResponsesContentConverterReportsDroppableVersusUnknown(t *testing.T) {
 	fallback := schemas.ResponsesMessageContent{ContentBlocks: []schemas.ResponsesMessageContentBlock{{
 		Type: schemas.ResponsesOutputMessageContentTypeFallback,
 	}}}
-	conversion, err := convertBifrostResponsesMessageContentBlocksToBedrockContentBlocksWithDisposition(context.Background(), fallback)
+	conversion, err := convertBifrostResponsesMessageContentBlocksToBedrockContentBlocksWithDisposition(context.Background(), reviewRegressionTestModel, fallback)
 	require.NoError(t, err)
 	assert.Equal(t, bedrockResponsesContentIntentionallySkipped, conversion.Disposition)
 
 	unknown := schemas.ResponsesMessageContent{ContentBlocks: []schemas.ResponsesMessageContentBlock{{
 		Type: schemas.ResponsesMessageContentBlockType("future_unknown"),
 	}}}
-	conversion, err = convertBifrostResponsesMessageContentBlocksToBedrockContentBlocksWithDisposition(context.Background(), unknown)
+	conversion, err = convertBifrostResponsesMessageContentBlocksToBedrockContentBlocksWithDisposition(context.Background(), reviewRegressionTestModel, unknown)
 	require.NoError(t, err)
 	assert.Equal(t, bedrockResponsesContentUnsupported, conversion.Disposition)
 
@@ -728,7 +730,7 @@ func TestResponsesContentConverterReportsDroppableVersusUnknown(t *testing.T) {
 func TestResponsesAbsentContentAlwaysReturnsError(t *testing.T) {
 	role := schemas.ResponsesInputMessageRoleAssistant
 	for _, content := range []*schemas.ResponsesMessageContent{nil, &schemas.ResponsesMessageContent{}} {
-		_, disposition, err := convertBifrostMessageToBedrockMessageWithDisposition(context.Background(), &schemas.ResponsesMessage{
+		_, disposition, err := convertBifrostMessageToBedrockMessageWithDisposition(context.Background(), reviewRegressionTestModel, &schemas.ResponsesMessage{
 			Role: &role, Content: content,
 		})
 		require.ErrorContains(t, err, "content must not be blank or unsupported")
@@ -738,7 +740,7 @@ func TestResponsesAbsentContentAlwaysReturnsError(t *testing.T) {
 
 func TestResponsesMessageConverterRejectsMissingRoleWithoutPanicking(t *testing.T) {
 	for _, msg := range []*schemas.ResponsesMessage{nil, {}} {
-		_, disposition, err := convertBifrostMessageToBedrockMessageWithDisposition(context.Background(), msg)
+		_, disposition, err := convertBifrostMessageToBedrockMessageWithDisposition(context.Background(), reviewRegressionTestModel, msg)
 		require.Error(t, err)
 		assert.Equal(t, bedrockResponsesContentAbsent, disposition)
 	}
@@ -750,7 +752,7 @@ func TestResponsesBlankToolCallIDsReturnErrors(t *testing.T) {
 		schemas.ResponsesMessageTypeFunctionCallOutput,
 	} {
 		t.Run(string(msgType), func(t *testing.T) {
-			_, _, err := ConvertBifrostMessagesToBedrockMessages(context.Background(), []schemas.ResponsesMessage{{
+			_, _, err := ConvertBifrostMessagesToBedrockMessages(context.Background(), reviewRegressionTestModel, []schemas.ResponsesMessage{{
 				Type: &msgType,
 				ResponsesToolMessage: &schemas.ResponsesToolMessage{
 					CallID: schemas.Ptr("  "),
@@ -769,7 +771,7 @@ func TestDecodedToolResultEnvelopeHoistsCachePoint(t *testing.T) {
 	require.NoError(t, err)
 
 	msgType := schemas.ResponsesMessageTypeFunctionCallOutput
-	messages, _, err := ConvertBifrostMessagesToBedrockMessages(context.Background(), []schemas.ResponsesMessage{{
+	messages, _, err := ConvertBifrostMessagesToBedrockMessages(context.Background(), reviewRegressionTestModel, []schemas.ResponsesMessage{{
 		Type: &msgType,
 		ResponsesToolMessage: &schemas.ResponsesToolMessage{
 			CallID: schemas.Ptr("tooluse_search"),
@@ -823,7 +825,7 @@ func TestEmptyToolResultPlaceholderIsFresh(t *testing.T) {
 
 func TestUnsupportedChatFileURLReportsScheme(t *testing.T) {
 	fileURL := "ftp://example.com/report.pdf"
-	_, err := convertContentBlock(schemas.ChatContentBlock{
+	_, err := convertContentBlock(reviewRegressionTestModel, schemas.ChatContentBlock{
 		Type: schemas.ChatContentBlockTypeFile,
 		File: &schemas.ChatInputFile{FileURL: &fileURL, FileType: schemas.Ptr("application/pdf")},
 	})
