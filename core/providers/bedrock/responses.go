@@ -3372,7 +3372,7 @@ func (m *ToolCallStateManager) HasPendingResults() bool {
 // Callers compute it from the provider+model — see the call site in ToBedrockResponsesRequest.
 func ConvertBifrostMessagesToBedrockMessages(ctx context.Context, model string, bifrostMessages []schemas.ResponsesMessage, inlineSystemReminders bool) ([]BedrockMessage, []BedrockSystemMessage, error) {
 	// If only a single system message is present, convert it user message (since openai allows it)
-	if len(bifrostMessages) == 1 && bifrostMessages[0].Role != nil && (*bifrostMessages[0].Role == schemas.ResponsesInputMessageRoleSystem || *bifrostMessages[0].Role == schemas.ResponsesInputMessageRoleDeveloper) {
+	if bedrockConvertsLoneResponsesSystemMessage(bifrostMessages) {
 		msg := bifrostMessages[0]
 		msg.Role = schemas.Ptr(schemas.ResponsesInputMessageRoleUser)
 		bedrockMsg, err := convertBifrostMessageToBedrockMessage(ctx, model, &msg)
@@ -3612,12 +3612,15 @@ func ConvertBifrostMessagesToBedrockMessages(ctx context.Context, model string, 
 						} else {
 							resultContent = append(resultContent, tryParseJSONIntoContentBlock(outputStr))
 						}
-					} else if msg.ResponsesToolMessage.Output.ResponsesFunctionToolCallOutputBlocks != nil {
+					} else {
 						// Handle structured output blocks
-						for _, block := range msg.ResponsesToolMessage.Output.ResponsesFunctionToolCallOutputBlocks {
+						for _, block := range activeBedrockResponsesToolOutputBlocks(msg.ResponsesToolMessage.Output) {
 							if block.Text != nil {
 								resultContent = append(resultContent, tryParseJSONIntoContentBlock(*block.Text))
-							} else if block.Type == schemas.ResponsesInputMessageContentBlockTypeAudio && block.Audio != nil {
+							} else if block.Type == schemas.ResponsesInputMessageContentBlockTypeAudio {
+								if block.Audio == nil {
+									return nil, nil, fmt.Errorf("input_audio content block in function call output missing input_audio data")
+								}
 								format := block.Audio.Format
 								audio, err := convertInputAudioToBedrock(block.Audio.Data, &format)
 								if err != nil {
