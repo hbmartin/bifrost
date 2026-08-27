@@ -340,6 +340,7 @@ func convertCohereContentBlockToBifrost(cohereBlock CohereContentBlock) schemas.
 			Type: schemas.ResponsesInputMessageContentBlockTypeImage,
 			ResponsesInputMessageContentBlockImage: &schemas.ResponsesInputMessageContentBlockImage{
 				ImageURL: &cohereBlock.ImageURL.URL,
+				Detail:   cohereBlock.ImageURL.Detail,
 			},
 		}
 	case CohereContentBlockTypeThinking:
@@ -1377,13 +1378,14 @@ func ToCohereResponsesRequest(bifrostReq *schemas.BifrostResponsesRequest) (*Coh
 }
 
 // normalizeCohereResponsesImages validates and normalizes image references on
-// shallow message copies. Only image-bearing block slices and structs are cloned,
-// so provider conversion never mutates a caller-owned Responses request or copies
-// unrelated raw payloads.
+// lazy shallow copies. Text-only traffic returns the original slice; the message
+// slice and image-bearing nested structs are copied only after a change is found.
 func normalizeCohereResponsesImages(messages []schemas.ResponsesMessage) ([]schemas.ResponsesMessage, error) {
-	normalized := append([]schemas.ResponsesMessage(nil), messages...)
-	for messageIndex := range normalized {
-		message := &normalized[messageIndex]
+	normalized := messages
+	changedMessages := false
+	for messageIndex := range messages {
+		message := messages[messageIndex]
+		messageChanged := false
 
 		if message.Content != nil {
 			blocks, changed, err := normalizeCohereResponsesImageBlocks(message.Content.ContentBlocks)
@@ -1394,6 +1396,7 @@ func normalizeCohereResponsesImages(messages []schemas.ResponsesMessage) ([]sche
 				content := *message.Content
 				content.ContentBlocks = blocks
 				message.Content = &content
+				messageChanged = true
 			}
 		}
 		if message.ResponsesToolMessage != nil && message.ResponsesToolMessage.Output != nil {
@@ -1407,7 +1410,15 @@ func normalizeCohereResponsesImages(messages []schemas.ResponsesMessage) ([]sche
 				output.ResponsesFunctionToolCallOutputBlocks = blocks
 				toolMessage.Output = &output
 				message.ResponsesToolMessage = &toolMessage
+				messageChanged = true
 			}
+		}
+		if messageChanged {
+			if !changedMessages {
+				normalized = append([]schemas.ResponsesMessage(nil), messages...)
+				changedMessages = true
+			}
+			normalized[messageIndex] = message
 		}
 	}
 	return normalized, nil
@@ -1422,7 +1433,7 @@ func normalizeCohereResponsesImageBlocks(blocks []schemas.ResponsesMessageConten
 			continue
 		}
 		if block.ResponsesInputMessageContentBlockImage == nil || block.ResponsesInputMessageContentBlockImage.ImageURL == nil {
-			return nil, false, fmt.Errorf("image block %d must include image_url", blockIndex)
+			return nil, false, providerUtils.InvalidRequestErrorf("image block %d must include image_url", blockIndex)
 		}
 
 		image := block.ResponsesInputMessageContentBlockImage

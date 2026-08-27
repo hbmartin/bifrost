@@ -929,16 +929,16 @@ func ToAnthropicChatRequest(ctx *schemas.BifrostContext, bifrostReq *schemas.Bif
 										Type: AnthropicContentBlockTypeText,
 										Text: block.Text,
 									})
-								} else if block.ImageURLStruct != nil {
-									imageBlock := convertToAnthropicImageBlock(block)
-									if imageBlock == nil {
-										continue
+								} else if block.Type == schemas.ChatContentBlockTypeImage || block.ImageURLStruct != nil {
+									converted, err := newAnthropicImageBlock(block)
+									if err != nil {
+										return nil, providerUtils.InvalidRequestErrorf("invalid Anthropic image in message %d: %v", i, err)
 									}
-									// ConvertToAnthropicImageBlock copies CacheControl onto the
+									// Image conversion copies CacheControl onto the
 									// returned block unconditionally (correct for a top-level image
 									// block, but not here -- it's already hoisted above).
-									imageBlock.CacheControl = nil
-									blocks = append(blocks, *imageBlock)
+									converted.CacheControl = nil
+									blocks = append(blocks, converted)
 								}
 							}
 							if len(blocks) > 0 {
@@ -1006,10 +1006,12 @@ func ToAnthropicChatRequest(ctx *schemas.BifrostContext, bifrostReq *schemas.Bif
 								Text:         block.Text,
 								CacheControl: block.CacheControl,
 							})
-						} else if block.ImageURLStruct != nil {
-							if imageBlock := convertToAnthropicImageBlock(block); imageBlock != nil {
-								content = append(content, *imageBlock)
+						} else if block.Type == schemas.ChatContentBlockTypeImage || block.ImageURLStruct != nil {
+							imageBlock, err := newAnthropicImageBlock(block)
+							if err != nil {
+								return nil, providerUtils.InvalidRequestErrorf("invalid Anthropic image in message %d: %v", i, err)
 							}
+							content = append(content, imageBlock)
 						} else if block.File != nil {
 							content = append(content, ConvertToAnthropicDocumentBlock(block))
 						}
