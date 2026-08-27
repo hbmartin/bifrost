@@ -83,23 +83,63 @@ func TestChatReasoningDistinctSignedBlocksSurviveReusedIndex(t *testing.T) {
 	require.Equal(t, "second-signature", *blocks[1].ReasoningContent.ReasoningText.Signature)
 }
 
-func TestBedrockChatStreamReasoningUsesContentBlockIndex(t *testing.T) {
-	for _, index := range []int{2, 7} {
+func TestChatReasoningRepeatedSignatureAndContinuationStayOnSameIndex(t *testing.T) {
+	blocks := convertChatReasoningDetailsToBedrock([]schemas.ChatReasoningDetails{
+		{Index: 4, Type: schemas.BifrostReasoningDetailsTypeText, Text: schemas.Ptr("first "), Signature: schemas.Ptr("same-signature")},
+		{Index: 4, Type: schemas.BifrostReasoningDetailsTypeText, Text: schemas.Ptr("second "), Signature: schemas.Ptr("same-signature")},
+		{Index: 4, Type: schemas.BifrostReasoningDetailsTypeText, Text: schemas.Ptr("third")},
+	})
+
+	require.Len(t, blocks, 1)
+	require.Equal(t, "first second third", *blocks[0].ReasoningContent.ReasoningText.Text)
+	require.Equal(t, "same-signature", *blocks[0].ReasoningContent.ReasoningText.Signature)
+}
+
+func TestBedrockChatStreamReasoningUsesDenseStableIndices(t *testing.T) {
+	state := NewBedrockStreamState()
+	for i, tc := range []struct {
+		contentBlockIndex int
+		wantIndex         int
+		signature         *string
+	}{
+		{contentBlockIndex: 2, wantIndex: 0},
+		{contentBlockIndex: 7, wantIndex: 1},
+		{contentBlockIndex: 2, wantIndex: 0, signature: schemas.Ptr("signature")},
+	} {
 		text := "thinking"
+		delta := &BedrockReasoningContentText{Text: &text}
+		if tc.signature != nil {
+			delta = &BedrockReasoningContentText{Signature: tc.signature}
+		}
 		response, bifrostErr, finished := (&BedrockStreamEvent{
-			ContentBlockIndex: &index,
+			ContentBlockIndex: &tc.contentBlockIndex,
 			Delta: &BedrockContentBlockDelta{
-				ReasoningContent: &BedrockReasoningContentText{Text: &text},
+				ReasoningContent: delta,
 			},
-		}).ToBifrostChatCompletionStream(NewBedrockStreamState())
+		}).ToBifrostChatCompletionStream(state)
 
 		require.Nil(t, bifrostErr)
 		require.False(t, finished)
 		require.NotNil(t, response)
 		require.Len(t, response.Choices, 1)
 		require.Len(t, response.Choices[0].ChatStreamResponseChoice.Delta.ReasoningDetails, 1)
-		require.Equal(t, index, response.Choices[0].ChatStreamResponseChoice.Delta.ReasoningDetails[0].Index)
+		require.Equal(t, tc.wantIndex, response.Choices[0].ChatStreamResponseChoice.Delta.ReasoningDetails[0].Index, "event %d", i)
 	}
+}
+
+func TestBedrockChatStreamReasoningRejectsMissingContentBlockIndex(t *testing.T) {
+	text := "thinking"
+	response, bifrostErr, finished := (&BedrockStreamEvent{
+		Delta: &BedrockContentBlockDelta{
+			ReasoningContent: &BedrockReasoningContentText{Text: &text},
+		},
+	}).ToBifrostChatCompletionStream(NewBedrockStreamState())
+
+	require.Nil(t, response)
+	require.NotNil(t, bifrostErr)
+	require.NotNil(t, bifrostErr.Error)
+	require.Contains(t, bifrostErr.Error.Message, "missing contentBlockIndex")
+	require.True(t, finished)
 }
 
 func TestChatReasoningSummarySignaturesStayWithTheirText(t *testing.T) {
@@ -212,6 +252,22 @@ func TestBedrockInputAudioConversion(t *testing.T) {
 		require.Len(t, messages[0].Content[0].ToolResult.Content, 1)
 		require.NotNil(t, messages[0].Content[0].ToolResult.Content[0].Audio)
 	})
+
+	t.Run("responses structured tool output rejects missing audio", func(t *testing.T) {
+		msgType := schemas.ResponsesMessageTypeFunctionCallOutput
+		_, _, err := ConvertBifrostMessagesToBedrockMessages(context.Background(), reviewRegressionTestModel, []schemas.ResponsesMessage{{
+			Type: &msgType,
+			ResponsesToolMessage: &schemas.ResponsesToolMessage{
+				CallID: schemas.Ptr("tool_audio"),
+				Output: &schemas.ResponsesToolMessageOutputStruct{
+					ResponsesFunctionToolCallOutputBlocks: []schemas.ResponsesMessageContentBlock{{
+						Type: schemas.ResponsesInputMessageContentBlockTypeAudio,
+					}},
+				},
+			},
+		}}, false)
+		require.ErrorContains(t, err, "missing input_audio data")
+	})
 }
 
 func TestBedrockAudioScanMatchesConvertedContent(t *testing.T) {
@@ -310,6 +366,20 @@ func TestBedrockResponsesAudioScanMatchesActiveUnionArm(t *testing.T) {
 	jsonOnlyEnvelope, err := encodeBedrockToolResultEnvelope([]BedrockContentBlock{{JSON: json.RawMessage(`{"audio":{"metadata":"not a content block"}}`)}})
 	require.NoError(t, err)
 	assert.False(t, bedrockToolResultEnvelopeHasAudio(jsonOnlyEnvelope))
+
+	nullAudioEnvelope := `{"` + bedrockToolResultEnvelopeKey + `":[{"audio":null}]}`
+	assert.False(t, bedrockToolResultEnvelopeHasAudio(nullAudioEnvelope), "a decoded nil Audio field is not sent")
+
+	invalidAudioEnvelope := `{"` + bedrockToolResultEnvelopeKey + `":[{"audio":"not-an-audio-block"}]}`
+	assert.False(t, bedrockToolResultEnvelopeHasAudio(invalidAudioEnvelope), "a decoder-rejected envelope is not sent as audio")
+
+	nestedEnvelope, err := encodeBedrockToolResultEnvelope([]BedrockContentBlock{{
+		ToolResult: &BedrockToolResult{Content: []BedrockContentBlock{{
+			Audio: &BedrockAudioBlock{Format: "wav", Source: BedrockAudioSource{Bytes: schemas.Ptr("UklGRg==")}},
+		}}},
+	}})
+	require.NoError(t, err)
+	assert.True(t, bedrockToolResultEnvelopeHasAudio(nestedEnvelope))
 }
 
 func TestBedrockInputAudioIsModelGated(t *testing.T) {
@@ -359,6 +429,19 @@ func TestBedrockInputAudioIsModelGated(t *testing.T) {
 	})
 	require.ErrorContains(t, err, "does not support audio message input")
 
+	nonMessageType := schemas.ResponsesMessageTypeFunctionCallOutput
+	systemRole := schemas.ResponsesInputMessageRoleSystem
+	_, err = ToBedrockResponsesRequest(ctx, &schemas.BifrostResponsesRequest{
+		Provider: schemas.Bedrock,
+		Model:    "anthropic.claude-sonnet-4-v1:0",
+		Input: []schemas.ResponsesMessage{{
+			Type:    &nonMessageType,
+			Role:    &systemRole,
+			Content: responsesInput[0].Content,
+		}},
+	})
+	require.ErrorContains(t, err, "does not support audio message input")
+
 	responsesRequest, err := ToBedrockResponsesRequest(ctx, &schemas.BifrostResponsesRequest{
 		Provider: schemas.Bedrock,
 		Model:    "amazon.nova-2-sonic-v1:0",
@@ -383,12 +466,21 @@ func TestBedrockInputAudioIsRejectedBeforeRemoteAssetsAreFetched(t *testing.T) {
 		_, err := ToBedrockChatCompletionRequest(schemas.NewBifrostContext(context.Background(), schemas.NoDeadline), &schemas.BifrostChatRequest{
 			Provider: schemas.Bedrock,
 			Model:    "anthropic.claude-sonnet-4-v1:0",
-			Input: []schemas.ChatMessage{{
-				Role: schemas.ChatMessageRoleUser,
-				Content: &schemas.ChatMessageContent{ContentBlocks: []schemas.ChatContentBlock{{
-					Type: schemas.ChatContentBlockTypeImage, ImageURLStruct: &schemas.ChatInputImage{URL: server.URL + "/image.png"},
-				}}},
-			}},
+			Input: []schemas.ChatMessage{
+				{
+					Role: schemas.ChatMessageRoleSystem,
+					Content: &schemas.ChatMessageContent{ContentBlocks: []schemas.ChatContentBlock{
+						{Type: schemas.ChatContentBlockTypeText, Text: schemas.Ptr("system")},
+						{Type: schemas.ChatContentBlockTypeInputAudio, InputAudio: &schemas.ChatInputAudio{Data: "UklGRg==", Format: schemas.Ptr("wav")}},
+					}},
+				},
+				{
+					Role: schemas.ChatMessageRoleUser,
+					Content: &schemas.ChatMessageContent{ContentBlocks: []schemas.ChatContentBlock{{
+						Type: schemas.ChatContentBlockTypeImage, ImageURLStruct: &schemas.ChatInputImage{URL: server.URL + "/image.png"},
+					}}},
+				},
+			},
 		})
 		require.ErrorContains(t, err, "blocked connection to non-public address")
 		assert.Zero(t, requests.Load())
@@ -418,16 +510,26 @@ func TestBedrockInputAudioIsRejectedBeforeRemoteAssetsAreFetched(t *testing.T) {
 		_, err := ToBedrockResponsesRequest(schemas.NewBifrostContext(context.Background(), schemas.NoDeadline), &schemas.BifrostResponsesRequest{
 			Provider: schemas.Bedrock,
 			Model:    "anthropic.claude-sonnet-4-v1:0",
-			Input: []schemas.ResponsesMessage{{
-				Type: &msgType,
-				Role: &role,
-				Content: &schemas.ResponsesMessageContent{ContentBlocks: []schemas.ResponsesMessageContentBlock{{
-					Type: schemas.ResponsesInputMessageContentBlockTypeImage,
-					ResponsesInputMessageContentBlockImage: &schemas.ResponsesInputMessageContentBlockImage{
-						ImageURL: schemas.Ptr(server.URL + "/image.png"),
-					},
-				}}},
-			}},
+			Input: []schemas.ResponsesMessage{
+				{
+					Type: &msgType,
+					Role: schemas.Ptr(schemas.ResponsesInputMessageRoleSystem),
+					Content: &schemas.ResponsesMessageContent{ContentBlocks: []schemas.ResponsesMessageContentBlock{
+						{Type: schemas.ResponsesInputMessageContentBlockTypeText, Text: schemas.Ptr("system")},
+						{Type: schemas.ResponsesInputMessageContentBlockTypeAudio, Audio: &schemas.ResponsesInputMessageContentBlockAudio{Data: "UklGRg==", Format: "wav"}},
+					}},
+				},
+				{
+					Type: &msgType,
+					Role: &role,
+					Content: &schemas.ResponsesMessageContent{ContentBlocks: []schemas.ResponsesMessageContentBlock{{
+						Type: schemas.ResponsesInputMessageContentBlockTypeImage,
+						ResponsesInputMessageContentBlockImage: &schemas.ResponsesInputMessageContentBlockImage{
+							ImageURL: schemas.Ptr(server.URL + "/image.png"),
+						},
+					}}},
+				},
+			},
 		})
 		require.ErrorContains(t, err, "blocked connection to non-public address")
 		assert.Zero(t, requests.Load())
