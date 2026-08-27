@@ -1573,6 +1573,9 @@ func (provider *GeminiProvider) SpeechStream(ctx *schemas.BifrostContext, postHo
 				if candidate.Content != nil && len(candidate.Content.Parts) > 0 {
 					var buf []byte
 					for _, part := range candidate.Content.Parts {
+						if part == nil {
+							continue
+						}
 						if part.InlineData != nil && len(part.InlineData.Data) > 0 {
 							// Decode base64-encoded audio data
 							decodedData, err := decodeBase64StringToBytes(part.InlineData.Data)
@@ -1859,6 +1862,9 @@ func (provider *GeminiProvider) TranscriptionStream(ctx *schemas.BifrostContext,
 				if len(geminiResponse.Candidates[0].Content.Parts) > 0 {
 					var sb strings.Builder
 					for _, p := range geminiResponse.Candidates[0].Content.Parts {
+						if p == nil {
+							continue
+						}
 						if p.Text != "" {
 							sb.WriteString(p.Text)
 						}
