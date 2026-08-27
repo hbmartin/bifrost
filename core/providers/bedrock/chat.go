@@ -350,17 +350,20 @@ func (response *BedrockConverseResponse) ToBifrostChatResponse(ctx context.Conte
 	return bifrostResponse, nil
 }
 
-// BedrockStreamState tracks per-stream tool call index state.
+// BedrockStreamState tracks per-stream tool call and reasoning-detail index state.
 type BedrockStreamState struct {
-	nextToolCallIndex         int
-	contentBlockToToolCallIdx map[int]int
-	ctx                       context.Context
+	nextToolCallIndex                  int
+	contentBlockToToolCallIdx          map[int]int
+	nextReasoningDetailIndex           int
+	contentBlockToReasoningDetailIndex map[int]int
+	ctx                                context.Context
 }
 
 // NewBedrockStreamState returns initialised stream state for one streaming response.
 func NewBedrockStreamState() *BedrockStreamState {
 	return &BedrockStreamState{
-		contentBlockToToolCallIdx: make(map[int]int),
+		contentBlockToToolCallIdx:          make(map[int]int),
+		contentBlockToReasoningDetailIndex: make(map[int]int),
 	}
 }
 
@@ -371,11 +374,28 @@ func NewBedrockStreamStateWithContext(ctx context.Context) *BedrockStreamState {
 	return state
 }
 
+// reasoningDetailIndex returns a dense, stable reasoning_details index for a
+// Bedrock content block. Bedrock's raw indices include non-reasoning blocks and
+// therefore are not suitable for the public reasoning_details sequence.
+func (state *BedrockStreamState) reasoningDetailIndex(contentBlockIndex int) int {
+	if index, ok := state.contentBlockToReasoningDetailIndex[contentBlockIndex]; ok {
+		return index
+	}
+	index := state.nextReasoningDetailIndex
+	state.contentBlockToReasoningDetailIndex[contentBlockIndex] = index
+	state.nextReasoningDetailIndex++
+	return index
+}
+
 func (chunk *BedrockStreamEvent) ToBifrostChatCompletionStream(state *BedrockStreamState) (*schemas.BifrostChatResponse, *schemas.BifrostError, bool) {
 	if state == nil {
 		state = NewBedrockStreamState()
-	} else if state.contentBlockToToolCallIdx == nil {
+	}
+	if state.contentBlockToToolCallIdx == nil {
 		state.contentBlockToToolCallIdx = make(map[int]int)
+	}
+	if state.contentBlockToReasoningDetailIndex == nil {
+		state.contentBlockToReasoningDetailIndex = make(map[int]int)
 	}
 
 	// event with metrics/usage is the last and with stop reason is the second last
@@ -492,10 +512,15 @@ func (chunk *BedrockStreamEvent) ToBifrostChatCompletionStream(state *BedrockStr
 		case chunk.Delta.ReasoningContent != nil:
 			// Handle reasoning content delta
 			reasoningContentDelta := chunk.Delta.ReasoningContent
-			reasoningDetailIndex := 0
-			if chunk.ContentBlockIndex != nil {
-				reasoningDetailIndex = *chunk.ContentBlockIndex
+			if chunk.ContentBlockIndex == nil {
+				return nil, &schemas.BifrostError{
+					IsBifrostError: true,
+					Error: &schemas.ErrorField{
+						Message: "Bedrock reasoning content delta missing contentBlockIndex",
+					},
+				}, true
 			}
+			reasoningDetailIndex := state.reasoningDetailIndex(*chunk.ContentBlockIndex)
 
 			// Only construct and return a response when either Text or Signature is set
 			if (reasoningContentDelta.Text == nil || *reasoningContentDelta.Text == "") && reasoningContentDelta.Signature == nil {
