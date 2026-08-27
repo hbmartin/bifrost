@@ -58,7 +58,12 @@ func TestToCohereChatCompletionRequestPreservesHistoryAndCurrentImages(t *testin
 }
 
 func TestToCohereChatCompletionRequestRejectsInvalidImages(t *testing.T) {
-	for _, imageURL := range []string{"", "QUJD"} {
+	for _, imageURL := range []string{
+		"",
+		"QUJD",
+		"data:image/bmp;base64,Qk0=",
+		"data:image/svg+xml;base64,PHN2Zy8+",
+	} {
 		t.Run(imageURL, func(t *testing.T) {
 			_, err := ToCohereChatCompletionRequest(&schemas.BifrostChatRequest{
 				Provider: schemas.Cohere,
@@ -73,7 +78,37 @@ func TestToCohereChatCompletionRequestRejectsInvalidImages(t *testing.T) {
 			})
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "invalid Cohere image")
+			badRequest, ok := providerUtils.AsBifrostBadRequestError(err)
+			require.True(t, ok)
+			require.NotNil(t, badRequest.StatusCode)
+			assert.Equal(t, 400, *badRequest.StatusCode)
 		})
+	}
+}
+
+func TestToCohereChatCompletionRequestRejectsMissingImageAndInvalidDetail(t *testing.T) {
+	tests := []schemas.ChatContentBlock{
+		{Type: schemas.ChatContentBlockTypeImage},
+		{
+			Type: schemas.ChatContentBlockTypeImage,
+			ImageURLStruct: &schemas.ChatInputImage{
+				URL:    "https://example.com/image.png",
+				Detail: schemas.Ptr("medium"),
+			},
+		},
+	}
+	for _, block := range tests {
+		_, err := ToCohereChatCompletionRequest(&schemas.BifrostChatRequest{
+			Provider: schemas.Cohere,
+			Model:    "command-a-vision-07-2025",
+			Input: []schemas.ChatMessage{{
+				Role:    schemas.ChatMessageRoleUser,
+				Content: &schemas.ChatMessageContent{ContentBlocks: []schemas.ChatContentBlock{block}},
+			}},
+		})
+		require.Error(t, err)
+		_, ok := providerUtils.AsBifrostBadRequestError(err)
+		assert.True(t, ok)
 	}
 }
 
@@ -125,4 +160,39 @@ func TestNormalizeCohereResponsesImagesCopiesToolOutputImages(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, testRawPNGBase64, *messages[0].ResponsesToolMessage.Output.ResponsesFunctionToolCallOutputBlocks[0].ResponsesInputMessageContentBlockImage.ImageURL)
 	assert.Equal(t, "data:image/png;base64,"+testRawPNGBase64, *normalized[0].ResponsesToolMessage.Output.ResponsesFunctionToolCallOutputBlocks[0].ResponsesInputMessageContentBlockImage.ImageURL)
+}
+
+func TestNormalizeCohereResponsesImagesDoesNotCopyTextOnlyMessages(t *testing.T) {
+	messages := []schemas.ResponsesMessage{{
+		Role:    schemas.Ptr(schemas.ResponsesInputMessageRoleUser),
+		Content: &schemas.ResponsesMessageContent{ContentStr: schemas.Ptr("hello")},
+	}}
+
+	normalized, err := normalizeCohereResponsesImages(messages)
+	require.NoError(t, err)
+	require.Len(t, normalized, 1)
+	assert.True(t, &messages[0] == &normalized[0], "text-only normalization should reuse the caller's message slice")
+}
+
+func TestCohereInboundImageDetailIsPreserved(t *testing.T) {
+	detail := "high"
+	message := (&CohereMessage{
+		Role: "user",
+		Content: NewBlocksContent([]CohereContentBlock{{
+			Type:     CohereContentBlockTypeImage,
+			ImageURL: &CohereImageURL{URL: "https://example.com/image.png", Detail: &detail},
+		}}),
+	}).ToBifrostChatMessage()
+	require.NotNil(t, message)
+	require.NotNil(t, message.Content)
+	require.Len(t, message.Content.ContentBlocks, 1)
+	require.NotNil(t, message.Content.ContentBlocks[0].ImageURLStruct)
+	assert.Equal(t, detail, *message.Content.ContentBlocks[0].ImageURLStruct.Detail)
+
+	responsesBlock := convertCohereContentBlockToBifrost(CohereContentBlock{
+		Type:     CohereContentBlockTypeImage,
+		ImageURL: &CohereImageURL{URL: "https://example.com/image.png", Detail: &detail},
+	})
+	require.NotNil(t, responsesBlock.ResponsesInputMessageContentBlockImage)
+	assert.Equal(t, detail, *responsesBlock.ResponsesInputMessageContentBlockImage.Detail)
 }
