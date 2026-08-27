@@ -1477,13 +1477,6 @@ func (ac *AnthropicCitations) UnmarshalJSON(data []byte) error {
 	return fmt.Errorf("citations field is neither a config object nor an array of citations")
 }
 
-// AnthropicImageContent represents image content in Anthropic format
-type AnthropicImageContent struct {
-	Type      schemas.ImageContentType `json:"type"`
-	URL       string                   `json:"url"`
-	MediaType string                   `json:"media_type,omitempty"`
-}
-
 type AnthropicToolType string
 
 const (
