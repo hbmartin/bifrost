@@ -31,6 +31,24 @@ var contentAttrKeysWant = []string{
 	schemas.AttrRespToolChoiceType, schemas.AttrRespToolChoiceName,
 }
 
+func TestOverheadMicrosFromTraceUsesCanonicalMillisecondsAttribute(t *testing.T) {
+	trace := &schemas.Trace{RootSpan: &schemas.Span{Attributes: map[string]any{
+		schemas.AttrBifrostOverheadDurationMs: 12.5,
+	}}}
+
+	got, ok := overheadMicrosFromTrace(trace)
+	if !ok {
+		t.Fatal("overheadMicrosFromTrace reported the canonical attribute as absent")
+	}
+	if got != 12_500 {
+		t.Fatalf("overheadMicrosFromTrace = %v, want 12500", got)
+	}
+
+	if _, ok := overheadMicrosFromTrace(&schemas.Trace{RootSpan: &schemas.Span{Attributes: map[string]any{}}}); ok {
+		t.Fatal("overheadMicrosFromTrace reported a missing measurement as zero")
+	}
+}
+
 // TestIsContentAttributeCoversCanonicalSet is the A5 drift guard: every content key must be
 // classified as content (and thus stripped) on export, and representative metadata keys must
 // not be. The exporter shares core's classifier, so a new content attribute in core is stripped
@@ -368,24 +386,40 @@ func TestConvertTraceContentFidelity(t *testing.T) {
 	p := &OtelPlugin{pluginSpanFilter: &PluginSpanFilter{}}
 
 	root := makeSpan("aaaa", "", "request", schemas.SpanKindInternal)
+	root.Attributes = map[string]any{
+		schemas.AttrBifrostVirtualKeyID:    "vk-123",
+		schemas.AttrBifrostVirtualKeyName:  "production",
+		schemas.AttrBifrostSelectedKeyID:   "key-234",
+		schemas.AttrBifrostSelectedKeyName: "primary",
+		schemas.AttrBifrostRoutingRuleID:   "route-456",
+		schemas.AttrBifrostRoutingRuleName: "fast-path",
+		schemas.AttrBifrostTeamID:          "team-567",
+		schemas.AttrBifrostTeamName:        "platform",
+		schemas.AttrBifrostCustomerID:      "customer-678",
+		schemas.AttrBifrostCustomerName:    "acme",
+		schemas.AttrBifrostRetries:         2,
+		schemas.AttrBifrostFallbackIndex:   1,
+	}
 	child := makeSpan("bbbb", "aaaa", "chat", schemas.SpanKindLLMCall)
 	// Mirror the shapes framework/tracing/llmspan.go actually stores: messages are JSON
 	// strings (MarshalString), finish reasons are []string, token counts are ints.
 	child.Attributes = map[string]any{
-		schemas.AttrProviderName:   "openai",
-		schemas.AttrRequestModel:   "gpt-4o-mini",
-		schemas.AttrResponseModel:  "gpt-4o-mini-2024-07-18",
-		schemas.AttrInputMessages:  `[{"role":"user","content":"hello world"}]`,
-		schemas.AttrOutputMessages: `[{"role":"assistant","content":"hello world"}]`,
-		schemas.AttrFinishReasons:  []string{"stop"},
-		schemas.AttrInputTokens:    2,
-		schemas.AttrOutputTokens:   2,
-		schemas.AttrTotalTokens:    4,
+		schemas.AttrProviderName:     "openai",
+		schemas.AttrRequestModel:     "gpt-4o-mini",
+		schemas.AttrResponseModel:    "gpt-4o-mini-2024-07-18",
+		schemas.AttrInputMessages:    `[{"role":"user","content":"hello world"}]`,
+		schemas.AttrOutputMessages:   `[{"role":"assistant","content":"hello world"}]`,
+		schemas.AttrFinishReasons:    []string{"stop"},
+		schemas.AttrInputTokens:      2,
+		schemas.AttrOutputTokens:     2,
+		schemas.AttrTotalTokens:      4,
+		schemas.AttrTimeToFirstChunk: 0.125,
 	}
 	trace := &schemas.Trace{
-		TraceID:  "00000000000000000000000000000077",
-		RootSpan: root,
-		Spans:    []*schemas.Span{root, child},
+		RequestID: "request-789",
+		TraceID:   "00000000000000000000000000000077",
+		RootSpan:  root,
+		Spans:     []*schemas.Span{root, child},
 	}
 
 	// Content logging enabled (disableContentLogging=false, disableRootSpanContent=false).
@@ -439,6 +473,78 @@ func TestConvertTraceContentFidelity(t *testing.T) {
 	}
 	if got := attrs[schemas.AttrTotalTokens].GetIntValue(); got != 4 {
 		t.Errorf("total tokens = %d, want 4", got)
+	}
+	if got := attrs[schemas.AttrTimeToFirstChunk].GetDoubleValue(); got != 0.125 {
+		t.Errorf("time to first chunk = %v, want 0.125 seconds", got)
+	}
+
+	rootAttrs := kvMap(findRoot(rs.ScopeSpans[0].Spans).Attributes)
+	if got := rootAttrs[schemas.AttrBifrostRequestID].GetStringValue(); got != "request-789" {
+		t.Errorf("request id = %q, want request-789", got)
+	}
+	if got := rootAttrs[schemas.AttrBifrostVirtualKeyID].GetStringValue(); got != "vk-123" {
+		t.Errorf("virtual key id = %q, want vk-123", got)
+	}
+	if got := rootAttrs[schemas.AttrBifrostRoutingRuleID].GetStringValue(); got != "route-456" {
+		t.Errorf("routing rule id = %q, want route-456", got)
+	}
+	if got := rootAttrs[schemas.AttrBifrostRetries].GetIntValue(); got != 2 {
+		t.Errorf("retry count = %d, want 2", got)
+	}
+	if got := rootAttrs[schemas.AttrBifrostFallbackIndex].GetIntValue(); got != 1 {
+		t.Errorf("fallback index = %d, want 1", got)
+	}
+	for key, want := range map[string]string{
+		schemas.AttrBifrostVirtualKeyName:  "production",
+		schemas.AttrBifrostSelectedKeyID:   "key-234",
+		schemas.AttrBifrostSelectedKeyName: "primary",
+		schemas.AttrBifrostRoutingRuleName: "fast-path",
+		schemas.AttrBifrostTeamID:          "team-567",
+		schemas.AttrBifrostTeamName:        "platform",
+		schemas.AttrBifrostCustomerID:      "customer-678",
+		schemas.AttrBifrostCustomerName:    "acme",
+	} {
+		if got := rootAttrs[key].GetStringValue(); got != want {
+			t.Errorf("%s = %q, want %q", key, got, want)
+		}
+	}
+
+	legacyAliases := []string{
+		"gen_ai.request_id",
+		"gen_ai.virtual_key_id",
+		"gen_ai.virtual_key_name",
+		"gen_ai.selected_key_id",
+		"gen_ai.selected_key_name",
+		"gen_ai.routing_rule_id",
+		"gen_ai.routing_rule_name",
+		"gen_ai.team_id",
+		"gen_ai.team_name",
+		"gen_ai.customer_id",
+		"gen_ai.customer_name",
+		"gen_ai.number_of_retries",
+		"gen_ai.fallback_index",
+		"retry.count",
+		"gen_ai.usage.prompt_tokens",
+		"gen_ai.usage.completion_tokens",
+		"gen_ai.response.time_to_first_token",
+		"gen_ai.request.n",
+		"gen_ai.request.dimensions",
+		"gen_ai.request.encoding_format",
+		"gen_ai.usage.prompt_token_details.cached_read_tokens",
+		"gen_ai.usage.prompt_token_details.cached_write_tokens",
+		"gen_ai.usage.input_token_details.cached_read_tokens",
+		"gen_ai.usage.input_token_details.cached_write_tokens",
+		"gen_ai.usage.completion_token_details.reasoning_tokens",
+		"gen_ai.usage.output_token_details.reasoning_tokens",
+		"gen_ai.error.type",
+	}
+	for _, exported := range rs.ScopeSpans[0].Spans {
+		exportedAttrs := kvMap(exported.Attributes)
+		for _, alias := range legacyAliases {
+			if _, ok := exportedAttrs[alias]; ok {
+				t.Errorf("legacy alias %q was exported on span %q", alias, exported.Name)
+			}
+		}
 	}
 }
 
