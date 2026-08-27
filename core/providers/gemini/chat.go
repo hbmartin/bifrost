@@ -174,6 +174,9 @@ func (response *GenerateContentResponse) ToBifrostChatResponse() *schemas.Bifros
 	// too. ToBifrostChatCompletionStream already builds its choice outside this guard.
 	if candidate.Content != nil {
 		for _, part := range candidate.Content.Parts {
+			if part == nil {
+				continue
+			}
 			// Handle thought/reasoning text separately - add to reasoning details
 			if part.Text != "" && part.Thought {
 				reasoningDetails = append(reasoningDetails, schemas.ChatReasoningDetails{
@@ -435,6 +438,9 @@ func (response *GenerateContentResponse) ToBifrostChatCompletionStream(state *Ge
 		var reasoningDetails []schemas.ChatReasoningDetails
 
 		for _, part := range candidate.Content.Parts {
+			if part == nil {
+				continue
+			}
 			switch {
 			case part.Text != "" && part.Thought:
 				// Thought/reasoning content - add to reasoning details
