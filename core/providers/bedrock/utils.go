@@ -898,15 +898,9 @@ func prepareBedrockChatMessages(ctx context.Context, messages []schemas.ChatMess
 
 	for i := range messages {
 		msg := messages[i]
-		if (msg.Role == schemas.ChatMessageRoleSystem || msg.Role == schemas.ChatMessageRoleDeveloper) && len(messages) != 1 {
-			continue
-		}
-		if msg.Content == nil || msg.Content.ContentBlocks == nil ||
-			(msg.Content.ContentStr != nil && strings.TrimSpace(*msg.Content.ContentStr) != "") {
-			continue
-		}
+		contentBlocks := activeBedrockChatContentBlocks(msg, len(messages))
 
-		for j, block := range msg.Content.ContentBlocks {
+		for j, block := range contentBlocks {
 			resolved, changed, err := resolveBedrockChatContentBlock(ctx, block)
 			if err != nil {
 				return nil, fmt.Errorf("failed to resolve messages[%d].content[%d]: %w", i, j, err)
@@ -1003,7 +997,7 @@ func convertMessages(ctx context.Context, model string, bifrostMessages []schema
 	var systemMessages []BedrockSystemMessage
 
 	// if only system / developer message is there, convert it to user message (since openai allows it)
-	if len(bifrostMessages) == 1 && (bifrostMessages[0].Role == schemas.ChatMessageRoleSystem || bifrostMessages[0].Role == schemas.ChatMessageRoleDeveloper) {
+	if bedrockConvertsLoneChatSystemMessage(bifrostMessages) {
 		msg := bifrostMessages[0]
 		msg.Role = schemas.ChatMessageRoleUser
 		bedrockMsg, err := convertMessage(ctx, model, msg)
@@ -1285,10 +1279,11 @@ func convertMessage(ctx context.Context, model string, msg schemas.ChatMessage) 
 
 // convertChatReasoningDetailsToBedrock mirrors the Responses replay precedence:
 // provider-native reasoning.text blocks with visible text win when present.
-// Streaming text and signature deltas are merged by index before conversion,
-// while a completed signed block starts a new accumulator even if a malformed
-// producer reuses the same index. A detached signature is never attached to text
-// from another block: it stays on its own required empty-text replay block.
+// Streaming text and signature deltas are merged by index before conversion.
+// A producer that reuses an index for blocks with distinct signatures still gets
+// separate replay blocks, while repeated copies of the same signature remain on
+// one block. A detached signature is never attached to text from another index:
+// it stays on its own required empty-text replay block.
 func convertChatReasoningDetailsToBedrock(details []schemas.ChatReasoningDetails) []BedrockContentBlock {
 	type reasoningTextAccumulator struct {
 		text      strings.Builder
@@ -1310,10 +1305,6 @@ func convertChatReasoningDetailsToBedrock(details []schemas.ChatReasoningDetails
 		accumulator, ok := activeByIndex[detail.Index]
 		if !ok {
 			accumulator = newAccumulator(detail.Index)
-		} else if detail.Text != nil && *detail.Text != "" && accumulator.text.Len() > 0 && accumulator.signature != nil {
-			// A signature completes a reasoning block. Text arriving afterward is a
-			// distinct block even if the producer incorrectly reused its index.
-			accumulator = newAccumulator(detail.Index)
 		} else if signature := reasoningSignatureForBedrock(detail.Signature); signature != nil &&
 			accumulator.signature != nil && *signature != *accumulator.signature {
 			// Never let a later signature replace the signature paired with text that
@@ -1328,30 +1319,32 @@ func convertChatReasoningDetailsToBedrock(details []schemas.ChatReasoningDetails
 		}
 	}
 
-	blocks := make([]BedrockContentBlock, 0, len(details))
 	hasVisibleReasoningText := false
 	for _, accumulator := range textOrder {
-		if accumulator.text.Len() == 0 && accumulator.signature == nil {
-			continue
-		}
-		text := ""
 		if accumulator.text.Len() > 0 {
-			text = accumulator.text.String()
 			hasVisibleReasoningText = true
+			break
 		}
-		blocks = append(blocks, BedrockContentBlock{ReasoningContent: &BedrockReasoningContent{
-			ReasoningText: &BedrockReasoningContentText{
-				Text:      &text,
-				Signature: accumulator.signature,
-			},
-		}})
 	}
 	if hasVisibleReasoningText {
+		blocks := make([]BedrockContentBlock, 0, len(textOrder))
+		for _, accumulator := range textOrder {
+			if accumulator.text.Len() == 0 && accumulator.signature == nil {
+				continue
+			}
+			text := accumulator.text.String()
+			blocks = append(blocks, BedrockContentBlock{ReasoningContent: &BedrockReasoningContent{
+				ReasoningText: &BedrockReasoningContentText{
+					Text:      &text,
+					Signature: accumulator.signature,
+				},
+			}})
+		}
 		return blocks
 	}
 	// Signature-only reasoning.text details must not shadow visible summaries.
-	// Rebuild the fallback blocks below, keeping detached tokens separate.
-	blocks = blocks[:0]
+	// Build the fallback blocks below, keeping detached tokens separate.
+	blocks := make([]BedrockContentBlock, 0, len(details))
 
 	var detachedSignatures []*string
 	for _, detail := range details {
@@ -1801,24 +1794,31 @@ func normalizeBedrockAudioFormat(format string) string {
 	}
 }
 
+func bedrockConvertsLoneChatSystemMessage(messages []schemas.ChatMessage) bool {
+	return len(messages) == 1 &&
+		(messages[0].Role == schemas.ChatMessageRoleSystem || messages[0].Role == schemas.ChatMessageRoleDeveloper)
+}
+
+func activeBedrockChatContentBlocks(message schemas.ChatMessage, messageCount int) []schemas.ChatContentBlock {
+	switch message.Role {
+	case schemas.ChatMessageRoleSystem, schemas.ChatMessageRoleDeveloper:
+		if messageCount != 1 {
+			return nil
+		}
+	case schemas.ChatMessageRoleUser, schemas.ChatMessageRoleAssistant, schemas.ChatMessageRoleTool:
+	default:
+		return nil
+	}
+	if message.Content == nil ||
+		(message.Content.ContentStr != nil && strings.TrimSpace(*message.Content.ContentStr) != "") {
+		return nil
+	}
+	return message.Content.ContentBlocks
+}
+
 func bifrostChatMessagesHaveAudio(messages []schemas.ChatMessage) bool {
 	for _, message := range messages {
-		switch message.Role {
-		case schemas.ChatMessageRoleSystem, schemas.ChatMessageRoleDeveloper:
-			if len(messages) != 1 {
-				continue
-			}
-		case schemas.ChatMessageRoleUser, schemas.ChatMessageRoleAssistant, schemas.ChatMessageRoleTool:
-		default:
-			continue
-		}
-		if message.Content == nil {
-			continue
-		}
-		if message.Content.ContentStr != nil && strings.TrimSpace(*message.Content.ContentStr) != "" {
-			continue
-		}
-		for _, block := range message.Content.ContentBlocks {
+		for _, block := range activeBedrockChatContentBlocks(message, len(messages)) {
 			if block.Type == schemas.ChatContentBlockTypeInputAudio && block.InputAudio != nil {
 				return true
 			}
@@ -1827,17 +1827,41 @@ func bifrostChatMessagesHaveAudio(messages []schemas.ChatMessage) bool {
 	return false
 }
 
+func isBedrockResponsesSystemMessage(message schemas.ResponsesMessage) bool {
+	return message.Role != nil &&
+		(*message.Role == schemas.ResponsesInputMessageRoleSystem || *message.Role == schemas.ResponsesInputMessageRoleDeveloper)
+}
+
+// bedrockConvertsLoneResponsesSystemMessage reports the converter's OpenAI-
+// compatibility fast path. It deliberately keys only on role, not Type.
+func bedrockConvertsLoneResponsesSystemMessage(messages []schemas.ResponsesMessage) bool {
+	return len(messages) == 1 && isBedrockResponsesSystemMessage(messages[0])
+}
+
+func activeBedrockResponsesContentBlocks(content *schemas.ResponsesMessageContent) []schemas.ResponsesMessageContentBlock {
+	if content == nil || content.ContentStr != nil {
+		return nil
+	}
+	return content.ContentBlocks
+}
+
+func activeBedrockResponsesToolOutputBlocks(output *schemas.ResponsesToolMessageOutputStruct) []schemas.ResponsesMessageContentBlock {
+	if output == nil || output.ResponsesToolCallOutputStr != nil {
+		return nil
+	}
+	return output.ResponsesFunctionToolCallOutputBlocks
+}
+
 func bifrostResponsesMessagesHaveAudio(messages []schemas.ResponsesMessage) bool {
 	for _, message := range messages {
 		msgType := schemas.ResponsesMessageTypeMessage
 		if message.Type != nil {
 			msgType = *message.Type
 		}
-		isSystemMessage := message.Role != nil &&
-			(*message.Role == schemas.ResponsesInputMessageRoleSystem || *message.Role == schemas.ResponsesInputMessageRoleDeveloper)
-		if msgType == schemas.ResponsesMessageTypeMessage && message.Role != nil &&
-			message.Content != nil && message.Content.ContentStr == nil && (!isSystemMessage || len(messages) == 1) {
-			for _, block := range message.Content.ContentBlocks {
+		isSystemMessage := isBedrockResponsesSystemMessage(message)
+		convertsAsMessage := msgType == schemas.ResponsesMessageTypeMessage || bedrockConvertsLoneResponsesSystemMessage(messages)
+		if convertsAsMessage && message.Role != nil && (!isSystemMessage || len(messages) == 1) {
+			for _, block := range activeBedrockResponsesContentBlocks(message.Content) {
 				if block.Type == schemas.ResponsesInputMessageContentBlockTypeAudio && block.Audio != nil {
 					return true
 				}
@@ -1854,7 +1878,7 @@ func bifrostResponsesMessagesHaveAudio(messages []schemas.ResponsesMessage) bool
 			}
 			continue
 		}
-		for _, block := range output.ResponsesFunctionToolCallOutputBlocks {
+		for _, block := range activeBedrockResponsesToolOutputBlocks(output) {
 			if block.Text == nil && block.Type == schemas.ResponsesInputMessageContentBlockTypeAudio && block.Audio != nil {
 				return true
 			}
@@ -1864,39 +1888,20 @@ func bifrostResponsesMessagesHaveAudio(messages []schemas.ResponsesMessage) bool
 }
 
 func bedrockToolResultEnvelopeHasAudio(s string) bool {
-	if len(s) == 0 || s[0] != '{' || !strings.Contains(s, bedrockToolResultEnvelopeKey) {
-		return false
-	}
-	root := gjson.Parse(s)
-	if !root.IsObject() {
-		return false
-	}
-	fieldCount := 0
-	isEnvelope := true
-	root.ForEach(func(key, _ gjson.Result) bool {
-		fieldCount++
-		if key.String() != bedrockToolResultEnvelopeKey {
-			isEnvelope = false
-		}
-		return true
-	})
-	content := root.Get(bedrockToolResultEnvelopeKey)
-	return fieldCount == 1 && isEnvelope && bedrockJSONContentBlocksHaveAudio(content)
+	blocks, ok := decodeBedrockToolResultEnvelope(s)
+	return ok && bedrockContentBlocksHaveAudio(blocks)
 }
 
-func bedrockJSONContentBlocksHaveAudio(blocks gjson.Result) bool {
-	if !blocks.IsArray() {
-		return false
-	}
-	found := false
-	blocks.ForEach(func(_, block gjson.Result) bool {
-		if block.Get("audio").Exists() || bedrockJSONContentBlocksHaveAudio(block.Get("toolResult.content")) {
-			found = true
-			return false
+func bedrockContentBlocksHaveAudio(blocks []BedrockContentBlock) bool {
+	for _, block := range blocks {
+		if block.Audio != nil {
+			return true
 		}
-		return true
-	})
-	return found
+		if block.ToolResult != nil && bedrockContentBlocksHaveAudio(block.ToolResult.Content) {
+			return true
+		}
+	}
+	return false
 }
 
 // validateBedrockAudioInput rejects audio before request conversion performs
