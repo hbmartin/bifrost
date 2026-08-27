@@ -1,9 +1,12 @@
 package schemas
 
 import (
+	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"math/rand/v2"
+	"mime"
 	"net/url"
 	"regexp"
 	"sort"
@@ -142,16 +145,6 @@ func ParseFallbacks(fallbacks []string) []Fallback {
 
 //* IMAGE UTILS *//
 
-// dataURIRegex is a precompiled regex for matching data URI format patterns.
-// It matches patterns like: data:image/png;base64,iVBORw0KGgo...
-// Group 1 is the header (media type plus any parameters, e.g. ";charset=utf-8;base64"),
-// group 2 the payload.
-var dataURIRegex = regexp.MustCompile(`^data:([^,]*),([\s\S]+)$`)
-
-// base64Regex is a precompiled regex for matching base64 strings.
-// It matches strings containing only valid base64 characters with optional padding.
-var base64Regex = regexp.MustCompile(`^[A-Za-z0-9+/]*={0,2}$`)
-
 // fileExtensionToMediaType maps common image file extensions to their corresponding media types.
 // This map is used to infer media types from file extensions in URLs.
 var fileExtensionToMediaType = map[string]string{
@@ -208,8 +201,8 @@ func sanitizeImageURL(rawURL string, allowedSchemes []string) (string, error) {
 	// Trim whitespace
 	rawURL = strings.TrimSpace(rawURL)
 
-	// Check if it's already a proper data URL
-	if strings.HasPrefix(rawURL, "data:") {
+	// Check if it's already a proper data URL. URI schemes are case-insensitive.
+	if hasDataURLPrefix(rawURL) {
 		// Validate data URL format
 		if _, _, _, ok := ParseDataURL(rawURL); !ok {
 			return rawURL, fmt.Errorf("invalid data URL format")
@@ -217,16 +210,14 @@ func sanitizeImageURL(rawURL string, allowedSchemes []string) (string, error) {
 		return rawURL, nil
 	}
 
-	// Check if it looks like raw base64 image data
-	if isLikelyBase64(rawURL) {
-		// Detect the image type from the base64 data
-		mediaType := detectImageTypeFromBase64(rawURL)
-
-		// Remove any whitespace/newlines from base64 data
-		cleanBase64 := strings.ReplaceAll(strings.ReplaceAll(rawURL, "\n", ""), " ", "")
-
-		// Create proper data URL
-		return fmt.Sprintf("data:%s;base64,%s", mediaType, cleanBase64), nil
+	// Check if it looks like raw base64 image data. Do not invent a media type:
+	// positively labelling unknown bytes as JPEG makes valid PNG/WebP/GIF inputs
+	// fail later with a misleading provider error.
+	if cleanBase64, mediaType, looksLikeBase64 := normalizeRawBase64Image(rawURL); looksLikeBase64 {
+		if mediaType == "" {
+			return rawURL, fmt.Errorf("cannot determine image media type from raw base64 data; use a data URL with an explicit image media type")
+		}
+		return "data:" + mediaType + ";base64," + cleanBase64, nil
 	}
 
 	// Parse as regular URL
@@ -265,7 +256,7 @@ func sanitizeImageURL(rawURL string, allowedSchemes []string) (string, error) {
 // For data URLs, it parses the media type and encoding.
 // For regular URLs, it attempts to infer the media type from the file extension.
 func ExtractURLTypeInfo(sanitizedURL string) URLTypeInfo {
-	if strings.HasPrefix(sanitizedURL, "data:") {
+	if hasDataURLPrefix(sanitizedURL) {
 		return extractDataURLInfo(sanitizedURL)
 	}
 	return extractRegularURLInfo(sanitizedURL)
@@ -277,30 +268,42 @@ func ExtractURLTypeInfo(sanitizedURL string) URLTypeInfo {
 // (still base64-encoded when isBase64 is true, percent-encoded otherwise).
 // ok is false when the input is not a data URL carrying both a media type and a payload.
 func ParseDataURL(dataURL string) (mediaType string, isBase64 bool, payload string, ok bool) {
-	matches := dataURIRegex.FindStringSubmatch(dataURL)
-	if len(matches) != 3 {
+	if !hasDataURLPrefix(dataURL) {
 		return "", false, "", false
 	}
 
-	segments := strings.Split(matches[1], ";")
-	mediaType = strings.ToLower(strings.TrimSpace(segments[0]))
-	if mediaType == "" {
+	header, payload, found := strings.Cut(dataURL[len("data:"):], ",")
+	if !found || payload == "" {
 		return "", false, "", false
 	}
-	for _, segment := range segments[1:] {
-		if strings.EqualFold(strings.TrimSpace(segment), "base64") {
+
+	mediaTypePart, parameters, hasParameters := strings.Cut(header, ";")
+	parsedMediaType, _, err := mime.ParseMediaType(strings.TrimSpace(mediaTypePart))
+	if err != nil || parsedMediaType == "" {
+		return "", false, "", false
+	}
+	mediaType = strings.ToLower(parsedMediaType)
+
+	for hasParameters {
+		var parameter string
+		parameter, parameters, hasParameters = strings.Cut(parameters, ";")
+		if strings.EqualFold(strings.TrimSpace(parameter), "base64") {
 			isBase64 = true
 		}
 	}
 
-	return mediaType, isBase64, matches[2], true
+	return mediaType, isBase64, payload, true
+}
+
+func hasDataURLPrefix(value string) bool {
+	return len(value) >= len("data:") && strings.EqualFold(value[:len("data:")], "data:")
 }
 
 // extractDataURLInfo extracts information from a data URL
 func extractDataURLInfo(dataURL string) URLTypeInfo {
 	mediaType, isBase64, payload, ok := ParseDataURL(dataURL)
 	if !ok {
-		return URLTypeInfo{Type: ImageContentTypeBase64}
+		return URLTypeInfo{}
 	}
 
 	dataURLWithoutPrefix := dataURL
@@ -348,44 +351,116 @@ func extractRegularURLInfo(regularURL string) URLTypeInfo {
 	return info
 }
 
-// detectImageTypeFromBase64 detects the image type from base64 data by examining the header bytes
-func detectImageTypeFromBase64(base64Data string) string {
-	// Remove any whitespace or newlines
-	cleanData := strings.ReplaceAll(strings.ReplaceAll(base64Data, "\n", ""), " ", "")
+// detectImageTypeFromBase64 detects a supported image type from canonical raw base64.
+// It decodes only a bounded prefix, avoiding an image-sized allocation. It deliberately
+// has no default: callers must not assert image/jpeg for unknown bytes.
+func detectImageTypeFromBase64(cleanData string) string {
+	const maxEncodedPrefix = 680 // Decodes to at most 510 bytes.
+	prefixLength := min(len(cleanData), maxEncodedPrefix)
+	if prefixLength < len(cleanData) {
+		prefixLength -= prefixLength % 4
+	}
+	encodedPrefix := strings.TrimRight(cleanData[:prefixLength], "=")
+	if encodedPrefix == "" {
+		return ""
+	}
 
-	// Check common image format signatures in base64
+	var decoded [512]byte
+	decodedLength, err := base64.RawStdEncoding.Decode(decoded[:], []byte(encodedPrefix))
+	if err != nil {
+		return ""
+	}
+	header := decoded[:decodedLength]
+
 	switch {
-	case strings.HasPrefix(cleanData, "/9j/") || strings.HasPrefix(cleanData, "/9k/"):
-		// JPEG images typically start with /9j/ or /9k/ in base64 (FFD8 in hex)
+	case len(header) >= 3 && header[0] == 0xff && header[1] == 0xd8 && header[2] == 0xff:
 		return "image/jpeg"
-	case strings.HasPrefix(cleanData, "iVBORw0KGgo"):
-		// PNG images start with iVBORw0KGgo in base64 (89504E470D0A1A0A in hex)
+	case len(header) >= 8 && bytes.Equal(header[:8], []byte("\x89PNG\r\n\x1a\n")):
 		return "image/png"
-	case strings.HasPrefix(cleanData, "R0lGOD"):
-		// GIF images start with R0lGOD in base64 (474946 in hex)
+	case len(header) >= 6 && (bytes.Equal(header[:6], []byte("GIF87a")) || bytes.Equal(header[:6], []byte("GIF89a"))):
 		return "image/gif"
-	case strings.HasPrefix(cleanData, "Qk"):
-		// BMP images start with Qk in base64 (424D in hex)
+	case len(header) >= 2 && bytes.Equal(header[:2], []byte("BM")):
 		return "image/bmp"
-	case strings.HasPrefix(cleanData, "UklGR") && len(cleanData) >= 16 && cleanData[12:16] == "V0VC":
-		// WebP images start with RIFF header (UklGR in base64) and have WEBP signature at offset 8-11 (V0VC in base64)
+	case len(header) >= 12 && bytes.Equal(header[:4], []byte("RIFF")) && bytes.Equal(header[8:12], []byte("WEBP")):
 		return "image/webp"
-	case strings.HasPrefix(cleanData, "PHN2Zy") || strings.HasPrefix(cleanData, "PD94bW"):
-		// SVG images often start with <svg or <?xml in base64
-		return "image/svg+xml"
 	default:
-		// Default to JPEG for unknown formats
-		return "image/jpeg"
+		trimmed := bytes.TrimSpace(header)
+		if bytes.HasPrefix(trimmed, []byte("<svg")) || bytes.HasPrefix(trimmed, []byte("<?xml")) {
+			return "image/svg+xml"
+		}
+		return ""
 	}
 }
 
-// isLikelyBase64 checks if a string looks like base64 data
-func isLikelyBase64(s string) bool {
-	// Remove whitespace for checking
-	cleanData := strings.ReplaceAll(strings.ReplaceAll(s, "\n", ""), " ", "")
+// normalizeRawBase64Image validates raw standard-base64 syntax, removes ASCII
+// whitespace in one pass, and infers a supported image media type from the encoded
+// signature. The returned bool distinguishes non-base64 URL-like input from valid
+// base64 whose image format is unknown.
+func normalizeRawBase64Image(value string) (cleanData string, mediaType string, looksLikeBase64 bool) {
+	var builder strings.Builder
+	building := false
+	encodedLen := 0
+	paddingCount := 0
+	seenPadding := false
 
-	// Check if it contains only base64 characters using pre-compiled regex
-	return base64Regex.MatchString(cleanData)
+	for i := 0; i < len(value); i++ {
+		char := value[i]
+		if isBase64Whitespace(char) {
+			if !building {
+				builder.Grow(len(value))
+				builder.WriteString(value[:i])
+				building = true
+			}
+			continue
+		}
+
+		if building {
+			builder.WriteByte(char)
+		}
+		encodedLen++
+
+		switch {
+		case char == '=':
+			seenPadding = true
+			paddingCount++
+			if paddingCount > 2 {
+				return "", "", false
+			}
+		case isBase64Alphabet(char):
+			if seenPadding {
+				return "", "", false
+			}
+		default:
+			return "", "", false
+		}
+	}
+
+	if encodedLen == 0 || encodedLen%4 == 1 || (paddingCount > 0 && encodedLen%4 != 0) {
+		return "", "", false
+	}
+	if building {
+		cleanData = builder.String()
+	} else {
+		cleanData = value
+	}
+
+	return cleanData, detectImageTypeFromBase64(cleanData), true
+}
+
+func isBase64Alphabet(char byte) bool {
+	return char >= 'A' && char <= 'Z' ||
+		char >= 'a' && char <= 'z' ||
+		char >= '0' && char <= '9' ||
+		char == '+' || char == '/'
+}
+
+func isBase64Whitespace(char byte) bool {
+	switch char {
+	case ' ', '\t', '\r', '\n', '\v', '\f':
+		return true
+	default:
+		return false
+	}
 }
 
 // JsonifyInput converts an interface{} to a JSON string
