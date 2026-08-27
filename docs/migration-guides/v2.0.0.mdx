@@ -3,7 +3,7 @@ title: "Migrating to v2.0.0"
 description: "Breaking changes and migration instructions for the v2.0.0 release"
 ---
 
-v2.0.0 hardens custom plugin loading against server-side request forgery (SSRF), closes a path that let an unauthenticated caller register a custom native plugin when dashboard auth is disabled or unconfigured, moves all governance APIs under a single `/api/governance` namespace, moves the plugin `HTTPTransportPreHook` phase to run after the transport authenticates the request, and restructures the request `cost` object into a per-category input/output/additional breakdown. This page covers the five breaking changes in this release and how to migrate.
+v2.0.0 hardens custom plugin loading against server-side request forgery (SSRF), closes a path that let an unauthenticated caller register a custom native plugin when dashboard auth is disabled or unconfigured, moves all governance APIs under a single `/api/governance` namespace, moves the plugin `HTTPTransportPreHook` phase to run after the transport authenticates the request, restructures the request `cost` object into a per-category input/output/additional breakdown, and removes legacy observability aliases. This page covers the six breaking changes in this release and how to migrate.
 
 <Note>
 **Running Bifrost Enterprise?** This page covers the OSS behavior only. See the [Enterprise v2.0.0 Migration Guide](/enterprise/migration-guides/v2.0.0) for how these changes interact with SCIM-based authentication.
@@ -331,6 +331,55 @@ BulkUpdateCost(ctx context.Context, updates map[string]CostUpdate) error
 
 ---
 
+## Breaking Change 6: Legacy Observability Aliases Were Removed
+
+OpenTelemetry spans now emit only the canonical OpenTelemetry GenAI attributes and the `bifrost.*` namespace for Bifrost-specific routing and governance data. The former aliases are not emitted alongside the canonical values.
+
+**Who is affected:** dashboards, alerts, saved queries, processors, or exporters that read the legacy keys; deployments that still send `x-bf-prom-*` headers.
+
+### Attribute mapping
+
+| Removed key | Canonical key | Migration detail |
+|---|---|---|
+| `gen_ai.request_id` | `bifrost.request.id` | Bifrost request identity moved out of the GenAI namespace. |
+| `gen_ai.virtual_key_id` | `bifrost.virtual_key.id` | Update both ID and name queries. |
+| `gen_ai.virtual_key_name` | `bifrost.virtual_key.name` | — |
+| `gen_ai.selected_key_id` | `bifrost.selected_key.id` | — |
+| `gen_ai.selected_key_name` | `bifrost.selected_key.name` | — |
+| `gen_ai.routing_rule_id` | `bifrost.routing_rule.id` | — |
+| `gen_ai.routing_rule_name` | `bifrost.routing_rule.name` | — |
+| `gen_ai.team_id` | `bifrost.team.id` | — |
+| `gen_ai.team_name` | `bifrost.team.name` | — |
+| `gen_ai.customer_id` | `bifrost.customer.id` | — |
+| `gen_ai.customer_name` | `bifrost.customer.name` | — |
+| `gen_ai.number_of_retries`, `retry.count` | `bifrost.retries` | Use the single canonical retry count. |
+| `gen_ai.fallback_index` | `bifrost.fallback_index` | — |
+| `gen_ai.usage.prompt_tokens` | `gen_ai.usage.input_tokens` | Token value and unit are unchanged. |
+| `gen_ai.usage.completion_tokens` | `gen_ai.usage.output_tokens` | Token value and unit are unchanged. |
+| `gen_ai.response.time_to_first_token` | `gen_ai.response.time_to_first_chunk` | Convert saved thresholds from nanoseconds to seconds. |
+| `gen_ai.request.n` | `gen_ai.request.choice.count` | — |
+| `gen_ai.request.dimensions` | `gen_ai.embeddings.dimension.count` | — |
+| `gen_ai.request.encoding_format` | `gen_ai.request.encoding_formats` | The canonical value is a string array. |
+| `gen_ai.usage.prompt_token_details.cached_read_tokens` | `gen_ai.usage.cache_read.input_tokens` | — |
+| `gen_ai.usage.prompt_token_details.cached_write_tokens` | `gen_ai.usage.cache_creation.input_tokens` | — |
+| `gen_ai.usage.input_token_details.cached_read_tokens` | `gen_ai.usage.cache_read.input_tokens` | Responses API alias; use the same canonical cache-read key. |
+| `gen_ai.usage.input_token_details.cached_write_tokens` | `gen_ai.usage.cache_creation.input_tokens` | Responses API alias; use the same canonical cache-creation key. |
+| `gen_ai.usage.completion_token_details.reasoning_tokens` | `gen_ai.usage.reasoning.output_tokens` | Chat Completions reasoning-token alias. |
+| `gen_ai.usage.output_token_details.reasoning_tokens` | `gen_ai.usage.reasoning.output_tokens` | Responses API reasoning-token alias. |
+| `gen_ai.error.type` | `error.type` | Uses the general OpenTelemetry error semantic convention. |
+
+`gen_ai.usage.total_tokens` and `gen_ai.usage.cost` are unchanged. New OTel metrics export also includes `bifrost_overhead_latency_microseconds`, derived from the root span's Bifrost overhead duration.
+
+### Request dimensions
+
+The legacy `x-bf-prom-*` header family is removed. The gateway strips and swallows these headers, so they are neither forwarded to providers nor emitted as Prometheus labels. Replace them with `x-bf-dim-*`; unified dimensions flow to logs, OpenTelemetry spans, Prometheus custom labels, and Maxim tags.
+
+<Warning>
+There is no dual-emission compatibility window for the removed span aliases or `x-bf-prom-*`. Update observability consumers and callers before deploying v2.
+</Warning>
+
+---
+
 ## Rolling Upgrades and Realtime Ephemeral Keys
 
 Current nodes read both the unversioned structured mappings written by the previous release and the versioned format written by v2, so those credentials remain usable during a mixed-version rollout. Older raw-string mappings are intentionally rejected because they do not bind the credential to a key ID; affected clients must reconnect after that mapping expires.
@@ -378,5 +427,13 @@ Any client parsing `cost` / `token_usage.cost`, or Go code reading `schemas.Bifr
 
 <Step title="Update custom log store implementations for the new BulkUpdateCost signature">
 If you implement `framework/logstore.LogStore`, change `BulkUpdateCost` to take `map[string]CostUpdate` and read each value's `Total`, `Input`, `Output`, and `Additional`. `CostUpdateFromBreakdown` belongs in the caller that builds the update map, not the implementation.
+</Step>
+
+<Step title="Migrate OpenTelemetry dashboards and alerts">
+Replace the removed attribute keys using the [attribute mapping](#attribute-mapping), and convert time-to-first-chunk thresholds from nanoseconds to seconds.
+</Step>
+
+<Step title="Replace x-bf-prom headers with unified dimensions">
+Update callers that send `x-bf-prom-*` to use `x-bf-dim-*`. Removed headers are swallowed and no longer produce Prometheus labels.
 </Step>
 </Steps>
