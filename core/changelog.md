@@ -1,3 +1,4 @@
+- fix: validate and normalize provider image inputs without guessing JPEG media types, preserve Cohere v2 vision history/detail fields, and skip malformed Anthropic image blocks
 - fix: preserve zero-weight API keys as uniform all-zero pools and retry reserves, and harden Bedrock reasoning replay, audio input, tool-result IDs, documents, cache points, and blank content [@hbmartin](https://github.com/hbmartin)
 - fix: harden OpenAI stream finalization and upstream error handling while avoiding single-choice map allocations
 - fix: strip the encrypted reasoning signature when the upstream reports the field as unsupported (e.g. Bedrock Converse replaying a Claude signature onto a non-Anthropic model after a mid-conversation model switch), extending the existing unverifiable-signature fail-soft
