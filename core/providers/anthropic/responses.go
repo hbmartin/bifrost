@@ -8155,14 +8155,17 @@ func convertToolOutputToAnthropicContent(output *schemas.ResponsesToolMessageOut
 	}
 
 	if output.ResponsesComputerToolCallOutput != nil && output.ResponsesComputerToolCallOutput.ImageURL != nil {
-		imgBlock := ConvertToAnthropicImageBlock(schemas.ChatContentBlock{
+		imgBlock := convertToAnthropicImageBlock(schemas.ChatContentBlock{
 			Type: schemas.ChatContentBlockTypeImage,
 			ImageURLStruct: &schemas.ChatInputImage{
 				URL: *output.ResponsesComputerToolCallOutput.ImageURL,
 			},
 		})
+		if imgBlock == nil {
+			return nil
+		}
 		return &AnthropicContent{
-			ContentBlocks: []AnthropicContentBlock{imgBlock},
+			ContentBlocks: []AnthropicContentBlock{*imgBlock},
 		}
 	}
 
@@ -8585,8 +8588,7 @@ func convertContentBlockToAnthropic(block schemas.ResponsesMessageContentBlock) 
 				},
 				CacheControl: block.CacheControl,
 			}
-			anthropicBlock := ConvertToAnthropicImageBlock(chatBlock)
-			return &anthropicBlock
+			return convertToAnthropicImageBlock(chatBlock)
 		}
 	case schemas.ResponsesOutputMessageContentTypeCompaction:
 		if block.ResponsesOutputMessageContentCompaction != nil {
