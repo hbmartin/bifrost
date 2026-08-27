@@ -42,9 +42,9 @@ func TestCohere(t *testing.T) {
 			MultipleToolCallsStreaming: true,
 			End2EndToolCalling:         true,
 			AutomaticFunctionCall:      true,  // May not support automatic
-			ImageURL:                   false, // Supported by c4ai-aya-vision-8b model
-			ImageBase64:                true,  // Supported by c4ai-aya-vision-8b model
-			MultipleImages:             false, // Supported by c4ai-aya-vision-8b model
+			ImageURL:                   true,  // Command A Vision accepts public HTTP(S) URLs
+			ImageBase64:                true,  // Command A Vision accepts base64 data URLs
+			MultipleImages:             true,  // Command A Vision supports up to 20 images per request
 			FileBase64:                 false, // Not supported
 			FileURL:                    false, // Not supported
 			CompleteEnd2End:            false,
