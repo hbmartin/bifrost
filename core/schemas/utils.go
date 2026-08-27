@@ -3,6 +3,7 @@ package schemas
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"math/rand/v2"
@@ -155,6 +156,12 @@ var fileExtensionToMediaType = map[string]string{
 	".webp": "image/webp",
 	".svg":  "image/svg+xml",
 	".bmp":  "image/bmp",
+	".heic": "image/heic",
+	".heif": "image/heif",
+	".avif": "image/avif",
+	".tif":  "image/tiff",
+	".tiff": "image/tiff",
+	".ico":  "image/x-icon",
 }
 
 // ImageContentType represents the type of image content
@@ -203,9 +210,19 @@ func sanitizeImageURL(rawURL string, allowedSchemes []string) (string, error) {
 
 	// Check if it's already a proper data URL. URI schemes are case-insensitive.
 	if hasDataURLPrefix(rawURL) {
-		// Validate data URL format
-		if _, _, _, ok := ParseDataURL(rawURL); !ok {
+		// Validate data URL format. Base64 data URLs are canonicalized just like
+		// raw base64 so wrapped payloads do not leak whitespace to providers.
+		_, isBase64, payload, ok := ParseDataURL(rawURL)
+		if !ok {
 			return rawURL, fmt.Errorf("invalid data URL format")
+		}
+		if isBase64 {
+			cleanPayload, valid := normalizeBase64Payload(payload)
+			if !valid {
+				return rawURL, fmt.Errorf("invalid base64 payload in data URL")
+			}
+			comma := strings.IndexByte(rawURL, ',')
+			return rawURL[:comma+1] + cleanPayload, nil
 		}
 		return rawURL, nil
 	}
@@ -357,9 +374,6 @@ func extractRegularURLInfo(regularURL string) URLTypeInfo {
 func detectImageTypeFromBase64(cleanData string) string {
 	const maxEncodedPrefix = 680 // Decodes to at most 510 bytes.
 	prefixLength := min(len(cleanData), maxEncodedPrefix)
-	if prefixLength < len(cleanData) {
-		prefixLength -= prefixLength % 4
-	}
 	encodedPrefix := strings.TrimRight(cleanData[:prefixLength], "=")
 	if encodedPrefix == "" {
 		return ""
@@ -379,10 +393,16 @@ func detectImageTypeFromBase64(cleanData string) string {
 		return "image/png"
 	case len(header) >= 6 && (bytes.Equal(header[:6], []byte("GIF87a")) || bytes.Equal(header[:6], []byte("GIF89a"))):
 		return "image/gif"
-	case len(header) >= 2 && bytes.Equal(header[:2], []byte("BM")):
+	case isBMPHeader(header):
 		return "image/bmp"
 	case len(header) >= 12 && bytes.Equal(header[:4], []byte("RIFF")) && bytes.Equal(header[8:12], []byte("WEBP")):
 		return "image/webp"
+	case len(header) >= 4 && (bytes.Equal(header[:4], []byte{'I', 'I', 0x2a, 0x00}) || bytes.Equal(header[:4], []byte{'M', 'M', 0x00, 0x2a})):
+		return "image/tiff"
+	case len(header) >= 6 && bytes.Equal(header[:4], []byte{0x00, 0x00, 0x01, 0x00}) && binary.LittleEndian.Uint16(header[4:6]) > 0:
+		return "image/x-icon"
+	case len(header) >= 12 && bytes.Equal(header[4:8], []byte("ftyp")):
+		return detectISOBaseMediaImageType(header)
 	default:
 		trimmed := bytes.TrimSpace(header)
 		if bytes.HasPrefix(trimmed, []byte("<svg")) || bytes.HasPrefix(trimmed, []byte("<?xml")) {
@@ -392,11 +412,101 @@ func detectImageTypeFromBase64(cleanData string) string {
 	}
 }
 
+func isBMPHeader(header []byte) bool {
+	if len(header) < 30 || !bytes.Equal(header[:2], []byte("BM")) {
+		return false
+	}
+	fileSize := binary.LittleEndian.Uint32(header[2:6])
+	pixelOffset := binary.LittleEndian.Uint32(header[10:14])
+	dibHeaderSize := binary.LittleEndian.Uint32(header[14:18])
+	switch dibHeaderSize {
+	case 12, 40, 52, 56, 64, 108, 124:
+	default:
+		return false
+	}
+	if pixelOffset < 14+dibHeaderSize || fileSize < pixelOffset {
+		return false
+	}
+
+	var width, height uint32
+	var planes, bitsPerPixel uint16
+	if dibHeaderSize == 12 {
+		width = uint32(binary.LittleEndian.Uint16(header[18:20]))
+		height = uint32(binary.LittleEndian.Uint16(header[20:22]))
+		planes = binary.LittleEndian.Uint16(header[22:24])
+		bitsPerPixel = binary.LittleEndian.Uint16(header[24:26])
+	} else {
+		width = binary.LittleEndian.Uint32(header[18:22])
+		height = binary.LittleEndian.Uint32(header[22:26]) & 0x7fffffff
+		planes = binary.LittleEndian.Uint16(header[26:28])
+		bitsPerPixel = binary.LittleEndian.Uint16(header[28:30])
+	}
+	if width == 0 || height == 0 || planes != 1 {
+		return false
+	}
+	switch bitsPerPixel {
+	case 1, 4, 8, 16, 24, 32:
+		return true
+	default:
+		return false
+	}
+}
+
+func detectISOBaseMediaImageType(header []byte) string {
+	boxSize := int(binary.BigEndian.Uint32(header[:4]))
+	if boxSize < 12 {
+		return ""
+	}
+	end := min(len(header), boxSize)
+	var avif bool
+	var heic bool
+	var genericHEIF bool
+	// The major brand begins at byte 8. Bytes 12-15 are the minor version,
+	// followed by zero or more compatible brands at byte 16.
+	for offset := 8; offset+4 <= end; {
+		brand := string(header[offset : offset+4])
+		switch brand {
+		case "avif", "avis":
+			avif = true
+		case "heic", "heix", "hevc", "hevx", "heim", "heis":
+			heic = true
+		case "mif1", "msf1":
+			genericHEIF = true
+		}
+		if offset == 8 {
+			offset = 16
+		} else {
+			offset += 4
+		}
+	}
+	if avif {
+		return "image/avif"
+	}
+	if heic {
+		return "image/heic"
+	}
+	if genericHEIF {
+		return "image/heif"
+	}
+	return ""
+}
+
 // normalizeRawBase64Image validates raw standard-base64 syntax, removes ASCII
 // whitespace in one pass, and infers a supported image media type from the encoded
 // signature. The returned bool distinguishes non-base64 URL-like input from valid
 // base64 whose image format is unknown.
 func normalizeRawBase64Image(value string) (cleanData string, mediaType string, looksLikeBase64 bool) {
+	cleanData, looksLikeBase64 = normalizeBase64Payload(value)
+	if !looksLikeBase64 {
+		return "", "", false
+	}
+	return cleanData, detectImageTypeFromBase64(cleanData), true
+}
+
+// normalizeBase64Payload validates standard padded or unpadded base64 while
+// removing ASCII whitespace in one pass. It deliberately does not decode the
+// complete payload, avoiding an allocation proportional to the media size.
+func normalizeBase64Payload(value string) (cleanData string, valid bool) {
 	var builder strings.Builder
 	building := false
 	encodedLen := 0
@@ -424,19 +534,19 @@ func normalizeRawBase64Image(value string) (cleanData string, mediaType string, 
 			seenPadding = true
 			paddingCount++
 			if paddingCount > 2 {
-				return "", "", false
+				return "", false
 			}
 		case isBase64Alphabet(char):
 			if seenPadding {
-				return "", "", false
+				return "", false
 			}
 		default:
-			return "", "", false
+			return "", false
 		}
 	}
 
 	if encodedLen == 0 || encodedLen%4 == 1 || (paddingCount > 0 && encodedLen%4 != 0) {
-		return "", "", false
+		return "", false
 	}
 	if building {
 		cleanData = builder.String()
@@ -444,7 +554,7 @@ func normalizeRawBase64Image(value string) (cleanData string, mediaType string, 
 		cleanData = value
 	}
 
-	return cleanData, detectImageTypeFromBase64(cleanData), true
+	return cleanData, true
 }
 
 func isBase64Alphabet(char byte) bool {

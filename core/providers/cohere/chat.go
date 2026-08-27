@@ -2,6 +2,7 @@ package cohere
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/maximhq/bifrost/core/providers/anthropic"
@@ -44,7 +45,10 @@ func ToCohereChatCompletionRequest(bifrostReq *schemas.BifrostChatRequest) (*Coh
 						Type: CohereContentBlockTypeText,
 						Text: block.Text,
 					})
-				} else if block.ImageURLStruct != nil {
+				} else if block.Type == schemas.ChatContentBlockTypeImage || block.ImageURLStruct != nil {
+					if block.ImageURLStruct == nil {
+						return nil, providerUtils.InvalidRequestErrorf("invalid Cohere image in message: image block must include image_url")
+					}
 					imageURL, err := newCohereImageURL(block.ImageURLStruct.URL, block.ImageURLStruct.Detail)
 					if err != nil {
 						return nil, fmt.Errorf("invalid Cohere image in message: %w", err)
@@ -250,11 +254,48 @@ func ToCohereChatCompletionRequest(bifrostReq *schemas.BifrostChatRequest) (*Coh
 // Cohere accepts public HTTP(S) URLs and base64 data URLs; raw base64 is converted to
 // a data URL only when its image media type can be inferred safely.
 func newCohereImageURL(rawURL string, detail *string) (*CohereImageURL, error) {
+	if detail != nil {
+		switch *detail {
+		case "low", "high", "auto":
+		default:
+			return nil, providerUtils.InvalidRequestErrorf("invalid Cohere image detail %q; expected low, high, or auto", *detail)
+		}
+	}
 	sanitizedURL, err := schemas.SanitizeImageURL(rawURL)
 	if err != nil {
-		return nil, err
+		return nil, providerUtils.InvalidRequestErrorf("invalid Cohere image URL: %v", err)
 	}
+	urlInfo := schemas.ExtractURLTypeInfo(sanitizedURL)
+	if urlInfo.Type == schemas.ImageContentTypeURL {
+		if urlInfo.DataURLWithoutPrefix != nil {
+			return nil, providerUtils.InvalidRequestErrorf("Cohere image data URLs must use base64 encoding")
+		}
+		if urlInfo.MediaType != nil && !isCohereImageMediaType(*urlInfo.MediaType) {
+			return nil, providerUtils.InvalidRequestErrorf("Cohere does not support image media type %q; expected image/jpeg, image/png, image/gif, or image/webp", *urlInfo.MediaType)
+		}
+		return &CohereImageURL{URL: sanitizedURL, Detail: detail}, nil
+	}
+	if urlInfo.Type != schemas.ImageContentTypeBase64 || urlInfo.MediaType == nil || urlInfo.DataURLWithoutPrefix == nil || *urlInfo.DataURLWithoutPrefix == "" {
+		return nil, providerUtils.InvalidRequestErrorf("Cohere image block must contain a valid URL or base64 data URL")
+	}
+	mediaType := strings.ToLower(strings.TrimSpace(*urlInfo.MediaType))
+	if mediaType == "image/jpg" {
+		mediaType = "image/jpeg"
+	}
+	if !isCohereImageMediaType(mediaType) {
+		return nil, providerUtils.InvalidRequestErrorf("Cohere does not support image media type %q; expected image/jpeg, image/png, image/gif, or image/webp", mediaType)
+	}
+	sanitizedURL = "data:" + mediaType + ";base64," + *urlInfo.DataURLWithoutPrefix
 	return &CohereImageURL{URL: sanitizedURL, Detail: detail}, nil
+}
+
+func isCohereImageMediaType(mediaType string) bool {
+	switch strings.ToLower(strings.TrimSpace(mediaType)) {
+	case "image/jpeg", "image/png", "image/gif", "image/webp":
+		return true
+	default:
+		return false
+	}
 }
 
 // ToBifrostChatRequest converts a Cohere v2 chat request to Bifrost format
@@ -657,7 +698,8 @@ func (cm *CohereMessage) ToBifrostChatMessage() *schemas.ChatMessage {
 					contentBlocks = append(contentBlocks, schemas.ChatContentBlock{
 						Type: schemas.ChatContentBlockTypeImage,
 						ImageURLStruct: &schemas.ChatInputImage{
-							URL: block.ImageURL.URL,
+							URL:    block.ImageURL.URL,
+							Detail: block.ImageURL.Detail,
 						},
 					})
 				} else if block.Type == CohereContentBlockTypeThinking && block.Thinking != nil {
