@@ -38,7 +38,6 @@ Bifrost provides request options that control behavior, enable features, and pas
 | `maxim.GenerationIDKey`                    | `x-bf-maxim-generation-id`                           | `string`              | Maxim generation ID                                                                                                                   |
 | `maxim.TagsKey`                            | `x-bf-maxim-*`                                       | `map[string]string`   | Maxim tags (custom tag names)                                                                                                         |
 | `BifrostContextKeyDimensions` | `x-bf-dim-*` | `map[string]string` | Unified per-request dimensions forwarded to logs, spans, Prometheus custom labels, and Maxim tags |
-| `BifrostContextKey(labelName)` | `x-bf-prom-*` | `string` | Deprecated Prometheus-only label headers for backward compatibility |
 
 ## Request Configuration Options
 
@@ -1271,46 +1270,11 @@ Input: messages,
 </Tab>
 </Tabs>
 
-## Prometheus Options
+## Removed Prometheus-Only Headers
 
-**Context Key:** `BifrostContextKey(labelName)`
-**Header Pattern:** `x-bf-prom-{label-name}`
-**Type:** `string`
-**Required:** No
+The legacy `x-bf-prom-*` header family is removed. The gateway deliberately strips and swallows these headers: they are not forwarded to providers, copied into Bifrost context, or emitted as Prometheus labels.
 
-Add custom labels to Prometheus metrics. The `x-bf-prom-` prefix is stripped and the remainder becomes the label name.
-
-This header family is deprecated. Prefer `x-bf-dim-*`, which feeds Prometheus and the other observability backends together. If both `x-bf-dim-foo` and `x-bf-prom-foo` are present, the `x-bf-dim-*` value takes precedence for Prometheus.
-
-<Tabs>
-<Tab title="Gateway (cURL)">
-```bash
-curl --location 'http://localhost:8080/v1/chat/completions' \
---header 'x-bf-prom-environment: production' \
---header 'x-bf-prom-team: engineering' \
---header 'Content-Type: application/json' \
---data '{
-    "model": "openai/gpt-4o-mini",
-    "messages": [{"role": "user", "content": "Hello!"}]
-}'
-````
-
-</Tab>
-<Tab title="Go SDK">
-```go
-ctx := context.Background()
-ctx = context.WithValue(ctx, schemas.BifrostContextKey("environment"), "production")
-ctx = context.WithValue(ctx, schemas.BifrostContextKey("team"), "engineering")
-
-response, err := client.ChatCompletionRequest(schemas.NewBifrostContext(ctx, schemas.NoDeadline), &schemas.BifrostChatRequest{
-Provider: schemas.OpenAI,
-Model: "gpt-4o-mini",
-Input: messages,
-})
-
-```
-</Tab>
-</Tabs>
+Use [unified dimensions](#unified-dimensions-x-bf-dim) instead. Gateway callers send `x-bf-dim-{name}` headers, and Go SDK callers set a `map[string]string` on `BifrostContextKeyDimensions`.
 
 ## Security Denylist
 

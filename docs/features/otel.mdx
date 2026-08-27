@@ -32,8 +32,8 @@ Every LLM call produces a span whose attributes follow OpenTelemetry GenAI seman
 |----------|--------------------|
 | **Provider & model** | `gen_ai.provider.name`, `gen_ai.request.model`, `gen_ai.response.model` |
 | **Request parameters** | `gen_ai.request.temperature`, `gen_ai.request.max_tokens`, `gen_ai.request.top_p` |
-| **Usage & cost** | `gen_ai.usage.prompt_tokens`, `gen_ai.usage.completion_tokens`, `gen_ai.usage.cost` |
-| **Bifrost context** | `gen_ai.virtual_key_id`, `gen_ai.team_id`, `gen_ai.customer_id`, `gen_ai.number_of_retries` |
+| **Usage & cost** | `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens`, `gen_ai.usage.cost` |
+| **Bifrost context** | `bifrost.virtual_key.id`, `bifrost.team.id`, `bifrost.customer.id`, `bifrost.retries` |
 | **Caller-supplied headers** | `gen_ai.request.extra_header.<name>` (see below) |
 | **Input / output** | `gen_ai.input.messages`, `gen_ai.output.messages` |
 
