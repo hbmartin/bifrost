@@ -1735,6 +1735,10 @@ func isSpeechRequest(req *gemini.GeminiGenerationRequest) bool {
 // isTranscriptionRequest checks if the request is for audio transcription (speech-to-text)
 // Transcription is detected by the presence of audio input in parts, but NOT if it's a speech request
 func isTranscriptionRequest(req *gemini.GeminiGenerationRequest) bool {
+	if req == nil {
+		return false
+	}
+
 	// If this is already detected as a speech request, it's not transcription
 	// This handles the edge case of bidirectional audio (input + output)
 	if isSpeechRequest(req) {
@@ -1744,6 +1748,9 @@ func isTranscriptionRequest(req *gemini.GeminiGenerationRequest) bool {
 	// Check all contents for audio input
 	for _, content := range req.Contents {
 		for _, part := range content.Parts {
+			if part == nil {
+				continue
+			}
 			// Check for inline audio data
 			if part.InlineData != nil && isAudioMimeType(part.InlineData.MIMEType) {
 				return true
@@ -1809,15 +1816,30 @@ func isImageGenerationRequest(req *gemini.GeminiGenerationRequest) bool {
 // isImageEditRequest checks if the request is for image edit
 // Image edit is detected by:
 // 1. Model is an Imagen model and has reference images
-// 2. Inline image data present in the first content part and response modalities contain IMAGE
+// 2. Inline image data present in any content part and response modalities contain IMAGE
 func isImageEditRequest(req *gemini.GeminiGenerationRequest) bool {
+	if req == nil {
+		return false
+	}
+
 	if schemas.IsImagenModel(req.Model) && len(req.Instances) > 0 && req.Instances[0].ReferenceImages != nil {
 		return true
 	}
 
-	if len(req.Contents) > 0 && len(req.Contents[0].Parts) > 0 && req.Contents[0].Parts[0].InlineData != nil && strings.Contains(req.Contents[0].Parts[0].InlineData.MIMEType, "image") {
-		for _, modality := range req.GenerationConfig.ResponseModalities {
-			if modality == gemini.ModalityImage {
+	hasImageOutput := false
+	for _, modality := range req.GenerationConfig.ResponseModalities {
+		if modality == gemini.ModalityImage {
+			hasImageOutput = true
+			break
+		}
+	}
+	if !hasImageOutput {
+		return false
+	}
+
+	for _, content := range req.Contents {
+		for _, part := range content.Parts {
+			if part != nil && part.InlineData != nil && strings.HasPrefix(strings.ToLower(part.InlineData.MIMEType), "image/") {
 				return true
 			}
 		}

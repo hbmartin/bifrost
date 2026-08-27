@@ -390,6 +390,9 @@ func ToGeminiResponsesResponse(bifrostResp *schemas.BifrostResponsesResponse) *G
 	if bifrostResp.ProviderExtraFields != nil {
 		preservedToolParts = extractServerSideToolParts(bifrostResp.ProviderExtraFields["serverSideToolParts"])
 		for _, part := range preservedToolParts {
+			if part == nil {
+				continue
+			}
 			if len(part.ThoughtSignature) > 0 {
 				preservedToolSignatures[base64.StdEncoding.EncodeToString(part.ThoughtSignature)] = true
 			}
@@ -1469,7 +1472,7 @@ func (response *GenerateContentResponse) toBifrostResponsesStream(sequenceNumber
 	if len(response.Candidates) > 0 {
 		candidate := response.Candidates[0]
 
-		if candidate.Content != nil && len(candidate.Content.Parts) > 0 {
+		if candidate != nil && candidate.Content != nil && len(candidate.Content.Parts) > 0 {
 			for _, part := range candidate.Content.Parts {
 				partResponses := processGeminiPart(part, state, sequenceNumber+len(responses))
 				responses = append(responses, partResponses...)
@@ -1477,17 +1480,17 @@ func (response *GenerateContentResponse) toBifrostResponsesStream(sequenceNumber
 		}
 
 		// safetyRatings/avgLogprobs only arrive on the terminal chunk, alongside finishReason.
-		if len(candidate.SafetyRatings) > 0 {
+		if candidate != nil && len(candidate.SafetyRatings) > 0 {
 			state.SafetyRatings = candidate.SafetyRatings
 		}
-		if candidate.AvgLogprobs != 0 {
+		if candidate != nil && candidate.AvgLogprobs != 0 {
 			state.AvgLogprobs = candidate.AvgLogprobs
 		}
 
 		// Check for finish reason (indicates end of generation)
 		// Only close if we've actually started emitting content (text, tool calls, etc.)
 		// This prevents emitting response.completed for empty chunks with just finishReason
-		if candidate.FinishReason != "" && len(state.ItemIDs) > 0 {
+		if candidate != nil && candidate.FinishReason != "" && len(state.ItemIDs) > 0 {
 			// Check for grounding metadata (web search results), or a server-side search the
 			// model reported itself via toolCall parts.
 			if (candidate.GroundingMetadata != nil || len(state.ServerSearchRounds) > 0) && !state.HasEmittedWebSearch {
@@ -1511,6 +1514,10 @@ func (response *GenerateContentResponse) toBifrostResponsesStream(sequenceNumber
 
 // processGeminiPart processes a single Gemini part and returns appropriate lifecycle events
 func processGeminiPart(part *Part, state *GeminiResponsesStreamState, sequenceNumber int) []*schemas.BifrostResponsesStreamResponse {
+	if part == nil {
+		return nil
+	}
+
 	var responses []*schemas.BifrostResponsesStreamResponse
 
 	switch {
@@ -2482,6 +2489,9 @@ func convertGeminiSystemInstructionToResponsesMessage(systemInstruction *Content
 	var hasTextContent bool
 
 	for _, part := range systemInstruction.Parts {
+		if part == nil {
+			continue
+		}
 		if part.Text != "" {
 			contentBlocks = append(contentBlocks, schemas.ResponsesMessageContentBlock{
 				Type: schemas.ResponsesInputMessageContentBlockTypeText,
@@ -2555,8 +2565,60 @@ func stripFunctionResponseMediaRefs(response json.RawMessage) string {
 
 func convertGeminiContentsToResponsesMessages(contents []Content) []schemas.ResponsesMessage {
 	var messages []schemas.ResponsesMessage
-	// Track function call IDs by name to match with responses
-	functionCallIDs := make(map[string]string)
+	// Gemini may omit function-call IDs. Keep a FIFO per function name so parallel
+	// calls to the same function still correlate with their responses by position.
+	functionCallIDs := make(map[string][]string)
+	usedFunctionCallIDs := make(map[string]struct{})
+	nextSyntheticCallID := 1
+
+	newSyntheticCallID := func() string {
+		for {
+			callID := fmt.Sprintf("gemini_call_%d", nextSyntheticCallID)
+			nextSyntheticCallID++
+			if _, exists := usedFunctionCallIDs[callID]; !exists {
+				usedFunctionCallIDs[callID] = struct{}{}
+				return callID
+			}
+		}
+	}
+
+	trackFunctionCall := func(functionCall *FunctionCall) string {
+		callID := strings.TrimSpace(functionCall.ID)
+		if callID == "" {
+			callID = newSyntheticCallID()
+		} else {
+			usedFunctionCallIDs[callID] = struct{}{}
+		}
+		functionCallIDs[functionCall.Name] = append(functionCallIDs[functionCall.Name], callID)
+		return callID
+	}
+
+	matchFunctionResponse := func(functionResponse *FunctionResponse) string {
+		responseID := strings.TrimSpace(functionResponse.ID)
+		queuedIDs := functionCallIDs[functionResponse.Name]
+
+		if responseID != "" {
+			// Remove an explicitly matched call so a later ID-less response does not
+			// accidentally reuse it.
+			for i, callID := range queuedIDs {
+				if callID == responseID {
+					functionCallIDs[functionResponse.Name] = append(queuedIDs[:i], queuedIDs[i+1:]...)
+					break
+				}
+			}
+			return responseID
+		}
+
+		if len(queuedIDs) > 0 {
+			responseID = queuedIDs[0]
+			functionCallIDs[functionResponse.Name] = queuedIDs[1:]
+			return responseID
+		}
+
+		// A malformed history can contain an orphaned, ID-less response. Give it
+		// a non-empty ID so the neutral Responses schema remains serializable.
+		return newSyntheticCallID()
+	}
 
 	for _, content := range contents {
 		// Determine the role for all messages from this Content
@@ -2571,23 +2633,38 @@ func convertGeminiContentsToResponsesMessages(contents []Content) []schemas.Resp
 			role = schemas.Ptr(schemas.ResponsesInputMessageRoleUser)
 		}
 
-		// Process each part - each part can become a separate message
+		// Keep adjacent ordinary content parts in one Responses message. Gemini
+		// parts are ordered within a turn; splitting text/image/text into separate
+		// messages changes both that ordering model and the number of turns.
+		var contentBlocks []schemas.ResponsesMessageContentBlock
+		flushContentBlocks := func() {
+			if len(contentBlocks) == 0 {
+				return
+			}
+			messages = append(messages, schemas.ResponsesMessage{
+				Role: role,
+				Type: schemas.Ptr(schemas.ResponsesMessageTypeMessage),
+				Content: &schemas.ResponsesMessageContent{
+					ContentBlocks: contentBlocks,
+				},
+			})
+			contentBlocks = nil
+		}
+
 		for _, part := range content.Parts {
+			if part == nil {
+				continue
+			}
 			switch {
 			case part.FunctionCall != nil:
+				flushContentBlocks()
 				// Function call message
 				argsJSON := "{}"
 				if len(part.FunctionCall.Args) > 0 {
 					argsJSON = string(part.FunctionCall.Args)
 				}
 
-				callID := part.FunctionCall.ID
-				if callID == "" {
-					callID = part.FunctionCall.Name
-				}
-
-				// Track this function call ID by name for later matching with responses
-				functionCallIDs[part.FunctionCall.Name] = callID
+				callID := trackFunctionCall(part.FunctionCall)
 
 				msg := schemas.ResponsesMessage{
 					Type: schemas.Ptr(schemas.ResponsesMessageTypeFunctionCall),
@@ -2614,17 +2691,9 @@ func convertGeminiContentsToResponsesMessages(contents []Content) []schemas.Resp
 				}
 
 			case part.FunctionResponse != nil:
+				flushContentBlocks()
 				// Function response message
-				responseID := part.FunctionResponse.ID
-				if responseID == "" {
-					// Try to find the matching function call ID by name
-					if callID, ok := functionCallIDs[part.FunctionResponse.Name]; ok {
-						responseID = callID
-					} else {
-						// Fallback to function name if no matching call found
-						responseID = part.FunctionResponse.Name
-					}
-				}
+				responseID := matchFunctionResponse(part.FunctionResponse)
 
 				// Convert response to string — extract output field if present
 				responseStr := ""
@@ -2653,6 +2722,9 @@ func convertGeminiContentsToResponsesMessages(contents []Content) []schemas.Resp
 						})
 					}
 					for _, p := range part.FunctionResponse.Parts {
+						if p == nil {
+							continue
+						}
 						var block *schemas.ResponsesMessageContentBlock
 						switch {
 						case p.InlineData != nil:
@@ -2684,6 +2756,7 @@ func convertGeminiContentsToResponsesMessages(contents []Content) []schemas.Resp
 				messages = append(messages, msg)
 
 			case part.Thought && part.Text != "":
+				flushContentBlocks()
 				// Thought/reasoning text content
 				msg := schemas.ResponsesMessage{
 					Role: role,
@@ -2700,62 +2773,36 @@ func convertGeminiContentsToResponsesMessages(contents []Content) []schemas.Resp
 				messages = append(messages, msg)
 
 			case part.Text != "":
-				// Regular text message
-				msg := schemas.ResponsesMessage{
-					Role: role,
-					Type: schemas.Ptr(schemas.ResponsesMessageTypeMessage),
-					Content: &schemas.ResponsesMessageContent{
-						ContentBlocks: []schemas.ResponsesMessageContentBlock{
-							{
-								Type: func() schemas.ResponsesMessageContentBlockType {
-									if content.Role == "model" {
-										return schemas.ResponsesOutputMessageContentTypeText
-									}
-									return schemas.ResponsesInputMessageContentBlockTypeText
-								}(),
-								Text: &part.Text,
-							},
-						},
-					},
+				block := schemas.ResponsesMessageContentBlock{
+					Type: func() schemas.ResponsesMessageContentBlockType {
+						if content.Role == "model" {
+							return schemas.ResponsesOutputMessageContentTypeText
+						}
+						return schemas.ResponsesInputMessageContentBlockTypeText
+					}(),
+					Text: &part.Text,
 				}
 
-				// add signature to above text content block if present
 				if len(part.ThoughtSignature) > 0 {
 					thoughtSig := base64.StdEncoding.EncodeToString(part.ThoughtSignature)
-					msg.Content.ContentBlocks[len(msg.Content.ContentBlocks)-1].Signature = &thoughtSig
+					block.Signature = &thoughtSig
 				}
-
-				messages = append(messages, msg)
+				contentBlocks = append(contentBlocks, block)
 
 			case part.InlineData != nil:
-				// Handle inline data (images, audio, files)
 				block := convertGeminiInlineDataToContentBlock(part.InlineData)
 				if block != nil {
-					msg := schemas.ResponsesMessage{
-						Role: role,
-						Type: schemas.Ptr(schemas.ResponsesMessageTypeMessage),
-						Content: &schemas.ResponsesMessageContent{
-							ContentBlocks: []schemas.ResponsesMessageContentBlock{*block},
-						},
-					}
-					messages = append(messages, msg)
+					contentBlocks = append(contentBlocks, *block)
 				}
 
 			case part.FileData != nil:
-				// Handle file data (URI-based)
 				block := convertGeminiFileDataToContentBlock(part.FileData)
 				if block != nil {
-					msg := schemas.ResponsesMessage{
-						Role: role,
-						Type: schemas.Ptr(schemas.ResponsesMessageTypeMessage),
-						Content: &schemas.ResponsesMessageContent{
-							ContentBlocks: []schemas.ResponsesMessageContentBlock{*block},
-						},
-					}
-					messages = append(messages, msg)
+					contentBlocks = append(contentBlocks, *block)
 				}
 			}
 		}
+		flushContentBlocks()
 	}
 
 	return messages
@@ -3251,7 +3298,7 @@ func convertGeminiCandidatesToResponsesOutput(candidates []*Candidate) []schemas
 	var messages []schemas.ResponsesMessage
 
 	for _, candidate := range candidates {
-		if candidate.Content == nil || len(candidate.Content.Parts) == 0 {
+		if candidate == nil || candidate.Content == nil || len(candidate.Content.Parts) == 0 {
 			continue
 		}
 
@@ -3270,6 +3317,9 @@ func convertGeminiCandidatesToResponsesOutput(candidates []*Candidate) []schemas
 		var searchCallIndices []int
 
 		for _, part := range candidate.Content.Parts {
+			if part == nil {
+				continue
+			}
 			// Handle different types of parts
 			switch {
 			case part.Thought:
