@@ -2643,61 +2643,60 @@ func ConvertBifrostFinishReasonToAnthropic(bifrostReason string) AnthropicStopRe
 	return AnthropicStopReason(bifrostReason)
 }
 
-// ConvertToAnthropicImageBlock converts a Bifrost image block to Anthropic format
-// Uses the same pattern as the original buildAnthropicImageSourceMap function
-func ConvertToAnthropicImageBlock(block schemas.ChatContentBlock) AnthropicContentBlock {
+// convertToAnthropicImageBlock converts a valid Bifrost image block to Anthropic
+// format. Invalid or empty inputs are skipped instead of emitting a malformed
+// source block that Anthropic will reject.
+func convertToAnthropicImageBlock(block schemas.ChatContentBlock) *AnthropicContentBlock {
+	if block.ImageURLStruct == nil || strings.TrimSpace(block.ImageURLStruct.URL) == "" {
+		return nil
+	}
+
 	imageBlock := AnthropicContentBlock{
 		Type:         AnthropicContentBlockTypeImage,
 		CacheControl: block.CacheControl,
 		Source:       &AnthropicBlockSource{SourceObj: &AnthropicSource{}},
 	}
 
-	if block.ImageURLStruct == nil {
-		return imageBlock
-	}
-
 	// Use the centralized utility functions from schemas package
 	sanitizedURL, err := schemas.SanitizeImageURL(block.ImageURLStruct.URL)
 	if err != nil {
-		// Best-effort: treat as a regular URL without sanitization
-		imageBlock.Source.SourceObj.Type = "url"
-		imageBlock.Source.SourceObj.URL = &block.ImageURLStruct.URL
-		return imageBlock
+		return nil
 	}
 	urlTypeInfo := schemas.ExtractURLTypeInfo(sanitizedURL)
 
-	formattedImgContent := &AnthropicImageContent{
-		Type: urlTypeInfo.Type,
-	}
-
-	if urlTypeInfo.MediaType != nil {
-		formattedImgContent.MediaType = *urlTypeInfo.MediaType
-	}
-
-	if urlTypeInfo.DataURLWithoutPrefix != nil {
-		formattedImgContent.URL = *urlTypeInfo.DataURLWithoutPrefix
-	} else {
-		formattedImgContent.URL = sanitizedURL
-	}
-
 	// Convert to Anthropic source format
-	if formattedImgContent.Type == schemas.ImageContentTypeURL {
-		imageBlock.Source.SourceObj.Type = "url"
-		imageBlock.Source.SourceObj.URL = &formattedImgContent.URL
-	} else {
-		if formattedImgContent.MediaType != "" {
-			imageBlock.Source.SourceObj.MediaType = &formattedImgContent.MediaType
-		}
-		imageBlock.Source.SourceObj.Type = "base64"
-		// Use the base64 data without the data URL prefix
+	if urlTypeInfo.Type == schemas.ImageContentTypeURL {
+		// Anthropic's URL source accepts remote URLs, not non-base64 data URLs.
 		if urlTypeInfo.DataURLWithoutPrefix != nil {
-			imageBlock.Source.SourceObj.Data = urlTypeInfo.DataURLWithoutPrefix
-		} else {
-			imageBlock.Source.SourceObj.Data = &formattedImgContent.URL
+			return nil
 		}
+		imageBlock.Source.SourceObj.Type = "url"
+		imageBlock.Source.SourceObj.URL = &sanitizedURL
+		return &imageBlock
+	}
+	if urlTypeInfo.Type != schemas.ImageContentTypeBase64 || urlTypeInfo.MediaType == nil || urlTypeInfo.DataURLWithoutPrefix == nil || *urlTypeInfo.DataURLWithoutPrefix == "" {
+		return nil
 	}
 
-	return imageBlock
+	switch *urlTypeInfo.MediaType {
+	case "image/jpeg", "image/png", "image/gif", "image/webp":
+		imageBlock.Source.SourceObj.Type = "base64"
+		imageBlock.Source.SourceObj.MediaType = urlTypeInfo.MediaType
+		imageBlock.Source.SourceObj.Data = urlTypeInfo.DataURLWithoutPrefix
+		return &imageBlock
+	default:
+		return nil
+	}
+}
+
+// ConvertToAnthropicImageBlock converts a Bifrost image block to Anthropic format.
+// For API compatibility, invalid input yields the zero value; provider conversion
+// uses convertToAnthropicImageBlock so invalid images can be omitted explicitly.
+func ConvertToAnthropicImageBlock(block schemas.ChatContentBlock) AnthropicContentBlock {
+	if converted := convertToAnthropicImageBlock(block); converted != nil {
+		return *converted
+	}
+	return AnthropicContentBlock{}
 }
 
 // ConvertToAnthropicDocumentBlock converts a Bifrost file block to Anthropic document format

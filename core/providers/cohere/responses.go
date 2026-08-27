@@ -1366,10 +1366,79 @@ func ToCohereResponsesRequest(bifrostReq *schemas.BifrostResponsesRequest) (*Coh
 
 	// Process ResponsesInput (which contains the Responses items)
 	if bifrostReq.Input != nil {
-		cohereReq.Messages = ConvertBifrostMessagesToCohereMessages(bifrostReq.Input, bifrostReq.Params)
+		normalizedInput, err := normalizeCohereResponsesImages(bifrostReq.Input)
+		if err != nil {
+			return nil, err
+		}
+		cohereReq.Messages = ConvertBifrostMessagesToCohereMessages(normalizedInput, bifrostReq.Params)
 	}
 
 	return cohereReq, nil
+}
+
+// normalizeCohereResponsesImages validates and normalizes image references on
+// shallow message copies. Only image-bearing block slices and structs are cloned,
+// so provider conversion never mutates a caller-owned Responses request or copies
+// unrelated raw payloads.
+func normalizeCohereResponsesImages(messages []schemas.ResponsesMessage) ([]schemas.ResponsesMessage, error) {
+	normalized := append([]schemas.ResponsesMessage(nil), messages...)
+	for messageIndex := range normalized {
+		message := &normalized[messageIndex]
+
+		if message.Content != nil {
+			blocks, changed, err := normalizeCohereResponsesImageBlocks(message.Content.ContentBlocks)
+			if err != nil {
+				return nil, fmt.Errorf("invalid Cohere image in message %d: %w", messageIndex, err)
+			}
+			if changed {
+				content := *message.Content
+				content.ContentBlocks = blocks
+				message.Content = &content
+			}
+		}
+		if message.ResponsesToolMessage != nil && message.ResponsesToolMessage.Output != nil {
+			blocks, changed, err := normalizeCohereResponsesImageBlocks(message.ResponsesToolMessage.Output.ResponsesFunctionToolCallOutputBlocks)
+			if err != nil {
+				return nil, fmt.Errorf("invalid Cohere image in tool output %d: %w", messageIndex, err)
+			}
+			if changed {
+				toolMessage := *message.ResponsesToolMessage
+				output := *toolMessage.Output
+				output.ResponsesFunctionToolCallOutputBlocks = blocks
+				toolMessage.Output = &output
+				message.ResponsesToolMessage = &toolMessage
+			}
+		}
+	}
+	return normalized, nil
+}
+
+func normalizeCohereResponsesImageBlocks(blocks []schemas.ResponsesMessageContentBlock) ([]schemas.ResponsesMessageContentBlock, bool, error) {
+	normalized := blocks
+	changed := false
+	for blockIndex := range blocks {
+		block := &blocks[blockIndex]
+		if block.Type != schemas.ResponsesInputMessageContentBlockTypeImage {
+			continue
+		}
+		if block.ResponsesInputMessageContentBlockImage == nil || block.ResponsesInputMessageContentBlockImage.ImageURL == nil {
+			return nil, false, fmt.Errorf("image block %d must include image_url", blockIndex)
+		}
+
+		image := block.ResponsesInputMessageContentBlockImage
+		cohereImage, err := newCohereImageURL(*image.ImageURL, image.Detail)
+		if err != nil {
+			return nil, false, fmt.Errorf("image block %d: %w", blockIndex, err)
+		}
+		if !changed {
+			normalized = append([]schemas.ResponsesMessageContentBlock(nil), blocks...)
+			changed = true
+		}
+		imageCopy := *image
+		imageCopy.ImageURL = &cohereImage.URL
+		normalized[blockIndex].ResponsesInputMessageContentBlockImage = &imageCopy
+	}
+	return normalized, changed, nil
 }
 
 // ToBifrostResponsesResponse converts CohereChatResponse to BifrostResponse (Responses structure)
@@ -2000,7 +2069,8 @@ func convertResponsesMessageContentBlocksToCohere(blocks []schemas.ResponsesMess
 				cohereBlocks = append(cohereBlocks, CohereContentBlock{
 					Type: CohereContentBlockTypeImage,
 					ImageURL: &CohereImageURL{
-						URL: *block.ResponsesInputMessageContentBlockImage.ImageURL,
+						URL:    *block.ResponsesInputMessageContentBlockImage.ImageURL,
+						Detail: block.ResponsesInputMessageContentBlockImage.Detail,
 					},
 				})
 			}
