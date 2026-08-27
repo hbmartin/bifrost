@@ -81,12 +81,12 @@ func withTestRequestID(ctx *schemas.BifrostContext) *schemas.BifrostContext {
 // Pass suffix="" for the most common single-key-per-test case. For tests
 // that exercise multiple distinct cache keys (e.g. cross-key isolation
 // tests), pass suffixes to disambiguate within the test.
-func keyForTest(t testing.TB, suffix string) string {
-	t.Helper()
+func keyForTest(tb testing.TB, suffix string) string {
+	tb.Helper()
 	if suffix == "" {
-		return t.Name()
+		return tb.Name()
 	}
-	return t.Name() + "/" + suffix
+	return tb.Name() + "/" + suffix
 }
 
 // newBaseTestContext returns a BifrostContext with a fresh request ID stamped.
@@ -439,6 +439,7 @@ func getMockRules() []mocker.MockRule {
 // Response short-circuit can't exercise the case being tested. Any request
 // an extra plugin doesn't handle falls through to mocker as usual.
 func getMockedBifrostClient(t *testing.T, ctx *schemas.BifrostContext, logger schemas.Logger, semanticCachePlugin schemas.LLMPlugin, extraPlugins ...schemas.LLMPlugin) *bifrost.Bifrost {
+	t.Helper()
 	mockerCfg := mocker.MockerConfig{
 		Enabled: true,
 		Rules:   getMockRules(),
@@ -476,6 +477,7 @@ type TestSetup struct {
 
 // NewTestSetup creates a new test setup with default configuration
 func NewTestSetup(t *testing.T) *TestSetup {
+	t.Helper()
 	return NewTestSetupWithConfig(t, &Config{
 		Provider:       schemas.OpenAI,
 		EmbeddingModel: "text-embedding-3-small",
@@ -486,6 +488,7 @@ func NewTestSetup(t *testing.T) *TestSetup {
 
 // NewTestSetupWithConfig creates a new test setup with custom configuration
 func NewTestSetupWithConfig(t *testing.T, config *Config) *TestSetup {
+	t.Helper()
 	return NewTestSetupWithVectorStore(t, config, vectorstore.VectorStoreTypeWeaviate)
 }
 
@@ -517,6 +520,7 @@ func ensureSharedTestNamespace(ctx context.Context, store vectorstore.VectorStor
 // NewTestSetupWithVectorStore creates a new test setup with custom configuration and vector store type.
 // extraPlugins are forwarded to getMockedBifrostClient — see its doc comment.
 func NewTestSetupWithVectorStore(t *testing.T, config *Config, storeType vectorstore.VectorStoreType, extraPlugins ...schemas.LLMPlugin) *TestSetup {
+	t.Helper()
 	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	logger := bifrost.NewDefaultLogger(schemas.LogLevelDebug)
 
@@ -582,6 +586,7 @@ func (ts *TestSetup) Cleanup() {
 
 // clearTestKeysWithStore removes all keys matching the test prefix using the store interface
 func clearTestKeysWithStore(t *testing.T, store vectorstore.VectorStore) {
+	t.Helper()
 	// With the new unified VectorStore interface, cleanup is typically handled
 	// by the vector store implementation (e.g., dropping entire classes)
 	t.Logf("Test cleanup delegated to vector store implementation")
@@ -631,6 +636,7 @@ func CreateSpeechRequest(input string, voice string) *schemas.BifrostSpeechReque
 
 // AssertCacheHit verifies that a response was served from cache
 func AssertCacheHit(t *testing.T, response *schemas.BifrostResponse, expectedCacheType string) {
+	t.Helper()
 	extraFields := response.GetExtraFields()
 
 	if extraFields.CacheDebug == nil {
@@ -659,6 +665,7 @@ func AssertCacheHit(t *testing.T, response *schemas.BifrostResponse, expectedCac
 
 // AssertNoCacheHit verifies that a response was NOT served from cache
 func AssertNoCacheHit(t *testing.T, response *schemas.BifrostResponse) {
+	t.Helper()
 	extraFields := response.GetExtraFields()
 
 	if extraFields.CacheDebug == nil {
@@ -770,32 +777,38 @@ func CreateImageGenerationRequest(prompt string, size string, quality string) *s
 // CreateContextWithCacheKey creates a context with the test cache key
 // CreateContextWithCacheKey creates a context with a per-test cache key.
 // suffix may be "" for tests using only one cache key.
-func CreateContextWithCacheKey(t testing.TB, suffix string) *schemas.BifrostContext {
-	return withTestRequestID(schemas.NewBifrostContextWithValue(context.Background(), schemas.NoDeadline, CacheKey, keyForTest(t, suffix)))
+func CreateContextWithCacheKey(tb testing.TB, suffix string) *schemas.BifrostContext {
+	tb.Helper()
+	return withTestRequestID(schemas.NewBifrostContextWithValue(context.Background(), schemas.NoDeadline, CacheKey, keyForTest(tb, suffix)))
 }
 
 // CreateContextWithCacheKeyAndType creates a context with cache key and cache type
-func CreateContextWithCacheKeyAndType(t testing.TB, suffix string, cacheType CacheType) *schemas.BifrostContext {
-	return withTestRequestID(schemas.NewBifrostContextWithValue(context.Background(), schemas.NoDeadline, CacheKey, keyForTest(t, suffix)).WithValue(CacheTypeKey, cacheType))
+func CreateContextWithCacheKeyAndType(tb testing.TB, suffix string, cacheType CacheType) *schemas.BifrostContext {
+	tb.Helper()
+	return withTestRequestID(schemas.NewBifrostContextWithValue(context.Background(), schemas.NoDeadline, CacheKey, keyForTest(tb, suffix)).WithValue(CacheTypeKey, cacheType))
 }
 
 // CreateContextWithCacheKeyAndTTL creates a context with cache key and custom TTL
-func CreateContextWithCacheKeyAndTTL(t testing.TB, suffix string, ttl time.Duration) *schemas.BifrostContext {
-	return withTestRequestID(schemas.NewBifrostContextWithValue(context.Background(), schemas.NoDeadline, CacheKey, keyForTest(t, suffix)).WithValue(CacheTTLKey, ttl))
+func CreateContextWithCacheKeyAndTTL(tb testing.TB, suffix string, ttl time.Duration) *schemas.BifrostContext {
+	tb.Helper()
+	return withTestRequestID(schemas.NewBifrostContextWithValue(context.Background(), schemas.NoDeadline, CacheKey, keyForTest(tb, suffix)).WithValue(CacheTTLKey, ttl))
 }
 
 // CreateContextWithCacheKeyAndThreshold creates a context with cache key and custom threshold
-func CreateContextWithCacheKeyAndThreshold(t testing.TB, suffix string, threshold float64) *schemas.BifrostContext {
-	return withTestRequestID(schemas.NewBifrostContext(context.Background(), schemas.NoDeadline).WithValue(CacheKey, keyForTest(t, suffix)).WithValue(CacheThresholdKey, threshold))
+func CreateContextWithCacheKeyAndThreshold(tb testing.TB, suffix string, threshold float64) *schemas.BifrostContext {
+	tb.Helper()
+	return withTestRequestID(schemas.NewBifrostContext(context.Background(), schemas.NoDeadline).WithValue(CacheKey, keyForTest(tb, suffix)).WithValue(CacheThresholdKey, threshold))
 }
 
 // CreateContextWithCacheKeyAndNoStore creates a context with cache key and no-store flag
-func CreateContextWithCacheKeyAndNoStore(t testing.TB, suffix string, noStore bool) *schemas.BifrostContext {
-	return withTestRequestID(schemas.NewBifrostContext(context.Background(), schemas.NoDeadline).WithValue(CacheKey, keyForTest(t, suffix)).WithValue(CacheNoStoreKey, noStore))
+func CreateContextWithCacheKeyAndNoStore(tb testing.TB, suffix string, noStore bool) *schemas.BifrostContext {
+	tb.Helper()
+	return withTestRequestID(schemas.NewBifrostContext(context.Background(), schemas.NoDeadline).WithValue(CacheKey, keyForTest(tb, suffix)).WithValue(CacheNoStoreKey, noStore))
 }
 
 // CreateTestSetupWithConversationThreshold creates a test setup with custom conversation history threshold
 func CreateTestSetupWithConversationThreshold(t *testing.T, threshold int) *TestSetup {
+	t.Helper()
 	config := &Config{
 		Provider:                     schemas.OpenAI,
 		EmbeddingModel:               "text-embedding-3-small",
@@ -809,6 +822,7 @@ func CreateTestSetupWithConversationThreshold(t *testing.T, threshold int) *Test
 
 // CreateTestSetupWithExcludeSystemPrompt creates a test setup with ExcludeSystemPrompt setting
 func CreateTestSetupWithExcludeSystemPrompt(t *testing.T, excludeSystem bool) *TestSetup {
+	t.Helper()
 	config := &Config{
 		Provider:            schemas.OpenAI,
 		EmbeddingModel:      "text-embedding-3-small",
@@ -822,6 +836,7 @@ func CreateTestSetupWithExcludeSystemPrompt(t *testing.T, excludeSystem bool) *T
 
 // CreateTestSetupWithThresholdAndExcludeSystem creates a test setup with both conversation threshold and exclude system prompt settings
 func CreateTestSetupWithThresholdAndExcludeSystem(t *testing.T, threshold int, excludeSystem bool) *TestSetup {
+	t.Helper()
 	config := &Config{
 		Provider:                     schemas.OpenAI,
 		EmbeddingModel:               "text-embedding-3-small",

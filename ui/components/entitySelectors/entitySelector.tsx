@@ -271,7 +271,12 @@ export function EntitySelector(props: EntitySelectorProps) {
 	// ---------------------------------------------------------------------
 
 	const multiOptions = useMemo<Option<EntityOptionMeta>[]>(
-		() => visibleOptions.map((option) => ({ label: option.label, value: option.value, meta: { description: option.description } })),
+		() =>
+			visibleOptions.map((option) => ({
+				label: option.label,
+				value: option.value,
+				meta: { description: option.description },
+			})),
 		[visibleOptions],
 	);
 
@@ -283,7 +288,10 @@ export function EntitySelector(props: EntitySelectorProps) {
 	// react-select asks for options through a callback, but the results arrive
 	// through RTK Query on a later render. Park the callback and settle it once
 	// the debounce has caught up and the request is done.
-	const pendingLoad = useRef<{ query: string; callback: (options: Option<EntityOptionMeta>[]) => void } | null>(null);
+	const pendingLoad = useRef<{
+		query: string;
+		callback: (options: Option<EntityOptionMeta>[]) => void;
+	} | null>(null);
 
 	const handleReload = useCallback((query: string, callback: (loaded: Option<EntityOptionMeta>[]) => void) => {
 		pendingLoad.current = { query, callback };
@@ -395,7 +403,10 @@ export function EntitySelector(props: EntitySelectorProps) {
 			{labelResolvers}
 			<SearchSelect
 				async
-				options={visibleOptions.map((option) => ({ ...option, selected: selectedIds.includes(option.value) }))}
+				options={visibleOptions.map((option) => ({
+					...option,
+					selected: selectedIds.includes(option.value),
+				}))}
 				onValueSelect={handleSelect}
 				entryView={(option) => (
 					<>

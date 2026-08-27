@@ -33,7 +33,7 @@ func newContentHiddenTestEntry(id string) *Log {
 
 func TestHybrid_ContentHiddenStripsDBRowAndSkipsHydration(t *testing.T) {
 	hybrid, inner, objStore := newTestHybrid(t)
-	defer hybrid.Close(context.Background())
+	defer func() { _ = hybrid.Close(context.Background()) }()
 	ctx := context.Background()
 
 	entry := newContentHiddenTestEntry("hidden-1")
@@ -85,7 +85,7 @@ func TestHybrid_ContentHiddenIgnoresExclusionList(t *testing.T) {
 	objStore := objectstore.NewInMemoryObjectStore()
 	// params is configured to stay DB-resident and out of the object payload.
 	hybrid := newHybridLogStore(inner, objStore, "test", hybridTestLogger{}, []string{"params"})
-	defer hybrid.Close(ctx)
+	defer func() { _ = hybrid.Close(ctx) }()
 
 	normal := newContentHiddenTestEntry("normal-1")
 	normal.ParamsParsed = map[string]any{"temperature": 0.5}
@@ -124,7 +124,7 @@ func TestHybrid_ContentHiddenIgnoresExclusionList(t *testing.T) {
 
 func TestHybrid_ContentHiddenBatchMixed(t *testing.T) {
 	hybrid, inner, objStore := newTestHybrid(t)
-	defer hybrid.Close(context.Background())
+	defer func() { _ = hybrid.Close(context.Background()) }()
 	ctx := context.Background()
 
 	visibleEntry := newContentHiddenTestEntry("batch-visible")
@@ -160,7 +160,7 @@ func TestHybrid_ContentHiddenBatchMixed(t *testing.T) {
 
 func TestHybrid_ContentHiddenProjectedReadsKeepFlag(t *testing.T) {
 	hybrid, _, objStore := newTestHybrid(t)
-	defer hybrid.Close(context.Background())
+	defer func() { _ = hybrid.Close(context.Background()) }()
 	ctx := context.Background()
 
 	entry := newContentHiddenTestEntry("hidden-proj")

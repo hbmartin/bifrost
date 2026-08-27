@@ -26,7 +26,14 @@ export function TopbarProvider({ children }: { children: React.ReactNode }) {
 	const [descriptionSlot, setDescriptionSlot] = useState<HTMLElement | null>(null);
 	const [mobileFilterSlot, setMobileFilterSlot] = useState<HTMLElement | null>(null);
 	const value = useMemo(
-		() => ({ title: titleEntry.value, setTitleEntry, descriptionSlot, setDescriptionSlot, mobileFilterSlot, setMobileFilterSlot }),
+		() => ({
+			title: titleEntry.value,
+			setTitleEntry,
+			descriptionSlot,
+			setDescriptionSlot,
+			mobileFilterSlot,
+			setMobileFilterSlot,
+		}),
 		[titleEntry.value, descriptionSlot, mobileFilterSlot],
 	);
 	return <TopbarContext.Provider value={value}>{children}</TopbarContext.Provider>;

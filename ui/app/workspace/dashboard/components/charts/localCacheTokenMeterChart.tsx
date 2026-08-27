@@ -19,7 +19,13 @@ function LocalCacheTokenMeterChartImpl({ data }: LocalCacheTokenMeterChartProps)
 		const semantic = data?.semantic_cache_hits ?? 0;
 		const total = data?.cache_hit_rate_total_requests ?? data?.total_requests ?? 0;
 		if (total === 0) {
-			return { percentage: 0, directHits: direct, semanticHits: semantic, totalRequests: total, hasCacheCounters };
+			return {
+				percentage: 0,
+				directHits: direct,
+				semanticHits: semantic,
+				totalRequests: total,
+				hasCacheCounters,
+			};
 		}
 		return {
 			percentage: Math.max(0, Math.min(100, ((direct + semantic) / total) * 100)),

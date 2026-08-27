@@ -51,7 +51,7 @@ func newWebhookTestHandler(t *testing.T) (*WebhookHandler, *lib.Config) {
 		Config:  &configstore.SQLiteConfig{Path: filepath.Join(t.TempDir(), "config.db")},
 	}, testLogger{})
 	require.NoError(t, err)
-	t.Cleanup(func() { store.Close(context.Background()) })
+	t.Cleanup(func() { _ = store.Close(context.Background()) })
 
 	logsStore, err := logstore.NewLogStore(ctx, &logstore.Config{
 		Enabled: true,
@@ -59,7 +59,7 @@ func newWebhookTestHandler(t *testing.T) (*WebhookHandler, *lib.Config) {
 		Config:  &logstore.SQLiteConfig{Path: filepath.Join(t.TempDir(), "logs.db")},
 	}, testLogger{})
 	require.NoError(t, err)
-	t.Cleanup(func() { logsStore.Close(context.Background()) })
+	t.Cleanup(func() { _ = logsStore.Close(context.Background()) })
 
 	config := &lib.Config{ConfigStore: store, LogsStore: logsStore}
 	dispatcher := webhooks.NewDispatcher(ctx, "", 30*24*time.Hour, store, logsStore, config, testLogger{})

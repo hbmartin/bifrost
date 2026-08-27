@@ -1608,7 +1608,7 @@ func parseOffsetCursor(cursor *string) (int, error) {
 	parsedOffset, err := strconv.ParseInt(*cursor, 10, 64)
 	if err != nil {
 		// Keep existing behavior: malformed cursor is treated as offset 0.
-		return offset, nil
+		return offset, nil //nolint:nilerr // Invalid cursors intentionally restart pagination at the first page.
 	}
 	if parsedOffset > math.MaxInt32 {
 		return 0, fmt.Errorf("offset value %d exceeds maximum allowed value", parsedOffset)

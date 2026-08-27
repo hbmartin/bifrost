@@ -38,7 +38,10 @@ export function writeNotificationPreferences(scope: string, preferences: StoredN
 	try {
 		localStorage.setItem(
 			notificationPreferenceKey(scope),
-			JSON.stringify({ readIds: preferences.readIds.slice(-500), dismissedIds: preferences.dismissedIds.slice(-500) }),
+			JSON.stringify({
+				readIds: preferences.readIds.slice(-500),
+				dismissedIds: preferences.dismissedIds.slice(-500),
+			}),
 		);
 	} catch {
 		// Intentionally silent: nothing the user can act on, and the tray works

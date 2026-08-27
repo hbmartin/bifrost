@@ -15,7 +15,12 @@ export interface User {
 	config?: Record<string, unknown>;
 	claims?: Record<string, unknown>;
 	access_profile?: UserAccessProfile;
-	teams?: Array<{ id: string; name: string; business_unit_id?: string; business_unit_name?: string }>;
+	teams?: Array<{
+		id: string;
+		name: string;
+		business_unit_id?: string;
+		business_unit_name?: string;
+	}>;
 	created_at: string;
 	updated_at: string;
 }

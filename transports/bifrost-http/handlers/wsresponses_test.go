@@ -366,7 +366,7 @@ func TestRealtimeEphemeralMappingOverridesCompetingCredentialInBothContexts(t *t
 	if err != nil {
 		t.Fatalf("kvstore.New() error = %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	payload, err := json.Marshal(realtimeEphemeralKeyMapping{
 		Version:    realtimeEphemeralKeyMappingVersion,
@@ -481,7 +481,7 @@ func TestResolveRealtimeWebSocketEphemeralMappingFlagsUnmappedEphemeralToken(t *
 	if err != nil {
 		t.Fatalf("kvstore.New() error = %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	auth := &authHeaders{authorization: "Bearer ek_expired"}
 	mapping, isEphemeral := resolveRealtimeWebSocketEphemeralMappingWithCodec(store, auth, nil)
@@ -517,7 +517,7 @@ func TestWSRealtimeHandleUpgradeRejectsUnmappedEphemeralTokenBeforeUpgrade(t *te
 	if err != nil {
 		t.Fatalf("kvstore.New() error = %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	var req fasthttp.Request
 	req.Header.SetMethod(fasthttp.MethodGet)
@@ -597,7 +597,7 @@ func TestWSRealtimeSessionRedactsStaleMappedKeyID(t *testing.T) {
 }
 
 func TestMergeWebSocketHeaders_ForwardedHeadersOverrideProviderHeadersAndPreserveValues(t *testing.T) {
-	ctx := schemas.NewBifrostContext(nil, time.Time{})
+	ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 	ctx.SetValue(schemas.BifrostContextKeyExtraHeaders, map[string][]string{
 		"originator":    {"my-test-client"},
 		"authorization": {"Bearer malicious"},
@@ -616,7 +616,7 @@ func TestMergeWebSocketHeaders_ForwardedHeadersOverrideProviderHeadersAndPreserv
 }
 
 func TestHasWebSocketForwardedHeaders(t *testing.T) {
-	ctx := schemas.NewBifrostContext(nil, time.Time{})
+	ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 	assert.False(t, hasWebSocketForwardedHeaders(ctx))
 
 	ctx.SetValue(schemas.BifrostContextKeyExtraHeaders, map[string][]string{

@@ -69,7 +69,7 @@ func DownloadPlugin(pluginURL string, extension string, client *http.Client) (st
 	if err != nil {
 		return "", fmt.Errorf("failed to download plugin: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("failed to download plugin: HTTP %d", resp.StatusCode)
@@ -95,15 +95,15 @@ func DownloadPlugin(pluginURL string, extension string, client *http.Client) (st
 	// Write the downloaded body to the temporary file
 	_, err = tempFile.Write(body)
 	if err != nil {
-		tempFile.Close()
-		os.Remove(tempPath)
+		_ = tempFile.Close()
+		_ = os.Remove(tempPath)
 		return "", fmt.Errorf("failed to write plugin to temporary file: %w", err)
 	}
 
 	// Close the file
 	err = tempFile.Close()
 	if err != nil {
-		os.Remove(tempPath)
+		_ = os.Remove(tempPath)
 		return "", fmt.Errorf("failed to close temporary file: %w", err)
 	}
 
@@ -111,7 +111,7 @@ func DownloadPlugin(pluginURL string, extension string, client *http.Client) (st
 	if extension == ".so" {
 		err = os.Chmod(tempPath, 0755)
 		if err != nil {
-			os.Remove(tempPath)
+			_ = os.Remove(tempPath)
 			return "", fmt.Errorf("failed to set executable permissions on plugin: %w", err)
 		}
 	}

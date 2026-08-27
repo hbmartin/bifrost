@@ -1,6 +1,7 @@
 package anthropic
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 	"time"
@@ -232,7 +233,7 @@ func TestToAnthropicResponsesRequest_ReplaysStreamedVisibleThinking(t *testing.T
 		Model: "claude-sonnet-4-5-20250929",
 		Input: []schemas.ResponsesMessage{replayed, functionCallItem()},
 	}
-	ctx := schemas.NewBifrostContext(nil, time.Time{})
+	ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 	out, err := ToAnthropicResponsesRequest(ctx, req)
 	if err != nil {
 		t.Fatalf("ToAnthropicResponsesRequest: %v", err)

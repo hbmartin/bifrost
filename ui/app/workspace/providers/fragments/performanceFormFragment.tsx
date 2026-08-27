@@ -35,7 +35,7 @@ export function PerformanceFormFragment({ provider }: PerformanceFormFragmentPro
 
 	useEffect(() => {
 		dispatch(setProviderFormDirtyState(form.formState.isDirty));
-	}, [form.formState.isDirty]);
+	}, [dispatch, form.formState.isDirty]);
 
 	useEffect(() => {
 		// Reset form with new provider's concurrency_and_buffer_size when provider changes

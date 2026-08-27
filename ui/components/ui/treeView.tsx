@@ -230,19 +230,7 @@ export function Tree<T extends BaseNodeData>({
 		[setExpandedNodes],
 	);
 
-	// Re-sync defaults when data changes and we have levelsToExpandByDefault
-	// Capture full tree shape so resync fires when children change, not just top-level IDs
-	const dataFingerprint = useMemo(() => {
-		const ids: string[] = [];
-		const walk = (nodes: TreeNode<T>[]) =>
-			nodes.forEach((n) => {
-				ids.push(n.data.id);
-				if (n.children) walk(n.children);
-			});
-		walk(data);
-		return ids.join(",");
-	}, [data]);
-	const expandableNodeIds = useMemo(() => collectExpandableNodeIds(data), [dataFingerprint]);
+	const expandableNodeIds = useMemo(() => collectExpandableNodeIds(data), [data]);
 
 	const isAllExpanded = useMemo(
 		() => expandableNodeIds.length > 0 && expandableNodeIds.every((id) => expandedNodes[id]),
@@ -259,7 +247,7 @@ export function Tree<T extends BaseNodeData>({
 			});
 			return next;
 		});
-	}, [expandableNodeIds]);
+	}, [expandableNodeIds, setExpandedNodes]);
 
 	const handleCollapseAll = useCallback(() => {
 		setExpandedNodes((prev) => {
@@ -269,7 +257,7 @@ export function Tree<T extends BaseNodeData>({
 			});
 			return next;
 		});
-	}, [expandableNodeIds]);
+	}, [expandableNodeIds, setExpandedNodes]);
 
 	useEffect(() => {
 		if (levelsToExpandByDefault) {
@@ -281,8 +269,7 @@ export function Tree<T extends BaseNodeData>({
 				return { ...defaults, ...filtered };
 			});
 		}
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [dataFingerprint, levelsToExpandByDefault]);
+	}, [data, expandableNodeIds, levelsToExpandByDefault, setExpandedNodes]);
 
 	return (
 		<div className={cn(fitContainer ? "min-w-0" : "min-w-max", className)}>

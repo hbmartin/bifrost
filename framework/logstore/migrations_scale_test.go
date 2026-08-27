@@ -71,7 +71,7 @@ func TestScalePostgresLogstoreMigrations(t *testing.T) {
 	migrationElapsed := time.Since(start)
 
 	conn := acquireScaleMigrationConn(t, ctx, sqlDB)
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	start = time.Now()
 	require.NoError(t, ensureMetadataGINIndex(ctx, conn), "metadata GIN index should be maintained at scale")
@@ -354,7 +354,8 @@ func monitorScaleMigrationLocks(ctx context.Context, t *testing.T, db *sql.DB, m
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			rows, err := db.QueryContext(ctx, `
+			func() {
+				rows, err := db.QueryContext(ctx, `
 				SELECT
 					a.pid,
 					EXTRACT(EPOCH FROM (now() - COALESCE(a.query_start, now())))::float8,
@@ -365,27 +366,28 @@ func monitorScaleMigrationLocks(ctx context.Context, t *testing.T, db *sql.DB, m
 				  AND a.datname = current_database()
 				ORDER BY now() - COALESCE(a.query_start, now()) DESC
 			`)
-			if err != nil {
-				t.Logf("lock monitor query failed: %v", err)
-				continue
-			}
-			for rows.Next() {
-				var sample lockWaitSample
-				var waitingSeconds float64
-				if err := rows.Scan(&sample.WaitingPID, &waitingSeconds, &sample.WaitingQuery, &sample.BlockingPIDs); err != nil {
-					t.Logf("lock monitor scan failed: %v", err)
-					continue
+				if err != nil {
+					t.Logf("lock monitor query failed: %v", err)
+					return
 				}
-				sample.ObservedAt = time.Now()
-				sample.WaitingDuration = time.Duration(waitingSeconds * float64(time.Second))
-				mu.Lock()
-				*samples = append(*samples, sample)
-				mu.Unlock()
-			}
-			if err := rows.Err(); err != nil {
-				t.Logf("lock monitor rows failed: %v", err)
-			}
-			_ = rows.Close()
+				defer func() { _ = rows.Close() }()
+				for rows.Next() {
+					var sample lockWaitSample
+					var waitingSeconds float64
+					if err := rows.Scan(&sample.WaitingPID, &waitingSeconds, &sample.WaitingQuery, &sample.BlockingPIDs); err != nil {
+						t.Logf("lock monitor scan failed: %v", err)
+						continue
+					}
+					sample.ObservedAt = time.Now()
+					sample.WaitingDuration = time.Duration(waitingSeconds * float64(time.Second))
+					mu.Lock()
+					*samples = append(*samples, sample)
+					mu.Unlock()
+				}
+				if err := rows.Err(); err != nil {
+					t.Logf("lock monitor rows failed: %v", err)
+				}
+			}()
 		}
 	}
 }

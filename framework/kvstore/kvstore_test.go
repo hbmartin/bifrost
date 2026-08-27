@@ -11,7 +11,7 @@ func TestStoreSetGetDelete(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create store: %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	if err := store.Set("k1", "v1"); err != nil {
 		t.Fatalf("set failed: %v", err)
@@ -45,7 +45,7 @@ func TestStoreTTLExpiration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create store: %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	if err := store.SetWithTTL("exp", "value", 25*time.Millisecond); err != nil {
 		t.Fatalf("set with ttl failed: %v", err)
@@ -63,7 +63,7 @@ func TestStoreGetAndDelete(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create store: %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	if err := store.Set("k", "v"); err != nil {
 		t.Fatalf("set failed: %v", err)

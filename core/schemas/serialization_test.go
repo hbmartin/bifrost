@@ -1814,6 +1814,7 @@ func TestEmbeddingData_EncodingFormatSurvivesRoundTrip(t *testing.T) {
 			name: "binary stays int8",
 			data: EmbeddingData{Object: "embedding", Embedding: EmbeddingStruct{EmbeddingInt8Array: []int8{1, 0, -1}}, EncodingFormat: EmbeddingEncodingBinary},
 			assert: func(t *testing.T, got EmbeddingData) {
+				t.Helper()
 				assert.Equal(t, []int8{1, 0, -1}, got.Embedding.EmbeddingInt8Array)
 				assert.Nil(t, got.Embedding.EmbeddingArray)
 			},
@@ -1822,6 +1823,7 @@ func TestEmbeddingData_EncodingFormatSurvivesRoundTrip(t *testing.T) {
 			name: "ubinary stays int32",
 			data: EmbeddingData{Object: "embedding", Embedding: EmbeddingStruct{EmbeddingInt32Array: []int32{1, 255}}, EncodingFormat: EmbeddingEncodingUbinary},
 			assert: func(t *testing.T, got EmbeddingData) {
+				t.Helper()
 				assert.Equal(t, []int32{1, 255}, got.Embedding.EmbeddingInt32Array)
 				assert.Nil(t, got.Embedding.EmbeddingArray)
 			},
@@ -1830,6 +1832,7 @@ func TestEmbeddingData_EncodingFormatSurvivesRoundTrip(t *testing.T) {
 			name: "float stays float64",
 			data: EmbeddingData{Object: "embedding", Embedding: EmbeddingStruct{EmbeddingArray: []float64{0.25, 0.75}}, EncodingFormat: EmbeddingEncodingFloat},
 			assert: func(t *testing.T, got EmbeddingData) {
+				t.Helper()
 				assert.Equal(t, []float64{0.25, 0.75}, got.Embedding.EmbeddingArray)
 			},
 		},
@@ -1837,6 +1840,7 @@ func TestEmbeddingData_EncodingFormatSurvivesRoundTrip(t *testing.T) {
 			name: "unlabelled entry is unchanged",
 			data: EmbeddingData{Object: "embedding", Embedding: EmbeddingStruct{EmbeddingArray: []float64{0.25, 0.75}}},
 			assert: func(t *testing.T, got EmbeddingData) {
+				t.Helper()
 				assert.Empty(t, got.EncodingFormat)
 				assert.Equal(t, []float64{0.25, 0.75}, got.Embedding.EmbeddingArray)
 			},

@@ -816,9 +816,9 @@ func HandleOpenAITextCompletionStreaming(
 	go func() {
 		defer providerUtils.EnsureStreamFinalizerCalled(ctx, postHookSpanFinalizer)
 		defer func() {
-			if ctx.Err() == context.Canceled {
+			if errors.Is(ctx.Err(), context.Canceled) {
 				providerUtils.HandleStreamCancellation(ctx, postHookRunner, responseChan, logger, postHookSpanFinalizer, jsonBody)
-			} else if ctx.Err() == context.DeadlineExceeded {
+			} else if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 				providerUtils.HandleStreamTimeout(ctx, postHookRunner, responseChan, logger, postHookSpanFinalizer, jsonBody)
 			}
 			providerUtils.CloseStream(ctx, responseChan)
@@ -873,7 +873,7 @@ func HandleOpenAITextCompletionStreaming(
 				if ctx.Err() != nil {
 					return
 				}
-				if readErr != io.EOF {
+				if !errors.Is(readErr, io.EOF) {
 					ctx.SetValue(schemas.BifrostContextKeyStreamEndIndicator, true)
 					logger.Warn("Error reading stream: %v", readErr)
 					providerUtils.ProcessAndSendError(ctx, postHookRunner, readErr, responseChan, logger, postHookSpanFinalizer)
@@ -1450,9 +1450,9 @@ func HandleOpenAIChatCompletionStreaming(
 	go func() {
 		defer providerUtils.EnsureStreamFinalizerCalled(ctx, postHookSpanFinalizer)
 		defer func() {
-			if ctx.Err() == context.Canceled {
+			if errors.Is(ctx.Err(), context.Canceled) {
 				providerUtils.HandleStreamCancellation(ctx, postHookRunner, responseChan, logger, postHookSpanFinalizer, jsonBody)
-			} else if ctx.Err() == context.DeadlineExceeded {
+			} else if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 				providerUtils.HandleStreamTimeout(ctx, postHookRunner, responseChan, logger, postHookSpanFinalizer, jsonBody)
 			}
 			// Release the responses stream state if it was acquired (for ResponsesToChatCompletions fallback)
@@ -1521,7 +1521,7 @@ func HandleOpenAIChatCompletionStreaming(
 				if ctx.Err() != nil {
 					return
 				}
-				if readErr != io.EOF {
+				if !errors.Is(readErr, io.EOF) {
 					ctx.SetValue(schemas.BifrostContextKeyStreamEndIndicator, true)
 					logger.Warn("Error reading stream: %v", readErr)
 					providerUtils.ProcessAndSendError(ctx, postHookRunner, readErr, responseChan, logger, postHookSpanFinalizer)
@@ -2172,9 +2172,9 @@ func HandleOpenAIResponsesStreaming(
 	go func() {
 		defer providerUtils.EnsureStreamFinalizerCalled(ctx, postHookSpanFinalizer)
 		defer func() {
-			if ctx.Err() == context.Canceled {
+			if errors.Is(ctx.Err(), context.Canceled) {
 				providerUtils.HandleStreamCancellation(ctx, postHookRunner, responseChan, logger, postHookSpanFinalizer, jsonBody)
-			} else if ctx.Err() == context.DeadlineExceeded {
+			} else if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 				providerUtils.HandleStreamTimeout(ctx, postHookRunner, responseChan, logger, postHookSpanFinalizer, jsonBody)
 			}
 			providerUtils.CloseStream(ctx, responseChan)
@@ -2216,7 +2216,7 @@ func HandleOpenAIResponsesStreaming(
 				if ctx.Err() != nil {
 					return
 				}
-				if readErr != io.EOF {
+				if !errors.Is(readErr, io.EOF) {
 					ctx.SetValue(schemas.BifrostContextKeyStreamEndIndicator, true)
 					logger.Warn("Error reading stream: %v", readErr)
 					providerUtils.ProcessAndSendError(ctx, postHookRunner, readErr, responseChan, logger, postHookSpanFinalizer)
@@ -2788,9 +2788,9 @@ func HandleOpenAISpeechStreamRequest(
 	go func() {
 		defer providerUtils.EnsureStreamFinalizerCalled(ctx, postHookSpanFinalizer)
 		defer func() {
-			if ctx.Err() == context.Canceled {
+			if errors.Is(ctx.Err(), context.Canceled) {
 				providerUtils.HandleStreamCancellation(ctx, postHookRunner, responseChan, logger, postHookSpanFinalizer, jsonBody)
-			} else if ctx.Err() == context.DeadlineExceeded {
+			} else if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 				providerUtils.HandleStreamTimeout(ctx, postHookRunner, responseChan, logger, postHookSpanFinalizer, jsonBody)
 			}
 			providerUtils.CloseStream(ctx, responseChan)
@@ -2834,7 +2834,7 @@ func HandleOpenAISpeechStreamRequest(
 				if ctx.Err() != nil {
 					return
 				}
-				if readErr != io.EOF {
+				if !errors.Is(readErr, io.EOF) {
 					ctx.SetValue(schemas.BifrostContextKeyStreamEndIndicator, true)
 					logger.Warn("Error reading stream: %v", readErr)
 					providerUtils.ProcessAndSendError(ctx, postHookRunner, readErr, responseChan, logger, postHookSpanFinalizer)
@@ -3299,9 +3299,9 @@ func HandleOpenAITranscriptionStreamRequest(
 	go func() {
 		defer providerUtils.EnsureStreamFinalizerCalled(ctx, postHookSpanFinalizer)
 		defer func() {
-			if ctx.Err() == context.Canceled {
+			if errors.Is(ctx.Err(), context.Canceled) {
 				providerUtils.HandleStreamCancellation(ctx, postHookRunner, responseChan, logger, postHookSpanFinalizer, nil)
-			} else if ctx.Err() == context.DeadlineExceeded {
+			} else if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 				providerUtils.HandleStreamTimeout(ctx, postHookRunner, responseChan, logger, postHookSpanFinalizer, nil)
 			}
 			providerUtils.CloseStream(ctx, responseChan)
@@ -3346,7 +3346,7 @@ func HandleOpenAITranscriptionStreamRequest(
 				if ctx.Err() != nil {
 					return
 				}
-				if readErr != io.EOF {
+				if !errors.Is(readErr, io.EOF) {
 					ctx.SetValue(schemas.BifrostContextKeyStreamEndIndicator, true)
 					logger.Warn("Error reading stream: %v", readErr)
 					providerUtils.ProcessAndSendError(ctx, postHookRunner, readErr, responseChan, logger, postHookSpanFinalizer)
@@ -3750,9 +3750,9 @@ func HandleOpenAIImageGenerationStreaming(
 	go func() {
 		defer providerUtils.EnsureStreamFinalizerCalled(ctx, postHookSpanFinalizer)
 		defer func() {
-			if ctx.Err() == context.Canceled {
+			if errors.Is(ctx.Err(), context.Canceled) {
 				providerUtils.HandleStreamCancellation(ctx, postHookRunner, responseChan, logger, postHookSpanFinalizer, jsonBody)
-			} else if ctx.Err() == context.DeadlineExceeded {
+			} else if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 				providerUtils.HandleStreamTimeout(ctx, postHookRunner, responseChan, logger, postHookSpanFinalizer, jsonBody)
 			}
 			providerUtils.CloseStream(ctx, responseChan)
@@ -3802,7 +3802,7 @@ func HandleOpenAIImageGenerationStreaming(
 				if ctx.Err() != nil {
 					return
 				}
-				if readErr != io.EOF {
+				if !errors.Is(readErr, io.EOF) {
 					ctx.SetValue(schemas.BifrostContextKeyStreamEndIndicator, true)
 					logger.Warn("Error reading stream: %v", readErr)
 					providerUtils.ProcessAndSendError(ctx, postHookRunner, readErr, responseChan, logger, postHookSpanFinalizer)
@@ -5356,9 +5356,9 @@ func HandleOpenAIImageEditStreamRequest(
 	go func() {
 		defer providerUtils.EnsureStreamFinalizerCalled(ctx, postHookSpanFinalizer)
 		defer func() {
-			if ctx.Err() == context.Canceled {
+			if errors.Is(ctx.Err(), context.Canceled) {
 				providerUtils.HandleStreamCancellation(ctx, postHookRunner, responseChan, logger, postHookSpanFinalizer, nil)
-			} else if ctx.Err() == context.DeadlineExceeded {
+			} else if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 				providerUtils.HandleStreamTimeout(ctx, postHookRunner, responseChan, logger, postHookSpanFinalizer, nil)
 			}
 			providerUtils.CloseStream(ctx, responseChan)
@@ -5408,7 +5408,7 @@ func HandleOpenAIImageEditStreamRequest(
 				if ctx.Err() != nil {
 					return
 				}
-				if readErr != io.EOF {
+				if !errors.Is(readErr, io.EOF) {
 					ctx.SetValue(schemas.BifrostContextKeyStreamEndIndicator, true)
 					logger.Warn("Error reading stream: %v", readErr)
 					providerUtils.ProcessAndSendError(ctx, postHookRunner, readErr, responseChan, logger, postHookSpanFinalizer)

@@ -1195,7 +1195,7 @@ func (s *BifrostHTTPServer) ReloadClientConfigFromConfigStore(ctx context.Contex
 	}
 	config, err := s.Config.ConfigStore.GetClientConfig(context.Background())
 	if err != nil {
-		return fmt.Errorf("failed to get client config: %v", err)
+		return fmt.Errorf("failed to get client config: %w", err)
 	}
 	if config == nil {
 		return fmt.Errorf("client config not found")
@@ -1219,7 +1219,7 @@ func (s *BifrostHTTPServer) ReloadClientConfigFromConfigStore(ctx context.Contex
 		if s.Config.MCPConfig != nil {
 			mcpConfig = s.Config.MCPConfig
 		}
-		s.Client.ReloadConfig(schemas.BifrostConfig{
+		if err := s.Client.ReloadConfig(schemas.BifrostConfig{
 			Account:            account,
 			InitialPoolSize:    s.Config.ClientConfig.InitialPoolSize,
 			DropExcessRequests: s.Config.ClientConfig.DropExcessRequests,
@@ -1227,7 +1227,9 @@ func (s *BifrostHTTPServer) ReloadClientConfigFromConfigStore(ctx context.Contex
 			MCPPlugins:         s.Config.GetLoadedMCPPlugins(),
 			MCPConfig:          mcpConfig,
 			Logger:             logger,
-		})
+		}); err != nil {
+			return fmt.Errorf("reload Bifrost client configuration: %w", err)
+		}
 		if err := s.Client.UpdateToolManagerConfig(
 			s.Config.ClientConfig.MCPAgentDepth,
 			s.Config.ClientConfig.MCPToolExecutionTimeout,
@@ -2006,7 +2008,9 @@ func (s *BifrostHTTPServer) RemovePlugin(ctx context.Context, displayName string
 
 	// 4. Update status and marshaller
 	if isDisabled, _ := ctx.Value(handlers.PluginDisabledKey).(bool); isDisabled {
-		s.markPluginDisabled(name)
+		if err := s.markPluginDisabled(name); err != nil {
+			return fmt.Errorf("mark plugin %s disabled: %w", name, err)
+		}
 	} else {
 		s.Config.DeletePluginOverallStatus(name)
 		// Plugin is being permanently deleted: remove its config marshaller too.
@@ -2061,7 +2065,7 @@ func (s *BifrostHTTPServer) RegisterInferenceRoutes(ctx context.Context, middlew
 	}
 	mcpServerHandler, err := handlers.NewMCPServerHandler(ctx, s.Config, s, s.OAuth2IdentityResolver, vkCache)
 	if err != nil {
-		return fmt.Errorf("failed to initialize mcp server handler: %v", err)
+		return fmt.Errorf("failed to initialize mcp server handler: %w", err)
 	}
 	s.MCPServerHandler = mcpServerHandler
 	asyncHandler := handlers.NewAsyncHandler(s.Client, s.Config)
@@ -2105,7 +2109,7 @@ func (s *BifrostHTTPServer) RegisterAPIRoutes(ctx context.Context, callbacks Ser
 	if governancePlugin != nil {
 		governanceHandler, err = handlers.NewGovernanceHandler(callbacks, s.Config.ConfigStore, govLogManager, s.ExternalQuotaBudgetResolver)
 		if err != nil {
-			return fmt.Errorf("failed to initialize governance handler: %v", err)
+			return fmt.Errorf("failed to initialize governance handler: %w", err)
 		}
 	}
 	// Routing rules and the complexity analyzer config live in the config store, so these
@@ -2116,7 +2120,7 @@ func (s *BifrostHTTPServer) RegisterAPIRoutes(ctx context.Context, callbacks Ser
 	if s.Config.ConfigStore != nil {
 		routingHandler, err = handlers.NewRoutingHandler(callbacks, s.Config.ConfigStore)
 		if err != nil {
-			return fmt.Errorf("failed to initialize routing handler: %v", err)
+			return fmt.Errorf("failed to initialize routing handler: %w", err)
 		}
 	}
 	// Resolve the semantic_cache plugin per request so plugin reloads via
@@ -2230,7 +2234,7 @@ func (s *BifrostHTTPServer) RegisterAPIRoutes(ctx context.Context, callbacks Ser
 	metricsGatherer := prometheus.GathererFunc(func() ([]*dto.MetricFamily, error) {
 		plugin, err := lib.FindPluginAs[*telemetry.PrometheusPlugin](s.Config, telemetry.PluginName)
 		if err != nil || plugin == nil {
-			return nil, nil
+			return nil, nil //nolint:nilerr // An absent telemetry plugin intentionally yields an empty metrics set.
 		}
 		return plugin.GetMetricsGatherer().Gather()
 	})
@@ -2397,12 +2401,12 @@ func (s *BifrostHTTPServer) Bootstrap(ctx context.Context) error {
 	configDir := GetDefaultConfigDir(s.AppDir)
 	// Ensure app directory exists
 	if err := os.MkdirAll(configDir, 0o755); err != nil {
-		return fmt.Errorf("failed to create app directory %s: %v", configDir, err)
+		return fmt.Errorf("failed to create app directory %s: %w", configDir, err)
 	}
 	// Initialize high-performance configuration store with dedicated database
 	s.Config, err = lib.LoadConfig(ctx, configDir)
 	if err != nil {
-		return fmt.Errorf("failed to load config %v", err)
+		return fmt.Errorf("failed to load config %w", err)
 	}
 	if s.Config.KVStore != nil {
 		integrations.RegisterKVDecoders(s.Config.KVStore)
@@ -2464,7 +2468,7 @@ func (s *BifrostHTTPServer) Bootstrap(ctx context.Context) error {
 	}
 	// Load all plugins
 	if err := s.LoadPlugins(ctx); err != nil {
-		return fmt.Errorf("failed to instantiate plugins: %v", err)
+		return fmt.Errorf("failed to instantiate plugins: %w", err)
 	}
 
 	// Initialize the webhook delivery dispatcher (requires both stores; the
@@ -2518,7 +2522,7 @@ func (s *BifrostHTTPServer) Bootstrap(ctx context.Context) error {
 		ModelCatalog:       s.Config.ModelCatalog,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to initialize bifrost: %v", err)
+		return fmt.Errorf("failed to initialize bifrost: %w", err)
 	}
 	logger.Info("bifrost client initialized")
 	// Sync plugin execution order from config to core (defensive — Init receives sorted list,
@@ -2564,7 +2568,7 @@ func (s *BifrostHTTPServer) Bootstrap(ctx context.Context) error {
 		if regErr := handlers.RegisterTempTokenScopes(s.TempTokens); regErr != nil {
 			s.WSTicketStore.Stop()
 			s.WSTicketStore = nil
-			return fmt.Errorf("failed to register temp token scopes: %v", regErr)
+			return fmt.Errorf("failed to register temp token scopes: %w", regErr)
 		}
 		// Centralized janitor that reaps expired temp_tokens rows. Independent
 		// of the per-user OAuth sweep so any future scope (not just mcp_auth)
@@ -2596,7 +2600,7 @@ func (s *BifrostHTTPServer) Bootstrap(ctx context.Context) error {
 				s.OAuth2SweepWorker.stop()
 				s.OAuth2SweepWorker = nil
 			}
-			return fmt.Errorf("failed to initialize auth middleware: %v", err)
+			return fmt.Errorf("failed to initialize auth middleware: %w", err)
 		}
 		if ctx.Value(schemas.BifrostContextKeyIsEnterprise) == nil {
 			apiMiddlewares = append(apiMiddlewares, s.AuthMiddleware.APIMiddleware())
@@ -2628,7 +2632,7 @@ func (s *BifrostHTTPServer) Bootstrap(ctx context.Context) error {
 			s.OAuth2SweepWorker.stop()
 			s.OAuth2SweepWorker = nil
 		}
-		return fmt.Errorf("failed to initialize routes: %v", err)
+		return fmt.Errorf("failed to initialize routes: %w", err)
 	}
 	// Registering inference routes
 	// The pre-auth plugin phase runs immediately before the auth middlewares so a plugin can
@@ -2672,7 +2676,7 @@ func (s *BifrostHTTPServer) Bootstrap(ctx context.Context) error {
 			s.OAuth2SweepWorker.stop()
 			s.OAuth2SweepWorker = nil
 		}
-		return fmt.Errorf("failed to initialize inference routes: %v", err)
+		return fmt.Errorf("failed to initialize inference routes: %w", err)
 	}
 	// Registered before ConnectConfiguredMCPClients so even the very first
 	// boot dial's discovered tools get persisted, not just later reconnects.
@@ -2770,7 +2774,7 @@ func (s *BifrostHTTPServer) Start() error {
 	serverAddr := net.JoinHostPort(s.Host, s.Port)
 	ln, err := net.Listen("tcp", serverAddr)
 	if err != nil {
-		return fmt.Errorf("failed to create listener on %s: %v", serverAddr, err)
+		return fmt.Errorf("failed to create listener on %s: %w", serverAddr, err)
 	}
 	go func() {
 		logger.Info("successfully started bifrost, serving UI on http://%s", serverAddr)

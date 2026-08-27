@@ -107,11 +107,6 @@ var liteLLMProviderAliases = map[string]string{
 // Entra ID), Bedrock (AWS IAM credentials), Vertex (GCP credentials).
 // These are intercepted before the standard api_key path in
 // LiteLLMModelsToBifrostProviders.
-var specialCredProviders = map[string]bool{
-	"azure":   true,
-	"bedrock": true,
-	"vertex":  true,
-}
 
 // standardProviders is the set of Bifrost standard provider names (from schemas.StandardProviders).
 // A LiteLLM provider absent from this is either added as a custom provider or is skipped and reported.

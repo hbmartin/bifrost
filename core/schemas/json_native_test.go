@@ -33,6 +33,7 @@ func TestConvertViaJSON(t *testing.T) {
 			name:  "map_to_struct",
 			input: map[string]interface{}{"type": "json_object", "name": "test_format"},
 			validate: func(t *testing.T) {
+				t.Helper()
 				result, err := ConvertViaJSON[convertTestTarget](map[string]interface{}{"type": "json_object", "name": "test_format"})
 				require.NoError(t, err)
 				assert.Equal(t, "json_object", result.Type)
@@ -42,6 +43,7 @@ func TestConvertViaJSON(t *testing.T) {
 		{
 			name: "struct_to_struct",
 			validate: func(t *testing.T) {
+				t.Helper()
 				src := convertTestSource{Name: "hello", Value: 42}
 				result, err := ConvertViaJSON[convertTestDest](src)
 				require.NoError(t, err)
@@ -52,6 +54,7 @@ func TestConvertViaJSON(t *testing.T) {
 		{
 			name: "slice_conversion",
 			validate: func(t *testing.T) {
+				t.Helper()
 				src := []interface{}{
 					map[string]interface{}{"type": "image", "name": "a"},
 					map[string]interface{}{"type": "video", "name": "b"},
@@ -68,6 +71,7 @@ func TestConvertViaJSON(t *testing.T) {
 		{
 			name: "invalid_input_returns_error",
 			validate: func(t *testing.T) {
+				t.Helper()
 				result, err := ConvertViaJSON[convertTestTarget](42)
 				require.Error(t, err)
 				assert.Equal(t, convertTestTarget{}, result)
@@ -76,6 +80,7 @@ func TestConvertViaJSON(t *testing.T) {
 		{
 			name: "nil_input",
 			validate: func(t *testing.T) {
+				t.Helper()
 				result, err := ConvertViaJSON[convertTestTarget](nil)
 				// nil marshals to "null" which unmarshals to zero struct — no error
 				require.NoError(t, err)

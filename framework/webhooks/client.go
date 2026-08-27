@@ -144,7 +144,7 @@ func (c *deliveryClient) deliver(ctx context.Context, endpoint *tables.TableWebh
 	if err != nil {
 		return attemptResult{errText: err.Error()}
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		// Drain (bounded) so the keep-alive connection can be reused for the
 		// next delivery; closing an unread body discards the connection.

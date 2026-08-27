@@ -465,9 +465,10 @@ export default function VirtualKeySheet({ virtualKey, defaultTeamId, onSave, onC
 		}
 	}, [mcpClientsError]);
 
+	const entityType = form.watch("entityType");
+
 	// Clear the ids that don't belong to the selected entity type
 	useEffect(() => {
-		const entityType = form.watch("entityType");
 		if (entityType === "none") {
 			form.setValue("teamId", "", { shouldDirty: true });
 			form.setValue("customerId", "", { shouldDirty: true });
@@ -482,7 +483,7 @@ export default function VirtualKeySheet({ virtualKey, defaultTeamId, onSave, onC
 			form.setValue("teamId", "", { shouldDirty: true });
 			form.setValue("customerId", "", { shouldDirty: true });
 		}
-	}, [form.watch("entityType"), form]);
+	}, [entityType, form]);
 
 	// The VK-user association is fetched separately from the VK itself, so it can't be part of
 	// defaultValues. Seed it once when it arrives, and only if the user hasn't already touched the
@@ -620,7 +621,12 @@ export default function VirtualKeySheet({ virtualKey, defaultTeamId, onSave, onC
 	// values when a limit is set, {} to clear an existing rate limit (removal), or undefined.
 	const normalizeRateLimit = (
 		rl:
-			| { token_max_limit?: number; token_reset_duration?: string; request_max_limit?: number; request_reset_duration?: string }
+			| {
+					token_max_limit?: number;
+					token_reset_duration?: string;
+					request_max_limit?: number;
+					request_reset_duration?: string;
+			  }
 			| undefined,
 		hadExisting: boolean,
 	) => {
@@ -915,8 +921,14 @@ export default function VirtualKeySheet({ virtualKey, defaultTeamId, onSave, onC
 
 				// Add budgets if enabled
 				const validBudgets = (data.budgets || []).filter(
-					(b): b is { id?: string; max_limit: number; reset_duration: string; reset_config?: { quarter_start_month?: number } } =>
-						b.max_limit !== undefined,
+					(
+						b,
+					): b is {
+						id?: string;
+						max_limit: number;
+						reset_duration: string;
+						reset_config?: { quarter_start_month?: number };
+					} => b.max_limit !== undefined,
 				);
 				const hadBudget = virtualKey.budgets && virtualKey.budgets.length > 0;
 				if (validBudgets.length > 0) {
@@ -978,8 +990,14 @@ export default function VirtualKeySheet({ virtualKey, defaultTeamId, onSave, onC
 
 				// Add budgets if enabled
 				const validBudgets = (data.budgets || []).filter(
-					(b): b is { id?: string; max_limit: number; reset_duration: string; reset_config?: { quarter_start_month?: number } } =>
-						b.max_limit !== undefined,
+					(
+						b,
+					): b is {
+						id?: string;
+						max_limit: number;
+						reset_duration: string;
+						reset_config?: { quarter_start_month?: number };
+					} => b.max_limit !== undefined,
 				);
 				if (validBudgets.length > 0) {
 					createData.budgets = validBudgets;
@@ -1664,8 +1682,8 @@ export default function VirtualKeySheet({ virtualKey, defaultTeamId, onSave, onC
 												Align to calendar cycle
 											</Label>
 											<p id="vk-budget-calendar-aligned-description" className="text-muted-foreground text-xs">
-												Reset budgets and rate limits at the start of each period (e.g. 1st of month) instead of rolling from creation date. Quarterly budgets always align to fiscal quarter starts.
-												Applies to durations of a day or longer.
+												Reset budgets and rate limits at the start of each period (e.g. 1st of month) instead of rolling from creation date.
+												Quarterly budgets always align to fiscal quarter starts. Applies to durations of a day or longer.
 											</p>
 										</div>
 										<Switch

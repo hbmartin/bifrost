@@ -77,7 +77,7 @@ export default function PluginsView(props: Props) {
 				hasConfig,
 			});
 		}
-	}, [selectedPlugin]);
+	}, [form, selectedPlugin]);
 
 	// Track form dirty state
 	useEffect(() => {

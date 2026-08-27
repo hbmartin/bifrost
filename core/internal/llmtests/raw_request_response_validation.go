@@ -50,7 +50,7 @@ func ValidateRawField(field interface{}, fieldName string) error {
 		// For other types (e.g., map[string]interface{}), marshal to JSON first
 		rawBytes, err = sonic.Marshal(field)
 		if err != nil {
-			return fmt.Errorf("%s failed to marshal to JSON: %v", fieldName, err)
+			return fmt.Errorf("%s failed to marshal to JSON: %w", fieldName, err)
 		}
 	}
 
@@ -66,7 +66,7 @@ func ValidateRawField(field interface{}, fieldName string) error {
 	// Verify compact: compact the original and compare (preserves key order)
 	var buf bytes.Buffer
 	if err := schemas.Compact(&buf, rawBytes); err != nil {
-		return fmt.Errorf("%s failed to compact: %v", fieldName, err)
+		return fmt.Errorf("%s failed to compact: %w", fieldName, err)
 	}
 	if !bytes.Equal(rawBytes, buf.Bytes()) {
 		return fmt.Errorf("%s is not compact JSON.\nGot:      %s\nExpected: %s", fieldName, truncateForError(rawBytes), truncateForError(buf.Bytes()))

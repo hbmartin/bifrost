@@ -75,7 +75,7 @@ function resolveLogsDbUrl() {
         ssl = c.ssl_mode || "disable";
       return `postgresql://${user}:${encodeURIComponent(pass)}@${host}:${port}/${db}?sslmode=${ssl}`;
     }
-  } catch (_) {
+  } catch {
     /* no config / unreadable → skip */
   }
   return "";
@@ -98,7 +98,7 @@ async function connectLogsDb(url) {
     close: () => {
       try {
         sdb.close();
-      } catch (_) {}
+      } catch {}
     },
   };
 }
@@ -134,7 +134,7 @@ function expectedCost(entry, row) {
         if (cachedRead === 0 && d.cached_read_tokens) cachedRead = Number(d.cached_read_tokens);
         if (d.cached_write_tokens) cachedWrite = Number(d.cached_write_tokens);
       }
-    } catch (_) {
+    } catch {
       /* ignore */
     }
   }
@@ -449,7 +449,7 @@ if (skipCostCheck) {
       try {
         const resp = await fetch(pricingUrl);
         sheet = resp.ok ? await resp.json() : null;
-      } catch (_) {
+      } catch {
         sheet = null;
       }
       if (!sheet)

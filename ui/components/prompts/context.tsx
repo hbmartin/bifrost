@@ -152,13 +152,25 @@ export function PromptProvider({ children }: { children: ReactNode }) {
 	);
 
 	// Sheet states
-	const [folderSheet, setFolderSheet] = useState<{ open: boolean; folder?: Folder }>({ open: false });
-	const [promptSheet, setPromptSheet] = useState<{ open: boolean; prompt?: Prompt; folderId?: string }>({ open: false });
-	const [commitSheet, setCommitSheet] = useState<{ open: boolean; session?: PromptSession }>({ open: false });
+	const [folderSheet, setFolderSheet] = useState<{ open: boolean; folder?: Folder }>({
+		open: false,
+	});
+	const [promptSheet, setPromptSheet] = useState<{
+		open: boolean;
+		prompt?: Prompt;
+		folderId?: string;
+	}>({ open: false });
+	const [commitSheet, setCommitSheet] = useState<{ open: boolean; session?: PromptSession }>({
+		open: false,
+	});
 
 	// Delete dialog states
-	const [deleteFolderDialog, setDeleteFolderDialog] = useState<{ open: boolean; folder?: Folder }>({ open: false });
-	const [deletePromptDialog, setDeletePromptDialog] = useState<{ open: boolean; prompt?: Prompt }>({ open: false });
+	const [deleteFolderDialog, setDeleteFolderDialog] = useState<{ open: boolean; folder?: Folder }>({
+		open: false,
+	});
+	const [deletePromptDialog, setDeletePromptDialog] = useState<{ open: boolean; prompt?: Prompt }>({
+		open: false,
+	});
 
 	// Playground state
 	const [messages, setMessagesRaw] = useState<Message[]>([Message.system("")]);
@@ -316,6 +328,7 @@ export function PromptProvider({ children }: { children: ReactNode }) {
 		setUrlState,
 		isSessionsLoading,
 		sessions.length,
+		setMessages,
 	]);
 
 	// Auto-select the most recent session when sessions load and none is selected
@@ -423,7 +436,7 @@ export function PromptProvider({ children }: { children: ReactNode }) {
 			setApiKeyId("__auto__");
 			setUrlState({ promptId: id, sessionId: null, versionId: null });
 		},
-		[setUrlState],
+		[setMessages, setUrlState],
 	);
 
 	const handleMovePrompt = useCallback(
@@ -532,7 +545,7 @@ export function PromptProvider({ children }: { children: ReactNode }) {
 				abortController.signal,
 			);
 		},
-		[messages, provider, model, modelParams, apiKeyId, variables, customHeaders],
+		[messages, provider, model, modelParams, apiKeyId, variables, customHeaders, setMessages],
 	);
 
 	const handleSubmitToolResult = useCallback(
@@ -614,7 +627,7 @@ export function PromptProvider({ children }: { children: ReactNode }) {
 				abortController.signal,
 			);
 		},
-		[messages, provider, model, modelParams, apiKeyId, variables, customHeaders],
+		[messages, provider, model, modelParams, apiKeyId, variables, customHeaders, setMessages],
 	);
 
 	const handleExecuteToolCall = useCallback(
@@ -717,7 +730,7 @@ export function PromptProvider({ children }: { children: ReactNode }) {
 				abortController.signal,
 			);
 		},
-		[messages, provider, model, modelParams, apiKeyId, variables, customHeaders, handleSubmitToolResult],
+		[messages, provider, model, modelParams, apiKeyId, variables, customHeaders, handleSubmitToolResult, setMessages],
 	);
 
 	const handleExecuteAllToolCalls = useCallback(

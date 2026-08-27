@@ -29,7 +29,10 @@ const buildWebhookEndpointsListParams = (params?: GetWebhookEndpointsParams): Re
 export const webhooksApi = baseApi.injectEndpoints({
 	endpoints: (builder) => ({
 		getWebhookEndpoints: builder.query<GetWebhookEndpointsResponse, GetWebhookEndpointsParams | void>({
-			query: (params) => ({ url: "/webhooks", params: buildWebhookEndpointsListParams(params ?? undefined) }),
+			query: (params) => ({
+				url: "/webhooks",
+				params: buildWebhookEndpointsListParams(params ?? undefined),
+			}),
 			providesTags: ["WebhookEndpoints"],
 		}),
 

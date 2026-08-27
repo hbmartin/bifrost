@@ -187,7 +187,7 @@ func TestBillingRowNeedsHydration(t *testing.T) {
 func TestHydrateBillingChunkFetchesOnlyWhenRequired(t *testing.T) {
 	t.Run("no fetch when the row was never offloaded", func(t *testing.T) {
 		hybrid, inner, objStore := newCountingHybrid(t, nil)
-		defer hybrid.Close(context.Background())
+		defer func() { _ = hybrid.Close(context.Background()) }()
 		ctx := context.Background()
 
 		entry := &Log{
@@ -210,7 +210,7 @@ func TestHydrateBillingChunkFetchesOnlyWhenRequired(t *testing.T) {
 
 	t.Run("no fetch when the exclusion list kept the billing fields in the DB", func(t *testing.T) {
 		hybrid, inner, objStore := newCountingHybrid(t, []string{"token_usage", "cache_debug"})
-		defer hybrid.Close(context.Background())
+		defer func() { _ = hybrid.Close(context.Background()) }()
 		ctx := context.Background()
 
 		entry := &Log{
@@ -242,7 +242,7 @@ func TestHydrateBillingChunkFetchesOnlyWhenRequired(t *testing.T) {
 	// written by the current code is not a reason to download its payload.
 	t.Run("no fetch for a content-hidden row that kept its pricing metadata", func(t *testing.T) {
 		hybrid, inner, objStore := newCountingHybrid(t, nil)
-		defer hybrid.Close(context.Background())
+		defer func() { _ = hybrid.Close(context.Background()) }()
 		ctx := context.Background()
 
 		entry := &Log{
@@ -270,7 +270,7 @@ func TestHydrateBillingChunkFetchesOnlyWhenRequired(t *testing.T) {
 	// can price them, so the retained object is the only source.
 	t.Run("one billing-only fetch for a legacy content-hidden row", func(t *testing.T) {
 		hybrid, inner, objStore := newCountingHybrid(t, nil)
-		defer hybrid.Close(context.Background())
+		defer func() { _ = hybrid.Close(context.Background()) }()
 		ctx := context.Background()
 
 		entry := &Log{
@@ -301,7 +301,7 @@ func TestHydrateBillingChunkFetchesOnlyWhenRequired(t *testing.T) {
 
 	t.Run("exactly one fetch when token_usage was offloaded", func(t *testing.T) {
 		hybrid, inner, objStore := newCountingHybrid(t, nil)
-		defer hybrid.Close(context.Background())
+		defer func() { _ = hybrid.Close(context.Background()) }()
 		ctx := context.Background()
 
 		entry := &Log{
@@ -332,7 +332,7 @@ func TestHydrateBillingChunkFetchesOnlyWhenRequired(t *testing.T) {
 
 	t.Run("a second hydration of the same row does not refetch", func(t *testing.T) {
 		hybrid, inner, objStore := newCountingHybrid(t, nil)
-		defer hybrid.Close(context.Background())
+		defer func() { _ = hybrid.Close(context.Background()) }()
 		ctx := context.Background()
 
 		entry := &Log{
@@ -369,7 +369,7 @@ func TestHydrateBillingChunkFetchesOnlyWhenRequired(t *testing.T) {
 // pass after it is served from the database.
 func TestBackfillMakesLaterHydrationFetchFree(t *testing.T) {
 	hybrid, inner, objStore := newCountingHybrid(t, nil)
-	defer hybrid.Close(context.Background())
+	defer func() { _ = hybrid.Close(context.Background()) }()
 	ctx := context.Background()
 
 	entry := &Log{

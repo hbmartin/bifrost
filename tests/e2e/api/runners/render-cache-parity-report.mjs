@@ -25,7 +25,7 @@ const args = Object.fromEntries(
   process.argv.slice(2).reduce((acc, cur, i, arr) => {
     if (cur.startsWith("--")) acc.push([cur.slice(2), arr[i + 1]]);
     return acc;
-  }, [])
+  }, []),
 );
 
 const GLOB = args.glob || "tmp/harness-cache-parity-*.json";
@@ -49,7 +49,7 @@ for (const file of fragmentFiles) {
 if (rows.length === 0) {
   console.error(
     `[render-cache-parity-report] no fragments matched ${GLOB} - run the cache matrices first ` +
-      `(make run-provider-harness-test FEATURE="cache" PARALLEL=0, or pick "cache-parity" in the modality menu)`
+      `(make run-provider-harness-test FEATURE="cache" PARALLEL=0, or pick "cache-parity" in the modality menu)`,
   );
   process.exit(0);
 }
@@ -63,12 +63,12 @@ const dedupe = (list, keyFn) => {
 
 const anchors = dedupe(
   rows.filter((r) => r.kind === "anchor"),
-  (r) => `${r.caseKey}/${r.leg}`
+  (r) => `${r.caseKey}/${r.leg}`,
 ).sort((a, b) => (a.caseKey + a.leg).localeCompare(b.caseKey + b.leg));
 
 const matrix = dedupe(
   rows.filter((r) => r.kind === "matrix"),
-  (r) => `${r.cell}/${r.arm}`
+  (r) => `${r.cell}/${r.arm}`,
 ).sort((a, b) => (a.provider + a.model + a.arm).localeCompare(b.provider + b.model + b.arm));
 
 const pct = (h) => `${((h || 0) * 100).toFixed(1)}%`;
@@ -84,7 +84,11 @@ const delta = (d, b) => {
 const LEG_ORDER = ["direct", "bifrost_messages", "bifrost_responses"];
 const anchorCases = new Map();
 for (const r of anchors) {
-  const entry = anchorCases.get(r.caseKey) || { caseKey: r.caseKey, caseLabel: r.caseLabel, legs: {} };
+  const entry = anchorCases.get(r.caseKey) || {
+    caseKey: r.caseKey,
+    caseLabel: r.caseLabel,
+    legs: {},
+  };
   entry.caseLabel = entry.caseLabel || r.caseLabel;
   entry.expectHit = r.expectHit;
   entry.legs[r.leg] = r;
@@ -107,7 +111,9 @@ const legVerdict = (entry, leg) => {
   return floorOk && parityOk ? "PASS" : "FAIL";
 };
 const anchorRowVerdict = (entry) =>
-  LEG_ORDER.filter((l) => entry.legs[l]).every((l) => legVerdict(entry, l) === "PASS") ? "PASS" : "FAIL";
+  LEG_ORDER.filter((l) => entry.legs[l]).every((l) => legVerdict(entry, l) === "PASS")
+    ? "PASS"
+    : "FAIL";
 
 // A cell that recorded no cache write across ANY round never observed a cache being created: it
 // read a cache some earlier run wrote, which still clears the floor but proves only the read path.
@@ -127,7 +133,9 @@ const isWarmStart = (r) => {
 
 const matrixVerdict = (r) => {
   const passed =
-    r.mechanism === "implicit" ? (r.hitRate || 0) > 0 : (r.hitRate || 0) >= (r.hitRateFloor ?? 0.85);
+    r.mechanism === "implicit"
+      ? (r.hitRate || 0) > 0
+      : (r.hitRate || 0) >= (r.hitRateFloor ?? 0.85);
   if (!passed) return "FAIL";
   return isWarmStart(r) ? "PASS (warm)" : "PASS";
 };
@@ -138,7 +146,7 @@ lines.push("");
 lines.push(
   `Generated from ${fragmentFiles.length} newman process(es): ` +
     `${anchorCases.size} cache-anchor case(s) across ${anchors.length} leg(s), ${matrix.length} cross-provider matrix cell(s). ` +
-    `hitRate = read / (read + write + uncached).`
+    `hitRate = read / (read + write + uncached).`,
 );
 lines.push("");
 
@@ -151,7 +159,7 @@ lines.push("");
   if (!anchorCases.size) {
     scope.push(
       `No Round 34 cache-anchor rows were captured in this run - the folder exists in the collection, ` +
-        `so this means the run was filtered (e.g. PROVIDER=), not that the coverage is absent.`
+        `so this means the run was filtered (e.g. PROVIDER=), not that the coverage is absent.`,
     );
   }
   // else-if, not two ifs: providersSeen is derived from matrix, so an empty matrix always
@@ -161,12 +169,12 @@ lines.push("");
   if (!matrix.length) {
     scope.push(
       `No Round 35 cross-provider matrix rows were captured in this run - the folder exists in the ` +
-        `collection, so this means the run was filtered (e.g. PROVIDER=), not that the coverage is absent.`
+        `collection, so this means the run was filtered (e.g. PROVIDER=), not that the coverage is absent.`,
     );
   } else if (providersSeen.size === 1) {
     scope.push(
       `The Round 35 matrix covers 34 (provider, model) cells, but only \`${[...providersSeen][0]}\` ` +
-        `reported here. Cross-provider parity cannot be judged from a single provider - run unfiltered for that.`
+        `reported here. Cross-provider parity cannot be judged from a single provider - run unfiltered for that.`,
     );
   }
   if (scope.length) {
@@ -182,15 +190,17 @@ if (anchorCases.size) {
     `Baseline is the \`direct\` leg (raw Bedrock Converse over SigV4) - identical bytes are sent on every leg, so a ` +
       `Bifrost leg reading materially less than direct did means a dropped cache breakpoint. ` +
       `A Bifrost leg passes when it clears its own floor AND lands within ${PARITY_TOLERANCE_PP}pp of direct. ` +
-      `Cases marked \`expectHit=false\` deliberately expect only the system floor (read > 0), not a high hit rate.`
+      `Cases marked \`expectHit=false\` deliberately expect only the system floor (read > 0), not a high hit rate.`,
   );
   lines.push("");
   lines.push(
-    "| Case | Expect hit | Direct hit | Bifrost /messages | Δ | Bifrost /responses | Δ | Direct r/w/u | /messages r/w/u | /responses r/w/u | Verdict |"
+    "| Case | Expect hit | Direct hit | Bifrost /messages | Δ | Bifrost /responses | Δ | Direct r/w/u | /messages r/w/u | /responses r/w/u | Verdict |",
   );
   lines.push("|---|---|---:|---:|---:|---:|---:|---|---|---|---|");
   const rwu = (r) => (r ? `${r.read}/${r.write}/${r.uncached}` : "-");
-  for (const entry of [...anchorCases.values()].sort((a, b) => a.caseKey.localeCompare(b.caseKey))) {
+  for (const entry of [...anchorCases.values()].sort((a, b) =>
+    a.caseKey.localeCompare(b.caseKey),
+  )) {
     const d = entry.legs.direct;
     const m = entry.legs.bifrost_messages;
     const p = entry.legs.bifrost_responses;
@@ -199,7 +209,7 @@ if (anchorCases.size) {
         `| ${d ? pct(d.hitRate) : "-"} ` +
         `| ${m ? pct(m.hitRate) : "-"} | ${d && m ? delta(d.hitRate, m.hitRate) : "-"} ` +
         `| ${p ? pct(p.hitRate) : "-"} | ${d && p ? delta(d.hitRate, p.hitRate) : "-"} ` +
-        `| ${rwu(d)} | ${rwu(m)} | ${rwu(p)} | ${anchorRowVerdict(entry)} |`
+        `| ${rwu(d)} | ${rwu(m)} | ${rwu(p)} | ${anchorRowVerdict(entry)} |`,
     );
   }
   lines.push("");
@@ -211,7 +221,7 @@ if (matrix.length) {
   lines.push(
     "Explicit-breakpoint cells are deterministic and asserted against their hit-rate floor. Implicit-caching cells are " +
       "best-effort at the provider, so they assert only that caching engaged at least once across the round series " +
-      "(per-round hit rates shown in `Series`)."
+      "(per-round hit rates shown in `Series`).",
   );
   lines.push("");
   if (matrix.some(isWarmStart)) {
@@ -221,18 +231,23 @@ if (matrix.length) {
         `{{pcNonce}} (fresh per run) so a cold start is the norm; a warm one usually means the salt did ` +
         `not reach that cell's prefix, or the provider matched a prefix shorter than the salted segment. ` +
         `Implicit-caching cells are expected here regardless: providers report a read counter for ` +
-        `implicit caching but no write counter, so there is no write for the row to show.`
+        `implicit caching but no write counter, so there is no write for the row to show.`,
     );
     lines.push("");
   }
-  lines.push("| Provider | Model | Shape | Mechanism | Arm | Read | Write | Uncached | Hit rate | Bar | Series | Verdict |");
+  lines.push(
+    "| Provider | Model | Shape | Mechanism | Arm | Read | Write | Uncached | Hit rate | Bar | Series | Verdict |",
+  );
   lines.push("|---|---|---|---|---|---:|---:|---:|---:|---|---|---|");
   for (const r of matrix) {
-    const series = Array.isArray(r.series) ? r.series.map((h) => `${(h * 100).toFixed(0)}%`).join(" ") : "-";
-    const bar = r.mechanism === "implicit" ? "> 0%" : `>= ${((r.hitRateFloor ?? 0.85) * 100).toFixed(0)}%`;
+    const series = Array.isArray(r.series)
+      ? r.series.map((h) => `${(h * 100).toFixed(0)}%`).join(" ")
+      : "-";
+    const bar =
+      r.mechanism === "implicit" ? "> 0%" : `>= ${((r.hitRateFloor ?? 0.85) * 100).toFixed(0)}%`;
     lines.push(
       `| ${r.provider} | \`${r.model}\` | ${r.shape} | ${r.mechanism} | ${r.arm} ` +
-        `| ${r.read} | ${r.write} | ${r.uncached} | ${pct(r.hitRate)} | ${bar} | ${series} | ${matrixVerdict(r)} |`
+        `| ${r.read} | ${r.write} | ${r.uncached} | ${pct(r.hitRate)} | ${bar} | ${series} | ${matrixVerdict(r)} |`,
     );
   }
   lines.push("");
@@ -260,11 +275,15 @@ const anchorFail = [...anchorCases.values()].filter((e) => anchorRowVerdict(e) =
 const matrixFail = matrix.filter((r) => matrixVerdict(r) === "FAIL").length;
 console.error(
   `[render-cache-parity-report] wrote ${OUT} (${anchorCases.size} anchor case(s), ${anchorFail} failing; ` +
-    `${matrix.length} matrix cell(s), ${matrixFail} failing)`
+    `${matrix.length} matrix cell(s), ${matrixFail} failing)`,
 );
 
 // --- htmlextra injection (sequential mode only - parallel mode doesn't emit an html report) ---
-const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const esc = (s) =>
+  String(s).replace(
+    /[&<>"']/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c],
+  );
 
 if (existsSync(HTML)) {
   const START = "<!-- CACHE_PARITY_REPORT_START -->";
@@ -298,7 +317,7 @@ if (existsSync(HTML)) {
         <td>${r.read}</td><td>${r.write}</td><td>${r.uncached}</td><td>${pct(r.hitRate)}</td>
         <td>${Array.isArray(r.series) ? esc(r.series.map((h) => `${(h * 100).toFixed(0)}%`).join(" ")) : "-"}</td>
         <td>${matrixVerdict(r)}</td>
-      </tr>`
+      </tr>`,
     )
     .join("\n");
 
@@ -359,11 +378,15 @@ ${END}`;
     ? html.replace(markerRe, section)
     : html.replace(/<body[^>]*>/, (m) => `${m}\n${section}`);
   if (injected === html && !markerRe.test(html)) {
-    console.error(`[render-cache-parity-report] no <body> tag found in ${HTML} - skipped HTML injection`);
+    console.error(
+      `[render-cache-parity-report] no <body> tag found in ${HTML} - skipped HTML injection`,
+    );
   } else {
     writeFileSync(HTML, injected);
     console.error(`[render-cache-parity-report] injected cache parity table into ${HTML}`);
   }
 } else {
-  console.error(`[render-cache-parity-report] ${HTML} not found (parallel mode doesn't emit htmlextra) - skipped HTML injection`);
+  console.error(
+    `[render-cache-parity-report] ${HTML} not found (parallel mode doesn't emit htmlextra) - skipped HTML injection`,
+  );
 }

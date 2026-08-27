@@ -137,7 +137,8 @@ const REASONING_BUDGET_MODELS = new Set([
   "bedrock/global.anthropic.claude-sonnet-5",
 ]);
 
-const maxTokensFor = (cell) => (REASONING_BUDGET_MODELS.has(cell.model) ? REASONING_MAX_TOKENS : MAX_TOKENS);
+const maxTokensFor = (cell) =>
+  REASONING_BUDGET_MODELS.has(cell.model) ? REASONING_MAX_TOKENS : MAX_TOKENS;
 
 // OpenAI rejects prompt_cache_key longer than 64 chars at runtime
 // ("string_above_max_length ... got a string with length 65"). Note the published spec does NOT
@@ -191,56 +192,254 @@ const salt = (cellId) => `[cache-matrix cell ${cellId} run {{pcNonce}}]\n\n${SEG
 // ---------------------------------------------------------------------------------------------
 const CELLS = [
   // --- Anthropic API, Claude family: latest through several generations back -----------------
-  { provider: "anthropic", family: "claude", model: "anthropic/claude-opus-5", shape: "anthropic", mechanism: "explicit" },
-  { provider: "anthropic", family: "claude", model: "anthropic/claude-opus-4-8", shape: "anthropic", mechanism: "explicit" },
-  { provider: "anthropic", family: "claude", model: "anthropic/claude-opus-4-7", shape: "anthropic", mechanism: "explicit" },
-  { provider: "anthropic", family: "claude", model: "anthropic/claude-sonnet-5", shape: "anthropic", mechanism: "explicit" },
-  { provider: "anthropic", family: "claude", model: "anthropic/claude-sonnet-4-6", shape: "anthropic", mechanism: "explicit" },
-  { provider: "anthropic", family: "claude", model: "anthropic/claude-haiku-4-5", shape: "anthropic", mechanism: "explicit" },
+  {
+    provider: "anthropic",
+    family: "claude",
+    model: "anthropic/claude-opus-5",
+    shape: "anthropic",
+    mechanism: "explicit",
+  },
+  {
+    provider: "anthropic",
+    family: "claude",
+    model: "anthropic/claude-opus-4-8",
+    shape: "anthropic",
+    mechanism: "explicit",
+  },
+  {
+    provider: "anthropic",
+    family: "claude",
+    model: "anthropic/claude-opus-4-7",
+    shape: "anthropic",
+    mechanism: "explicit",
+  },
+  {
+    provider: "anthropic",
+    family: "claude",
+    model: "anthropic/claude-sonnet-5",
+    shape: "anthropic",
+    mechanism: "explicit",
+  },
+  {
+    provider: "anthropic",
+    family: "claude",
+    model: "anthropic/claude-sonnet-4-6",
+    shape: "anthropic",
+    mechanism: "explicit",
+  },
+  {
+    provider: "anthropic",
+    family: "claude",
+    model: "anthropic/claude-haiku-4-5",
+    shape: "anthropic",
+    mechanism: "explicit",
+  },
 
   // --- Bedrock, Claude family: the converter this suite's sibling folder fixed ---------------
-  { provider: "bedrock", family: "claude", model: "bedrock/global.anthropic.claude-opus-4-8", shape: "anthropic", mechanism: "explicit" },
-  { provider: "bedrock", family: "claude", model: "bedrock/global.anthropic.claude-opus-4-7", shape: "anthropic", mechanism: "explicit" },
-  { provider: "bedrock", family: "claude", model: "bedrock/global.anthropic.claude-opus-4-5-20251101-v1:0", shape: "anthropic", mechanism: "explicit" },
-  { provider: "bedrock", family: "claude", model: "bedrock/global.anthropic.claude-sonnet-5", shape: "anthropic", mechanism: "explicit" },
-  { provider: "bedrock", family: "claude", model: "bedrock/global.anthropic.claude-sonnet-4-6", shape: "anthropic", mechanism: "explicit" },
-  { provider: "bedrock", family: "claude", model: "bedrock/global.anthropic.claude-haiku-4-5-20251001-v1:0", shape: "anthropic", mechanism: "explicit" },
+  {
+    provider: "bedrock",
+    family: "claude",
+    model: "bedrock/global.anthropic.claude-opus-4-8",
+    shape: "anthropic",
+    mechanism: "explicit",
+  },
+  {
+    provider: "bedrock",
+    family: "claude",
+    model: "bedrock/global.anthropic.claude-opus-4-7",
+    shape: "anthropic",
+    mechanism: "explicit",
+  },
+  {
+    provider: "bedrock",
+    family: "claude",
+    model: "bedrock/global.anthropic.claude-opus-4-5-20251101-v1:0",
+    shape: "anthropic",
+    mechanism: "explicit",
+  },
+  {
+    provider: "bedrock",
+    family: "claude",
+    model: "bedrock/global.anthropic.claude-sonnet-5",
+    shape: "anthropic",
+    mechanism: "explicit",
+  },
+  {
+    provider: "bedrock",
+    family: "claude",
+    model: "bedrock/global.anthropic.claude-sonnet-4-6",
+    shape: "anthropic",
+    mechanism: "explicit",
+  },
+  {
+    provider: "bedrock",
+    family: "claude",
+    model: "bedrock/global.anthropic.claude-haiku-4-5-20251001-v1:0",
+    shape: "anthropic",
+    mechanism: "explicit",
+  },
 
   // --- Vertex, Claude family: hoists mid-conversation system instead of inlining -------------
-  { provider: "vertex", family: "claude", model: "vertex/claude-opus-4-8", shape: "anthropic", mechanism: "explicit" },
-  { provider: "vertex", family: "claude", model: "vertex/claude-opus-4-7", shape: "anthropic", mechanism: "explicit" },
-  { provider: "vertex", family: "claude", model: "vertex/claude-sonnet-4-6", shape: "anthropic", mechanism: "explicit" },
+  {
+    provider: "vertex",
+    family: "claude",
+    model: "vertex/claude-opus-4-8",
+    shape: "anthropic",
+    mechanism: "explicit",
+  },
+  {
+    provider: "vertex",
+    family: "claude",
+    model: "vertex/claude-opus-4-7",
+    shape: "anthropic",
+    mechanism: "explicit",
+  },
+  {
+    provider: "vertex",
+    family: "claude",
+    model: "vertex/claude-sonnet-4-6",
+    shape: "anthropic",
+    mechanism: "explicit",
+  },
 
   // --- Azure (Microsoft Foundry), Claude family ----------------------------------------------
-  { provider: "azure", family: "claude", model: "azure/claude-haiku-4-5", shape: "anthropic", mechanism: "explicit" },
+  {
+    provider: "azure",
+    family: "claude",
+    model: "azure/claude-haiku-4-5",
+    shape: "anthropic",
+    mechanism: "explicit",
+  },
 
   // --- Bedrock Mantle, both families ----------------------------------------------------------
-  { provider: "bedrock_mantle", family: "claude", model: "bedrock_mantle/anthropic.claude-opus-4-8", shape: "anthropic", mechanism: "explicit" },
-  { provider: "bedrock_mantle", family: "gpt", model: "bedrock_mantle/openai.gpt-5.6-sol", shape: "chat", mechanism: "implicit" },
+  {
+    provider: "bedrock_mantle",
+    family: "claude",
+    model: "bedrock_mantle/anthropic.claude-opus-4-8",
+    shape: "anthropic",
+    mechanism: "explicit",
+  },
+  {
+    provider: "bedrock_mantle",
+    family: "gpt",
+    model: "bedrock_mantle/openai.gpt-5.6-sol",
+    shape: "chat",
+    mechanism: "implicit",
+  },
 
   // --- OpenAI API, GPT family: latest through several generations back -----------------------
-  { provider: "openai", family: "gpt", model: "openai/gpt-5.6", shape: "chat", mechanism: "implicit" },
-  { provider: "openai", family: "gpt", model: "openai/gpt-5.6-sol", shape: "chat", mechanism: "implicit" },
-  { provider: "openai", family: "gpt", model: "openai/gpt-5", shape: "chat", mechanism: "implicit" },
-  { provider: "openai", family: "gpt", model: "openai/gpt-5-mini", shape: "chat", mechanism: "implicit" },
-  { provider: "openai", family: "gpt", model: "openai/gpt-4.1", shape: "chat", mechanism: "implicit" },
-  { provider: "openai", family: "gpt", model: "openai/gpt-4o-mini", shape: "chat", mechanism: "implicit" },
+  {
+    provider: "openai",
+    family: "gpt",
+    model: "openai/gpt-5.6",
+    shape: "chat",
+    mechanism: "implicit",
+  },
+  {
+    provider: "openai",
+    family: "gpt",
+    model: "openai/gpt-5.6-sol",
+    shape: "chat",
+    mechanism: "implicit",
+  },
+  {
+    provider: "openai",
+    family: "gpt",
+    model: "openai/gpt-5",
+    shape: "chat",
+    mechanism: "implicit",
+  },
+  {
+    provider: "openai",
+    family: "gpt",
+    model: "openai/gpt-5-mini",
+    shape: "chat",
+    mechanism: "implicit",
+  },
+  {
+    provider: "openai",
+    family: "gpt",
+    model: "openai/gpt-4.1",
+    shape: "chat",
+    mechanism: "implicit",
+  },
+  {
+    provider: "openai",
+    family: "gpt",
+    model: "openai/gpt-4o-mini",
+    shape: "chat",
+    mechanism: "implicit",
+  },
 
   // --- Bedrock and Azure, OpenAI family -------------------------------------------------------
   // Bedrock strips cachePoint for non-Anthropic/Nova models (BedrockModelSupportsCachePoints),
   // so this cell can only exercise whatever implicit caching Bedrock does for gpt-5.6-sol.
-  { provider: "bedrock", family: "gpt", model: "bedrock/openai.gpt-5.6-sol", shape: "chat", mechanism: "implicit" },
+  {
+    provider: "bedrock",
+    family: "gpt",
+    model: "bedrock/openai.gpt-5.6-sol",
+    shape: "chat",
+    mechanism: "implicit",
+  },
   { provider: "azure", family: "gpt", model: "azure/gpt-4o", shape: "chat", mechanism: "implicit" },
-  { provider: "azure", family: "gpt", model: "azure/gpt-4o-mini", shape: "chat", mechanism: "implicit" },
+  {
+    provider: "azure",
+    family: "gpt",
+    model: "azure/gpt-4o-mini",
+    shape: "chat",
+    mechanism: "implicit",
+  },
 
   // --- Gemini API and Gemini-on-Vertex --------------------------------------------------------
-  { provider: "gemini", family: "gemini", model: "gemini/gemini-3.1-pro-preview", shape: "chat", mechanism: "implicit" },
-  { provider: "gemini", family: "gemini", model: "gemini/gemini-3-flash-preview", shape: "chat", mechanism: "implicit" },
-  { provider: "gemini", family: "gemini", model: "gemini/gemini-2.5-pro", shape: "chat", mechanism: "implicit" },
-  { provider: "gemini", family: "gemini", model: "gemini/gemini-2.5-flash", shape: "chat", mechanism: "implicit" },
-  { provider: "gemini", family: "gemini", model: "gemini/gemini-2.5-flash-lite", shape: "chat", mechanism: "implicit" },
-  { provider: "vertex", family: "gemini", model: "vertex/gemini-2.5-pro", shape: "chat", mechanism: "implicit" },
-  { provider: "vertex", family: "gemini", model: "vertex/gemini-2.5-flash", shape: "chat", mechanism: "implicit" },
+  {
+    provider: "gemini",
+    family: "gemini",
+    model: "gemini/gemini-3.1-pro-preview",
+    shape: "chat",
+    mechanism: "implicit",
+  },
+  {
+    provider: "gemini",
+    family: "gemini",
+    model: "gemini/gemini-3-flash-preview",
+    shape: "chat",
+    mechanism: "implicit",
+  },
+  {
+    provider: "gemini",
+    family: "gemini",
+    model: "gemini/gemini-2.5-pro",
+    shape: "chat",
+    mechanism: "implicit",
+  },
+  {
+    provider: "gemini",
+    family: "gemini",
+    model: "gemini/gemini-2.5-flash",
+    shape: "chat",
+    mechanism: "implicit",
+  },
+  {
+    provider: "gemini",
+    family: "gemini",
+    model: "gemini/gemini-2.5-flash-lite",
+    shape: "chat",
+    mechanism: "implicit",
+  },
+  {
+    provider: "vertex",
+    family: "gemini",
+    model: "vertex/gemini-2.5-pro",
+    shape: "chat",
+    mechanism: "implicit",
+  },
+  {
+    provider: "vertex",
+    family: "gemini",
+    model: "vertex/gemini-2.5-flash",
+    shape: "chat",
+    mechanism: "implicit",
+  },
 ];
 
 const ARMS = [
@@ -276,11 +475,17 @@ function anthropicBody(cell, arm, cellId) {
     // model-specific when it is really placement-specific. Trailing the user turn satisfies
     // both clauses on every provider in this matrix.
     messages.push({ role: "user", content: [{ type: "text", text: QUESTION }] });
-    messages.push({ role: "system", content: [{ type: "text", text: REMINDER, cache_control: cc }] });
+    messages.push({
+      role: "system",
+      content: [{ type: "text", text: REMINDER, cache_control: cc }],
+    });
   } else {
     messages.push({
       role: "user",
-      content: [{ type: "text", text: REMINDER, cache_control: cc }, { type: "text", text: QUESTION }],
+      content: [
+        { type: "text", text: REMINDER, cache_control: cc },
+        { type: "text", text: QUESTION },
+      ],
     });
   }
 
@@ -366,7 +571,8 @@ var detail = 'read=' + read + ' write=' + write + ' uncached=' + uncached +
 // ---------------------------------------------------------------------------------------------
 function requestFor(cell, body) {
   const raw = JSON.stringify(body, null, 2);
-  const path = cell.shape === "anthropic" ? ["anthropic", "v1", "messages"] : ["v1", "chat", "completions"];
+  const path =
+    cell.shape === "anthropic" ? ["anthropic", "v1", "messages"] : ["v1", "chat", "completions"];
   return {
     method: "POST",
     header: [{ key: "Content-Type", value: "application/json" }],
@@ -515,7 +721,10 @@ export function buildCrossProviderCacheMatrixItems() {
         items.push({
           name: `Cache matrix: ${shortName} round 1 (write)`,
           event: [
-            { listen: "test", script: { type: "text/javascript", exec: round1Script(cell, cellId).split("\n") } },
+            {
+              listen: "test",
+              script: { type: "text/javascript", exec: round1Script(cell, cellId).split("\n") },
+            },
           ],
           request: requestFor(cell, body),
         });
@@ -523,7 +732,13 @@ export function buildCrossProviderCacheMatrixItems() {
           name: `Cache matrix: ${shortName} round 2 (read)`,
           event: [
             { listen: "prerequest", script: { type: "text/javascript", exec: [SETTLE] } },
-            { listen: "test", script: { type: "text/javascript", exec: round2Script(cell, arm, cellId).split("\n") } },
+            {
+              listen: "test",
+              script: {
+                type: "text/javascript",
+                exec: round2Script(cell, arm, cellId).split("\n"),
+              },
+            },
           ],
           request: requestFor(cell, body),
         });
@@ -561,7 +776,7 @@ export function buildCrossProviderCacheMatrixFolder() {
     name: "Cross-Cut Round 35: Cross-Provider Prompt-Cache Matrix (generated)",
     description:
       `Generated at harness runtime. ${CELLS.length} (provider, model) cells across ${providers}, covering the Claude, OpenAI, and Gemini model families - including both the Anthropic and OpenAI families on each of bedrock, vertex, and azure, and several generations back per provider. ` +
-      "Each cell runs a ~24K-token multi-turn conversation in two arms (control, and one carrying a mid-conversation role:\"system\" turn), sending byte-identical bytes every round. " +
+      'Each cell runs a ~24K-token multi-turn conversation in two arms (control, and one carrying a mid-conversation role:"system" turn), sending byte-identical bytes every round. ' +
       `Two bars, because there are two caching mechanisms: EXPLICIT cells (Claude, cache_control) run 2 rounds and must clear read / (read + write + uncached) >= ${HIT_RATE_FLOOR} on round 2 - deterministic, so a miss is a real defect. IMPLICIT cells (OpenAI/Gemini) run ${IMPLICIT_ROUNDS} rounds and assert only that caching engaged at least once, reporting the per-round series. ` +
       "That split exists because implicit caching is non-deterministic at the provider: measured directly against Google with no gateway in the path, byte-identical repeats alternate between 0% and a fixed per-model plateau (52% / 78% / 97% depending on model). A single-sample floor there reports provider luck as gateway health. " +
       "The hit rate is deliberately NOT read / prompt_tokens, which counts a cache write as a miss. Arms are compared to themselves across rounds, never to each other (they hold different cache entries by construction). " +

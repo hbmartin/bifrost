@@ -3371,7 +3371,11 @@ func (h *MCPHandler) completeMCPClientOAuth(ctx *fasthttp.RequestCtx) {
 			return
 		}
 		// Always clean up admin's pending config, even on failure
-		defer h.oauthHandler.RemovePendingMCPClient(oauthConfigID)
+		defer func() {
+			if err := h.oauthHandler.RemovePendingMCPClient(oauthConfigID); err != nil {
+				logger.Warn("failed to remove pending MCP client %s: %v", oauthConfigID, err)
+			}
+		}()
 
 		// Verify connection and discover tools using admin's temp token
 		tools, toolNameMapping, err := h.mcpManager.VerifyPerUserOAuthConnection(bifrostCtx, mcpClientConfig, accessToken)

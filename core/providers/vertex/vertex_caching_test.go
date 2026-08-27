@@ -1,6 +1,7 @@
 package vertex_test
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -62,7 +63,7 @@ func TestVertex_AnthropicModel_CachingDeterminism(t *testing.T) {
 	)
 
 	// Vertex delegates Anthropic models to anthropic.ToAnthropicChatRequest()
-	ctx, cancel := schemas.NewBifrostContextWithCancel(nil)
+	ctx, cancel := schemas.NewBifrostContextWithCancel(context.Background())
 	defer cancel()
 	resultA, err := anthropic.ToAnthropicChatRequest(ctx, makeReq(propsA))
 	if err != nil {
@@ -125,7 +126,7 @@ func TestVertex_AnthropicModel_PreservesPropertyOrder(t *testing.T) {
 		},
 	}
 
-	ctx, cancel := schemas.NewBifrostContextWithCancel(nil)
+	ctx, cancel := schemas.NewBifrostContextWithCancel(context.Background())
 	defer cancel()
 	result, err := anthropic.ToAnthropicChatRequest(ctx, bifrostReq)
 	if err != nil {
@@ -195,7 +196,7 @@ func TestVertex_ToolInputKeyOrderPreservation(t *testing.T) {
 		},
 	}
 
-	ctx, cancel := schemas.NewBifrostContextWithCancel(nil)
+	ctx, cancel := schemas.NewBifrostContextWithCancel(context.Background())
 	defer cancel()
 	result, err := anthropic.ToAnthropicChatRequest(ctx, bifrostReq)
 	if err != nil {

@@ -99,7 +99,7 @@ func goToStarlark(v interface{}) starlark.Value {
 	case map[string]interface{}:
 		dict := starlark.NewDict(len(val))
 		for k, v := range val {
-			dict.SetKey(starlark.String(k), goToStarlark(v))
+			_ = dict.SetKey(starlark.String(k), goToStarlark(v))
 		}
 		return dict
 	default:
@@ -147,7 +147,7 @@ func extractResultFromResponsesMessage(msg *schemas.ResponsesMessage) (interface
 
 				var finalResult interface{}
 				if err := sonic.Unmarshal([]byte(rawResult), &finalResult); err != nil {
-					return rawResult, nil
+					return rawResult, nil //nolint:nilerr // Tool outputs may be plain text; invalid JSON is returned verbatim.
 				}
 				return finalResult, nil
 			}
@@ -163,7 +163,7 @@ func extractResultFromResponsesMessage(msg *schemas.ResponsesMessage) (interface
 					result := strings.Join(textParts, "\n")
 					var finalResult interface{}
 					if err := sonic.Unmarshal([]byte(result), &finalResult); err != nil {
-						return result, nil
+						return result, nil //nolint:nilerr // Tool outputs may be plain text; invalid JSON is returned verbatim.
 					}
 					return finalResult, nil
 				}

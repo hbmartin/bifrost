@@ -658,7 +658,10 @@ export function DeploymentsTable({ value, onChange, providerName, disabled = fal
 								value={draftRow.config.model_id}
 								onChange={(v) => {
 									const modelId = typeof v === "string" ? v : "";
-									const nextDraft = { ...draftRow, config: { ...draftRow.config, model_id: modelId } };
+									const nextDraft = {
+										...draftRow,
+										config: { ...draftRow.config, model_id: modelId },
+									};
 									setDraftRow(nextDraft);
 									commitDraftIfReady(nextDraft);
 								}}

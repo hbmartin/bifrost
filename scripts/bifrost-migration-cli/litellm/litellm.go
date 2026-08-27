@@ -35,7 +35,7 @@ func doGet[T any](ctx context.Context, c *LiteLLMClient, path string, target *T)
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -98,8 +98,8 @@ type LiteLLMParams struct {
 	AWSAccessKeyID     string `yaml:"aws_access_key_id"`
 	AWSSecretAccessKey string `yaml:"aws_secret_access_key"`
 	AWSRegionName      string `yaml:"aws_region_name"`
-	AWSRoleName        string `yaml:"aws_role_name"`    // IAM role ARN for STS AssumeRole
-	AWSSessionName     string `yaml:"aws_session_name"` // STS session name
+	AWSRoleName        string `yaml:"aws_role_name"`     // IAM role ARN for STS AssumeRole
+	AWSSessionName     string `yaml:"aws_session_name"`  // STS session name
 	AWSSessionToken    string `yaml:"aws_session_token"` // temporary session token
 	// Vertex-specific (GCP credentials)
 	VertexProject     string `yaml:"vertex_project"`

@@ -84,7 +84,7 @@ const args = Object.fromEntries(
       acc.push([key, next && !next.startsWith("--") ? next : "true"]);
     }
     return acc;
-  }, [])
+  }, []),
 );
 
 const MODE = args.mode === "sequential" ? "sequential" : "parallel";
@@ -112,8 +112,7 @@ const CI_INTERVAL_MS = resolveCiIntervalMs(args["ci-interval"]);
 // Actions log, and the copy that matters is the last one. The job carries a
 // timeout-minutes budget rather than an idle-output timeout, so a quiet run is
 // never killed for being quiet. This restores the old reprint for debugging.
-const CI_REPRINT_TABLE =
-  args["ci-reprint-table"] === "true" || args["ci-reprint-table"] === "1";
+const CI_REPRINT_TABLE = args["ci-reprint-table"] === "true" || args["ci-reprint-table"] === "1";
 
 // Report each shard's own totals the moment it finishes, instead of only folding them into the
 // provider row. With the sweep split into ~80 (provider x class) shards, "openai is at 812/34"
@@ -138,7 +137,8 @@ if (PROVIDERS.length === 0) {
 // The keyword table, match order and base64 guard now live in
 // lib/provider-attribution.mjs, shared with the tests that pin them.
 
-const ANSI_RE = /\x1b\[[0-9;?]*[A-Za-z]/g;
+// oxlint-disable-next-line no-control-regex -- ANSI escape sequences begin with ESC.
+const ANSI_RE = /\u001b\[[0-9;?]*[A-Za-z]/g;
 const stripAnsi = (s) => s.replace(ANSI_RE, "");
 
 // State per provider. status transitions: pending -> running -> pass/fail/skipped.
@@ -162,7 +162,7 @@ const state = {
         pass: 0,
         fail: 0,
       },
-    ])
+    ]),
   ),
 };
 
@@ -221,7 +221,7 @@ function loadDenominatorsForPass(pass) {
           !/-retry\d+\.json$/.test(n) &&
           // Exact match covers CLASS_SHARDS=0; the "--" form covers the class shards. The
           // separator is required so "bedrock" cannot claim "bedrock_mantle"'s files.
-          (n === `${prefix}.json` || n.startsWith(`${prefix}--`))
+          (n === `${prefix}.json` || n.startsWith(`${prefix}--`)),
       );
       if (!shardFiles.length) continue;
       let total = 0;
@@ -251,10 +251,7 @@ function loadDenominatorsForPass(pass) {
   // has to be recomputed here by keyword.
   const candidates = pass.collection
     ? [pass.collection]
-    : [
-        join(TMP_DIR, "harness-filtered.json"),
-        "tests/e2e/api/collections/provider-harness.json",
-      ];
+    : [join(TMP_DIR, "harness-filtered.json"), "tests/e2e/api/collections/provider-harness.json"];
   for (const path of candidates) {
     if (!existsSync(path)) continue;
     try {
@@ -475,7 +472,10 @@ function readNewBytes() {
       fd = openSync(path, "r");
       readSync(fd, buf, 0, len, h.offset);
     } catch {
-      if (fd != null) try { closeSync(fd); } catch {}
+      if (fd != null)
+        try {
+          closeSync(fd);
+        } catch {}
       continue;
     }
     closeSync(fd);
@@ -821,18 +821,26 @@ function padLeft(s, n) {
 
 function statusGlyph(status) {
   switch (status) {
-    case "pass": return `${C.green}✓${C.reset}`;
-    case "fail": return `${C.red}✗${C.reset}`;
-    case "running": return `${C.cyan}●${C.reset}`;
-    case "skipped": return `${C.gray}-${C.reset}`;
-    default: return `${C.gray}·${C.reset}`;
+    case "pass":
+      return `${C.green}✓${C.reset}`;
+    case "fail":
+      return `${C.red}✗${C.reset}`;
+    case "running":
+      return `${C.cyan}●${C.reset}`;
+    case "skipped":
+      return `${C.gray}-${C.reset}`;
+    default:
+      return `${C.gray}·${C.reset}`;
   }
 }
 
 // The whole output surface: one header line + one table. Identical in CI and
 // interactively - CI reprints it, interactive redraws it in place.
 function aggregate() {
-  let done = 0, total = 0, pass = 0, fail = 0;
+  let done = 0,
+    total = 0,
+    pass = 0,
+    fail = 0;
   for (const p of PROVIDERS) {
     const ps = state.providers[p];
     done += ps.doneRequests;
@@ -848,14 +856,13 @@ function aggregate() {
 }
 
 function renderFrame() {
-  const { done: aggDone, total: aggTotal, pass: aggPass, fail: aggFail, elapsed, eta } =
-    aggregate();
+  const { total: aggTotal, pass: aggPass, fail: aggFail, elapsed, eta } = aggregate();
 
   const out = [];
   out.push(
     `${C.bold}Bifrost Provider Harness${C.reset}` +
       `   ${C.dim}Elapsed${C.reset} ${fmtDuration(elapsed)}` +
-      `   ${C.dim}ETA${C.reset} ${fmtDuration(eta)}`
+      `   ${C.dim}ETA${C.reset} ${fmtDuration(eta)}`,
   );
 
   // Fixed widths - the table is ~45 columns, so unlike the previous layout
@@ -877,8 +884,7 @@ function renderFrame() {
   out.push(rowWithRawCells(headers, widths));
   out.push(sep("├", "┼", "┤"));
 
-  const failCell = (n, w) =>
-    n > 0 ? `${C.red}${padLeft(n, w)}${C.reset}` : padLeft(n, w);
+  const failCell = (n, w) => (n > 0 ? `${C.red}${padLeft(n, w)}${C.reset}` : padLeft(n, w));
 
   for (const p of PROVIDERS) {
     const ps = state.providers[p];
@@ -891,8 +897,8 @@ function renderFrame() {
           padLeft(ps.pass, widths[3]),
           failCell(ps.fail, widths[4]),
         ],
-        widths
-      )
+        widths,
+      ),
     );
   }
 
@@ -906,8 +912,8 @@ function renderFrame() {
         padLeft(aggPass, widths[3]),
         failCell(aggFail, widths[4]),
       ],
-      widths
-    )
+      widths,
+    ),
   );
   out.push(sep("└", "┴", "┘"));
 
@@ -924,10 +930,12 @@ function renderFrame() {
     out.push("");
     out.push(
       `${C.dim}Completed shards (${completedShards.length})` +
-        `${hidden > 0 ? `, showing last ${shown.length}` : ""}${C.reset}`
+        `${hidden > 0 ? `, showing last ${shown.length}` : ""}${C.reset}`,
     );
     for (const record of shown) {
-      out.push(record.fail > 0 ? `${C.red}${fmtShardLine(record)}${C.reset}` : fmtShardLine(record));
+      out.push(
+        record.fail > 0 ? `${C.red}${fmtShardLine(record)}${C.reset}` : fmtShardLine(record),
+      );
     }
   }
 
@@ -986,7 +994,7 @@ function drawCi() {
   ciLog(
     `${fmtDuration(elapsed)} elapsed  eta ${fmtDuration(eta)}  ` +
       `${done}/${total} done  pass ${pass}  fail ${fail}  ` +
-      `active=${active.join(",") || "-"}  running: ${running.join(",") || "-"}`
+      `active=${active.join(",") || "-"}  running: ${running.join(",") || "-"}`,
   );
 }
 
@@ -998,10 +1006,7 @@ function ciFinalReport() {
   const summaryPath = process.env.GITHUB_STEP_SUMMARY;
   if (!summaryPath) return;
   try {
-    appendFileSync(
-      summaryPath,
-      "## Provider harness\n\n```\n" + plain.join("\n") + "\n```\n\n"
-    );
+    appendFileSync(summaryPath, "## Provider harness\n\n```\n" + plain.join("\n") + "\n```\n\n");
   } catch {
     // Summary is best-effort - never fail the run over it.
   }
@@ -1050,8 +1055,9 @@ function shouldExit() {
     const started = ALT_SCREEN ? lastRenderLines > 0 : sawBytes;
     if (Date.now() - lastByteAt > IDLE_EXIT_MS * 2 && started) {
       const allDone = PROVIDERS.every(
-        (p) => state.providers[p].totalRequests === 0 ||
-               state.providers[p].doneRequests >= state.providers[p].totalRequests
+        (p) =>
+          state.providers[p].totalRequests === 0 ||
+          state.providers[p].doneRequests >= state.providers[p].totalRequests,
       );
       if (allDone) return true;
     }

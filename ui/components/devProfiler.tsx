@@ -390,7 +390,7 @@ export function DevProfiler(): React.ReactNode {
 		const isGrowing = current > avg * 1.1; // 10% above average
 		const growthPercent = avg > 0 ? ((current - avg) / avg) * 100 : 0;
 		return { isGrowing, growthPercent, avg };
-	}, [data?.history, data?.runtime?.num_goroutine]);
+	}, [data?.history, data?.runtime]);
 
 	// Filter problem goroutines (stuck or long-waiting, excluding expected background workers and skipped)
 	const problemGoroutines = useMemo(() => {

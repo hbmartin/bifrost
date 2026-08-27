@@ -68,12 +68,6 @@ var (
 	)
 	// testPropsFromJSON is the same as testProps but with nested values as *OrderedMap
 	// (as produced by json.Unmarshal -> OrderedMap.UnmarshalJSON)
-	testPropsFromJSON = *schemas.NewOrderedMapFromPairs(
-		schemas.KV("location", schemas.NewOrderedMapFromPairs(
-			schemas.KV("type", "string"),
-			schemas.KV("description", "The city name"),
-		)),
-	)
 )
 
 // assertBedrockRequestEqual compares two BedrockConverseRequest objects
@@ -5475,7 +5469,7 @@ func TestBedrockToolInputKeyOrderPreservation(t *testing.T) {
 		},
 	}
 
-	ctx, cancel := schemas.NewBifrostContextWithCancel(nil)
+	ctx, cancel := schemas.NewBifrostContextWithCancel(context.Background())
 	defer cancel()
 	result, err := bedrock.ToBedrockChatCompletionRequest(ctx, bifrostReq)
 	require.NoError(t, err)
@@ -7140,6 +7134,7 @@ func TestToolCacheControlBecomesCachePointWithTTL(t *testing.T) {
 	}
 
 	assertTTLPreserved := func(t *testing.T, input []schemas.ResponsesMessage) {
+		t.Helper()
 		messages, _, err := bedrock.ConvertBifrostMessagesToBedrockMessages(context.Background(), anthropicModel, input, true)
 		require.NoError(t, err)
 

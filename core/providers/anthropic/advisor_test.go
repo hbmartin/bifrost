@@ -1,6 +1,7 @@
 package anthropic
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -213,7 +214,7 @@ func TestAdvisorResponse_RoundTripPreservesBlocks(t *testing.T) {
 		t.Fatalf("unmarshal raw: %v", err)
 	}
 
-	ctx := schemas.NewBifrostContext(nil, time.Time{})
+	ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 
 	bifrostResp := resp.ToBifrostResponsesResponse(ctx)
 	if bifrostResp == nil {
@@ -303,7 +304,7 @@ var advisorStreamEvents = []string{
 // advisor_tool_result blocks survive the streaming converter round-trip
 // (Anthropic SSE -> Bifrost stream -> Anthropic SSE) on the normalized path.
 func TestAdvisorStream_RoundTrip(t *testing.T) {
-	ctx := schemas.NewBifrostContext(nil, time.Time{})
+	ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 	state := newAdvisorStreamState()
 
 	var emitted []*AnthropicStreamEvent
@@ -396,7 +397,7 @@ func countPassthroughMessageStarts(ctx *schemas.BifrostContext, responses []*sch
 // two message_start frames: a lossy synthesized one from created plus the
 // raw-forwarded one from in_progress.
 func TestResponsesStream_MessageStart_NoDuplicateOnPassthrough(t *testing.T) {
-	ctx := schemas.NewBifrostContext(nil, time.Time{})
+	ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 
 	const rawMessageStart = `{"type":"message_start","message":{"id":"msg_01","type":"message","role":"assistant","model":"claude-opus-4-8","content":[],"stop_reason":null,"usage":{"input_tokens":3450,"output_tokens":4,"service_tier":"standard","inference_geo":"not_available"}}}`
 

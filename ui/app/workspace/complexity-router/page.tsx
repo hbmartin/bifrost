@@ -104,14 +104,22 @@ const analyzerConfigSchema = z.object({
 		})
 		.superRefine((data, ctx) => {
 			if (Number.isFinite(data.medium_complex) && Number.isFinite(data.simple_medium) && data.medium_complex <= data.simple_medium) {
-				ctx.addIssue({ code: "custom", message: "Must be greater than Simple → Medium", path: ["medium_complex"] });
+				ctx.addIssue({
+					code: "custom",
+					message: "Must be greater than Simple → Medium",
+					path: ["medium_complex"],
+				});
 			}
 			if (
 				Number.isFinite(data.complex_reasoning) &&
 				Number.isFinite(data.medium_complex) &&
 				data.complex_reasoning <= data.medium_complex
 			) {
-				ctx.addIssue({ code: "custom", message: "Must be greater than Medium → Complex", path: ["complex_reasoning"] });
+				ctx.addIssue({
+					code: "custom",
+					message: "Must be greater than Medium → Complex",
+					path: ["complex_reasoning"],
+				});
 			}
 		}),
 	keywords: z.object({
@@ -479,7 +487,9 @@ export default function ComplexityRouterPage() {
 										<Controller
 											control={control}
 											name={`keywords.${key}` as const}
-											rules={{ validate: (value) => (value.length > 0 ? true : `${label} cannot be empty`) }}
+											rules={{
+												validate: (value) => (value.length > 0 ? true : `${label} cannot be empty`),
+											}}
 											render={({ field }) => (
 												<div className="space-y-2 p-4 sm:pl-5">
 													<div className="flex flex-wrap items-center justify-between gap-2">

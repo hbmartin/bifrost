@@ -27,6 +27,7 @@ func TestToMistralOCRRequest(t *testing.T) {
 			name:  "nil request returns nil",
 			input: nil,
 			validate: func(t *testing.T, result *MistralOCRRequest) {
+				t.Helper()
 				assert.Nil(t, result)
 			},
 		},
@@ -40,6 +41,7 @@ func TestToMistralOCRRequest(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *MistralOCRRequest) {
+				t.Helper()
 				require.NotNil(t, result)
 				assert.Equal(t, "mistral-ocr-latest", result.Model)
 				assert.Equal(t, "document_url", result.Document.Type)
@@ -58,6 +60,7 @@ func TestToMistralOCRRequest(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *MistralOCRRequest) {
+				t.Helper()
 				require.NotNil(t, result)
 				assert.Equal(t, "mistral-ocr-latest", result.Model)
 				assert.Equal(t, "image_url", result.Document.Type)
@@ -76,6 +79,7 @@ func TestToMistralOCRRequest(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *MistralOCRRequest) {
+				t.Helper()
 				require.NotNil(t, result)
 				assert.Equal(t, "req-123", result.ID)
 			},
@@ -102,6 +106,7 @@ func TestToMistralOCRRequest(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *MistralOCRRequest) {
+				t.Helper()
 				require.NotNil(t, result)
 				assert.Equal(t, "mistral-ocr-latest", result.Model)
 				assert.Equal(t, "document_url", result.Document.Type)
@@ -139,6 +144,7 @@ func TestToMistralOCRRequest(t *testing.T) {
 				Params: nil,
 			},
 			validate: func(t *testing.T, result *MistralOCRRequest) {
+				t.Helper()
 				require.NotNil(t, result)
 				assert.Nil(t, result.IncludeImageBase64)
 				assert.Nil(t, result.Pages)
@@ -176,6 +182,7 @@ func TestToBifrostOCRResponse(t *testing.T) {
 			name:  "nil response returns nil",
 			input: nil,
 			validate: func(t *testing.T, result *schemas.BifrostOCRResponse) {
+				t.Helper()
 				assert.Nil(t, result)
 			},
 		},
@@ -191,6 +198,7 @@ func TestToBifrostOCRResponse(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *schemas.BifrostOCRResponse) {
+				t.Helper()
 				require.NotNil(t, result)
 				assert.Equal(t, "mistral-ocr-latest", result.Model)
 				require.Len(t, result.Pages, 1)
@@ -231,6 +239,7 @@ func TestToBifrostOCRResponse(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *schemas.BifrostOCRResponse) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.Len(t, result.Pages, 1)
 				require.Len(t, result.Pages[0].Images, 2)
@@ -266,6 +275,7 @@ func TestToBifrostOCRResponse(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *schemas.BifrostOCRResponse) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.Len(t, result.Pages, 1)
 				require.NotNil(t, result.Pages[0].Dimensions)
@@ -288,6 +298,7 @@ func TestToBifrostOCRResponse(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *schemas.BifrostOCRResponse) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.Len(t, result.Pages, 2)
 				require.NotNil(t, result.UsageInfo)
@@ -305,6 +316,7 @@ func TestToBifrostOCRResponse(t *testing.T) {
 				DocumentAnnotation: schemas.Ptr("This is a legal contract."),
 			},
 			validate: func(t *testing.T, result *schemas.BifrostOCRResponse) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.NotNil(t, result.DocumentAnnotation)
 				assert.Equal(t, "This is a legal contract.", *result.DocumentAnnotation)
@@ -317,6 +329,7 @@ func TestToBifrostOCRResponse(t *testing.T) {
 				Pages: []MistralOCRPage{},
 			},
 			validate: func(t *testing.T, result *schemas.BifrostOCRResponse) {
+				t.Helper()
 				require.NotNil(t, result)
 				assert.Empty(t, result.Pages)
 			},
@@ -353,6 +366,7 @@ func TestToBifrostOCRResponse(t *testing.T) {
 				DocumentAnnotation: schemas.Ptr("A technical report."),
 			},
 			validate: func(t *testing.T, result *schemas.BifrostOCRResponse) {
+				t.Helper()
 				require.NotNil(t, result)
 				assert.Equal(t, "mistral-ocr-latest", result.Model)
 				require.Len(t, result.Pages, 1)
@@ -429,6 +443,7 @@ func TestOCRWithMockServer(t *testing.T) {
 			},
 			expectError: false,
 			validateResult: func(t *testing.T, resp *schemas.BifrostOCRResponse) {
+				t.Helper()
 				assert.Equal(t, "mistral-ocr-latest", resp.Model)
 				require.Len(t, resp.Pages, 2)
 				assert.Equal(t, 0, resp.Pages[0].Index)
@@ -468,6 +483,7 @@ func TestOCRWithMockServer(t *testing.T) {
 			},
 			expectError: false,
 			validateResult: func(t *testing.T, resp *schemas.BifrostOCRResponse) {
+				t.Helper()
 				assert.Equal(t, "mistral-ocr-latest", resp.Model)
 				require.Len(t, resp.Pages, 1)
 				require.Len(t, resp.Pages[0].Images, 1)
@@ -492,6 +508,7 @@ func TestOCRWithMockServer(t *testing.T) {
 			expectError:   true,
 			errorContains: "Internal server error",
 			validateError: func(t *testing.T, err *schemas.BifrostError) {
+				t.Helper()
 				require.NotNil(t, err)
 				require.NotNil(t, err.Error)
 				require.NotNil(t, err.StatusCode)
@@ -520,6 +537,7 @@ func TestOCRWithMockServer(t *testing.T) {
 			expectError:   true,
 			errorContains: "Unauthorized",
 			validateError: func(t *testing.T, err *schemas.BifrostError) {
+				t.Helper()
 				require.NotNil(t, err)
 				require.NotNil(t, err.Error)
 				require.NotNil(t, err.StatusCode)
@@ -590,14 +608,14 @@ func TestOCRWithMockServer(t *testing.T) {
 					// Send empty body
 				case string:
 					if body == "html_error" {
-						w.Write([]byte("<html><body>502 Bad Gateway</body></html>"))
+						_, _ = w.Write([]byte("<html><body>502 Bad Gateway</body></html>"))
 					}
 				default:
 					responseJSON, err := sonic.Marshal(body)
 					if err != nil {
 						t.Fatalf("failed to marshal response: %v", err)
 					}
-					w.Write(responseJSON)
+					_, _ = w.Write(responseJSON)
 				}
 			}))
 			defer server.Close()
@@ -660,7 +678,9 @@ func TestOCRRequestValidation(t *testing.T) {
 		// Parse the request body to validate it was serialized correctly
 		var mistralReq MistralOCRRequest
 		err := sonic.ConfigDefault.NewDecoder(r.Body).Decode(&mistralReq)
-		require.NoError(t, err)
+		if !assert.NoError(t, err) {
+			return
+		}
 
 		assert.Equal(t, "mistral-ocr-latest", mistralReq.Model)
 		assert.Equal(t, "document_url", mistralReq.Document.Type)
@@ -679,7 +699,7 @@ func TestOCRRequestValidation(t *testing.T) {
 		}
 		responseJSON, _ := sonic.Marshal(resp)
 		w.WriteHeader(http.StatusOK)
-		w.Write(responseJSON)
+		_, _ = w.Write(responseJSON)
 	}))
 	defer server.Close()
 

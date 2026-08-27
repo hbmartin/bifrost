@@ -1,6 +1,7 @@
 package anthropic
 
 import (
+	"context"
 	"testing"
 
 	"github.com/maximhq/bifrost/core/internal/schemaorder"
@@ -27,7 +28,7 @@ func orderingChatRequest(t *testing.T, provider schemas.ModelProvider) *schemas.
 // TestResponseFormatOrderNativeStructuredOutputs covers the Anthropic-native
 // path, where response_format becomes output_config.format.
 func TestResponseFormatOrderNativeStructuredOutputs(t *testing.T) {
-	ctx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	out, err := ToAnthropicChatRequest(ctx, orderingChatRequest(t, schemas.Anthropic))
 	require.NoError(t, err)
 	require.NotNil(t, out.OutputConfig)
@@ -43,7 +44,7 @@ func TestResponseFormatOrderNativeStructuredOutputs(t *testing.T) {
 func TestResponseFormatOrderToolFallback(t *testing.T) {
 	for _, provider := range []schemas.ModelProvider{schemas.Vertex, schemas.BedrockMantle, schemas.Azure} {
 		t.Run(string(provider), func(t *testing.T) {
-			ctx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+			ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 			out, err := ToAnthropicChatRequest(ctx, orderingChatRequest(t, provider))
 			require.NoError(t, err)
 			require.NotEmpty(t, out.Tools, "structured output must survive as a tool")
@@ -66,7 +67,7 @@ func TestResponseFormatSchemaBytesReachAnthropicVerbatim(t *testing.T) {
 	var params schemas.ChatParameters
 	require.NoError(t, schemas.Unmarshal([]byte(schemaorder.ByteExactChatBody), &params))
 
-	ctx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	out, err := ToAnthropicChatRequest(ctx, &schemas.BifrostChatRequest{
 		Provider: schemas.Anthropic,
 		Model:    "claude-opus-4-5",
@@ -102,7 +103,7 @@ func orderingResponsesRequest(t *testing.T, provider schemas.ModelProvider) *sch
 // TestResponseFormatOrderSurvivesAnthropicResponses covers the Responses method,
 // where the schema arrives under text.format rather than response_format.
 func TestResponseFormatOrderSurvivesAnthropicResponses(t *testing.T) {
-	ctx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	out, err := ToAnthropicResponsesRequest(ctx, orderingResponsesRequest(t, schemas.Anthropic))
 	require.NoError(t, err)
 

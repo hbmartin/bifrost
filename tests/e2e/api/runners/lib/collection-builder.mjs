@@ -55,7 +55,7 @@ export function pollPrerequest(waitSeconds) {
   ];
   if (waitMs > 0) {
     lines.push(
-      `if (attempt === 0) { var __ws = Date.now(); while (Date.now() - __ws < ${waitMs}) {} }`
+      `if (attempt === 0) { var __ws = Date.now(); while (Date.now() - __ws < ${waitMs}) {} }`,
     );
   }
   return lines;
@@ -159,8 +159,18 @@ export function clearProvidersFolder() {
     id: "setup-clear-providers",
     name: "Setup: clear providers",
     item: [
-      item("setup-list-providers", LIST, request("GET", url(["api", "providers"]), null), events(null, listTest)),
-      item("setup-delete-provider", DEL, request("DELETE", url(["api", "providers", "{{__purge_target}}"]), null), events(delPre, delTest)),
+      item(
+        "setup-list-providers",
+        LIST,
+        request("GET", url(["api", "providers"]), null),
+        events(null, listTest),
+      ),
+      item(
+        "setup-delete-provider",
+        DEL,
+        request("DELETE", url(["api", "providers", "{{__purge_target}}"]), null),
+        events(delPre, delTest),
+      ),
     ],
   };
 }
@@ -181,7 +191,8 @@ export function url(pathSegments, query) {
 
 export function events(prerequest, test) {
   const out = [];
-  if (prerequest) out.push({ listen: "prerequest", script: { type: "text/javascript", exec: prerequest } });
+  if (prerequest)
+    out.push({ listen: "prerequest", script: { type: "text/javascript", exec: prerequest } });
   if (test) out.push({ listen: "test", script: { type: "text/javascript", exec: test } });
   return out;
 }

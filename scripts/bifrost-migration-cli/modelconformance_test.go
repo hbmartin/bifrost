@@ -68,7 +68,7 @@ func rawRequest(method, reqURL, apiKey string, body any) ([]byte, int, error) {
 	if err != nil {
 		return nil, 0, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	out, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, resp.StatusCode, fmt.Errorf("%s %s: read body: %w", method, reqURL, err)
@@ -445,7 +445,7 @@ func (e MigrationRunConfig) migrateModels(t *testing.T, suffix string) {
 	if err != nil {
 		t.Fatalf("open credential store: %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 	deployments, err := store.Deployments(ctx)
 	if err != nil {
 		t.Fatalf("resolve deployments: %v", err)
@@ -714,6 +714,7 @@ func (e MigrationRunConfig) fetchModelConfig(t *testing.T, model, provider strin
 // ---- Bifrost cleanup -------------------------------------------------------
 
 func (e MigrationRunConfig) cleanupProvider(t *testing.T, name string) {
+	t.Helper()
 	if keepEntities() {
 		return
 	}
@@ -723,6 +724,7 @@ func (e MigrationRunConfig) cleanupProvider(t *testing.T, name string) {
 }
 
 func (e MigrationRunConfig) cleanupStandardKey(t *testing.T, provider, keyName string) {
+	t.Helper()
 	if keepEntities() {
 		return
 	}
@@ -736,6 +738,7 @@ func (e MigrationRunConfig) cleanupStandardKey(t *testing.T, provider, keyName s
 }
 
 func (e MigrationRunConfig) cleanupModelConfig(t *testing.T, model string, provider *string) {
+	t.Helper()
 	if keepEntities() {
 		return
 	}

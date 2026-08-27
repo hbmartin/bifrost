@@ -1,6 +1,10 @@
 //! Type definitions for Bifrost WASM plugins.
 //! These structures mirror the Go SDK types for interoperability.
 
+// The example intentionally exposes convenience methods beyond the minimal
+// hello-world hook so plugin authors can copy the relevant SDK-shaped helpers.
+#![allow(dead_code)]
+
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -31,7 +35,7 @@ mod nullable {
     {
         // First deserialize as Option<HashMap<String, Option<String>>> to handle null values
         let opt_map: Option<HashMap<String, Option<String>>> = Option::deserialize(deserializer)?;
-        
+
         match opt_map {
             None => Ok(HashMap::new()),
             Some(map) => {
@@ -65,7 +69,8 @@ mod nullable {
     where
         D: Deserializer<'de>,
     {
-        Option::<super::BifrostContext>::deserialize(deserializer).map(|opt| opt.unwrap_or_default())
+        Option::<super::BifrostContext>::deserialize(deserializer)
+            .map(|opt| opt.unwrap_or_default())
     }
 }
 
@@ -205,20 +210,15 @@ pub struct HTTPInterceptOutput {
 // =============================================================================
 
 /// ChatMessageRole represents the role of a message sender.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum ChatMessageRole {
+    #[default]
     User,
     Assistant,
     System,
     Tool,
     Developer,
-}
-
-impl Default for ChatMessageRole {
-    fn default() -> Self {
-        ChatMessageRole::User
-    }
 }
 
 /// ChatMessageContent can be either a string or an array of content blocks.
@@ -576,14 +576,21 @@ impl PreHookInput {
     /// Get provider and model from the request
     pub fn get_provider_model(&self) -> (String, String) {
         if let Some(req) = self.parse_request() {
-            return req.get_provider_model();
+            let (provider, model) = req.get_provider_model();
+            if !provider.is_empty() || !model.is_empty() {
+                return (provider, model);
+            }
         }
         // Try direct access for simpler structures
-        let provider = self.request.get("provider")
+        let provider = self
+            .request
+            .get("provider")
             .and_then(|v| v.as_str())
             .unwrap_or("")
             .to_string();
-        let model = self.request.get("model")
+        let model = self
+            .request
+            .get("model")
             .and_then(|v| v.as_str())
             .unwrap_or("")
             .to_string();
@@ -721,7 +728,7 @@ mod tests {
         ctx.set_value("custom_key", "custom_value");
         ctx.set_value("is_enabled", true);
         ctx.set_value("count", 42);
-        
+
         let json = serde_json::to_string(&ctx).unwrap();
         assert!(json.contains("request_id"));
         assert!(json.contains("custom_key"));
@@ -731,9 +738,10 @@ mod tests {
 
     #[test]
     fn test_context_deserialization() {
-        let json = r#"{"request_id": "test-123", "custom_key": "custom_value", "is_enabled": true}"#;
+        let json =
+            r#"{"request_id": "test-123", "custom_key": "custom_value", "is_enabled": true}"#;
         let ctx: BifrostContext = serde_json::from_str(json).unwrap();
-        
+
         assert_eq!(ctx.get_string("request_id"), Some("test-123"));
         assert_eq!(ctx.get_string("custom_key"), Some("custom_value"));
         assert_eq!(ctx.get_bool("is_enabled"), Some(true));
@@ -745,13 +753,13 @@ mod tests {
         ctx.set_value("key1", "value1");
         ctx.set_value("enabled", true);
         ctx.set_value("count", 42);
-        
+
         assert_eq!(ctx.get_string("key1"), Some("value1"));
         assert_eq!(ctx.get_bool("enabled"), Some(true));
         assert_eq!(ctx.get_i64("count"), Some(42));
         assert!(ctx.contains_key("key1"));
         assert!(!ctx.contains_key("nonexistent"));
-        
+
         ctx.remove("key1");
         assert!(!ctx.contains_key("key1"));
     }
@@ -763,7 +771,7 @@ mod tests {
             content: Some(ChatMessageContent::Text("Hello!".to_string())),
             ..Default::default()
         };
-        
+
         let json = serde_json::to_string(&msg).unwrap();
         assert!(json.contains("user"));
         assert!(json.contains("Hello!"));
@@ -775,7 +783,7 @@ mod tests {
             .with_type("test_type")
             .with_code("500")
             .with_status(500);
-        
+
         let json = serde_json::to_string(&error).unwrap();
         assert!(json.contains("Test error"));
         assert!(json.contains("test_type"));
@@ -787,14 +795,28 @@ mod tests {
             "context": {"request_id": "test-123", "custom": "value"},
             "request": {"provider": "openai", "model": "gpt-4"}
         }"#;
-        
+
         let input: PreHookInput = serde_json::from_str(json).unwrap();
         assert_eq!(input.context.get_string("request_id"), Some("test-123"));
         assert_eq!(input.context.get_string("custom"), Some("value"));
-        
+
         let (provider, model) = input.get_provider_model();
         assert_eq!(provider, "openai");
         assert_eq!(model, "gpt-4");
+    }
+
+    #[test]
+    fn test_pre_hook_input_parses_wrapped_chat_request() {
+        let json = r#"{
+            "request": {
+                "chat_request": {"provider": "anthropic", "model": "claude-sonnet-4", "messages": []}
+            }
+        }"#;
+
+        let input: PreHookInput = serde_json::from_str(json).unwrap();
+        let (provider, model) = input.get_provider_model();
+        assert_eq!(provider, "anthropic");
+        assert_eq!(model, "claude-sonnet-4");
     }
 
     #[test]
@@ -807,7 +829,7 @@ mod tests {
             "query": null,
             "body": null
         }"#;
-        
+
         let req: HTTPRequest = serde_json::from_str(json).unwrap();
         assert_eq!(req.method, "POST");
         assert_eq!(req.path, "/v1/chat/completions");
@@ -823,7 +845,7 @@ mod tests {
             "method": "GET",
             "path": "/health"
         }"#;
-        
+
         let req: HTTPRequest = serde_json::from_str(json).unwrap();
         assert_eq!(req.method, "GET");
         assert_eq!(req.path, "/health");
@@ -845,12 +867,15 @@ mod tests {
                 "body": null
             }
         }"#;
-        
+
         let input: HTTPInterceptInput = serde_json::from_str(json).unwrap();
         assert_eq!(input.context.get_string("request_id"), Some("abc-123"));
         assert_eq!(input.request.method, "POST");
         assert_eq!(input.request.path, "/v1/chat/completions");
-        assert_eq!(input.request.headers.get("content-type"), Some(&"application/json".to_string()));
+        assert_eq!(
+            input.request.headers.get("content-type"),
+            Some(&"application/json".to_string())
+        );
         assert_eq!(input.request.body, "");
     }
 
@@ -861,7 +886,7 @@ mod tests {
             "headers": null,
             "body": null
         }"#;
-        
+
         let resp: HTTPResponse = serde_json::from_str(json).unwrap();
         assert_eq!(resp.status_code, 0);
         assert!(resp.headers.is_empty());

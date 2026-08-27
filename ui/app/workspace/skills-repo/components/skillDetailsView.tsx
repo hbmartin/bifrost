@@ -21,7 +21,7 @@ import { validateVersionBump } from "@/lib/validators/skills";
 import { RbacOperation, RbacResource, useRbac } from "@enterprise/lib";
 import { ArrowLeft, Download, MoreHorizontal, Plus, Loader2, Trash2 } from "lucide-react";
 import { getApiBaseUrl } from "@/lib/utils/port";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { type SkillFormState, composeFrontmatter, useSkillForm } from "./helpers";
 import { SkillHeader } from "./shared";
@@ -60,7 +60,7 @@ export function SkillDetailView({
 	const highestVersion = skill?.highest_version || skill?.latest_version || "0.0.0";
 
 	/** Build a SkillFormState from the current skill data. Returns null if skill isn't loaded yet. */
-	function buildFormState(): SkillFormState | null {
+	const buildFormState = useCallback((): SkillFormState | null => {
 		if (!skill) return null;
 		return {
 			name: skill.name,
@@ -87,7 +87,7 @@ export function SkillDetailView({
 					}))
 				: [],
 		};
-	}
+	}, [highestVersion, skill]);
 
 	// Tracks the skill we last seeded the form from, so switching to a different
 	// skill still resets even while another skill was being edited.
@@ -96,7 +96,6 @@ export function SkillDetailView({
 	// Populate form when skill data loads or changes. Skip resets during an
 	// active edit of the same skill so a background refetch can't wipe unsaved
 	// changes.
-	// eslint-disable-next-line react-hooks/exhaustive-deps
 	useEffect(() => {
 		const state = buildFormState();
 		const isNewSkill = lastResetSkillIdRef.current !== skillId;
@@ -104,7 +103,7 @@ export function SkillDetailView({
 			form.reset(state);
 			lastResetSkillIdRef.current = skillId;
 		}
-	}, [skill, highestVersion, isEditing, skillId]);
+	}, [buildFormState, form, isEditing, skillId]);
 
 	const handleSave = async (serve: boolean) => {
 		if (!form.runValidation()) return;

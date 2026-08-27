@@ -32,13 +32,13 @@ func newPlainClient() *http.Client {
 func TestDownloadPlugin_DirectDownload(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(fakePluginBytes))
+		_, _ = w.Write([]byte(fakePluginBytes))
 	}))
 	defer server.Close()
 
 	path, err := DownloadPlugin(server.URL, ".so", newPlainClient())
 	require.NoError(t, err)
-	defer os.Remove(path)
+	defer func() { _ = os.Remove(path) }()
 
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
@@ -49,7 +49,7 @@ func TestDownloadPlugin_FollowsRedirect(t *testing.T) {
 	// Final destination
 	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(fakePluginBytes))
+		_, _ = w.Write([]byte(fakePluginBytes))
 	}))
 	defer target.Close()
 
@@ -61,7 +61,7 @@ func TestDownloadPlugin_FollowsRedirect(t *testing.T) {
 
 	path, err := DownloadPlugin(redirector.URL, ".so", newPlainClient())
 	require.NoError(t, err)
-	defer os.Remove(path)
+	defer func() { _ = os.Remove(path) }()
 
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
@@ -95,13 +95,13 @@ func TestDownloadPlugin_NonOKStatus(t *testing.T) {
 func TestDownloadPlugin_FileExtensionPreserved(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(fakePluginBytes))
+		_, _ = w.Write([]byte(fakePluginBytes))
 	}))
 	defer server.Close()
 
 	path, err := DownloadPlugin(server.URL, ".so", newPlainClient())
 	require.NoError(t, err)
-	defer os.Remove(path)
+	defer func() { _ = os.Remove(path) }()
 
 	assert.Contains(t, path, ".so")
 }
@@ -112,7 +112,7 @@ func TestDownloadPlugin_FileExtensionPreserved(t *testing.T) {
 func TestDownloadPlugin_BlocksSSRFToLoopback(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(fakePluginBytes))
+		_, _ = w.Write([]byte(fakePluginBytes))
 	}))
 	defer server.Close()
 
@@ -134,7 +134,7 @@ func TestDownloadPlugin_RejectsNonHTTPScheme(t *testing.T) {
 func TestDownloadPlugin_AllowlistPermitsLoopbackWhenHostAllowlisted(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(fakePluginBytes))
+		_, _ = w.Write([]byte(fakePluginBytes))
 	}))
 	defer server.Close()
 
@@ -145,7 +145,7 @@ func TestDownloadPlugin_AllowlistPermitsLoopbackWhenHostAllowlisted(t *testing.T
 
 	path, err := DownloadPlugin(server.URL, ".so", NewPluginDownloadClient(allow))
 	require.NoError(t, err)
-	defer os.Remove(path)
+	defer func() { _ = os.Remove(path) }()
 
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
@@ -158,7 +158,7 @@ func TestDownloadPlugin_AllowlistPermitsLoopbackWhenHostAllowlisted(t *testing.T
 func TestDownloadPlugin_AllowlistDoesNotPermitDifferentPrivateHost(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(fakePluginBytes))
+		_, _ = w.Write([]byte(fakePluginBytes))
 	}))
 	defer server.Close()
 

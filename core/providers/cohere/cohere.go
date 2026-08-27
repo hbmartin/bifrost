@@ -512,9 +512,9 @@ func (provider *CohereProvider) ChatCompletionStream(ctx *schemas.BifrostContext
 	go func() {
 		defer providerUtils.EnsureStreamFinalizerCalled(ctx, postHookSpanFinalizer)
 		defer func() {
-			if ctx.Err() == context.Canceled {
+			if errors.Is(ctx.Err(), context.Canceled) {
 				providerUtils.HandleStreamCancellation(ctx, postHookRunner, responseChan, provider.logger, postHookSpanFinalizer, jsonBody)
-			} else if ctx.Err() == context.DeadlineExceeded {
+			} else if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 				providerUtils.HandleStreamTimeout(ctx, postHookRunner, responseChan, provider.logger, postHookSpanFinalizer, jsonBody)
 			}
 			providerUtils.CloseStream(ctx, responseChan)
@@ -557,7 +557,7 @@ func (provider *CohereProvider) ChatCompletionStream(ctx *schemas.BifrostContext
 				if ctx.Err() != nil {
 					return
 				}
-				if readErr != io.EOF {
+				if !errors.Is(readErr, io.EOF) {
 					ctx.SetValue(schemas.BifrostContextKeyStreamEndIndicator, true)
 					provider.logger.Warn("Error reading stream: %v", readErr)
 					providerUtils.ProcessAndSendError(ctx, postHookRunner, readErr, responseChan, provider.logger, postHookSpanFinalizer)
@@ -807,9 +807,9 @@ func (provider *CohereProvider) ResponsesStream(ctx *schemas.BifrostContext, pos
 	go func() {
 		defer providerUtils.EnsureStreamFinalizerCalled(ctx, postHookSpanFinalizer)
 		defer func() {
-			if ctx.Err() == context.Canceled {
+			if errors.Is(ctx.Err(), context.Canceled) {
 				providerUtils.HandleStreamCancellation(ctx, postHookRunner, responseChan, provider.logger, postHookSpanFinalizer, jsonBody)
-			} else if ctx.Err() == context.DeadlineExceeded {
+			} else if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 				providerUtils.HandleStreamTimeout(ctx, postHookRunner, responseChan, provider.logger, postHookSpanFinalizer, jsonBody)
 			}
 			providerUtils.CloseStream(ctx, responseChan)
@@ -850,7 +850,7 @@ func (provider *CohereProvider) ResponsesStream(ctx *schemas.BifrostContext, pos
 				if ctx.Err() != nil {
 					return
 				}
-				if readErr != io.EOF {
+				if !errors.Is(readErr, io.EOF) {
 					ctx.SetValue(schemas.BifrostContextKeyStreamEndIndicator, true)
 					provider.logger.Warn("Error reading stream: %v", readErr)
 					providerUtils.ProcessAndSendError(ctx, postHookRunner, readErr, responseChan, provider.logger, postHookSpanFinalizer)

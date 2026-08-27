@@ -291,7 +291,9 @@ export default function ScopedPricingOverridesView() {
 			toast.success("Pricing override deleted");
 			setDeleteTarget(null);
 		} catch (deleteError) {
-			toast.error("Failed to delete pricing override", { description: getErrorMessage(deleteError) });
+			toast.error("Failed to delete pricing override", {
+				description: getErrorMessage(deleteError),
+			});
 		}
 	};
 

@@ -18,10 +18,10 @@ const qdrantMaxRecvMsgSize = 64 * 1024 * 1024 // 64 MB
 
 // QdrantConfig represents the configuration for the Qdrant vector store.
 type QdrantConfig struct {
-	Host             schemas.SecretVar `json:"host"`                        // Qdrant server host - REQUIRED
-	Port             schemas.SecretVar `json:"port"`                        // Qdrant server port  (fallback to 6334 for gRPC)
-	APIKey           schemas.SecretVar `json:"api_key,omitempty"`           // API key for authentication - Optional
-	UseTLS           schemas.SecretVar `json:"use_tls,omitempty"`           // Use TLS for connection - Optional
+	Host             schemas.SecretVar `json:"host"`                           // Qdrant server host - REQUIRED
+	Port             schemas.SecretVar `json:"port"`                           // Qdrant server port  (fallback to 6334 for gRPC)
+	APIKey           schemas.SecretVar `json:"api_key,omitempty"`              // API key for authentication - Optional
+	UseTLS           schemas.SecretVar `json:"use_tls,omitempty"`              // Use TLS for connection - Optional
 	MaxRecvMsgSizeMB schemas.SecretVar `json:"max_recv_msg_size_mb,omitempty"` // gRPC max receive message size in MB (default: 64). Increase when caching large payloads such as image generation responses.
 }
 

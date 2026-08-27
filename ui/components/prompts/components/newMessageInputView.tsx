@@ -77,7 +77,7 @@ export function NewMessageInputView() {
 				handleRun();
 			}
 		},
-		[handleAddMessage, handleRun],
+		[handleRun],
 	);
 
 	const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {

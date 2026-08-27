@@ -50,7 +50,8 @@ const COMPLETION_ABS_FLOOR = 24;
 // "summarize" that two independent samples would phrase differently. Regenerate via
 // large_context.txt / tiktoken if this ever needs resizing; the exact fact text matters (round
 // questions reference Fact #1 and Fact #274 by their literal content), so don't hand-edit it.
-const LARGE_CONTEXT = "Fact #1: The station's primary reactor operates at a core temperature of 1 degrees.\nFact #2: Module 20 of the station houses the atmospheric processing unit.\nFact #3: The station's solar array generates 153 kilowatts during peak exposure.\nFact #4: Corridor 184 connects the habitation ring to the command deck.\nFact #5: The water reclamation system in bay 401 recycles 401 liters per cycle.\nFact #6: Sensor array 120 monitors radiation levels along the station's northern hull.\nFact #7: The station's library holds 853 archived research volumes in section 853.\nFact #8: Airlock 584 was last serviced during maintenance cycle 584.\nFact #9: The greenhouse dome cultivates 501 distinct crop varieties in tier 501.\nFact #10: Backup generator 820 provides 820 hours of emergency power reserve.\nFact #11: The station's primary reactor operates at a core temperature of 353 degrees.\nFact #12: Module 684 of the station houses the atmospheric processing unit.\nFact #13: The station's solar array generates 301 kilowatts during peak exposure.\nFact #14: Corridor 320 connects the habitation ring to the command deck.\nFact #15: The water reclamation system in bay 453 recycles 453 liters per cycle.\nFact #16: Sensor array 484 monitors radiation levels along the station's northern hull.\nFact #17: The station's library holds 701 archived research volumes in section 701.\nFact #18: Airlock 420 was last serviced during maintenance cycle 420.\nFact #19: The greenhouse dome cultivates 253 distinct crop varieties in tier 253.\nFact #20: Backup generator 884 provides 884 hours of emergency power reserve.\nFact #21: The station's primary reactor operates at a core temperature of 801 degrees.\nFact #22: Module 220 of the station houses the atmospheric processing unit.\nFact #23: The station's solar array generates 653 kilowatts during peak exposure.\nFact #24: Corridor 84 connects the habitation ring to the command deck.\nFact #25: The water reclamation system in bay 601 recycles 601 liters per cycle.\nFact #26: Sensor array 620 monitors radiation levels along the station's northern hull.\nFact #27: The station's library holds 753 archived research volumes in section 753.\nFact #28: Airlock 784 was last serviced during maintenance cycle 784.\nFact #29: The greenhouse dome cultivates 101 distinct crop varieties in tier 101.\nFact #30: Backup generator 720 provides 720 hours of emergency power reserve.\nFact #31: The station's primary reactor operates at a core temperature of 553 degrees.\nFact #32: Module 284 of the station houses the atmospheric processing unit.\nFact #33: The station's solar array generates 201 kilowatts during peak exposure.\nFact #34: Corridor 520 connects the habitation ring to the command deck.\nFact #35: The water reclamation system in bay 53 recycles 53 liters per cycle.\nFact #36: Sensor array 384 monitors radiation levels along the station's northern hull.\nFact #37: The station's library holds 901 archived research volumes in section 901.\nFact #38: Airlock 20 was last serviced during maintenance cycle 20.\nFact #39: The greenhouse dome cultivates 153 distinct crop varieties in tier 153.\nFact #40: Backup generator 184 provides 184 hours of emergency power reserve.\nFact #41: The station's primary reactor operates at a core temperature of 401 degrees.\nFact #42: Module 120 of the station houses the atmospheric processing unit.\nFact #43: The station's solar array generates 853 kilowatts during peak exposure.\nFact #44: Corridor 584 connects the habitation ring to the command deck.\nFact #45: The water reclamation system in bay 501 recycles 501 liters per cycle.\nFact #46: Sensor array 820 monitors radiation levels along the station's northern hull.\nFact #47: The station's library holds 353 archived research volumes in section 353.\nFact #48: Airlock 684 was last serviced during maintenance cycle 684.\nFact #49: The greenhouse dome cultivates 301 distinct crop varieties in tier 301.\nFact #50: Backup generator 320 provides 320 hours of emergency power reserve.\nFact #51: The station's primary reactor operates at a core temperature of 453 degrees.\nFact #52: Module 484 of the station houses the atmospheric processing unit.\nFact #53: The station's solar array generates 701 kilowatts during peak exposure.\nFact #54: Corridor 420 connects the habitation ring to the command deck.\nFact #55: The water reclamation system in bay 253 recycles 253 liters per cycle.\nFact #56: Sensor array 884 monitors radiation levels along the station's northern hull.\nFact #57: The station's library holds 801 archived research volumes in section 801.\nFact #58: Airlock 220 was last serviced during maintenance cycle 220.\nFact #59: The greenhouse dome cultivates 653 distinct crop varieties in tier 653.\nFact #60: Backup generator 84 provides 84 hours of emergency power reserve.\nFact #61: The station's primary reactor operates at a core temperature of 601 degrees.\nFact #62: Module 620 of the station houses the atmospheric processing unit.\nFact #63: The station's solar array generates 753 kilowatts during peak exposure.\nFact #64: Corridor 784 connects the habitation ring to the command deck.\nFact #65: The water reclamation system in bay 101 recycles 101 liters per cycle.\nFact #66: Sensor array 720 monitors radiation levels along the station's northern hull.\nFact #67: The station's library holds 553 archived research volumes in section 553.\nFact #68: Airlock 284 was last serviced during maintenance cycle 284.\nFact #69: The greenhouse dome cultivates 201 distinct crop varieties in tier 201.\nFact #70: Backup generator 520 provides 520 hours of emergency power reserve.\nFact #71: The station's primary reactor operates at a core temperature of 53 degrees.\nFact #72: Module 384 of the station houses the atmospheric processing unit.\nFact #73: The station's solar array generates 901 kilowatts during peak exposure.\nFact #74: Corridor 20 connects the habitation ring to the command deck.\nFact #75: The water reclamation system in bay 153 recycles 153 liters per cycle.\nFact #76: Sensor array 184 monitors radiation levels along the station's northern hull.\nFact #77: The station's library holds 401 archived research volumes in section 401.\nFact #78: Airlock 120 was last serviced during maintenance cycle 120.\nFact #79: The greenhouse dome cultivates 853 distinct crop varieties in tier 853.\nFact #80: Backup generator 584 provides 584 hours of emergency power reserve.\nFact #81: The station's primary reactor operates at a core temperature of 501 degrees.\nFact #82: Module 820 of the station houses the atmospheric processing unit.\nFact #83: The station's solar array generates 353 kilowatts during peak exposure.\nFact #84: Corridor 684 connects the habitation ring to the command deck.\nFact #85: The water reclamation system in bay 301 recycles 301 liters per cycle.\nFact #86: Sensor array 320 monitors radiation levels along the station's northern hull.\nFact #87: The station's library holds 453 archived research volumes in section 453.\nFact #88: Airlock 484 was last serviced during maintenance cycle 484.\nFact #89: The greenhouse dome cultivates 701 distinct crop varieties in tier 701.\nFact #90: Backup generator 420 provides 420 hours of emergency power reserve.\nFact #91: The station's primary reactor operates at a core temperature of 253 degrees.\nFact #92: Module 884 of the station houses the atmospheric processing unit.\nFact #93: The station's solar array generates 801 kilowatts during peak exposure.\nFact #94: Corridor 220 connects the habitation ring to the command deck.\nFact #95: The water reclamation system in bay 653 recycles 653 liters per cycle.\nFact #96: Sensor array 84 monitors radiation levels along the station's northern hull.\nFact #97: The station's library holds 601 archived research volumes in section 601.\nFact #98: Airlock 620 was last serviced during maintenance cycle 620.\nFact #99: The greenhouse dome cultivates 753 distinct crop varieties in tier 753.\nFact #100: Backup generator 784 provides 784 hours of emergency power reserve.\nFact #101: The station's primary reactor operates at a core temperature of 101 degrees.\nFact #102: Module 720 of the station houses the atmospheric processing unit.\nFact #103: The station's solar array generates 553 kilowatts during peak exposure.\nFact #104: Corridor 284 connects the habitation ring to the command deck.\nFact #105: The water reclamation system in bay 201 recycles 201 liters per cycle.\nFact #106: Sensor array 520 monitors radiation levels along the station's northern hull.\nFact #107: The station's library holds 53 archived research volumes in section 53.\nFact #108: Airlock 384 was last serviced during maintenance cycle 384.\nFact #109: The greenhouse dome cultivates 901 distinct crop varieties in tier 901.\nFact #110: Backup generator 20 provides 20 hours of emergency power reserve.\nFact #111: The station's primary reactor operates at a core temperature of 153 degrees.\nFact #112: Module 184 of the station houses the atmospheric processing unit.\nFact #113: The station's solar array generates 401 kilowatts during peak exposure.\nFact #114: Corridor 120 connects the habitation ring to the command deck.\nFact #115: The water reclamation system in bay 853 recycles 853 liters per cycle.\nFact #116: Sensor array 584 monitors radiation levels along the station's northern hull.\nFact #117: The station's library holds 501 archived research volumes in section 501.\nFact #118: Airlock 820 was last serviced during maintenance cycle 820.\nFact #119: The greenhouse dome cultivates 353 distinct crop varieties in tier 353.\nFact #120: Backup generator 684 provides 684 hours of emergency power reserve.\nFact #121: The station's primary reactor operates at a core temperature of 301 degrees.\nFact #122: Module 320 of the station houses the atmospheric processing unit.\nFact #123: The station's solar array generates 453 kilowatts during peak exposure.\nFact #124: Corridor 484 connects the habitation ring to the command deck.\nFact #125: The water reclamation system in bay 701 recycles 701 liters per cycle.\nFact #126: Sensor array 420 monitors radiation levels along the station's northern hull.\nFact #127: The station's library holds 253 archived research volumes in section 253.\nFact #128: Airlock 884 was last serviced during maintenance cycle 884.\nFact #129: The greenhouse dome cultivates 801 distinct crop varieties in tier 801.\nFact #130: Backup generator 220 provides 220 hours of emergency power reserve.\nFact #131: The station's primary reactor operates at a core temperature of 653 degrees.\nFact #132: Module 84 of the station houses the atmospheric processing unit.\nFact #133: The station's solar array generates 601 kilowatts during peak exposure.\nFact #134: Corridor 620 connects the habitation ring to the command deck.\nFact #135: The water reclamation system in bay 753 recycles 753 liters per cycle.\nFact #136: Sensor array 784 monitors radiation levels along the station's northern hull.\nFact #137: The station's library holds 101 archived research volumes in section 101.\nFact #138: Airlock 720 was last serviced during maintenance cycle 720.\nFact #139: The greenhouse dome cultivates 553 distinct crop varieties in tier 553.\nFact #140: Backup generator 284 provides 284 hours of emergency power reserve.\nFact #141: The station's primary reactor operates at a core temperature of 201 degrees.\nFact #142: Module 520 of the station houses the atmospheric processing unit.\nFact #143: The station's solar array generates 53 kilowatts during peak exposure.\nFact #144: Corridor 384 connects the habitation ring to the command deck.\nFact #145: The water reclamation system in bay 901 recycles 901 liters per cycle.\nFact #146: Sensor array 20 monitors radiation levels along the station's northern hull.\nFact #147: The station's library holds 153 archived research volumes in section 153.\nFact #148: Airlock 184 was last serviced during maintenance cycle 184.\nFact #149: The greenhouse dome cultivates 401 distinct crop varieties in tier 401.\nFact #150: Backup generator 120 provides 120 hours of emergency power reserve.\nFact #151: The station's primary reactor operates at a core temperature of 853 degrees.\nFact #152: Module 584 of the station houses the atmospheric processing unit.\nFact #153: The station's solar array generates 501 kilowatts during peak exposure.\nFact #154: Corridor 820 connects the habitation ring to the command deck.\nFact #155: The water reclamation system in bay 353 recycles 353 liters per cycle.\nFact #156: Sensor array 684 monitors radiation levels along the station's northern hull.\nFact #157: The station's library holds 301 archived research volumes in section 301.\nFact #158: Airlock 320 was last serviced during maintenance cycle 320.\nFact #159: The greenhouse dome cultivates 453 distinct crop varieties in tier 453.\nFact #160: Backup generator 484 provides 484 hours of emergency power reserve.\nFact #161: The station's primary reactor operates at a core temperature of 701 degrees.\nFact #162: Module 420 of the station houses the atmospheric processing unit.\nFact #163: The station's solar array generates 253 kilowatts during peak exposure.\nFact #164: Corridor 884 connects the habitation ring to the command deck.\nFact #165: The water reclamation system in bay 801 recycles 801 liters per cycle.\nFact #166: Sensor array 220 monitors radiation levels along the station's northern hull.\nFact #167: The station's library holds 653 archived research volumes in section 653.\nFact #168: Airlock 84 was last serviced during maintenance cycle 84.\nFact #169: The greenhouse dome cultivates 601 distinct crop varieties in tier 601.\nFact #170: Backup generator 620 provides 620 hours of emergency power reserve.\nFact #171: The station's primary reactor operates at a core temperature of 753 degrees.\nFact #172: Module 784 of the station houses the atmospheric processing unit.\nFact #173: The station's solar array generates 101 kilowatts during peak exposure.\nFact #174: Corridor 720 connects the habitation ring to the command deck.\nFact #175: The water reclamation system in bay 553 recycles 553 liters per cycle.\nFact #176: Sensor array 284 monitors radiation levels along the station's northern hull.\nFact #177: The station's library holds 201 archived research volumes in section 201.\nFact #178: Airlock 520 was last serviced during maintenance cycle 520.\nFact #179: The greenhouse dome cultivates 53 distinct crop varieties in tier 53.\nFact #180: Backup generator 384 provides 384 hours of emergency power reserve.\nFact #181: The station's primary reactor operates at a core temperature of 901 degrees.\nFact #182: Module 20 of the station houses the atmospheric processing unit.\nFact #183: The station's solar array generates 153 kilowatts during peak exposure.\nFact #184: Corridor 184 connects the habitation ring to the command deck.\nFact #185: The water reclamation system in bay 401 recycles 401 liters per cycle.\nFact #186: Sensor array 120 monitors radiation levels along the station's northern hull.\nFact #187: The station's library holds 853 archived research volumes in section 853.\nFact #188: Airlock 584 was last serviced during maintenance cycle 584.\nFact #189: The greenhouse dome cultivates 501 distinct crop varieties in tier 501.\nFact #190: Backup generator 820 provides 820 hours of emergency power reserve.\nFact #191: The station's primary reactor operates at a core temperature of 353 degrees.\nFact #192: Module 684 of the station houses the atmospheric processing unit.\nFact #193: The station's solar array generates 301 kilowatts during peak exposure.\nFact #194: Corridor 320 connects the habitation ring to the command deck.\nFact #195: The water reclamation system in bay 453 recycles 453 liters per cycle.\nFact #196: Sensor array 484 monitors radiation levels along the station's northern hull.\nFact #197: The station's library holds 701 archived research volumes in section 701.\nFact #198: Airlock 420 was last serviced during maintenance cycle 420.\nFact #199: The greenhouse dome cultivates 253 distinct crop varieties in tier 253.\nFact #200: Backup generator 884 provides 884 hours of emergency power reserve.\nFact #201: The station's primary reactor operates at a core temperature of 801 degrees.\nFact #202: Module 220 of the station houses the atmospheric processing unit.\nFact #203: The station's solar array generates 653 kilowatts during peak exposure.\nFact #204: Corridor 84 connects the habitation ring to the command deck.\nFact #205: The water reclamation system in bay 601 recycles 601 liters per cycle.\nFact #206: Sensor array 620 monitors radiation levels along the station's northern hull.\nFact #207: The station's library holds 753 archived research volumes in section 753.\nFact #208: Airlock 784 was last serviced during maintenance cycle 784.\nFact #209: The greenhouse dome cultivates 101 distinct crop varieties in tier 101.\nFact #210: Backup generator 720 provides 720 hours of emergency power reserve.\nFact #211: The station's primary reactor operates at a core temperature of 553 degrees.\nFact #212: Module 284 of the station houses the atmospheric processing unit.\nFact #213: The station's solar array generates 201 kilowatts during peak exposure.\nFact #214: Corridor 520 connects the habitation ring to the command deck.\nFact #215: The water reclamation system in bay 53 recycles 53 liters per cycle.\nFact #216: Sensor array 384 monitors radiation levels along the station's northern hull.\nFact #217: The station's library holds 901 archived research volumes in section 901.\nFact #218: Airlock 20 was last serviced during maintenance cycle 20.\nFact #219: The greenhouse dome cultivates 153 distinct crop varieties in tier 153.\nFact #220: Backup generator 184 provides 184 hours of emergency power reserve.\nFact #221: The station's primary reactor operates at a core temperature of 401 degrees.\nFact #222: Module 120 of the station houses the atmospheric processing unit.\nFact #223: The station's solar array generates 853 kilowatts during peak exposure.\nFact #224: Corridor 584 connects the habitation ring to the command deck.\nFact #225: The water reclamation system in bay 501 recycles 501 liters per cycle.\nFact #226: Sensor array 820 monitors radiation levels along the station's northern hull.\nFact #227: The station's library holds 353 archived research volumes in section 353.\nFact #228: Airlock 684 was last serviced during maintenance cycle 684.\nFact #229: The greenhouse dome cultivates 301 distinct crop varieties in tier 301.\nFact #230: Backup generator 320 provides 320 hours of emergency power reserve.\nFact #231: The station's primary reactor operates at a core temperature of 453 degrees.\nFact #232: Module 484 of the station houses the atmospheric processing unit.\nFact #233: The station's solar array generates 701 kilowatts during peak exposure.\nFact #234: Corridor 420 connects the habitation ring to the command deck.\nFact #235: The water reclamation system in bay 253 recycles 253 liters per cycle.\nFact #236: Sensor array 884 monitors radiation levels along the station's northern hull.\nFact #237: The station's library holds 801 archived research volumes in section 801.\nFact #238: Airlock 220 was last serviced during maintenance cycle 220.\nFact #239: The greenhouse dome cultivates 653 distinct crop varieties in tier 653.\nFact #240: Backup generator 84 provides 84 hours of emergency power reserve.\nFact #241: The station's primary reactor operates at a core temperature of 601 degrees.\nFact #242: Module 620 of the station houses the atmospheric processing unit.\nFact #243: The station's solar array generates 753 kilowatts during peak exposure.\nFact #244: Corridor 784 connects the habitation ring to the command deck.\nFact #245: The water reclamation system in bay 101 recycles 101 liters per cycle.\nFact #246: Sensor array 720 monitors radiation levels along the station's northern hull.\nFact #247: The station's library holds 553 archived research volumes in section 553.\nFact #248: Airlock 284 was last serviced during maintenance cycle 284.\nFact #249: The greenhouse dome cultivates 201 distinct crop varieties in tier 201.\nFact #250: Backup generator 520 provides 520 hours of emergency power reserve.\nFact #251: The station's primary reactor operates at a core temperature of 53 degrees.\nFact #252: Module 384 of the station houses the atmospheric processing unit.\nFact #253: The station's solar array generates 901 kilowatts during peak exposure.\nFact #254: Corridor 20 connects the habitation ring to the command deck.\nFact #255: The water reclamation system in bay 153 recycles 153 liters per cycle.\nFact #256: Sensor array 184 monitors radiation levels along the station's northern hull.\nFact #257: The station's library holds 401 archived research volumes in section 401.\nFact #258: Airlock 120 was last serviced during maintenance cycle 120.\nFact #259: The greenhouse dome cultivates 853 distinct crop varieties in tier 853.\nFact #260: Backup generator 584 provides 584 hours of emergency power reserve.\nFact #261: The station's primary reactor operates at a core temperature of 501 degrees.\nFact #262: Module 820 of the station houses the atmospheric processing unit.\nFact #263: The station's solar array generates 353 kilowatts during peak exposure.\nFact #264: Corridor 684 connects the habitation ring to the command deck.\nFact #265: The water reclamation system in bay 301 recycles 301 liters per cycle.\nFact #266: Sensor array 320 monitors radiation levels along the station's northern hull.\nFact #267: The station's library holds 453 archived research volumes in section 453.\nFact #268: Airlock 484 was last serviced during maintenance cycle 484.\nFact #269: The greenhouse dome cultivates 701 distinct crop varieties in tier 701.\nFact #270: Backup generator 420 provides 420 hours of emergency power reserve.\nFact #271: The station's primary reactor operates at a core temperature of 253 degrees.\nFact #272: Module 884 of the station houses the atmospheric processing unit.\nFact #273: The station's solar array generates 801 kilowatts during peak exposure.\nFact #274: Corridor 220 connects the habitation ring to the command deck.";
+const LARGE_CONTEXT =
+  "Fact #1: The station's primary reactor operates at a core temperature of 1 degrees.\nFact #2: Module 20 of the station houses the atmospheric processing unit.\nFact #3: The station's solar array generates 153 kilowatts during peak exposure.\nFact #4: Corridor 184 connects the habitation ring to the command deck.\nFact #5: The water reclamation system in bay 401 recycles 401 liters per cycle.\nFact #6: Sensor array 120 monitors radiation levels along the station's northern hull.\nFact #7: The station's library holds 853 archived research volumes in section 853.\nFact #8: Airlock 584 was last serviced during maintenance cycle 584.\nFact #9: The greenhouse dome cultivates 501 distinct crop varieties in tier 501.\nFact #10: Backup generator 820 provides 820 hours of emergency power reserve.\nFact #11: The station's primary reactor operates at a core temperature of 353 degrees.\nFact #12: Module 684 of the station houses the atmospheric processing unit.\nFact #13: The station's solar array generates 301 kilowatts during peak exposure.\nFact #14: Corridor 320 connects the habitation ring to the command deck.\nFact #15: The water reclamation system in bay 453 recycles 453 liters per cycle.\nFact #16: Sensor array 484 monitors radiation levels along the station's northern hull.\nFact #17: The station's library holds 701 archived research volumes in section 701.\nFact #18: Airlock 420 was last serviced during maintenance cycle 420.\nFact #19: The greenhouse dome cultivates 253 distinct crop varieties in tier 253.\nFact #20: Backup generator 884 provides 884 hours of emergency power reserve.\nFact #21: The station's primary reactor operates at a core temperature of 801 degrees.\nFact #22: Module 220 of the station houses the atmospheric processing unit.\nFact #23: The station's solar array generates 653 kilowatts during peak exposure.\nFact #24: Corridor 84 connects the habitation ring to the command deck.\nFact #25: The water reclamation system in bay 601 recycles 601 liters per cycle.\nFact #26: Sensor array 620 monitors radiation levels along the station's northern hull.\nFact #27: The station's library holds 753 archived research volumes in section 753.\nFact #28: Airlock 784 was last serviced during maintenance cycle 784.\nFact #29: The greenhouse dome cultivates 101 distinct crop varieties in tier 101.\nFact #30: Backup generator 720 provides 720 hours of emergency power reserve.\nFact #31: The station's primary reactor operates at a core temperature of 553 degrees.\nFact #32: Module 284 of the station houses the atmospheric processing unit.\nFact #33: The station's solar array generates 201 kilowatts during peak exposure.\nFact #34: Corridor 520 connects the habitation ring to the command deck.\nFact #35: The water reclamation system in bay 53 recycles 53 liters per cycle.\nFact #36: Sensor array 384 monitors radiation levels along the station's northern hull.\nFact #37: The station's library holds 901 archived research volumes in section 901.\nFact #38: Airlock 20 was last serviced during maintenance cycle 20.\nFact #39: The greenhouse dome cultivates 153 distinct crop varieties in tier 153.\nFact #40: Backup generator 184 provides 184 hours of emergency power reserve.\nFact #41: The station's primary reactor operates at a core temperature of 401 degrees.\nFact #42: Module 120 of the station houses the atmospheric processing unit.\nFact #43: The station's solar array generates 853 kilowatts during peak exposure.\nFact #44: Corridor 584 connects the habitation ring to the command deck.\nFact #45: The water reclamation system in bay 501 recycles 501 liters per cycle.\nFact #46: Sensor array 820 monitors radiation levels along the station's northern hull.\nFact #47: The station's library holds 353 archived research volumes in section 353.\nFact #48: Airlock 684 was last serviced during maintenance cycle 684.\nFact #49: The greenhouse dome cultivates 301 distinct crop varieties in tier 301.\nFact #50: Backup generator 320 provides 320 hours of emergency power reserve.\nFact #51: The station's primary reactor operates at a core temperature of 453 degrees.\nFact #52: Module 484 of the station houses the atmospheric processing unit.\nFact #53: The station's solar array generates 701 kilowatts during peak exposure.\nFact #54: Corridor 420 connects the habitation ring to the command deck.\nFact #55: The water reclamation system in bay 253 recycles 253 liters per cycle.\nFact #56: Sensor array 884 monitors radiation levels along the station's northern hull.\nFact #57: The station's library holds 801 archived research volumes in section 801.\nFact #58: Airlock 220 was last serviced during maintenance cycle 220.\nFact #59: The greenhouse dome cultivates 653 distinct crop varieties in tier 653.\nFact #60: Backup generator 84 provides 84 hours of emergency power reserve.\nFact #61: The station's primary reactor operates at a core temperature of 601 degrees.\nFact #62: Module 620 of the station houses the atmospheric processing unit.\nFact #63: The station's solar array generates 753 kilowatts during peak exposure.\nFact #64: Corridor 784 connects the habitation ring to the command deck.\nFact #65: The water reclamation system in bay 101 recycles 101 liters per cycle.\nFact #66: Sensor array 720 monitors radiation levels along the station's northern hull.\nFact #67: The station's library holds 553 archived research volumes in section 553.\nFact #68: Airlock 284 was last serviced during maintenance cycle 284.\nFact #69: The greenhouse dome cultivates 201 distinct crop varieties in tier 201.\nFact #70: Backup generator 520 provides 520 hours of emergency power reserve.\nFact #71: The station's primary reactor operates at a core temperature of 53 degrees.\nFact #72: Module 384 of the station houses the atmospheric processing unit.\nFact #73: The station's solar array generates 901 kilowatts during peak exposure.\nFact #74: Corridor 20 connects the habitation ring to the command deck.\nFact #75: The water reclamation system in bay 153 recycles 153 liters per cycle.\nFact #76: Sensor array 184 monitors radiation levels along the station's northern hull.\nFact #77: The station's library holds 401 archived research volumes in section 401.\nFact #78: Airlock 120 was last serviced during maintenance cycle 120.\nFact #79: The greenhouse dome cultivates 853 distinct crop varieties in tier 853.\nFact #80: Backup generator 584 provides 584 hours of emergency power reserve.\nFact #81: The station's primary reactor operates at a core temperature of 501 degrees.\nFact #82: Module 820 of the station houses the atmospheric processing unit.\nFact #83: The station's solar array generates 353 kilowatts during peak exposure.\nFact #84: Corridor 684 connects the habitation ring to the command deck.\nFact #85: The water reclamation system in bay 301 recycles 301 liters per cycle.\nFact #86: Sensor array 320 monitors radiation levels along the station's northern hull.\nFact #87: The station's library holds 453 archived research volumes in section 453.\nFact #88: Airlock 484 was last serviced during maintenance cycle 484.\nFact #89: The greenhouse dome cultivates 701 distinct crop varieties in tier 701.\nFact #90: Backup generator 420 provides 420 hours of emergency power reserve.\nFact #91: The station's primary reactor operates at a core temperature of 253 degrees.\nFact #92: Module 884 of the station houses the atmospheric processing unit.\nFact #93: The station's solar array generates 801 kilowatts during peak exposure.\nFact #94: Corridor 220 connects the habitation ring to the command deck.\nFact #95: The water reclamation system in bay 653 recycles 653 liters per cycle.\nFact #96: Sensor array 84 monitors radiation levels along the station's northern hull.\nFact #97: The station's library holds 601 archived research volumes in section 601.\nFact #98: Airlock 620 was last serviced during maintenance cycle 620.\nFact #99: The greenhouse dome cultivates 753 distinct crop varieties in tier 753.\nFact #100: Backup generator 784 provides 784 hours of emergency power reserve.\nFact #101: The station's primary reactor operates at a core temperature of 101 degrees.\nFact #102: Module 720 of the station houses the atmospheric processing unit.\nFact #103: The station's solar array generates 553 kilowatts during peak exposure.\nFact #104: Corridor 284 connects the habitation ring to the command deck.\nFact #105: The water reclamation system in bay 201 recycles 201 liters per cycle.\nFact #106: Sensor array 520 monitors radiation levels along the station's northern hull.\nFact #107: The station's library holds 53 archived research volumes in section 53.\nFact #108: Airlock 384 was last serviced during maintenance cycle 384.\nFact #109: The greenhouse dome cultivates 901 distinct crop varieties in tier 901.\nFact #110: Backup generator 20 provides 20 hours of emergency power reserve.\nFact #111: The station's primary reactor operates at a core temperature of 153 degrees.\nFact #112: Module 184 of the station houses the atmospheric processing unit.\nFact #113: The station's solar array generates 401 kilowatts during peak exposure.\nFact #114: Corridor 120 connects the habitation ring to the command deck.\nFact #115: The water reclamation system in bay 853 recycles 853 liters per cycle.\nFact #116: Sensor array 584 monitors radiation levels along the station's northern hull.\nFact #117: The station's library holds 501 archived research volumes in section 501.\nFact #118: Airlock 820 was last serviced during maintenance cycle 820.\nFact #119: The greenhouse dome cultivates 353 distinct crop varieties in tier 353.\nFact #120: Backup generator 684 provides 684 hours of emergency power reserve.\nFact #121: The station's primary reactor operates at a core temperature of 301 degrees.\nFact #122: Module 320 of the station houses the atmospheric processing unit.\nFact #123: The station's solar array generates 453 kilowatts during peak exposure.\nFact #124: Corridor 484 connects the habitation ring to the command deck.\nFact #125: The water reclamation system in bay 701 recycles 701 liters per cycle.\nFact #126: Sensor array 420 monitors radiation levels along the station's northern hull.\nFact #127: The station's library holds 253 archived research volumes in section 253.\nFact #128: Airlock 884 was last serviced during maintenance cycle 884.\nFact #129: The greenhouse dome cultivates 801 distinct crop varieties in tier 801.\nFact #130: Backup generator 220 provides 220 hours of emergency power reserve.\nFact #131: The station's primary reactor operates at a core temperature of 653 degrees.\nFact #132: Module 84 of the station houses the atmospheric processing unit.\nFact #133: The station's solar array generates 601 kilowatts during peak exposure.\nFact #134: Corridor 620 connects the habitation ring to the command deck.\nFact #135: The water reclamation system in bay 753 recycles 753 liters per cycle.\nFact #136: Sensor array 784 monitors radiation levels along the station's northern hull.\nFact #137: The station's library holds 101 archived research volumes in section 101.\nFact #138: Airlock 720 was last serviced during maintenance cycle 720.\nFact #139: The greenhouse dome cultivates 553 distinct crop varieties in tier 553.\nFact #140: Backup generator 284 provides 284 hours of emergency power reserve.\nFact #141: The station's primary reactor operates at a core temperature of 201 degrees.\nFact #142: Module 520 of the station houses the atmospheric processing unit.\nFact #143: The station's solar array generates 53 kilowatts during peak exposure.\nFact #144: Corridor 384 connects the habitation ring to the command deck.\nFact #145: The water reclamation system in bay 901 recycles 901 liters per cycle.\nFact #146: Sensor array 20 monitors radiation levels along the station's northern hull.\nFact #147: The station's library holds 153 archived research volumes in section 153.\nFact #148: Airlock 184 was last serviced during maintenance cycle 184.\nFact #149: The greenhouse dome cultivates 401 distinct crop varieties in tier 401.\nFact #150: Backup generator 120 provides 120 hours of emergency power reserve.\nFact #151: The station's primary reactor operates at a core temperature of 853 degrees.\nFact #152: Module 584 of the station houses the atmospheric processing unit.\nFact #153: The station's solar array generates 501 kilowatts during peak exposure.\nFact #154: Corridor 820 connects the habitation ring to the command deck.\nFact #155: The water reclamation system in bay 353 recycles 353 liters per cycle.\nFact #156: Sensor array 684 monitors radiation levels along the station's northern hull.\nFact #157: The station's library holds 301 archived research volumes in section 301.\nFact #158: Airlock 320 was last serviced during maintenance cycle 320.\nFact #159: The greenhouse dome cultivates 453 distinct crop varieties in tier 453.\nFact #160: Backup generator 484 provides 484 hours of emergency power reserve.\nFact #161: The station's primary reactor operates at a core temperature of 701 degrees.\nFact #162: Module 420 of the station houses the atmospheric processing unit.\nFact #163: The station's solar array generates 253 kilowatts during peak exposure.\nFact #164: Corridor 884 connects the habitation ring to the command deck.\nFact #165: The water reclamation system in bay 801 recycles 801 liters per cycle.\nFact #166: Sensor array 220 monitors radiation levels along the station's northern hull.\nFact #167: The station's library holds 653 archived research volumes in section 653.\nFact #168: Airlock 84 was last serviced during maintenance cycle 84.\nFact #169: The greenhouse dome cultivates 601 distinct crop varieties in tier 601.\nFact #170: Backup generator 620 provides 620 hours of emergency power reserve.\nFact #171: The station's primary reactor operates at a core temperature of 753 degrees.\nFact #172: Module 784 of the station houses the atmospheric processing unit.\nFact #173: The station's solar array generates 101 kilowatts during peak exposure.\nFact #174: Corridor 720 connects the habitation ring to the command deck.\nFact #175: The water reclamation system in bay 553 recycles 553 liters per cycle.\nFact #176: Sensor array 284 monitors radiation levels along the station's northern hull.\nFact #177: The station's library holds 201 archived research volumes in section 201.\nFact #178: Airlock 520 was last serviced during maintenance cycle 520.\nFact #179: The greenhouse dome cultivates 53 distinct crop varieties in tier 53.\nFact #180: Backup generator 384 provides 384 hours of emergency power reserve.\nFact #181: The station's primary reactor operates at a core temperature of 901 degrees.\nFact #182: Module 20 of the station houses the atmospheric processing unit.\nFact #183: The station's solar array generates 153 kilowatts during peak exposure.\nFact #184: Corridor 184 connects the habitation ring to the command deck.\nFact #185: The water reclamation system in bay 401 recycles 401 liters per cycle.\nFact #186: Sensor array 120 monitors radiation levels along the station's northern hull.\nFact #187: The station's library holds 853 archived research volumes in section 853.\nFact #188: Airlock 584 was last serviced during maintenance cycle 584.\nFact #189: The greenhouse dome cultivates 501 distinct crop varieties in tier 501.\nFact #190: Backup generator 820 provides 820 hours of emergency power reserve.\nFact #191: The station's primary reactor operates at a core temperature of 353 degrees.\nFact #192: Module 684 of the station houses the atmospheric processing unit.\nFact #193: The station's solar array generates 301 kilowatts during peak exposure.\nFact #194: Corridor 320 connects the habitation ring to the command deck.\nFact #195: The water reclamation system in bay 453 recycles 453 liters per cycle.\nFact #196: Sensor array 484 monitors radiation levels along the station's northern hull.\nFact #197: The station's library holds 701 archived research volumes in section 701.\nFact #198: Airlock 420 was last serviced during maintenance cycle 420.\nFact #199: The greenhouse dome cultivates 253 distinct crop varieties in tier 253.\nFact #200: Backup generator 884 provides 884 hours of emergency power reserve.\nFact #201: The station's primary reactor operates at a core temperature of 801 degrees.\nFact #202: Module 220 of the station houses the atmospheric processing unit.\nFact #203: The station's solar array generates 653 kilowatts during peak exposure.\nFact #204: Corridor 84 connects the habitation ring to the command deck.\nFact #205: The water reclamation system in bay 601 recycles 601 liters per cycle.\nFact #206: Sensor array 620 monitors radiation levels along the station's northern hull.\nFact #207: The station's library holds 753 archived research volumes in section 753.\nFact #208: Airlock 784 was last serviced during maintenance cycle 784.\nFact #209: The greenhouse dome cultivates 101 distinct crop varieties in tier 101.\nFact #210: Backup generator 720 provides 720 hours of emergency power reserve.\nFact #211: The station's primary reactor operates at a core temperature of 553 degrees.\nFact #212: Module 284 of the station houses the atmospheric processing unit.\nFact #213: The station's solar array generates 201 kilowatts during peak exposure.\nFact #214: Corridor 520 connects the habitation ring to the command deck.\nFact #215: The water reclamation system in bay 53 recycles 53 liters per cycle.\nFact #216: Sensor array 384 monitors radiation levels along the station's northern hull.\nFact #217: The station's library holds 901 archived research volumes in section 901.\nFact #218: Airlock 20 was last serviced during maintenance cycle 20.\nFact #219: The greenhouse dome cultivates 153 distinct crop varieties in tier 153.\nFact #220: Backup generator 184 provides 184 hours of emergency power reserve.\nFact #221: The station's primary reactor operates at a core temperature of 401 degrees.\nFact #222: Module 120 of the station houses the atmospheric processing unit.\nFact #223: The station's solar array generates 853 kilowatts during peak exposure.\nFact #224: Corridor 584 connects the habitation ring to the command deck.\nFact #225: The water reclamation system in bay 501 recycles 501 liters per cycle.\nFact #226: Sensor array 820 monitors radiation levels along the station's northern hull.\nFact #227: The station's library holds 353 archived research volumes in section 353.\nFact #228: Airlock 684 was last serviced during maintenance cycle 684.\nFact #229: The greenhouse dome cultivates 301 distinct crop varieties in tier 301.\nFact #230: Backup generator 320 provides 320 hours of emergency power reserve.\nFact #231: The station's primary reactor operates at a core temperature of 453 degrees.\nFact #232: Module 484 of the station houses the atmospheric processing unit.\nFact #233: The station's solar array generates 701 kilowatts during peak exposure.\nFact #234: Corridor 420 connects the habitation ring to the command deck.\nFact #235: The water reclamation system in bay 253 recycles 253 liters per cycle.\nFact #236: Sensor array 884 monitors radiation levels along the station's northern hull.\nFact #237: The station's library holds 801 archived research volumes in section 801.\nFact #238: Airlock 220 was last serviced during maintenance cycle 220.\nFact #239: The greenhouse dome cultivates 653 distinct crop varieties in tier 653.\nFact #240: Backup generator 84 provides 84 hours of emergency power reserve.\nFact #241: The station's primary reactor operates at a core temperature of 601 degrees.\nFact #242: Module 620 of the station houses the atmospheric processing unit.\nFact #243: The station's solar array generates 753 kilowatts during peak exposure.\nFact #244: Corridor 784 connects the habitation ring to the command deck.\nFact #245: The water reclamation system in bay 101 recycles 101 liters per cycle.\nFact #246: Sensor array 720 monitors radiation levels along the station's northern hull.\nFact #247: The station's library holds 553 archived research volumes in section 553.\nFact #248: Airlock 284 was last serviced during maintenance cycle 284.\nFact #249: The greenhouse dome cultivates 201 distinct crop varieties in tier 201.\nFact #250: Backup generator 520 provides 520 hours of emergency power reserve.\nFact #251: The station's primary reactor operates at a core temperature of 53 degrees.\nFact #252: Module 384 of the station houses the atmospheric processing unit.\nFact #253: The station's solar array generates 901 kilowatts during peak exposure.\nFact #254: Corridor 20 connects the habitation ring to the command deck.\nFact #255: The water reclamation system in bay 153 recycles 153 liters per cycle.\nFact #256: Sensor array 184 monitors radiation levels along the station's northern hull.\nFact #257: The station's library holds 401 archived research volumes in section 401.\nFact #258: Airlock 120 was last serviced during maintenance cycle 120.\nFact #259: The greenhouse dome cultivates 853 distinct crop varieties in tier 853.\nFact #260: Backup generator 584 provides 584 hours of emergency power reserve.\nFact #261: The station's primary reactor operates at a core temperature of 501 degrees.\nFact #262: Module 820 of the station houses the atmospheric processing unit.\nFact #263: The station's solar array generates 353 kilowatts during peak exposure.\nFact #264: Corridor 684 connects the habitation ring to the command deck.\nFact #265: The water reclamation system in bay 301 recycles 301 liters per cycle.\nFact #266: Sensor array 320 monitors radiation levels along the station's northern hull.\nFact #267: The station's library holds 453 archived research volumes in section 453.\nFact #268: Airlock 484 was last serviced during maintenance cycle 484.\nFact #269: The greenhouse dome cultivates 701 distinct crop varieties in tier 701.\nFact #270: Backup generator 420 provides 420 hours of emergency power reserve.\nFact #271: The station's primary reactor operates at a core temperature of 253 degrees.\nFact #272: Module 884 of the station houses the atmospheric processing unit.\nFact #273: The station's solar array generates 801 kilowatts during peak exposure.\nFact #274: Corridor 220 connects the habitation ring to the command deck.";
 
 // buildQ(cellId): LARGE_CONTEXT is a single static ~5000-token block shared by every cell in
 // this matrix - well above both OpenAI's (1024-2048 tok, https://developers.openai.com/api/docs/
@@ -84,13 +85,19 @@ function buildQ(cellId) {
     text3: `${ctx}\n\nReply with ONLY the exact text of the LAST fact listed above, and nothing else.`,
     tool1: `${ctx}\n\nSeparately: what is the current weather in Lagos, Nigeria? Use the get_weather tool to look it up.`,
     tool3: `${ctx}\n\nSetting the weather aside, reply with ONLY the exact text of Fact #1 above, and nothing else.`,
-    media1: (word) => `${ctx}\n\nSeparately, look at the attached ${word} and describe what it shows in exactly one short sentence (15 words or fewer).`,
+    media1: (word) =>
+      `${ctx}\n\nSeparately, look at the attached ${word} and describe what it shows in exactly one short sentence (15 words or fewer).`,
     media2: `${ctx}\n\nSetting the attachment aside, how many facts are listed above in total? Reply with ONLY the number.`,
     media3: `${ctx}\n\nSetting the attachment aside, reply with ONLY the exact text of the LAST fact listed above, and nothing else.`,
   };
 }
 
-const MEDIA_WORD = { image: "image", document: "document", audio: "audio clip", video: "video clip" };
+const MEDIA_WORD = {
+  image: "image",
+  document: "document",
+  audio: "audio clip",
+  video: "video clip",
+};
 
 // reasoning: "off" | "on" | undefined. Only meaningful for gemini/vertex, where Gemini 2.5
 // models think by DEFAULT with a dynamic (unbounded-within-budget) thinking length - that's
@@ -103,16 +110,86 @@ const MEDIA_WORD = { image: "image", document: "document", audio: "audio clip", 
 // untouched entirely, since only gemini/vertex have this default-on dynamic-thinking behavior
 // in this matrix's model choices.
 const MODALITIES = [
-  { key: "text", label: "text (non-tool, non-streaming)", stream: false, tools: false, media: null, reasoning: "off" },
-  { key: "text_streaming", label: "text (non-tool, streaming)", stream: true, tools: false, media: null, reasoning: "off" },
-  { key: "tools", label: "tool calling (non-streaming)", stream: false, tools: true, media: null, reasoning: "off" },
-  { key: "tools_streaming", label: "tool calling (streaming)", stream: true, tools: true, media: null, reasoning: "off" },
-  { key: "image", label: "image input", stream: false, tools: false, media: "image", reasoning: "off" },
-  { key: "document", label: "document (PDF) input", stream: false, tools: false, media: "document", reasoning: "off" },
-  { key: "audio", label: "audio input", stream: false, tools: false, media: "audio", reasoning: "off" },
-  { key: "video", label: "video input", stream: false, tools: false, media: "video", reasoning: "off" },
-  { key: "reasoning_on", label: "text with reasoning enabled (non-streaming)", stream: false, tools: false, media: null, reasoning: "on" },
-  { key: "reasoning_on_streaming", label: "text with reasoning enabled (streaming)", stream: true, tools: false, media: null, reasoning: "on" },
+  {
+    key: "text",
+    label: "text (non-tool, non-streaming)",
+    stream: false,
+    tools: false,
+    media: null,
+    reasoning: "off",
+  },
+  {
+    key: "text_streaming",
+    label: "text (non-tool, streaming)",
+    stream: true,
+    tools: false,
+    media: null,
+    reasoning: "off",
+  },
+  {
+    key: "tools",
+    label: "tool calling (non-streaming)",
+    stream: false,
+    tools: true,
+    media: null,
+    reasoning: "off",
+  },
+  {
+    key: "tools_streaming",
+    label: "tool calling (streaming)",
+    stream: true,
+    tools: true,
+    media: null,
+    reasoning: "off",
+  },
+  {
+    key: "image",
+    label: "image input",
+    stream: false,
+    tools: false,
+    media: "image",
+    reasoning: "off",
+  },
+  {
+    key: "document",
+    label: "document (PDF) input",
+    stream: false,
+    tools: false,
+    media: "document",
+    reasoning: "off",
+  },
+  {
+    key: "audio",
+    label: "audio input",
+    stream: false,
+    tools: false,
+    media: "audio",
+    reasoning: "off",
+  },
+  {
+    key: "video",
+    label: "video input",
+    stream: false,
+    tools: false,
+    media: "video",
+    reasoning: "off",
+  },
+  {
+    key: "reasoning_on",
+    label: "text with reasoning enabled (non-streaming)",
+    stream: false,
+    tools: false,
+    media: null,
+    reasoning: "on",
+  },
+  {
+    key: "reasoning_on_streaming",
+    label: "text with reasoning enabled (streaming)",
+    stream: true,
+    tools: false,
+    media: null,
+    reasoning: "on",
+  },
 ];
 
 const REASONING_ON_BUDGET = 512;
@@ -136,7 +213,8 @@ const CREDENTIAL_GATES = {
 
 // backend -> modality -> citation string (falsy = supported). Both legs share one SKIP matrix:
 // if the provider genuinely can't do it, Bifrost can't manufacture the capability either.
-const REASONING_ON_SKIP = "Only gemini/vertex use a reasoning-capable model in this matrix (gpt-4o-mini/claude-haiku-4-5 are non-reasoning); reasoning-on parity is only meaningful where reasoning is actually in play.";
+const REASONING_ON_SKIP =
+  "Only gemini/vertex use a reasoning-capable model in this matrix (gpt-4o-mini/claude-haiku-4-5 are non-reasoning); reasoning-on parity is only meaningful where reasoning is actually in play.";
 const SKIP = {
   openai: {
     document:
@@ -166,7 +244,8 @@ const SKIP = {
   // models - these two get a second backend entry testing that other family, scoped
   // conservatively to what's actually confirmed rather than guessed.
   bedrock_openai: {
-    image: "gpt-oss-family capability support on Bedrock Converse not independently verified for this addition - scoped to text/tool-calling only.",
+    image:
+      "gpt-oss-family capability support on Bedrock Converse not independently verified for this addition - scoped to text/tool-calling only.",
     document: "Same as image - not verified, not guessed.",
     audio: "Same as image - not verified, not guessed.",
     video: "Same as image - not verified, not guessed.",
@@ -180,7 +259,8 @@ const SKIP = {
     text_streaming:
       "Claude-on-Vertex's streaming endpoint isn't documented at https://platform.claude.com/docs/en/build-with-claude/claude-on-vertex-ai (only :rawPredict is confirmed) and wasn't independently verified - not guessed.",
     tools_streaming: "Same streaming-endpoint uncertainty as text_streaming.",
-    reasoning_on: "Claude's own extended-thinking mechanism differs from Gemini's thinkingBudget and isn't wired up for this backend in this matrix.",
+    reasoning_on:
+      "Claude's own extended-thinking mechanism differs from Gemini's thinkingBudget and isn't wired up for this backend in this matrix.",
     reasoning_on_streaming: "Same as reasoning_on, plus the streaming-endpoint uncertainty above.",
   },
 };
@@ -205,7 +285,12 @@ function urlParts(raw) {
     const rest = raw.slice("{{baseUrl}}".length);
     const [pathPart, queryPart] = rest.split("?");
     const path = pathPart.split("/").filter(Boolean);
-    const query = queryPart ? queryPart.split("&").map((kv) => { const [key, value] = kv.split("="); return { key, value }; }) : undefined;
+    const query = queryPart
+      ? queryPart.split("&").map((kv) => {
+          const [key, value] = kv.split("=");
+          return { key, value };
+        })
+      : undefined;
     return { raw, host: ["{{baseUrl}}"], path, ...(query ? { query } : {}) };
   }
   const m = raw.match(/^(https?):\/\/([^/]+)(\/[^?]*)?(?:\?(.*))?$/);
@@ -213,7 +298,12 @@ function urlParts(raw) {
   const [, protocol, hostStr, pathStr, queryStr] = m;
   const host = hostStr.split(".");
   const path = (pathStr || "").split("/").filter(Boolean);
-  const query = queryStr ? queryStr.split("&").map((kv) => { const [key, value] = kv.split("="); return { key, value }; }) : undefined;
+  const query = queryStr
+    ? queryStr.split("&").map((kv) => {
+        const [key, value] = kv.split("=");
+        return { key, value };
+      })
+    : undefined;
   return { raw, protocol, host, path, ...(query ? { query } : {}) };
 }
 
@@ -229,10 +319,22 @@ const openaiShape = {
       kind === "image"
         ? { type: "image_url", image_url: { url: `data:image/jpeg;base64,${IMAGE_JPEG_BASE64}` } }
         : kind === "document"
-        ? { type: "file", file: { file_data: `data:application/pdf;base64,${DOCUMENT_PDF_BASE64}`, file_type: "application/pdf" } }
-        : kind === "audio"
-        ? { type: "input_audio", input_audio: { data: AUDIO_WAV_BASE64, format: "wav" } }
-        : { type: "file", file: { file_data: `data:video/mp4;base64,${VIDEO_MP4_BASE64}`, file_type: "video/mp4" } };
+          ? {
+              type: "file",
+              file: {
+                file_data: `data:application/pdf;base64,${DOCUMENT_PDF_BASE64}`,
+                file_type: "application/pdf",
+              },
+            }
+          : kind === "audio"
+            ? { type: "input_audio", input_audio: { data: AUDIO_WAV_BASE64, format: "wav" } }
+            : {
+                type: "file",
+                file: {
+                  file_data: `data:video/mp4;base64,${VIDEO_MP4_BASE64}`,
+                  file_type: "video/mp4",
+                },
+              };
     return { role: "user", content: [{ type: "text", text }, block] };
   },
   toolDef: {
@@ -243,17 +345,25 @@ const openaiShape = {
       parameters: { type: "object", properties: { city: { type: "string" } }, required: ["city"] },
     },
   },
-  toolExtraParams: { tools: [
-    {
-      type: "function",
-      function: {
-        name: "get_weather",
-        description: "Get the current weather for a city",
-        parameters: { type: "object", properties: { city: { type: "string" } }, required: ["city"] },
+  toolExtraParams: {
+    tools: [
+      {
+        type: "function",
+        function: {
+          name: "get_weather",
+          description: "Get the current weather for a city",
+          parameters: {
+            type: "object",
+            properties: { city: { type: "string" } },
+            required: ["city"],
+          },
+        },
       },
-    },
-  ], tool_choice: "auto" },
-  toolResultTurn: (toolCallExpr) => `{role:"tool", tool_call_id: ${toolCallExpr}.id, content: ${J(TOOL_RESULT)}}`,
+    ],
+    tool_choice: "auto",
+  },
+  toolResultTurn: (toolCallExpr) =>
+    `{role:"tool", tool_call_id: ${toolCallExpr}.id, content: ${J(TOOL_RESULT)}}`,
   extractNonStream: `
 var j = pm.response.json();
 var m = (j.choices && j.choices[0] && j.choices[0].message) || {};
@@ -316,8 +426,14 @@ const anthropicShape = {
   mediaTurn: (kind, text) => {
     const block =
       kind === "image"
-        ? { type: "image", source: { type: "base64", media_type: "image/jpeg", data: IMAGE_JPEG_BASE64 } }
-        : { type: "document", source: { type: "base64", media_type: "application/pdf", data: DOCUMENT_PDF_BASE64 } };
+        ? {
+            type: "image",
+            source: { type: "base64", media_type: "image/jpeg", data: IMAGE_JPEG_BASE64 },
+          }
+        : {
+            type: "document",
+            source: { type: "base64", media_type: "application/pdf", data: DOCUMENT_PDF_BASE64 },
+          };
     return { role: "user", content: [{ type: "text", text }, block] };
   },
   toolExtraParams: {
@@ -325,7 +441,11 @@ const anthropicShape = {
       {
         name: "get_weather",
         description: "Get the current weather for a city",
-        input_schema: { type: "object", properties: { city: { type: "string" } }, required: ["city"] },
+        input_schema: {
+          type: "object",
+          properties: { city: { type: "string" } },
+          required: ["city"],
+        },
       },
     ],
     tool_choice: { type: "auto" },
@@ -398,8 +518,21 @@ const geminiShape = {
   plainTurn: (text) => ({ role: "user", parts: [{ text }] }),
   mediaTurn: (kind, text) => {
     const mimeType =
-      kind === "image" ? "image/jpeg" : kind === "document" ? "application/pdf" : kind === "audio" ? "audio/wav" : "video/mp4";
-    const data = kind === "image" ? IMAGE_JPEG_BASE64 : kind === "document" ? DOCUMENT_PDF_BASE64 : kind === "audio" ? AUDIO_WAV_BASE64 : VIDEO_MP4_BASE64;
+      kind === "image"
+        ? "image/jpeg"
+        : kind === "document"
+          ? "application/pdf"
+          : kind === "audio"
+            ? "audio/wav"
+            : "video/mp4";
+    const data =
+      kind === "image"
+        ? IMAGE_JPEG_BASE64
+        : kind === "document"
+          ? DOCUMENT_PDF_BASE64
+          : kind === "audio"
+            ? AUDIO_WAV_BASE64
+            : VIDEO_MP4_BASE64;
     return { role: "user", parts: [{ text }, { inline_data: { mime_type: mimeType, data } }] };
   },
   toolExtraParams: {
@@ -409,7 +542,11 @@ const geminiShape = {
           {
             name: "get_weather",
             description: "Get the current weather for a city",
-            parameters: { type: "object", properties: { city: { type: "string" } }, required: ["city"] },
+            parameters: {
+              type: "object",
+              properties: { city: { type: "string" } },
+              required: ["city"],
+            },
           },
         ],
       },
@@ -517,7 +654,13 @@ const bedrockShape = {
     const block =
       kind === "image"
         ? { image: { format: "jpeg", source: { bytes: IMAGE_JPEG_BASE64 } } }
-        : { document: { format: "pdf", name: "parity-sample", source: { bytes: DOCUMENT_PDF_BASE64 } } };
+        : {
+            document: {
+              format: "pdf",
+              name: "parity-sample",
+              source: { bytes: DOCUMENT_PDF_BASE64 },
+            },
+          };
     return { role: "user", content: [{ text }, block] };
   },
   toolExtraParams: {
@@ -527,7 +670,13 @@ const bedrockShape = {
           toolSpec: {
             name: "get_weather",
             description: "Get the current weather for a city",
-            inputSchema: { json: { type: "object", properties: { city: { type: "string" } }, required: ["city"] } },
+            inputSchema: {
+              json: {
+                type: "object",
+                properties: { city: { type: "string" } },
+                required: ["city"],
+              },
+            },
           },
         },
       ],
@@ -608,7 +757,20 @@ var toolCall = toolUseBlock ? { id: toolUseBlock.toolUse.toolUseId, name: toolUs
 // round's full turns array (see file header) and, on the final bifrost round, runs the parity
 // assertions and writes the report blob consumed by analyze-token-parity.mjs.
 // ---------------------------------------------------------------------------------------------
-function buildLegItems({ leg, shape, backendKey, backendLabel, modality, urlFor, headerFor, authFor, model, modelField, extraParams, modelExpr }) {
+function buildLegItems({
+  leg,
+  shape,
+  backendKey,
+  backendLabel,
+  modality,
+  urlFor,
+  headerFor,
+  authFor,
+  model,
+  modelField,
+  extraParams,
+  modelExpr,
+}) {
   // modelExpr: a raw JS expression (NOT JSON.stringify'd) that evaluates at runtime to the
   // model actually hit - a literal for backends where the model is a static string in this
   // generator, or a pm.variables.get(...) read for backends where it's a Postman variable
@@ -629,7 +791,6 @@ function buildLegItems({ leg, shape, backendKey, backendLabel, modality, urlFor,
   // which are not sent to a model.
   const promptSalt = `pt_${backendKey}_${modality.key}_${LEG_SALT[leg]}`;
   const isTools = modality.tools;
-  const isFinalLegRound = (round) => round === 3;
   // Gives this leg its own cold cache in round 1 - see buildQ's comment for why an unsalted
   // shared LARGE_CONTEXT prefix makes the direct-vs-bifrost cached-token comparison a race.
   const Q = buildQ(promptSalt);
@@ -637,8 +798,8 @@ function buildLegItems({ leg, shape, backendKey, backendLabel, modality, urlFor,
   const round1Turn = isTools
     ? shape.plainTurn(Q.tool1)
     : modality.media
-    ? shape.mediaTurn(modality.media, Q.media1(MEDIA_WORD[modality.media]))
-    : shape.plainTurn(Q.text1);
+      ? shape.mediaTurn(modality.media, Q.media1(MEDIA_WORD[modality.media]))
+      : shape.plainTurn(Q.text1);
 
   const bodyFor = (turnsArrayLiteralOrVar, round) => {
     const body = {};
@@ -712,7 +873,7 @@ if (pm.response.code < 400) {
     const round2Body = bodyFor(`{{${varPrefix}_r2body}}`, 2);
     const raw = JSON.stringify(round2Body, null, 2).replace(
       new RegExp(`"\\{\\{${varPrefix}_r2body\\}\\}"`),
-      `{{${varPrefix}_r2body}}`
+      `{{${varPrefix}_r2body}}`,
     );
     items.push({
       name: `Token parity: ${backendKey}/${modality.key} - ${leg} r2`,
@@ -816,7 +977,7 @@ ${finalStore}
     const round3Body = bodyFor(`{{${varPrefix}_r3body}}`, 3);
     const raw = JSON.stringify(round3Body, null, 2).replace(
       new RegExp(`"\\{\\{${varPrefix}_r3body\\}\\}"`),
-      `{{${varPrefix}_r3body}}`
+      `{{${varPrefix}_r3body}}`,
     );
     items.push({
       name: `Token parity: ${backendKey}/${modality.key} - ${leg} r3`,
@@ -872,9 +1033,12 @@ function extraParamsFor(shape, modality) {
       if (modality.stream) p.stream = true;
       if (modality.tools) Object.assign(p, shape.toolExtraParams);
     } else if (shape === geminiShape) {
-      p.generationConfig = { maxOutputTokens: reasoning === "on" ? 300 + REASONING_ON_BUDGET : 300 };
+      p.generationConfig = {
+        maxOutputTokens: reasoning === "on" ? 300 + REASONING_ON_BUDGET : 300,
+      };
       if (reasoning === "off") p.generationConfig.thinkingConfig = { thinkingBudget: 0 };
-      else if (reasoning === "on") p.generationConfig.thinkingConfig = { thinkingBudget: REASONING_ON_BUDGET };
+      else if (reasoning === "on")
+        p.generationConfig.thinkingConfig = { thinkingBudget: REASONING_ON_BUDGET };
       if (modality.tools) Object.assign(p, shape.toolExtraParams);
     } else if (shape === bedrockShape) {
       p.inferenceConfig = { maxTokens: 300 };
@@ -935,8 +1099,14 @@ function buildGeminiFamilyDirect(backendKey, backendLabel, modality) {
   };
   const headerFor = () =>
     isVertex
-      ? [{ key: "Content-Type", value: "application/json" }, { key: "Authorization", value: "Bearer {{vertexAccessToken}}" }]
-      : [{ key: "Content-Type", value: "application/json" }, { key: "x-goog-api-key", value: "{{genaiKey}}" }];
+      ? [
+          { key: "Content-Type", value: "application/json" },
+          { key: "Authorization", value: "Bearer {{vertexAccessToken}}" },
+        ]
+      : [
+          { key: "Content-Type", value: "application/json" },
+          { key: "x-goog-api-key", value: "{{genaiKey}}" },
+        ];
   return buildLegItems({
     leg: "direct",
     shape: geminiShape,
@@ -969,7 +1139,8 @@ function buildBedrockDirect(backendKey, backendLabel, modelVar, modality) {
     backendKey,
     backendLabel,
     modality,
-    urlFor: (stream) => `https://bedrock-runtime.{{bedrockDirectRegion}}.amazonaws.com/model/{{${modelVar}}}/converse${stream ? "-stream" : ""}`,
+    urlFor: (stream) =>
+      `https://bedrock-runtime.{{bedrockDirectRegion}}.amazonaws.com/model/{{${modelVar}}}/converse${stream ? "-stream" : ""}`,
     headerFor: () => [{ key: "Content-Type", value: "application/json" }],
     authFor: () => ({
       type: "awsv4",
@@ -1012,11 +1183,17 @@ function buildVertexClaudeDirect(modality) {
     // us-central1." The global endpoint also drops the region prefix from the host.
     urlFor: () =>
       `https://aiplatform.googleapis.com/v1/projects/{{vertexProject}}/locations/global/publishers/anthropic/models/${VERTEX_CLAUDE_MODEL}:rawPredict`,
-    headerFor: () => [{ key: "Content-Type", value: "application/json" }, { key: "Authorization", value: "Bearer {{vertexAccessToken}}" }],
+    headerFor: () => [
+      { key: "Content-Type", value: "application/json" },
+      { key: "Authorization", value: "Bearer {{vertexAccessToken}}" },
+    ],
     model: null,
     modelField: null,
     modelExpr: J(VERTEX_CLAUDE_MODEL),
-    extraParams: () => Object.assign(extraParamsFor(anthropicShape, modality)(), { anthropic_version: "vertex-2023-10-16" }),
+    extraParams: () =>
+      Object.assign(extraParamsFor(anthropicShape, modality)(), {
+        anthropic_version: "vertex-2023-10-16",
+      }),
   });
 }
 
@@ -1091,8 +1268,14 @@ function buildGeminiFamilyBifrost(backendKey, backendLabel, modality) {
   };
   const headerFor = () =>
     isVertex
-      ? [{ key: "Content-Type", value: "application/json" }, { key: "Authorization", value: "Bearer {{vertexAccessToken}}" }]
-      : [{ key: "Content-Type", value: "application/json" }, { key: "x-goog-api-key", value: "{{genaiKey}}" }];
+      ? [
+          { key: "Content-Type", value: "application/json" },
+          { key: "Authorization", value: "Bearer {{vertexAccessToken}}" },
+        ]
+      : [
+          { key: "Content-Type", value: "application/json" },
+          { key: "x-goog-api-key", value: "{{genaiKey}}" },
+        ];
   return buildLegItems({
     leg: "bifrost",
     shape: geminiShape,
@@ -1119,7 +1302,8 @@ function buildBedrockBifrost(backendKey, backendLabel, modelVar, modality) {
     backendKey,
     backendLabel,
     modality,
-    urlFor: (stream) => `{{baseUrl}}/bedrock/model/{{${modelVar}}}/converse${stream ? "-stream" : ""}`,
+    urlFor: (stream) =>
+      `{{baseUrl}}/bedrock/model/{{${modelVar}}}/converse${stream ? "-stream" : ""}`,
     headerFor: () => [{ key: "Content-Type", value: "application/json" }],
     model: null,
     modelField: null,
@@ -1160,7 +1344,12 @@ function buildVertexClaudeBifrost(modality) {
 
 const BACKENDS = [
   { key: "openai", label: "OpenAI", direct: buildOpenaiDirect, bifrost: buildOpenaiBifrost },
-  { key: "anthropic", label: "Anthropic", direct: buildAnthropicDirect, bifrost: buildAnthropicBifrost },
+  {
+    key: "anthropic",
+    label: "Anthropic",
+    direct: buildAnthropicDirect,
+    bifrost: buildAnthropicBifrost,
+  },
   {
     key: "gemini",
     label: "Gemini (AI Studio)",
@@ -1191,10 +1380,22 @@ const BACKENDS = [
   {
     key: "bedrock_openai",
     label: "Bedrock (OpenAI/gpt-oss)",
-    direct: (m) => buildBedrockDirect("bedrock_openai", "Bedrock (OpenAI/gpt-oss)", "bedrockOpenaiDirectModel", m),
-    bifrost: (m) => buildBedrockBifrost("bedrock_openai", "Bedrock (OpenAI/gpt-oss)", "bedrockOpenaiModel", m),
+    direct: (m) =>
+      buildBedrockDirect(
+        "bedrock_openai",
+        "Bedrock (OpenAI/gpt-oss)",
+        "bedrockOpenaiDirectModel",
+        m,
+      ),
+    bifrost: (m) =>
+      buildBedrockBifrost("bedrock_openai", "Bedrock (OpenAI/gpt-oss)", "bedrockOpenaiModel", m),
   },
-  { key: "vertex_claude", label: "Vertex AI (Claude)", direct: buildVertexClaudeDirect, bifrost: buildVertexClaudeBifrost },
+  {
+    key: "vertex_claude",
+    label: "Vertex AI (Claude)",
+    direct: buildVertexClaudeDirect,
+    bifrost: buildVertexClaudeBifrost,
+  },
 ];
 
 // expectedTokenParityCells enumerates every (backend, modality) pair the matrix knows about and
@@ -1217,9 +1418,19 @@ export function expectedTokenParityCells() {
       // this census exists to prevent: it understates the coverage a run actually lost,
       // which is how a report with three absent backends came to read as all-green.
       if (gateReason) {
-        cells.push({ backend: backend.key, modality: modality.key, status: "gated", reason: gateReason });
+        cells.push({
+          backend: backend.key,
+          modality: modality.key,
+          status: "gated",
+          reason: gateReason,
+        });
       } else if (skipReason) {
-        cells.push({ backend: backend.key, modality: modality.key, status: "skip", reason: skipReason });
+        cells.push({
+          backend: backend.key,
+          modality: modality.key,
+          status: "skip",
+          reason: skipReason,
+        });
       } else {
         cells.push({ backend: backend.key, modality: modality.key, status: "run", reason: null });
       }

@@ -287,11 +287,11 @@ export const MultiSelect = React.forwardRef<MultiSelectRef, MultiSelectProps>(
 			variant,
 			defaultValue = [],
 			placeholder = "Select options",
-			animation = 0,
-			animationConfig,
+			animation: _animation = 0,
+			animationConfig: _animationConfig,
 			maxCount = 3,
 			modalPopover = false,
-			asChild = false,
+			asChild: _asChild = false,
 			className,
 			hideSelectAll = false,
 			searchable = true,
@@ -435,10 +435,6 @@ export const MultiSelect = React.forwardRef<MultiSelectRef, MultiSelectProps>(
 		const responsiveSettings = getResponsiveSettings();
 
 		const getBadgeAnimationClass = () => {
-			return ""; // No animations
-		};
-
-		const getPopoverAnimationClass = () => {
 			return ""; // No animations
 		};
 

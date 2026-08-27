@@ -1,6 +1,7 @@
 package schemas
 
 import (
+	"context"
 	"testing"
 )
 
@@ -31,7 +32,7 @@ func (s *stubModelInfoProvider) CalculateRequestCost(ctx *BifrostContext, resp *
 // core is usable as a standalone SDK without the framework, and plugins run
 // unchanged in both setups.
 func TestModelInfoAccessorsNoCatalogWired(t *testing.T) {
-	ctx := NewBifrostContext(nil, NoDeadline)
+	ctx := NewBifrostContext(context.Background(), NoDeadline)
 
 	if got := ctx.GetModelInfo(Anthropic, "claude-opus-5"); got != nil {
 		t.Fatalf("GetModelInfo with no catalog = %v, want nil", got)
@@ -45,7 +46,7 @@ func TestModelInfoAccessorsDelegate(t *testing.T) {
 	want := &Model{ID: "claude-opus-5"}
 	stub := &stubModelInfoProvider{model: want, cost: 1.25}
 
-	ctx := NewBifrostContext(nil, NoDeadline)
+	ctx := NewBifrostContext(context.Background(), NoDeadline)
 	ctx.SetValue(BifrostContextKeyModelCatalog, stub)
 
 	got := ctx.GetModelInfo(Anthropic, "claude-opus-5")
@@ -65,7 +66,7 @@ func TestModelInfoAccessorsDelegate(t *testing.T) {
 // never sees an empty model or a nil response.
 func TestModelInfoAccessorsSkipEmptyArgs(t *testing.T) {
 	stub := &stubModelInfoProvider{model: &Model{ID: "x"}, cost: 9}
-	ctx := NewBifrostContext(nil, NoDeadline)
+	ctx := NewBifrostContext(context.Background(), NoDeadline)
 	ctx.SetValue(BifrostContextKeyModelCatalog, stub)
 
 	if got := ctx.GetModelInfo(Anthropic, ""); got != nil {
@@ -86,7 +87,7 @@ func TestModelInfoVisibleFromPluginScope(t *testing.T) {
 	want := &Model{ID: "gpt-5"}
 	stub := &stubModelInfoProvider{model: want, cost: 2}
 
-	root := NewBifrostContext(nil, NoDeadline)
+	root := NewBifrostContext(context.Background(), NoDeadline)
 	root.SetValue(BifrostContextKeyModelCatalog, stub)
 
 	name := "my-plugin"
@@ -121,7 +122,7 @@ func TestModelInfoVisibleFromDerivedContext(t *testing.T) {
 	want := &Model{ID: "gemini-3-pro"}
 	stub := &stubModelInfoProvider{model: want}
 
-	root := NewBifrostContext(nil, NoDeadline)
+	root := NewBifrostContext(context.Background(), NoDeadline)
 	root.SetValue(BifrostContextKeyModelCatalog, stub)
 
 	derived := NewBifrostContext(root, NoDeadline)

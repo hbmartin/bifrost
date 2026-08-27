@@ -114,7 +114,7 @@ func TestRequestWithSettableExtraParams_OpenAIChatRequest(t *testing.T) {
 		rws := interface{}(req).(RequestWithSettableExtraParams)
 		rws.SetExtraParams(extra)
 
-		ctx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+		ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 		bifrostReq := req.ToBifrostChatRequest(ctx)
 
 		require.NotNil(t, bifrostReq)
@@ -183,7 +183,7 @@ func TestExtraParamsRequiresPassthroughHeader(t *testing.T) {
 		err := sonic.Unmarshal(rawBody, req)
 		require.NoError(t, err)
 
-		bifrostCtx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+		bifrostCtx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 		// Header not set -- simulate router logic
 		if bifrostCtx.Value(schemas.BifrostContextKeyPassthroughExtraParams) == true {
 			if rws, ok := req.(RequestWithSettableExtraParams); ok {
@@ -208,7 +208,7 @@ func TestExtraParamsRequiresPassthroughHeader(t *testing.T) {
 		err := sonic.Unmarshal(rawBody, req)
 		require.NoError(t, err)
 
-		bifrostCtx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+		bifrostCtx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 		bifrostCtx.SetValue(schemas.BifrostContextKeyPassthroughExtraParams, true)
 
 		if bifrostCtx.Value(schemas.BifrostContextKeyPassthroughExtraParams) == true {
@@ -253,7 +253,7 @@ func TestExtraParamsPassthrough_NestedStructures(t *testing.T) {
 	err := sonic.Unmarshal(rawBody, req)
 	require.NoError(t, err)
 
-	bifrostCtx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	bifrostCtx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	bifrostCtx.SetValue(schemas.BifrostContextKeyPassthroughExtraParams, true)
 
 	if bifrostCtx.Value(schemas.BifrostContextKeyPassthroughExtraParams) == true {
@@ -296,7 +296,7 @@ func TestExtraParamsPassthrough_EndToEnd(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "bedrock/claude-4-5-sonnet-global", req.Model)
 
-	bifrostCtx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	bifrostCtx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	bifrostCtx.SetValue(schemas.BifrostContextKeyPassthroughExtraParams, true)
 
 	if bifrostCtx.Value(schemas.BifrostContextKeyPassthroughExtraParams) == true {
@@ -338,7 +338,7 @@ func TestExtraParamsPassthrough_NoExtraParamsKey(t *testing.T) {
 	err := sonic.Unmarshal(rawBody, req)
 	require.NoError(t, err)
 
-	bifrostCtx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	bifrostCtx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	bifrostCtx.SetValue(schemas.BifrostContextKeyPassthroughExtraParams, true)
 
 	if bifrostCtx.Value(schemas.BifrostContextKeyPassthroughExtraParams) == true {
@@ -401,7 +401,7 @@ func TestOpenAIChatStructuredOutputRequestParserAndConverter(t *testing.T) {
 	req := chatRoute.GetRequestTypeInstance(context.Background())
 	require.NoError(t, parseJSONRequestBody(rawBody, req))
 
-	bifrostCtx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	bifrostCtx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	bifrostReq, err := chatRoute.RequestConverter(bifrostCtx, req)
 	require.NoError(t, err)
 	require.NotNil(t, bifrostReq)
@@ -604,16 +604,16 @@ func TestCreateHandler_ParseFailureClosesKeepAliveSocket(t *testing.T) {
 	}
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 	go func() {
 		_ = server.Serve(ln)
 	}()
-	defer server.Shutdown()
+	defer func() { _ = server.Shutdown() }()
 
 	t.Run("valid keep-alive requests reuse the socket", func(t *testing.T) {
 		conn, err := net.Dial("tcp", ln.Addr().String())
 		require.NoError(t, err)
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		reader := bufio.NewReader(conn)
 		body := `{"model":"gemini/gemini-2.5-flash","messages":[]}`
 		req := fmt.Sprintf("POST /v1/chat/completions HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\nConnection: keep-alive\r\nContent-Length: %d\r\n\r\n%s", len(body), body)
@@ -640,7 +640,7 @@ func TestCreateHandler_ParseFailureClosesKeepAliveSocket(t *testing.T) {
 	t.Run("malformed request closes the socket", func(t *testing.T) {
 		conn, err := net.Dial("tcp", ln.Addr().String())
 		require.NoError(t, err)
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		reader := bufio.NewReader(conn)
 		body := `{"model":"gemini/gemini-2.5-flash","messages":[]}x`
 		req := fmt.Sprintf("POST /v1/chat/completions HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\nConnection: keep-alive\r\nContent-Length: %d\r\n\r\n%s", len(body), body)
@@ -716,7 +716,7 @@ func TestExtraParamsSetViaInterfaceMutatesOriginalReq(t *testing.T) {
 		"original req should be mutated via pointer semantics")
 
 	// Verify the full downstream path: RequestConverter uses req
-	bifrostCtx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	bifrostCtx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	bifrostReq, err := chatRoute.RequestConverter(bifrostCtx, req)
 	require.NoError(t, err)
 	require.NotNil(t, bifrostReq)

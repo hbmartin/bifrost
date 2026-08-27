@@ -77,7 +77,7 @@ func (p *Pool) Get(key PoolKey, headers http.Header, proxyConfig *schemas.ProxyC
 		p.mu.Unlock()
 
 		if conn.IsClosed() || p.isExpired(conn) || !conn.ValidateIdleHeartbeat(borrowProbeTimeout) {
-			conn.Close()
+			_ = conn.Close()
 			p.mu.Lock()
 			conns = p.idle[key]
 			continue
@@ -120,7 +120,7 @@ func (p *Pool) Return(conn *UpstreamConn) {
 		return
 	}
 	if p.isExpired(conn) {
-		conn.Close()
+		_ = conn.Close()
 		p.mu.Lock()
 		p.inFlight--
 		p.mu.Unlock()
@@ -139,13 +139,13 @@ func (p *Pool) Return(conn *UpstreamConn) {
 	p.inFlight--
 
 	if p.closed {
-		conn.Close()
+		_ = conn.Close()
 		return
 	}
 
 	conns := p.idle[key]
 	if len(conns)+p.probingPerKey[key] >= p.config.MaxIdlePerKey {
-		conn.Close()
+		_ = conn.Close()
 		return
 	}
 
@@ -155,7 +155,7 @@ func (p *Pool) Return(conn *UpstreamConn) {
 // Discard closes a connection without returning it to the pool.
 func (p *Pool) Discard(conn *UpstreamConn) {
 	if conn != nil {
-		conn.Close()
+		_ = conn.Close()
 		p.mu.Lock()
 		p.inFlight--
 		p.mu.Unlock()
@@ -175,7 +175,7 @@ func (p *Pool) Close() {
 
 	for key, conns := range p.idle {
 		for _, conn := range conns {
-			conn.Close()
+			_ = conn.Close()
 		}
 		delete(p.idle, key)
 	}
@@ -188,6 +188,9 @@ func (p *Pool) dial(key PoolKey, headers http.Header, proxyConfig *schemas.Proxy
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial upstream websocket %s: %w", key.Endpoint, wrapHandshakeError(resp, err))
 	}
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
 	return newUpstreamConn(wsConn, key.Provider, key.KeyID, key.Endpoint), nil
 }
 
@@ -197,7 +200,7 @@ func wrapHandshakeError(resp *http.Response, err error) error {
 	if resp == nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	status := strings.TrimSpace(resp.Status)
 	if status == "" {
@@ -330,7 +333,7 @@ func (p *Pool) refreshIdleConnections() {
 		conn := candidate.conn
 		if conn == nil || conn.IsClosed() || p.isExpired(conn) || !conn.ValidateIdleHeartbeat(idleHeartbeatTimeout) {
 			if conn != nil {
-				conn.Close()
+				_ = conn.Close()
 			}
 			continue
 		}
@@ -352,7 +355,7 @@ func (p *Pool) refreshIdleConnections() {
 	}
 	if p.closed || len(alive) == 0 {
 		for _, candidate := range alive {
-			candidate.conn.Close()
+			_ = candidate.conn.Close()
 		}
 		return
 	}
@@ -372,7 +375,7 @@ func (p *Pool) evictExpired() {
 		alive := conns[:0]
 		for _, conn := range conns {
 			if conn.IsClosed() || p.isExpired(conn) {
-				conn.Close()
+				_ = conn.Close()
 			} else {
 				alive = append(alive, conn)
 			}

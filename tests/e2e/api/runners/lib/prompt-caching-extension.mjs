@@ -44,9 +44,27 @@ const J = (v) => JSON.stringify(v);
 // for a documented non-guarantee that was observed flapping, not a blanket implicit-cache
 // policy.
 const CACHING_BACKENDS = [
-  { key: "openai", label: "OpenAI", model: "openai/gpt-4o-mini", explicitCache: false, cacheReadGuaranteed: true },
-  { key: "anthropic", label: "Anthropic", model: "anthropic/claude-haiku-4-5", explicitCache: true, cacheReadGuaranteed: true },
-  { key: "gemini", label: "Gemini", model: "gemini/gemini-2.5-flash", explicitCache: false, cacheReadGuaranteed: false },
+  {
+    key: "openai",
+    label: "OpenAI",
+    model: "openai/gpt-4o-mini",
+    explicitCache: false,
+    cacheReadGuaranteed: true,
+  },
+  {
+    key: "anthropic",
+    label: "Anthropic",
+    model: "anthropic/claude-haiku-4-5",
+    explicitCache: true,
+    cacheReadGuaranteed: true,
+  },
+  {
+    key: "gemini",
+    label: "Gemini",
+    model: "gemini/gemini-2.5-flash",
+    explicitCache: false,
+    cacheReadGuaranteed: false,
+  },
   // Not read-guaranteed, unlike the other two explicit-cache backends, and the difference is the
   // deployment rather than the model. This key is configured at location=global, which routes each
   // request to whichever region has capacity, and an Anthropic cache entry lives in the region that
@@ -56,8 +74,20 @@ const CACHING_BACKENDS = [
   // 12 times in a row gave MMMHHMHMHHHH - 1 hit in the first 4, 6 in the last 8, the hit rate
   // climbing as more regions warm. Three requests cannot reliably read back a cold prefix here, so
   // the row asserts what Bifrost actually controls (below) and reports the hit.
-  { key: "vertex", label: "Vertex (Claude)", model: "vertex/claude-sonnet-4-6", explicitCache: true, cacheReadGuaranteed: false },
-  { key: "bedrock", label: "Bedrock (Claude)", model: "bedrock/global.anthropic.claude-haiku-4-5-20251001-v1:0", explicitCache: true, cacheReadGuaranteed: true },
+  {
+    key: "vertex",
+    label: "Vertex (Claude)",
+    model: "vertex/claude-sonnet-4-6",
+    explicitCache: true,
+    cacheReadGuaranteed: false,
+  },
+  {
+    key: "bedrock",
+    label: "Bedrock (Claude)",
+    model: "bedrock/global.anthropic.claude-haiku-4-5-20251001-v1:0",
+    explicitCache: true,
+    cacheReadGuaranteed: true,
+  },
 ];
 
 // Floor for "the prefix was on the wire". Deliberately far below {{cachePrefix}}'s real size and
@@ -136,10 +166,18 @@ const publishChain = (backendKey, round) =>
   `if (pm.response.code < 400) { pm.collectionVariables.set(${J(chainVar(backendKey, round))}, "sent-" + prompt); }`;
 
 const urlFor = (backendKey, round) => {
-  const base = { raw: "{{baseUrl}}/v1/chat/completions", host: ["{{baseUrl}}"], path: ["v1", "chat", "completions"] };
+  const base = {
+    raw: "{{baseUrl}}/v1/chat/completions",
+    host: ["{{baseUrl}}"],
+    path: ["v1", "chat", "completions"],
+  };
   if (round === 1) return base;
   const consumed = `{{${chainVar(backendKey, round - 1)}}}`;
-  return { ...base, raw: `${base.raw}?_chain=${consumed}`, query: [{ key: "_chain", value: consumed }] };
+  return {
+    ...base,
+    raw: `${base.raw}?_chain=${consumed}`,
+    query: [{ key: "_chain", value: consumed }],
+  };
 };
 
 export function buildPromptCachingHitVerificationItems() {
@@ -150,7 +188,10 @@ export function buildPromptCachingHitVerificationItems() {
       const body = {
         model: backend.model,
         max_tokens: 300,
-        messages: [systemMessage(backend.explicitCache), { role: "user", content: QUESTIONS[round - 1] }],
+        messages: [
+          systemMessage(backend.explicitCache),
+          { role: "user", content: QUESTIONS[round - 1] },
+        ],
       };
       const isReadRound = round >= 2;
       const script = isReadRound
@@ -185,10 +226,14 @@ if (pm.response.code < 400) {
         // the prefix as either a write or a read, so a dropped one is the case where both counters
         // are zero. That keeps a real regression - Bifrost silently losing the breakpoint - failing
         // the run, which a bare hit/miss report would have let through.
-        `${backend.explicitCache ? `pm.test(${J(`Prompt caching hit-verification: ${backend.key} round ${round} - cache breakpoint honoured (write or read recorded)`)}, function () {
+        `${
+          backend.explicitCache
+            ? `pm.test(${J(`Prompt caching hit-verification: ${backend.key} round ${round} - cache breakpoint honoured (write or read recorded)`)}, function () {
     pm.expect(cached + written, "cached=" + cached + " written=" + written + " (usage=" + JSON.stringify(u) + ") - neither counter moved, so cache_control never reached the provider").to.be.above(0);
   });
-  ` : ""}pm.test(${J(`Prompt caching hit-verification: ${backend.key} round ${round} - cached_tokens coherent (best-effort cache, hit not guaranteed)`)}, function () {
+  `
+            : ""
+        }pm.test(${J(`Prompt caching hit-verification: ${backend.key} round ${round} - cached_tokens coherent (best-effort cache, hit not guaranteed)`)}, function () {
     pm.expect(cached, "cached=" + cached + " (usage=" + JSON.stringify(u) + ")").to.be.a("number").that.is.at.least(0);
     pm.expect(cached, "cached=" + cached + " exceeds prompt=" + prompt + " (usage=" + JSON.stringify(u) + ")").to.be.at.most(prompt);
   });

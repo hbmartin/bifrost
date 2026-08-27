@@ -33,7 +33,10 @@ describe("redaction reveal helpers", () => {
 	});
 
 	it("keeps identical phase mappings revealable", () => {
-		const merged = mergeRedactionMappings({ input: { "SECRET-1": "same" }, output: { "SECRET-1": "same" } });
+		const merged = mergeRedactionMappings({
+			input: { "SECRET-1": "same" },
+			output: { "SECRET-1": "same" },
+		});
 		expect(applyRedactionMapping("[SECRET-1]", merged)).toBe("same");
 	});
 });

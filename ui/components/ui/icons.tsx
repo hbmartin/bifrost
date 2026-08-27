@@ -557,7 +557,7 @@ export const Icons = {
 			</g>
 		</svg>
 	),
-	microsoftTeamsIcon: (props: IconProps) => {
+	microsoftTeamsIcon: function MicrosoftTeamsIcon(props: IconProps) {
 		const gid = React.useId();
 		return (
 			<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="4 4 36 38" {...props}>

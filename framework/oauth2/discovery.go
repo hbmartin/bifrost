@@ -71,7 +71,7 @@ func DiscoverOAuthMetadata(ctx context.Context, serverURL string) (*OAuthMetadat
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to server: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	logger.Debug(fmt.Sprintf("[OAuth Discovery] Server responded with status: %d", resp.StatusCode))
 
@@ -184,7 +184,7 @@ func fetchResourceMetadata(ctx context.Context, metadataURL string) ([]string, [
 	if err != nil {
 		return nil, nil, "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, nil, "", fmt.Errorf("unexpected status %d from resource metadata endpoint", resp.StatusCode)
@@ -291,7 +291,7 @@ func fetchSingleAuthServerMetadata(ctx context.Context, issuer string) (*OAuthMe
 		if resp.StatusCode == http.StatusOK {
 			var metadata OAuthMetadata
 			bodyBytes, err := io.ReadAll(resp.Body)
-			resp.Body.Close()
+			_ = resp.Body.Close()
 
 			if err != nil {
 				continue
@@ -305,7 +305,7 @@ func fetchSingleAuthServerMetadata(ctx context.Context, issuer string) (*OAuthMe
 				}
 			}
 		} else {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 		}
 	}
 
@@ -424,7 +424,7 @@ func RegisterDynamicClient(ctx context.Context, registrationURL string, req *Dyn
 	if err != nil {
 		return nil, fmt.Errorf("registration request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Read response
 	respBody, err := io.ReadAll(resp.Body)

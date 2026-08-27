@@ -2,9 +2,10 @@
 Pytest configuration for integration-specific tests.
 """
 
-import pytest
-import os
 import logging
+import os
+
+import pytest
 
 
 def pytest_configure(config):
@@ -12,15 +13,13 @@ def pytest_configure(config):
     # Configure logging
     logging.basicConfig(
         level=logging.ERROR,
-        format='%(asctime)s [%(levelname)8s] %(name)s: %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
+        format="%(asctime)s [%(levelname)8s] %(name)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
     )
-    
+
     # Add custom markers
     config.addinivalue_line("markers", "openai: mark test as requiring OpenAI API key")
-    config.addinivalue_line(
-        "markers", "anthropic: mark test as requiring Anthropic API key"
-    )
+    config.addinivalue_line("markers", "anthropic: mark test as requiring Anthropic API key")
     config.addinivalue_line("markers", "google: mark test as requiring Google API key")
     config.addinivalue_line("markers", "litellm: mark test as requiring LiteLLM setup")
     config.addinivalue_line("markers", "azure: Azure OpenAI integration tests")
@@ -33,11 +32,11 @@ def pytest_collection_modifyitems(config, items):
     """Modify test collection to add markers based on test file names"""
     # Add flaky marker to all tests for retry on failure
     flaky_marker = pytest.mark.flaky(reruns=3, reruns_delay=2)
-    
+
     for item in items:
         # Add flaky marker to all tests
         item.add_marker(flaky_marker)
-        
+
         # Add markers based on test file location
         if "test_openai" in item.nodeid:
             item.add_marker(pytest.mark.openai)
@@ -126,7 +125,9 @@ def pytest_runtest_makereport(item, call):
             elif report.skipped:
                 result_outcome = "skipped"
             elif report.failed:
-                result_info["error"] = str(call.excinfo.value) if call.excinfo else report.longreprtext
+                result_info["error"] = (
+                    str(call.excinfo.value) if call.excinfo else report.longreprtext
+                )
                 result_outcome = "failed"
 
             # Retries emit multiple reports for the same node ID. Keeping only

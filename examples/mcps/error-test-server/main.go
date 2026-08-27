@@ -264,14 +264,11 @@ func registerMemoryIntensiveTool(s *server.MCPServer) {
 		}
 
 		response := map[string]interface{}{
-			"allocated_mb": args.SizeMB,
+			"allocated_mb":    args.SizeMB,
 			"allocated_bytes": sizeBytes,
-			"checksum":     checksum,
-			"message":      fmt.Sprintf("Successfully allocated %dMB", args.SizeMB),
+			"checksum":        checksum,
+			"message":         fmt.Sprintf("Successfully allocated %dMB", args.SizeMB),
 		}
-
-		// Clear memory before returning
-		data = nil
 
 		jsonResult, _ := json.Marshal(response)
 		return mcp.NewToolResultText(string(jsonResult)), nil

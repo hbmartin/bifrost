@@ -81,7 +81,10 @@ test("other 5xx codes are not retryable", () => {
 });
 
 test("the retryable set is exactly 429, 503 and 529", () => {
-  assert.deepStrictEqual([...RETRYABLE_CODES].sort((a, b) => a - b), [429, 503, 529]);
+  assert.deepStrictEqual(
+    [...RETRYABLE_CODES].sort((a, b) => a - b),
+    [429, 503, 529],
+  );
 });
 
 test("a shard that failed only on an overload code is worth retrying", () => {
@@ -102,7 +105,11 @@ test("retryableNames selects the overload rows as well as the 429 rows", () => {
       ],
     },
   };
-  assert.deepStrictEqual([...retryableNames(report)].sort(), ["overloaded", "throttled", "unavailable"]);
+  assert.deepStrictEqual([...retryableNames(report)].sort(), [
+    "overloaded",
+    "throttled",
+    "unavailable",
+  ]);
   // The old export stays 429-only, so nothing that genuinely wanted rate limits changed meaning.
   assert.deepStrictEqual([...rateLimitedNames(report)], ["throttled"]);
 });
@@ -113,7 +120,11 @@ test("retryableNames selects the overload rows as well as the 429 rows", () => {
 test("an overload-only shard gets a non-zero wait rather than being skipped", () => {
   assert.ok(backoffSeconds([exec({ code: 503 })], 1) > 0);
   assert.ok(backoffSeconds([exec({ code: 529 })], 1) > 0);
-  assert.strictEqual(backoffSeconds([exec({ code: 500 })], 1), 0, "a 500-only shard must not be retried");
+  assert.strictEqual(
+    backoffSeconds([exec({ code: 500 })], 1),
+    0,
+    "a 500-only shard must not be retried",
+  );
 });
 
 // An overloaded provider usually sends no Retry-After, so the exponential term carries it - but
@@ -125,14 +136,20 @@ test("an overload code honours Retry-After, and falls back exponentially without
 });
 
 test("a mixed 429/503 shard waits long enough for whichever asked for more", () => {
-  const execs = [exec({ code: 429, headers: { "retry-after": 4 } }), exec({ code: 503, headers: { "retry-after": 30 } })];
+  const execs = [
+    exec({ code: 429, headers: { "retry-after": 4 } }),
+    exec({ code: 503, headers: { "retry-after": 30 } }),
+  ];
   assert.strictEqual(backoffSeconds(execs, 1), 30);
 });
 
 test("a non-numeric Retry-After is ignored rather than guessed at", () => {
   // Retry-After also permits an HTTP-date. Mis-parsing one into a huge sleep would stall a shard,
   // so the exponential fallback takes over instead.
-  assert.strictEqual(retryAfterSeconds(exec({ headers: { "retry-after": "Wed, 21 Oct 2026 07:28:00 GMT" } })), null);
+  assert.strictEqual(
+    retryAfterSeconds(exec({ headers: { "retry-after": "Wed, 21 Oct 2026 07:28:00 GMT" } })),
+    null,
+  );
   assert.strictEqual(retryAfterSeconds(exec({ headers: { "retry-after": "12" } })), 12);
   assert.strictEqual(retryAfterSeconds(exec({ headers: { "retry-after": "-3" } })), null);
 });

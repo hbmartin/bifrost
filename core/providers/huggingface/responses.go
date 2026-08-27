@@ -42,8 +42,5 @@ func ToBifrostResponsesResponseFromHuggingFace(resp *schemas.BifrostChatResponse
 	}
 
 	responsesResp := resp.ToBifrostResponsesResponse()
-	if responsesResp != nil {
-	}
-
 	return responsesResp, nil
 }

@@ -954,7 +954,7 @@ func InitAuthMiddleware(store configstore.ConfigStore, wsTicketStore *WSTicketSt
 	}
 	authConfig, err := store.GetAuthConfig(context.Background())
 	if err != nil {
-		return nil, fmt.Errorf("failed to get auth config from store: %v", err)
+		return nil, fmt.Errorf("failed to get auth config from store: %w", err)
 	}
 	am := &AuthMiddleware{
 		store:             store,

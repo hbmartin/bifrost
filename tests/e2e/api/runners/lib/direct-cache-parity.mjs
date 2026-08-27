@@ -168,14 +168,52 @@ const SHAPES = {
 // six-round gemini shape - so this is a diagnostic instrument, not a sweep: widen it when a
 // specific question needs it.
 const CELLS = [
-  { id: "openai-gpt-4o-mini", provider: "openai", shape: "chat", directModel: "gpt-4o-mini", mechanism: "implicit" },
-  { id: "openai-gpt-5-6", provider: "openai", shape: "chat", directModel: "gpt-5.6", bifrostModel: "openai/gpt-5.6", mechanism: "implicit" },
+  {
+    id: "openai-gpt-4o-mini",
+    provider: "openai",
+    shape: "chat",
+    directModel: "gpt-4o-mini",
+    mechanism: "implicit",
+  },
+  {
+    id: "openai-gpt-5-6",
+    provider: "openai",
+    shape: "chat",
+    directModel: "gpt-5.6",
+    bifrostModel: "openai/gpt-5.6",
+    mechanism: "implicit",
+  },
 
-  { id: "anthropic-sonnet-5", provider: "anthropic", shape: "anthropic", directModel: "claude-sonnet-5", mechanism: "explicit" },
-  { id: "anthropic-haiku-4-5", provider: "anthropic", shape: "anthropic", directModel: "claude-haiku-4-5", mechanism: "explicit" },
+  {
+    id: "anthropic-sonnet-5",
+    provider: "anthropic",
+    shape: "anthropic",
+    directModel: "claude-sonnet-5",
+    mechanism: "explicit",
+  },
+  {
+    id: "anthropic-haiku-4-5",
+    provider: "anthropic",
+    shape: "anthropic",
+    directModel: "claude-haiku-4-5",
+    mechanism: "explicit",
+  },
 
-  { id: "gemini-2-5-flash", provider: "gemini", shape: "gemini", directModel: "gemini-2.5-flash", mechanism: "implicit" },
-  { id: "gemini-2-5-pro", provider: "gemini", shape: "gemini", directModel: "gemini-2.5-pro", mechanism: "implicit", prefixRepeat: 2 },
+  {
+    id: "gemini-2-5-flash",
+    provider: "gemini",
+    shape: "gemini",
+    directModel: "gemini-2.5-flash",
+    mechanism: "implicit",
+  },
+  {
+    id: "gemini-2-5-pro",
+    provider: "gemini",
+    shape: "gemini",
+    directModel: "gemini-2.5-pro",
+    mechanism: "implicit",
+    prefixRepeat: 2,
+  },
 ];
 
 const seriesVarFor = (cellId, leg) => `dcp_${cellId.replace(/[^a-zA-Z0-9]+/g, "_")}_${leg}_series`;
@@ -348,8 +386,13 @@ export function buildDirectCacheParityItems() {
       // The direct leg must use the provider's own bare model id. The Bifrost leg uses
       // bifrostModel when the gateway cannot auto-resolve the bare name - an unregistered
       // model returns "could not auto resolve a provider for the request" rather than routing.
-      const model = leg === "direct" ? cell.directModel : (cell.bifrostModel || cell.directModel);
-      const body = shape.body(cell, saltFor(cell.id, leg), model, repeatSeg(cell.prefixRepeat || 1));
+      const model = leg === "direct" ? cell.directModel : cell.bifrostModel || cell.directModel;
+      const body = shape.body(
+        cell,
+        saltFor(cell.id, leg),
+        model,
+        repeatSeg(cell.prefixRepeat || 1),
+      );
 
       const rounds = roundsFor(cell);
       for (let round = 1; round <= rounds; round++) {
@@ -357,12 +400,17 @@ export function buildDirectCacheParityItems() {
         items.push({
           name: `Direct-cache-parity: ${cell.provider}/${cell.directModel} ${leg} round ${round}${isRead ? " (read)" : " (write)"}`,
           event: [
-            ...(isRead ? [{ listen: "prerequest", script: { type: "text/javascript", exec: [SETTLE] } }] : []),
+            ...(isRead
+              ? [{ listen: "prerequest", script: { type: "text/javascript", exec: [SETTLE] } }]
+              : []),
             {
               listen: "test",
               script: {
                 type: "text/javascript",
-                exec: (isRead ? roundTwoScript(cell, leg, round) : roundOneScript(cell, leg, round)).split("\n"),
+                exec: (isRead
+                  ? roundTwoScript(cell, leg, round)
+                  : roundOneScript(cell, leg, round)
+                ).split("\n"),
               },
             },
           ],

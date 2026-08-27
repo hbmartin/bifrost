@@ -2,7 +2,6 @@ package schemas
 
 import (
 	"encoding/json"
-	"os"
 	"testing"
 )
 
@@ -62,8 +61,7 @@ func TestSecretVar_UnmarshalJSON_DoubleEscapedJSON(t *testing.T) {
 }
 
 func TestSecretVar_UnmarshalJSON_SecretVarReference(t *testing.T) {
-	os.Setenv("TEST_API_KEY", "actual-api-key-value")
-	defer os.Unsetenv("TEST_API_KEY")
+	t.Setenv("TEST_API_KEY", "actual-api-key-value")
 
 	tests := []struct {
 		name               string
@@ -111,8 +109,7 @@ func TestSecretVar_UnmarshalJSON_SecretVarReference(t *testing.T) {
 // TestSecretVar_UnmarshalJSON_BackwardCompat verifies that the old env_var/from_env JSON
 // format (shipped in previous versions) still deserializes correctly to the new fields.
 func TestSecretVar_UnmarshalJSON_BackwardCompat(t *testing.T) {
-	os.Setenv("MY_KEY", "resolved-value")
-	defer os.Unsetenv("MY_KEY")
+	t.Setenv("MY_KEY", "resolved-value")
 
 	t.Run("from_env without value field", func(t *testing.T) {
 		input := `{"env_var":"MY_KEY","from_env":true}`
@@ -234,8 +231,7 @@ func TestNewSecretVar_DoubleEscapedJSON(t *testing.T) {
 }
 
 func TestNewSecretVar_SecretVarReference(t *testing.T) {
-	os.Setenv("TEST_NEW_ENVVAR_KEY", "resolved-value")
-	defer os.Unsetenv("TEST_NEW_ENVVAR_KEY")
+	t.Setenv("TEST_NEW_ENVVAR_KEY", "resolved-value")
 
 	tests := []struct {
 		name               string
@@ -284,8 +280,7 @@ func TestNewSecretVar_SecretVarReference(t *testing.T) {
 }
 
 func TestNewSecretVar_FromEnvWithoutValueField(t *testing.T) {
-	os.Setenv("MY_KEY", "resolved-value")
-	defer os.Unsetenv("MY_KEY")
+	t.Setenv("MY_KEY", "resolved-value")
 
 	sv := NewSecretVar(`{"env_var":"MY_KEY","from_env":true}`)
 	if sv.GetRawRef() != "env.MY_KEY" {
@@ -335,8 +330,7 @@ func TestSecretVar_RealWorldVertexCredentials(t *testing.T) {
 // TestSecretVar_MixedConfigParsing tests parsing a config with both env var references
 // and embedded JSON credentials
 func TestSecretVar_MixedConfigParsing(t *testing.T) {
-	os.Setenv("TEST_PROJECT_ID", "env-project-id")
-	defer os.Unsetenv("TEST_PROJECT_ID")
+	t.Setenv("TEST_PROJECT_ID", "env-project-id")
 
 	type Config struct {
 		ProjectID   SecretVar `json:"project_id"`

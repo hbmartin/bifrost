@@ -134,41 +134,6 @@ func (a *Accumulator) putImageStreamChunk(chunk *ImageStreamChunk) {
 	a.imageStreamChunkPool.Put(chunk)
 }
 
-// createStreamAccumulator creates a new stream accumulator for a request
-// StartTimestamp is set to current time if not provided via CreateStreamAccumulator
-func (a *Accumulator) createStreamAccumulator(requestID string) *StreamAccumulator {
-	now := time.Now()
-	sc := &StreamAccumulator{
-		RequestID:                  requestID,
-		ChatStreamChunks:           make([]*ChatStreamChunk, 0),
-		ResponsesStreamChunks:      make([]*ResponsesStreamChunk, 0),
-		ImageStreamChunks:          make([]*ImageStreamChunk, 0),
-		TranscriptionStreamChunks:  make([]*TranscriptionStreamChunk, 0),
-		AudioStreamChunks:          make([]*AudioStreamChunk, 0),
-		ChatChunksSeen:             make(map[int]struct{}),
-		ResponsesChunksSeen:        make(map[int]struct{}),
-		TranscriptionChunksSeen:    make(map[int]struct{}),
-		AudioChunksSeen:            make(map[int]struct{}),
-		ImageChunksSeen:            make(map[string]struct{}),
-		MaxChatChunkIndex:          -1,
-		MaxResponsesChunkIndex:     -1,
-		MaxTranscriptionChunkIndex: -1,
-		MaxAudioChunkIndex:         -1,
-		TerminalErrorChunkIndex:    -1,
-		TerminalResponseChunkIndex: -1,
-		IsComplete:                 false,
-		mu:                         sync.Mutex{},
-		Timestamp:                  now,
-		StartTimestamp:             now, // Set default StartTimestamp for proper TTFT/latency calculation
-		gateState:                  StreamStateActive,
-		gatePausedAt:               -1,
-		parent:                     a,
-	}
-	sc.gateCond = sync.NewCond(&sc.mu)
-	a.streamAccumulators.Store(requestID, sc)
-	return sc
-}
-
 // getOrCreateStreamAccumulator gets or creates a stream accumulator for a request
 func (a *Accumulator) getOrCreateStreamAccumulator(requestID string) *StreamAccumulator {
 	// Fast path: check if already exists (no allocation)

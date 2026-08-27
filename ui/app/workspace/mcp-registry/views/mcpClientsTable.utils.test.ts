@@ -3,7 +3,13 @@ import { canReconnectMCPClient } from "./mcpClientsTable.utils";
 
 describe("canReconnectMCPClient", () => {
 	it("is false for per_user_oauth (always per-call)", () => {
-		expect(canReconnectMCPClient({ auth_type: "per_user_oauth", connection_type: "http", needs_session_stickiness: true })).toBe(false);
+		expect(
+			canReconnectMCPClient({
+				auth_type: "per_user_oauth",
+				connection_type: "http",
+				needs_session_stickiness: true,
+			}),
+		).toBe(false);
 	});
 
 	it("is false for per_user_headers (always per-call)", () => {
@@ -19,7 +25,13 @@ describe("canReconnectMCPClient", () => {
 	});
 
 	it("is false for a shared oauth http client with needs_session_stickiness explicitly false", () => {
-		expect(canReconnectMCPClient({ auth_type: "oauth", connection_type: "http", needs_session_stickiness: false })).toBe(false);
+		expect(
+			canReconnectMCPClient({
+				auth_type: "oauth",
+				connection_type: "http",
+				needs_session_stickiness: false,
+			}),
+		).toBe(false);
 	});
 
 	it("is false for a shared headers http client with needs_session_stickiness omitted", () => {
@@ -27,15 +39,33 @@ describe("canReconnectMCPClient", () => {
 	});
 
 	it("is true for a shared oauth http client with needs_session_stickiness explicitly true", () => {
-		expect(canReconnectMCPClient({ auth_type: "oauth", connection_type: "http", needs_session_stickiness: true })).toBe(true);
+		expect(
+			canReconnectMCPClient({
+				auth_type: "oauth",
+				connection_type: "http",
+				needs_session_stickiness: true,
+			}),
+		).toBe(true);
 	});
 
 	it("is true for a shared headers http client with needs_session_stickiness explicitly true", () => {
-		expect(canReconnectMCPClient({ auth_type: "headers", connection_type: "http", needs_session_stickiness: true })).toBe(true);
+		expect(
+			canReconnectMCPClient({
+				auth_type: "headers",
+				connection_type: "http",
+				needs_session_stickiness: true,
+			}),
+		).toBe(true);
 	});
 
 	it("is true for a shared oauth SSE client regardless of needs_session_stickiness (non-http is always sticky)", () => {
-		expect(canReconnectMCPClient({ auth_type: "oauth", connection_type: "sse", needs_session_stickiness: false })).toBe(true);
+		expect(
+			canReconnectMCPClient({
+				auth_type: "oauth",
+				connection_type: "sse",
+				needs_session_stickiness: false,
+			}),
+		).toBe(true);
 	});
 
 	it("is true for a shared headers STDIO client regardless of needs_session_stickiness (non-http is always sticky)", () => {

@@ -396,7 +396,7 @@ function StopReasonFilter({ filters, onFiltersChange, defaultOpen }: FilterCompo
 		isLoading,
 		isFetching,
 	} = useGetAvailableFilterDataQuery({ dimensions: ["stop_reasons"], q: searchQuery || undefined }, { skip: !opened && !hasActive });
-	const availableStopReasons = filterData?.stop_reasons || [];
+	const availableStopReasons = useMemo(() => filterData?.stop_reasons ?? [], [filterData?.stop_reasons]);
 	const items = useMemo(() => {
 		const seen = new Set(availableStopReasons);
 		const extras = (filters.stop_reasons || []).filter((r) => !seen.has(r));
@@ -561,7 +561,7 @@ function ModelsFilter({ filters, onFiltersChange, defaultOpen }: FilterComponent
 		isLoading,
 		isFetching,
 	} = useGetAvailableFilterDataQuery({ dimensions: ["models"], q: searchQuery || undefined }, { skip: !opened && !hasActive });
-	const availableModels = filterData?.models || [];
+	const availableModels = useMemo(() => filterData?.models ?? [], [filterData?.models]);
 	const items = useMemo(() => {
 		const seen = new Set(availableModels);
 		const extras = (filters.models || []).filter((m) => !seen.has(m));
@@ -612,7 +612,7 @@ function AliasesFilter({ filters, onFiltersChange, defaultOpen }: FilterComponen
 		isLoading,
 		isFetching,
 	} = useGetAvailableFilterDataQuery({ dimensions: ["aliases"], q: searchQuery || undefined }, { skip: !opened && !hasActive });
-	const availableAliases = filterData?.aliases || [];
+	const availableAliases = useMemo(() => filterData?.aliases ?? [], [filterData?.aliases]);
 	const items = useMemo(() => {
 		const seen = new Set(availableAliases);
 		const extras = (filters.aliases || []).filter((a) => !seen.has(a));
@@ -663,7 +663,7 @@ function SelectedKeysFilter({ filters, onFiltersChange, defaultOpen }: FilterCom
 		isLoading,
 		isFetching,
 	} = useGetAvailableFilterDataQuery({ dimensions: ["selected_keys"], q: searchQuery || undefined }, { skip: !opened && !hasActive });
-	const availableSelectedKeys = filterData?.selected_keys || [];
+	const availableSelectedKeys = useMemo(() => filterData?.selected_keys ?? [], [filterData?.selected_keys]);
 	const nameToIds = useMemo(() => groupByName(availableSelectedKeys), [availableSelectedKeys]);
 
 	if (!isUninitialized && !isLoading && availableSelectedKeys.length === 0 && !hasActive && !opened) return null;
@@ -721,7 +721,7 @@ function VirtualKeysFilter({ filters, onFiltersChange, defaultOpen }: FilterComp
 		isLoading,
 		isFetching,
 	} = useGetAvailableFilterDataQuery({ dimensions: ["virtual_keys"], q: searchQuery || undefined }, { skip: !opened && !hasActive });
-	const availableVirtualKeys = filterData?.virtual_keys || [];
+	const availableVirtualKeys = useMemo(() => filterData?.virtual_keys ?? [], [filterData?.virtual_keys]);
 	const nameToIds = useMemo(() => groupByName(availableVirtualKeys), [availableVirtualKeys]);
 
 	if (!isUninitialized && !isLoading && availableVirtualKeys.length === 0 && !hasActive && !opened) return null;
@@ -827,7 +827,7 @@ function RoutingRulesFilter({ filters, onFiltersChange, defaultOpen }: FilterCom
 		isLoading,
 		isFetching,
 	} = useGetAvailableFilterDataQuery({ dimensions: ["routing_rules"], q: searchQuery || undefined }, { skip: !opened && !hasActive });
-	const availableRoutingRules = filterData?.routing_rules || [];
+	const availableRoutingRules = useMemo(() => filterData?.routing_rules ?? [], [filterData?.routing_rules]);
 	const nameToIds = useMemo(() => groupByName(availableRoutingRules), [availableRoutingRules]);
 
 	if (!isUninitialized && !isLoading && availableRoutingRules.length === 0 && !hasActive && !opened) return null;
@@ -908,7 +908,7 @@ function UserFilter({ filters, onFiltersChange, defaultOpen }: FilterComponentPr
 		isLoading,
 		isFetching,
 	} = useGetAvailableFilterDataQuery({ dimensions: ["users"], q: searchQuery || undefined }, { skip: !opened && !hasActive });
-	const availableUsers = filterData?.users || [];
+	const availableUsers = useMemo(() => filterData?.users ?? [], [filterData?.users]);
 	const items = useMemo(() => {
 		const seen = new Set(availableUsers.map((u) => u.id));
 		const extras = (filters.user_ids || []).filter((id) => !seen.has(id));
@@ -959,7 +959,7 @@ function TeamFilter({ filters, onFiltersChange, defaultOpen }: FilterComponentPr
 		isLoading,
 		isFetching,
 	} = useGetAvailableFilterDataQuery({ dimensions: ["teams"], q: searchQuery || undefined }, { skip: !opened && !hasActive });
-	const availableTeams = filterData?.teams || [];
+	const availableTeams = useMemo(() => filterData?.teams ?? [], [filterData?.teams]);
 	const nameToIds = useMemo(() => groupByName(availableTeams), [availableTeams]);
 
 	if (!isUninitialized && !isLoading && availableTeams.length === 0 && !hasActive && !opened) return null;
@@ -1017,7 +1017,7 @@ function CustomerFilter({ filters, onFiltersChange, defaultOpen }: FilterCompone
 		isLoading,
 		isFetching,
 	} = useGetAvailableFilterDataQuery({ dimensions: ["customers"], q: searchQuery || undefined }, { skip: !opened && !hasActive });
-	const availableCustomers = filterData?.customers || [];
+	const availableCustomers = useMemo(() => filterData?.customers ?? [], [filterData?.customers]);
 	const nameToIds = useMemo(() => groupByName(availableCustomers), [availableCustomers]);
 
 	if (!isUninitialized && !isLoading && availableCustomers.length === 0 && !hasActive && !opened) return null;
@@ -1076,7 +1076,7 @@ function BusinessUnitFilter({ filters, onFiltersChange, defaultOpen }: FilterCom
 		isLoading,
 		isFetching,
 	} = useGetAvailableFilterDataQuery({ dimensions: ["business_units"], q: searchQuery || undefined }, { skip: !opened && !hasActive });
-	const availableBusinessUnits = filterData?.business_units || [];
+	const availableBusinessUnits = useMemo(() => filterData?.business_units ?? [], [filterData?.business_units]);
 	const nameToIds = useMemo(() => groupByName(availableBusinessUnits), [availableBusinessUnits]);
 
 	if (!isUninitialized && !isLoading && availableBusinessUnits.length === 0 && !hasActive && !opened) return null;

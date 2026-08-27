@@ -24,6 +24,7 @@ func listModelsBifrostContext(parent context.Context, provider schemas.ModelProv
 
 // RunListModelsTest executes the list models test scenario
 func RunListModelsTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.ListModels {
 		t.Logf("List models not supported for provider %s", testConfig.Provider)
 		return
@@ -141,6 +142,7 @@ func RunListModelsTest(t *testing.T, client *bifrost.Bifrost, ctx context.Contex
 // RunListModelsResponseMarshalTest verifies that a successful ListModels response
 // (including KeyStatuses) can be marshaled to JSON without cycle errors.
 func RunListModelsResponseMarshalTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.ListModels {
 		t.Logf("List models not supported for provider %s", testConfig.Provider)
 		return
@@ -222,6 +224,7 @@ func RunListModelsResponseMarshalTest(t *testing.T, client *bifrost.Bifrost, ctx
 // reference pattern used by HandleMultipleListModelsRequests and HandleKeylessListModelsRequest
 // marshals without cycle errors.
 func RunListModelsErrorMarshalTest(t *testing.T, _ *bifrost.Bifrost, _ context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.ListModels {
 		t.Logf("List models not supported for provider %s", testConfig.Provider)
 		return
@@ -272,6 +275,7 @@ func RunListModelsErrorMarshalTest(t *testing.T, _ *bifrost.Bifrost, _ context.C
 
 // RunListModelsPaginationTest executes pagination test for list models
 func RunListModelsPaginationTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.ListModels {
 		t.Logf("List models not supported for provider %s", testConfig.Provider)
 		return

@@ -7,8 +7,8 @@ around the new configuration system in config.yml and config_loader.py.
 All model data is now centralized in config.yml for easier maintenance.
 """
 
-from typing import Dict, List
 from dataclasses import dataclass
+
 from .config_loader import get_config
 
 
@@ -19,10 +19,10 @@ class IntegrationModels:
     chat: str  # Primary chat model
     vision: str  # Vision/multimodal model
     tools: str  # Function calling model
-    alternatives: List[str]  # Alternative models for testing
+    alternatives: list[str]  # Alternative models for testing
 
 
-def get_integration_models() -> Dict[str, IntegrationModels]:
+def get_integration_models() -> dict[str, IntegrationModels]:
     """Get all integration model configurations from config.yml"""
     config = get_config()
     integration_models = {}
@@ -43,13 +43,13 @@ def get_integration_models() -> Dict[str, IntegrationModels]:
 INTEGRATION_MODELS = get_integration_models()
 
 
-def get_alternatives(integration: str) -> List[str]:
+def get_alternatives(integration: str) -> list[str]:
     """Get alternative models for a integration"""
     config = get_config()
     return config.get_model_alternatives(integration)
 
 
-def list_all_models() -> Dict[str, Dict[str, str]]:
+def list_all_models() -> dict[str, dict[str, str]]:
     """List all models by integration and type"""
     config = get_config()
     return config.list_models()

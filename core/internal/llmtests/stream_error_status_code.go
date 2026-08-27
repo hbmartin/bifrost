@@ -19,6 +19,7 @@ import (
 // All providers (OpenAI, Anthropic, Bedrock) return 4xx status codes for such errors,
 // and Bifrost must preserve those codes through the error chain.
 func RunStreamErrorStatusCodeTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.CompletionStream {
 		t.Logf("Completion stream not supported for provider %s, skipping stream error status code test", testConfig.Provider)
 		return

@@ -1,6 +1,7 @@
 package anthropic
 
 import (
+	"context"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -54,7 +55,7 @@ func TestCodeExecution_BashResponseRoundTrip(t *testing.T) {
 		t.Fatalf("unmarshal raw: %v", err)
 	}
 
-	ctx := schemas.NewBifrostContext(nil, time.Time{})
+	ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 
 	bifrostResp := resp.ToBifrostResponsesResponse(ctx)
 	if bifrostResp == nil {
@@ -200,7 +201,7 @@ func TestCodeExecution_TextEditorViewRoundTrip(t *testing.T) {
 	if err := sonic.Unmarshal([]byte(rawTextEditorViewResponse), &resp); err != nil {
 		t.Fatalf("unmarshal raw: %v", err)
 	}
-	ctx := schemas.NewBifrostContext(nil, time.Time{})
+	ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 
 	bifrostResp := resp.ToBifrostResponsesResponse(ctx)
 	var cec *schemas.ResponsesCodeExecutionCall
@@ -242,7 +243,7 @@ func TestCodeExecution_TextEditorViewRoundTrip(t *testing.T) {
 // code_interpreter_call WITHOUT the Anthropic carry (as produced by an
 // OpenAI-format client) still reconstructs valid Anthropic blocks.
 func TestCodeExecution_OpenAIOriginToAnthropic(t *testing.T) {
-	ctx := schemas.NewBifrostContext(nil, time.Time{})
+	ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 	code := "print('hi')"
 	bifrostResp := &schemas.BifrostResponsesResponse{
 		ID: schemas.Ptr("resp_1"),
@@ -317,7 +318,7 @@ var bashCodeExecStreamEvents = []string{
 // sequence (in_progress -> code.delta/done -> interpreting -> completed ->
 // output_item.done) and folds the container into the final response.completed.
 func TestCodeExecution_BashStream(t *testing.T) {
-	ctx := schemas.NewBifrostContext(nil, time.Time{})
+	ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 	// Exercise the production Anthropic-compatible streaming path: the forward
 	// converter emits a message_delta event carrying the container, and the state
 	// -> ctx bridge (mirrored from anthropic.go) lets the reverse converter skip a
@@ -517,7 +518,7 @@ var textEditorCodeExecStreamEvents = []string{
 // rebuilt from the neutral Code, which is empty for text_editor). The verbatim
 // multi-key input must round-trip Anthropic -> Bifrost -> Anthropic.
 func TestCodeExecution_TextEditorStream(t *testing.T) {
-	ctx := schemas.NewBifrostContext(nil, time.Time{})
+	ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 	ctx.SetValue(schemas.BifrostContextKeyIntegrationType, "anthropic")
 	state := AcquireAnthropicResponsesStreamState()
 	defer ReleaseAnthropicResponsesStreamState(state)
@@ -641,7 +642,7 @@ func TestCodeExecution_ProgrammaticCallerRoundTrip(t *testing.T) {
 	if err := sonic.Unmarshal([]byte(rawPTCResponse), &resp); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	ctx := schemas.NewBifrostContext(nil, time.Time{})
+	ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 
 	bif := resp.ToBifrostResponsesResponse(ctx)
 
@@ -789,7 +790,7 @@ func TestGenerateSyntheticInputJSONDeltas_UTF8(t *testing.T) {
 }
 
 func TestCodeExecution_ProgrammaticStreamRoundTrip(t *testing.T) {
-	ctx := schemas.NewBifrostContext(nil, time.Time{})
+	ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 	ctx.SetValue(schemas.BifrostContextKeyIntegrationType, "anthropic")
 	state := AcquireAnthropicResponsesStreamState()
 	defer ReleaseAnthropicResponsesStreamState(state)

@@ -108,7 +108,7 @@ func (g *GCSObjectStore) Get(ctx context.Context, key string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("objectstore: gcs read %s: %w", key, err)
 	}
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 
 	// GCS transparently decompresses objects stored with ContentEncoding: "gzip",
 	// so the bytes returned by ReadAll are already decompressed.

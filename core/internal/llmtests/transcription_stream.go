@@ -15,6 +15,7 @@ import (
 
 // RunTranscriptionStreamTest executes the streaming transcription test scenario
 func RunTranscriptionStreamTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.TranscriptionStream {
 		t.Logf("Transcription streaming not supported for provider %s", testConfig.Provider)
 		return
@@ -130,7 +131,7 @@ func RunTranscriptionStreamTest(t *testing.T, client *bifrost.Bifrost, ctx conte
 
 				// Register cleanup
 				t.Cleanup(func() {
-					os.Remove(audioFileName)
+					_ = os.Remove(audioFileName)
 				})
 
 				t.Logf("Generated TTS audio for stream round-trip: %s (%d bytes)", audioFileName, len(ttsResponse.Audio))
@@ -336,6 +337,7 @@ func RunTranscriptionStreamTest(t *testing.T, client *bifrost.Bifrost, ctx conte
 
 // RunTranscriptionStreamAdvancedTest executes advanced streaming transcription test scenarios
 func RunTranscriptionStreamAdvancedTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.TranscriptionStream {
 		t.Logf("Transcription streaming not supported for provider %s", testConfig.Provider)
 		return

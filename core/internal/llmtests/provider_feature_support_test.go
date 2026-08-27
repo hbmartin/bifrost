@@ -1,6 +1,7 @@
 package llmtests
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -219,8 +220,8 @@ func TestProviderToolValidation(t *testing.T) {
 			name:     "Vertex/mixed_supported_and_unsupported",
 			provider: schemas.Vertex,
 			tools: []schemas.ResponsesTool{
-				{Type: schemas.ResponsesToolTypeWebSearch},   // allowed
-				{Type: schemas.ResponsesToolTypeFunction},    // allowed
+				{Type: schemas.ResponsesToolTypeWebSearch},       // allowed
+				{Type: schemas.ResponsesToolTypeFunction},        // allowed
 				{Type: schemas.ResponsesToolTypeCodeInterpreter}, // rejected
 			},
 			expectErr: true,
@@ -307,7 +308,7 @@ func TestProviderWebSearchVersionSelection(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx := schemas.NewBifrostContext(nil, time.Time{})
+			ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 			bifrostReq := &schemas.BifrostResponsesRequest{
 				Provider: tt.provider,
 				Model:    tt.model,
@@ -386,7 +387,7 @@ func TestProviderWebFetchVersionSelection(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx := schemas.NewBifrostContext(nil, time.Time{})
+			ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 			bifrostReq := &schemas.BifrostResponsesRequest{
 				Provider: tt.provider,
 				Model:    tt.model,
@@ -739,10 +740,10 @@ func TestProviderBetaHeaderInjection(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx := schemas.NewBifrostContext(nil, time.Time{})
+			ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 			req := tt.setupReq()
 
-			anthropic.AddMissingBetaHeadersToContext(ctx, req, tt.provider)
+			_ = anthropic.AddMissingBetaHeadersToContext(ctx, req, tt.provider)
 
 			var headers []string
 			if extraHeaders, ok := ctx.Value(schemas.BifrostContextKeyExtraHeaders).(map[string][]string); ok {
@@ -892,7 +893,7 @@ func TestProviderAnthropicRequestPipeline(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx := schemas.NewBifrostContext(nil, time.Time{})
+			ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 			model := tt.model
 			if model == "" {
 				model = "claude-sonnet-4-5"
@@ -940,7 +941,7 @@ func TestProviderAnthropicRequestPipeline(t *testing.T) {
 			}
 
 			// Step 4: Run beta header injection
-			anthropic.AddMissingBetaHeadersToContext(ctx, result, tt.provider)
+			_ = anthropic.AddMissingBetaHeadersToContext(ctx, result, tt.provider)
 
 			// Step 5: Verify beta headers
 			var headers []string
@@ -1103,7 +1104,7 @@ func TestComputerUseVersionAndBetaHeaderEndToEnd(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx := schemas.NewBifrostContext(nil, time.Time{})
+			ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 
 			// Step 1: Convert bifrost tool → anthropic tool (selects version based on model)
 			bifrostReq := &schemas.BifrostResponsesRequest{
@@ -1143,7 +1144,7 @@ func TestComputerUseVersionAndBetaHeaderEndToEnd(t *testing.T) {
 				"wrong tool version for model=%s provider=%s", tt.model, tt.provider)
 
 			// Step 2: Run beta header injection on the converted request
-			anthropic.AddMissingBetaHeadersToContext(ctx, result, tt.provider)
+			_ = anthropic.AddMissingBetaHeadersToContext(ctx, result, tt.provider)
 
 			// Step 3: Verify correct beta header was added
 			var headers []string

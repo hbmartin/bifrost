@@ -779,7 +779,7 @@ func TestCacheRealtimeEphemeralKeyMappingStoresKeyID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("kvstore.New() error = %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	body := []byte(`{
 		"value": "ek_test_456",
@@ -835,7 +835,7 @@ func TestCacheRealtimeEphemeralKeyMappingStoresSecretWithinClockSkew(t *testing.
 	if err != nil {
 		t.Fatalf("kvstore.New() error = %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	expiresWithinSkew := time.Now().Add(-realtimeEphemeralTokenClockSkew / 2).Unix()
 	body := fmt.Appendf(nil, `{
@@ -856,7 +856,7 @@ func TestCacheRealtimeEphemeralKeyMappingStoresEverySupportedShape(t *testing.T)
 	if err != nil {
 		t.Fatalf("kvstore.New() error = %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	body := []byte(`{
 		"value": "ek_top",
@@ -879,7 +879,7 @@ func TestCacheRealtimeEphemeralKeyMappingSkipsExpiredSecrets(t *testing.T) {
 	if err != nil {
 		t.Fatalf("kvstore.New() error = %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	expired := time.Now().Add(-realtimeEphemeralTokenClockSkew - time.Second).Unix()
 	body := fmt.Appendf(nil, `{

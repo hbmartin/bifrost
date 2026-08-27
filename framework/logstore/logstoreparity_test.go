@@ -110,18 +110,18 @@ type parityLogSpec struct {
 	teamIDs, teamNames         *string
 	customerIDs, customerNames *string
 	buIDs, buNames             *string
-	cost         *float64
-	latency      *float64
-	tokens       [3]int // prompt, completion, total
-	stopReason   *string
-	routing      *string
-	metadata     *string
-	cacheDebug   string
-	content      string
-	parentID     *string
-	nodeID       *string
-	budgetIDs    *string
-	rateLimitIDs *string
+	cost                       *float64
+	latency                    *float64
+	tokens                     [3]int // prompt, completion, total
+	stopReason                 *string
+	routing                    *string
+	metadata                   *string
+	cacheDebug                 string
+	content                    string
+	parentID                   *string
+	nodeID                     *string
+	budgetIDs                  *string
+	rateLimitIDs               *string
 }
 
 func (s parityLogSpec) toLog(base time.Time) *Log {

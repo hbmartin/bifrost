@@ -69,6 +69,8 @@ func celExprReferencesIdentifier(expr celast.Expr, identifier string, scopedIden
 	}
 
 	switch expr.Kind() {
+	case celast.UnspecifiedExprKind, celast.LiteralKind:
+		return false
 	case celast.IdentKind:
 		return expr.AsIdent() == identifier && scopedIdents[identifier] == 0
 	case celast.CallKind:

@@ -17,6 +17,7 @@ import (
 // of the request body. Providers like Anthropic have strict schema validation and don't accept
 // unknown fields, so they should set PassThroughExtraParams: false in their test config.
 func RunPassthroughExtraParamsTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	// Guard: Check if ChatModel is configured
 	if testConfig.ChatModel == "" {
 		t.Logf("ChatModel not configured for provider %s, skipping passthrough test", testConfig.Provider)

@@ -86,16 +86,6 @@ func TestConvertCohereResponseFormatToBifrost_PlainJSONObjectUnchanged(t *testin
 	assert.NotContains(t, out, "json_schema")
 }
 
-func mustJSON(t *testing.T, v interface{}) string {
-	t.Helper()
-	if rm, ok := v.(json.RawMessage); ok {
-		return string(rm)
-	}
-	b, err := json.Marshal(v)
-	require.NoError(t, err)
-	return string(b)
-}
-
 // An explicit null is a choice, not a missing key. *interface{} decodes `"json_schema": null` to
 // nil, so a plain nil check let the legacy `schema` alias silently override the caller's canonical
 // spelling. Precedence is now keyed on presence.

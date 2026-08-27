@@ -878,9 +878,9 @@ func HandleAnthropicChatCompletionStreaming(
 	go func() {
 		defer providerUtils.EnsureStreamFinalizerCalled(ctx, postHookSpanFinalizer)
 		defer func() {
-			if ctx.Err() == context.Canceled {
+			if errors.Is(ctx.Err(), context.Canceled) {
 				providerUtils.HandleStreamCancellation(ctx, postHookRunner, responseChan, logger, postHookSpanFinalizer, jsonBody)
-			} else if ctx.Err() == context.DeadlineExceeded {
+			} else if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 				providerUtils.HandleStreamTimeout(ctx, postHookRunner, responseChan, logger, postHookSpanFinalizer, jsonBody)
 			}
 			providerUtils.CloseStream(ctx, responseChan)
@@ -983,7 +983,7 @@ func HandleAnthropicChatCompletionStreaming(
 				if ctx.Err() != nil {
 					return
 				}
-				if readErr != io.EOF {
+				if !errors.Is(readErr, io.EOF) {
 					ctx.SetValue(schemas.BifrostContextKeyStreamEndIndicator, true)
 					logger.Warn("Error reading %s stream: %v", providerName, readErr)
 					providerUtils.ProcessAndSendError(ctx, postHookRunner, readErr, responseChan, logger, postHookSpanFinalizer)
@@ -1542,9 +1542,9 @@ func HandleAnthropicResponsesStream(
 	go func() {
 		defer providerUtils.EnsureStreamFinalizerCalled(ctx, postHookSpanFinalizer)
 		defer func() {
-			if ctx.Err() == context.Canceled {
+			if errors.Is(ctx.Err(), context.Canceled) {
 				providerUtils.HandleStreamCancellation(ctx, postHookRunner, responseChan, logger, postHookSpanFinalizer, jsonBody)
-			} else if ctx.Err() == context.DeadlineExceeded {
+			} else if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 				providerUtils.HandleStreamTimeout(ctx, postHookRunner, responseChan, logger, postHookSpanFinalizer, jsonBody)
 			}
 			providerUtils.CloseStream(ctx, responseChan)
@@ -1632,7 +1632,7 @@ func HandleAnthropicResponsesStream(
 				if ctx.Err() != nil {
 					return
 				}
-				if readErr != io.EOF {
+				if !errors.Is(readErr, io.EOF) {
 					ctx.SetValue(schemas.BifrostContextKeyStreamEndIndicator, true)
 					logger.Warn("Error reading %s stream: %v", providerName, readErr)
 					providerUtils.ProcessAndSendError(ctx, postHookRunner, readErr, responseChan, logger, postHookSpanFinalizer)

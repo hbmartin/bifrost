@@ -1,4 +1,4 @@
-'use strict';
+"use strict";
 
 /**
  * Newman Cache Parity Reporter
@@ -43,14 +43,14 @@
  * plausibly hit rather than relying on one.
  */
 
-const fs = require('fs');
-const path = require('path');
+const fs = require("fs");
+const path = require("path");
 
 // kind is stamped onto each row so the renderer can split the two matrices into their own
 // tables without re-deriving which marker a row came from.
 const MARKERS = {
-  CACHE_ANCHOR_REPORT: 'anchor',
-  CACHE_MATRIX_REPORT: 'matrix',
+  CACHE_ANCHOR_REPORT: "anchor",
+  CACHE_MATRIX_REPORT: "matrix",
 };
 
 function firstDefined(options, keys) {
@@ -61,14 +61,14 @@ function firstDefined(options, keys) {
 }
 
 module.exports = function (newman, options) {
-  const silent = !!firstDefined(options, ['silent', 'cacheParitySilent', 'cache-parity-silent']);
+  const silent = !!firstDefined(options, ["silent", "cacheParitySilent", "cache-parity-silent"]);
   const outPath =
-    firstDefined(options, ['out', 'cacheParityOut', 'cache-parity-out']) ||
-    path.join('tmp', `harness-cache-parity-${process.pid}.json`);
+    firstDefined(options, ["out", "cacheParityOut", "cache-parity-out"]) ||
+    path.join("tmp", `harness-cache-parity-${process.pid}.json`);
 
   const reports = [];
 
-  newman.on('console', function (err, args) {
+  newman.on("console", function (err, args) {
     if (err || !args || !Array.isArray(args.messages) || args.messages.length < 2) return;
     const kind = MARKERS[args.messages[0]];
     if (!kind) return;
@@ -82,11 +82,13 @@ module.exports = function (newman, options) {
     parsed.kind = kind;
     reports.push(parsed);
     if (!silent) {
-      console.log(`[cache-parity] captured ${kind}/${parsed.cell}${parsed.leg ? '/' + parsed.leg : ''}`);
+      console.log(
+        `[cache-parity] captured ${kind}/${parsed.cell}${parsed.leg ? "/" + parsed.leg : ""}`,
+      );
     }
   });
 
-  newman.on('done', function () {
+  newman.on("done", function () {
     if (reports.length === 0) return;
     fs.mkdirSync(path.dirname(outPath), { recursive: true });
     fs.writeFileSync(outPath, JSON.stringify(reports, null, 2));

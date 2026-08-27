@@ -2,7 +2,9 @@ name: Snyk checks
 
 on:
   push:
-    branches: [main, master, "**/*"]
+    branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -12,6 +14,7 @@ permissions:
 jobs:
   snyk-open-source:
     name: Snyk Open Source (deps)
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - name: Harden Runner
@@ -75,7 +78,12 @@ jobs:
       - name: Snyk test (all projects)
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        run: snyk test --all-projects --detection-depth=4 --exclude=examples,tests --sarif-file-output=snyk.sarif || true
+        run: |
+          if [ -z "$SNYK_TOKEN" ]; then
+            echo "SNYK_TOKEN is unavailable; advisory scan skipped"
+            exit 0
+          fi
+          snyk test --all-projects --detection-depth=4 --exclude=examples,tests --sarif-file-output=snyk.sarif || true
 
       - name: Upload SARIF
         if: always() && hashFiles('snyk.sarif') != ''
@@ -85,6 +93,7 @@ jobs:
 
   snyk-code:
     name: Snyk Code (SAST)
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - name: Harden Runner
@@ -148,7 +157,12 @@ jobs:
       - name: Snyk Code test
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        run: snyk code test --sarif-file-output=snyk-code.sarif || true
+        run: |
+          if [ -z "$SNYK_TOKEN" ]; then
+            echo "SNYK_TOKEN is unavailable; advisory scan skipped"
+            exit 0
+          fi
+          snyk code test --sarif-file-output=snyk-code.sarif || true
 
       - name: Upload SARIF
         if: always() && hashFiles('snyk-code.sarif') != ''

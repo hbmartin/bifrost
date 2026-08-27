@@ -310,7 +310,7 @@ func TestRefreshAccessToken_CallerCancellationDoesNotAbortOtherWaiters(t *testin
 		startedOnce.Do(func() { close(started) })
 		<-unblock
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"access_token":  "new-access-token",
 			"refresh_token": "new-refresh-token",
 			"token_type":    "bearer",
@@ -429,7 +429,7 @@ func TestTestConfigStore_GetExpiringOauthTokens(t *testing.T) {
 func TestTokenRefreshWorker_DefaultAuthModes_ExcludesUserModeTokens(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"access_token": "new-access-token",
 			"token_type":   "bearer",
 			"expires_in":   3600,
@@ -524,10 +524,13 @@ func TestBuildAuthorizeURLWithPKCE_OmitsEmptyResource(t *testing.T) {
 func TestExchangeCodeForTokensWithPKCE_IncludesResource(t *testing.T) {
 	var got url.Values
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.NoError(t, r.ParseForm())
+		if !assert.NoError(t, r.ParseForm()) {
+			http.Error(w, "invalid form", http.StatusBadRequest)
+			return
+		}
 		got = r.PostForm
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"access_token": "access-token",
 			"token_type":   "bearer",
 		})
@@ -554,10 +557,13 @@ func TestExchangeCodeForTokensWithPKCE_IncludesResource(t *testing.T) {
 func TestExchangeCodeForTokensWithPKCE_OmitsEmptyResource(t *testing.T) {
 	var got url.Values
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.NoError(t, r.ParseForm())
+		if !assert.NoError(t, r.ParseForm()) {
+			http.Error(w, "invalid form", http.StatusBadRequest)
+			return
+		}
 		got = r.PostForm
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"access_token": "access-token",
 			"token_type":   "bearer",
 		})
@@ -584,10 +590,13 @@ func TestExchangeCodeForTokensWithPKCE_OmitsEmptyResource(t *testing.T) {
 func TestExchangeRefreshToken_IncludesResource(t *testing.T) {
 	var got url.Values
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.NoError(t, r.ParseForm())
+		if !assert.NoError(t, r.ParseForm()) {
+			http.Error(w, "invalid form", http.StatusBadRequest)
+			return
+		}
 		got = r.PostForm
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"access_token": "new-access-token",
 			"token_type":   "bearer",
 		})
@@ -612,10 +621,13 @@ func TestExchangeRefreshToken_IncludesResource(t *testing.T) {
 func TestExchangeRefreshToken_OmitsEmptyResource(t *testing.T) {
 	var got url.Values
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.NoError(t, r.ParseForm())
+		if !assert.NoError(t, r.ParseForm()) {
+			http.Error(w, "invalid form", http.StatusBadRequest)
+			return
+		}
 		got = r.PostForm
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"access_token": "new-access-token",
 			"token_type":   "bearer",
 		})
@@ -663,7 +675,7 @@ func TestTokenRefreshWorker_PermanentError_MarksNeedsReauth(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"error":             "invalid_grant",
 			"error_description": "Refresh token expired or revoked",
 		})
@@ -686,7 +698,7 @@ func TestTokenRefreshWorker_SuccessfulRefresh_UpdatesToken(t *testing.T) {
 	// leave the token status as "active".
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"access_token":  "new-access-token",
 			"refresh_token": "new-refresh-token",
 			"token_type":    "bearer",
@@ -720,7 +732,7 @@ func TestTokenRefreshWorker_ConcurrentReauth_DoesNotOverwriteStaleRefresh(t *tes
 		close(started)
 		<-unblock
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"access_token":  "stale-refreshed-access-token",
 			"refresh_token": "stale-refreshed-refresh-token",
 			"token_type":    "bearer",
@@ -768,7 +780,7 @@ func TestRefreshAccessToken_CASLostToConcurrentActiveRefresh_ReturnsNilNotExpire
 		close(started)
 		<-unblock
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"access_token":  "stale-refreshed-access-token",
 			"refresh_token": "stale-refreshed-refresh-token",
 			"token_type":    "bearer",
@@ -837,7 +849,7 @@ func TestTokenRefreshWorker_400InvalidGrant_MarksNeedsReauth(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"error":             "invalid_grant",
 			"error_description": "The refresh token has been revoked",
 		})
@@ -879,7 +891,7 @@ func TestTokenRefreshWorker_400InvalidRequest_DoesNotMarkNeedsReauth(t *testing.
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"error":             "invalid_request",
 			"error_description": "Missing required parameter",
 		})
@@ -901,7 +913,7 @@ func TestTokenRefreshWorker_400UnauthorizedClient_MarksNeedsReauth(t *testing.T)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"error":             "unauthorized_client",
 			"error_description": "Client is not authorized for this grant type",
 		})
@@ -940,7 +952,7 @@ func newRecordingRefreshHook() (func(string, string), func() [][2]string) {
 func TestTokenRefreshWorker_OnTokenRefreshed_FiresOnceOnSuccess(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"access_token": "new-access-token",
 			"token_type":   "bearer",
 			"expires_in":   3600,
@@ -967,7 +979,7 @@ func TestTokenRefreshWorker_OnTokenRefreshed_NoFireOnRefreshFailure(t *testing.T
 		"permanent 401": func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]string{
+			_ = json.NewEncoder(w).Encode(map[string]string{
 				"error": "invalid_grant",
 			})
 		},
@@ -997,7 +1009,7 @@ func TestTokenRefreshWorker_OnTokenRefreshed_NoFireOnRefreshFailure(t *testing.T
 func TestTokenRefreshWorker_OnTokenRefreshed_NoFireWhenMCPClientIDEmpty(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"access_token": "new-access-token",
 			"token_type":   "bearer",
 			"expires_in":   3600,
@@ -1024,7 +1036,7 @@ func TestTokenRefreshWorker_OnTokenRefreshed_NoFireWhenMCPClientIDEmpty(t *testi
 func TestTokenRefreshWorker_SetOnTokenRefreshed_NilSafe(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"access_token": "new-access-token",
 			"token_type":   "bearer",
 			"expires_in":   3600,

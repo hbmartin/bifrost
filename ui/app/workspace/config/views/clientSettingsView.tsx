@@ -69,7 +69,9 @@ export default function ClientSettingsView() {
 	const hasSettingsUpdateAccess = useRbac(RbacResource.Settings, RbacOperation.Update);
 	const [droppedRequests, setDroppedRequests] = useState<number>(0);
 	const { data: droppedRequestsData } = useGetDroppedRequestsQuery();
-	const { data: bifrostConfig, isLoading: isCoreConfigLoading } = useGetCoreConfigQuery({ fromDB: true });
+	const { data: bifrostConfig, isLoading: isCoreConfigLoading } = useGetCoreConfigQuery({
+		fromDB: true,
+	});
 	const config = bifrostConfig?.client_config;
 	const [updateCoreConfig, { isLoading: isSavingCoreConfig }] = useUpdateCoreConfigMutation();
 	const [localConfig, setLocalConfig] = useState<CoreConfig>(DefaultCoreConfig);
@@ -408,7 +410,8 @@ export default function ClientSettingsView() {
 									<li>
 										<span className="font-medium">Direct headers:</span> Any header explicitly added to the allowlist can be forwarded
 										directly without the prefix (e.g.,{" "}
-										<code className="bg-muted rounded px-1 py-0.5 font-mono text-xs">anthropic-beta</code>).
+										<code className="bg-muted rounded px-1 py-0.5 font-mono text-xs">anthropic-beta</code>
+										).
 									</li>
 								</ul>
 							</div>
@@ -431,8 +434,8 @@ export default function ClientSettingsView() {
 										<span className="font-medium">Wildcards:</span> Use{" "}
 										<code className="bg-muted rounded px-1 py-0.5 font-mono text-xs">*</code> at the end of a pattern to match prefixes
 										(e.g., <code className="bg-muted rounded px-1 py-0.5 font-mono text-xs">anthropic-*</code> matches all headers starting
-										with <code className="bg-muted rounded px-1 py-0.5 font-mono text-xs">anthropic-</code>). Use{" "}
-										<code className="bg-muted rounded px-1 py-0.5 font-mono text-xs">*</code> alone to match all headers.
+										with <code className="bg-muted rounded px-1 py-0.5 font-mono text-xs">anthropic-</code>
+										). Use <code className="bg-muted rounded px-1 py-0.5 font-mono text-xs">*</code> alone to match all headers.
 									</li>
 								</ul>
 							</div>

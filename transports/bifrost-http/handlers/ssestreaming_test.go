@@ -44,7 +44,7 @@ func TestSSEStreamReaderNoEventBatching(t *testing.T) {
 
 	// Use net.Pipe for deterministic in-process testing
 	serverConn, clientConn := net.Pipe()
-	defer clientConn.Close()
+	defer func() { _ = clientConn.Close() }()
 
 	// Run fasthttp server on one end of the pipe
 	go func() {

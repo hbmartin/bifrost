@@ -440,7 +440,10 @@ interface ComboboxSelectMultiProps extends ComboboxSelectBaseProps {
 	onValueChange?: (value: string[]) => void;
 }
 
-type ComboboxSelectProps = (ComboboxSelectSingleProps | ComboboxSelectMultiProps) & { noPortal?: boolean; searchPlaceholder?: string };
+type ComboboxSelectProps = (ComboboxSelectSingleProps | ComboboxSelectMultiProps) & {
+	noPortal?: boolean;
+	searchPlaceholder?: string;
+};
 
 function ComboboxSelect(props: ComboboxSelectProps) {
 	const {

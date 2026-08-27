@@ -3,6 +3,7 @@ package lib
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -224,7 +225,7 @@ func TestSSEStreamReaderClosedMidLineReportsDisconnect(t *testing.T) {
 	go func() { _, _ = io.ReadAll(r) }()
 
 	r.Send([]byte("data: {\"partial\":\"no newline")) // leave the stream mid-line
-	r.Close()                                         // client disconnects
+	_ = r.Close()                                     // client disconnects
 
 	if r.SendHeartbeat() {
 		t.Error("mid-line heartbeat on a CLOSED reader returned true; the disconnect would " +
@@ -485,7 +486,7 @@ func TestSSEStreamReaderSingleEventPerRead(t *testing.T) {
 
 	// Next read should return EOF
 	n, err := r.Read(buf)
-	if err != io.EOF {
+	if !errors.Is(err, io.EOF) {
 		t.Errorf("expected io.EOF, got err=%v n=%d", err, n)
 	}
 
@@ -511,7 +512,7 @@ func TestSSEStreamReaderPartialRead(t *testing.T) {
 	for {
 		n, err := r.Read(buf)
 		result = append(result, buf[:n]...)
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
@@ -530,7 +531,7 @@ func TestSSEStreamReaderEOFOnDone(t *testing.T) {
 
 	buf := make([]byte, 4096)
 	n, err := r.Read(buf)
-	if err != io.EOF {
+	if !errors.Is(err, io.EOF) {
 		t.Errorf("expected io.EOF, got err=%v n=%d", err, n)
 	}
 }
@@ -538,7 +539,7 @@ func TestSSEStreamReaderEOFOnDone(t *testing.T) {
 func TestSSEStreamReaderCloseSignalsProducer(t *testing.T) {
 	r := NewSSEStreamReader()
 
-	r.Close()
+	_ = r.Close()
 
 	if r.Send([]byte("data: test\n\n")) {
 		t.Error("Send should return false after Close")
@@ -549,9 +550,9 @@ func TestSSEStreamReaderIdempotentClose(t *testing.T) {
 	r := NewSSEStreamReader()
 
 	// Should not panic
-	r.Close()
-	r.Close()
-	r.Close()
+	_ = r.Close()
+	_ = r.Close()
+	_ = r.Close()
 }
 
 func TestSSEStreamReaderConcurrent(t *testing.T) {
@@ -579,12 +580,12 @@ func TestSSEStreamReaderConcurrent(t *testing.T) {
 		count := 0
 		for {
 			_, err := r.Read(buf)
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 			if err != nil {
 				select {
-				case errCh <- fmt.Errorf("unexpected error: %v", err):
+				case errCh <- fmt.Errorf("unexpected error: %w", err):
 				default:
 				}
 				break
@@ -685,7 +686,7 @@ func TestSSEStreamReaderSendDone(t *testing.T) {
 
 func TestSSEStreamReaderSendEventAfterClose(t *testing.T) {
 	r := NewSSEStreamReader()
-	r.Close()
+	_ = r.Close()
 
 	if r.SendEvent("test", []byte("data")) {
 		t.Error("SendEvent should return false after Close")
@@ -837,7 +838,7 @@ func TestSSEStreamReaderMixedMethodStream(t *testing.T) {
 
 	// Should be EOF after all events
 	n, err := r.Read(buf)
-	if err != io.EOF {
+	if !errors.Is(err, io.EOF) {
 		t.Errorf("expected EOF, got err=%v n=%d", err, n)
 	}
 }
@@ -957,7 +958,7 @@ func TestSSEStreamReaderSendEventLargePayload(t *testing.T) {
 	for {
 		n, err := r.Read(buf)
 		result = append(result, buf[:n]...)
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
@@ -1003,7 +1004,7 @@ func TestSSEStreamReaderMidStreamDisconnect(t *testing.T) {
 	}
 
 	// Client disconnects
-	r.Close()
+	_ = r.Close()
 
 	// Producer should stop promptly
 	<-producerDone
@@ -1042,7 +1043,7 @@ func TestSSEStreamReaderSendErrorThenDone(t *testing.T) {
 
 	// Should be EOF (stream ended after error, no [DONE] marker)
 	n, err := r.Read(buf)
-	if err != io.EOF {
+	if !errors.Is(err, io.EOF) {
 		t.Errorf("expected EOF after error event, got err=%v n=%d data=%q", err, n, buf[:n])
 	}
 }
@@ -1104,7 +1105,7 @@ func TestSSEStreamReaderConcurrentSendEvent(t *testing.T) {
 	count := 0
 	for {
 		n, err := r.Read(buf)
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
@@ -1179,7 +1180,7 @@ func TestSSEStreamReaderSendHeartbeatWithFraming(t *testing.T) {
 // contract as the other Send* wrappers: false once the reader is closed.
 func TestSSEStreamReaderSendHeartbeatAfterClose(t *testing.T) {
 	r := NewSSEStreamReader()
-	r.Close()
+	_ = r.Close()
 
 	if r.SendHeartbeat() {
 		t.Error("SendHeartbeat should return false after Close")
@@ -1222,7 +1223,7 @@ func TestSSEStreamReaderDoneWhileSendBlockedDoesNotPanic(t *testing.T) {
 		synctest.Wait()
 
 		// Safe shutdown sequence, mirroring handleStreamingResponse's cleanup: Close() first...
-		r.Close()
+		_ = r.Close()
 
 		// ...wait for the blocked send to actually unblock and return...
 		select {
@@ -1266,7 +1267,7 @@ func TestSSEStreamReaderCloseUnblocksProducer(t *testing.T) {
 	}()
 
 	// Close unblocks the blocked Send
-	r.Close()
+	_ = r.Close()
 	<-done
 
 	select {
@@ -1328,7 +1329,7 @@ func TestStartSSEHeartbeatFiresPeriodically(t *testing.T) {
 // how handleStreamingResponse's cancel() is wired to heartbeat-discovered disconnects.
 func TestStartSSEHeartbeatCallsOnDisconnectAfterClose(t *testing.T) {
 	r := NewSSEStreamReader()
-	r.Close() // SendHeartbeat will return false on the very first tick
+	_ = r.Close() // SendHeartbeat will return false on the very first tick
 
 	var onDisconnectCalls atomic.Int32
 	_, exited := StartSSEHeartbeat(5*time.Millisecond, r.SendHeartbeat, func() {

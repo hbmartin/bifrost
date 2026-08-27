@@ -49,14 +49,14 @@ func run(ctx context.Context, args []string) error {
 		return fmt.Errorf("open config DB: %w", err)
 	}
 	if sqlDB, dbErr := configDB.DB(); dbErr == nil {
-		defer sqlDB.Close()
+		defer func() { _ = sqlDB.Close() }()
 	}
 	logsDB, err := seed.OpenDB(opts.LogsDialect, opts.LogsDSN)
 	if err != nil {
 		return fmt.Errorf("open logs DB: %w", err)
 	}
 	if sqlDB, dbErr := logsDB.DB(); dbErr == nil {
-		defer sqlDB.Close()
+		defer func() { _ = sqlDB.Close() }()
 	}
 
 	summary, err := seed.SeedBase(ctx, configDB, logsDB, opts)

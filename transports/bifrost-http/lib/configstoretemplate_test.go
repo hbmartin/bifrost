@@ -48,7 +48,7 @@ func buildTemplateConfigDB() {
 		templateConfigDBErr = err
 		return
 	}
-	defer os.RemoveAll(dir)
+	defer func() { _ = os.RemoveAll(dir) }()
 
 	ctx := context.Background()
 	basePath := filepath.Join(dir, "config.db")

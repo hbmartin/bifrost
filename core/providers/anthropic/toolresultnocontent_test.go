@@ -1,6 +1,7 @@
 package anthropic
 
 import (
+	"context"
 	"testing"
 
 	"github.com/maximhq/bifrost/core/schemas"
@@ -56,7 +57,7 @@ func TestConvertToolResultWithoutContentField(t *testing.T) {
 			assertSingleFunctionCallOutput(t, "grouped", grouped, *tc.block.ToolUseID)
 
 			// Default path (native Anthropic, Vertex, Azure ingress).
-			ctx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+			ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 			plain := convertAnthropicContentBlocksToResponsesMessages(ctx, blocks, &role, false, "")
 			assertSingleFunctionCallOutput(t, "default", plain, *tc.block.ToolUseID)
 		})

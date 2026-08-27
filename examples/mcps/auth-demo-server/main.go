@@ -48,6 +48,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -127,7 +128,8 @@ func main() {
 }
 `, addr, connectionAPIKey, toolExecToken)
 
-	if err := http.ListenAndServe(addr, handler); err != nil {
+	httpSrv := &http.Server{Addr: addr, Handler: handler, ReadHeaderTimeout: 5 * time.Second}
+	if err := httpSrv.ListenAndServe(); err != nil {
 		log.Fatalf("Server error: %v", err)
 	}
 }

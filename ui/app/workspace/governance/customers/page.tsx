@@ -53,8 +53,10 @@ export default function GovernanceCustomersPage() {
 	// Snap offset back when total shrinks past current page (e.g. delete last item on last page)
 	useEffect(() => {
 		if (!customersData || urlState.offset < customersTotal) return;
-		setUrlState({ offset: customersTotal === 0 ? 0 : Math.floor((customersTotal - 1) / PAGE_SIZE) * PAGE_SIZE });
-	}, [customersTotal, urlState.offset]);
+		setUrlState({
+			offset: customersTotal === 0 ? 0 : Math.floor((customersTotal - 1) / PAGE_SIZE) * PAGE_SIZE,
+		});
+	}, [customersData, customersTotal, setUrlState, urlState.offset]);
 
 	const isLoading = teamsLoading || customersLoading;
 

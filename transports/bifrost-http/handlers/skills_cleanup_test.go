@@ -39,7 +39,7 @@ func newTestConfigStore(t *testing.T) configstore.ConfigStore {
 	if err != nil {
 		t.Fatalf("new config store: %v", err)
 	}
-	t.Cleanup(func() { store.Close(context.Background()) })
+	t.Cleanup(func() { _ = store.Close(context.Background()) })
 	return store
 }
 

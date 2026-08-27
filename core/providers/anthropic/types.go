@@ -775,7 +775,6 @@ type ContextManagementEdit struct {
 
 func (edit ContextManagementEdit) MarshalJSON() ([]byte, error) {
 	// Create a base map with the type field
-	type Alias ContextManagementEdit
 
 	// Marshal based on the type
 	switch edit.Type {

@@ -50,11 +50,17 @@ func main() {
 			buf := make([]byte, 2048)
 			n, _ := resp.Body.Read(buf)
 			body = string(buf[:n])
-			resp.Body.Close()
+			if closeErr := resp.Body.Close(); closeErr != nil {
+				log.Printf("failed to close handshake response: %v", closeErr)
+			}
 		}
 		log.Fatalf("failed to connect to %s: %v (body: %s)", wsURL, err, body)
 	}
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			log.Printf("failed to close websocket: %v", err)
+		}
+	}()
 	fmt.Printf("Connected to %s\n", wsURL)
 
 	send(conn, map[string]any{
@@ -78,7 +84,9 @@ func main() {
 
 	send(conn, map[string]any{"type": "response.create"})
 
-	conn.SetReadDeadline(time.Now().Add(30 * time.Second))
+	if err := conn.SetReadDeadline(time.Now().Add(30 * time.Second)); err != nil {
+		log.Fatalf("failed to set read deadline: %v", err)
+	}
 	for {
 		_, raw, err := conn.ReadMessage()
 		if err != nil {

@@ -30,7 +30,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useSheetNavigation } from "@/hooks/useSheetNavigation";
 import { IS_ENTERPRISE, MCP_STATUS_COLORS } from "@/lib/constants/config";
 import { VirtualKeySelector } from "@/components/entitySelectors/virtualKeySelector";
-import { getErrorMessage, useGetCoreConfigQuery, useGetVirtualKeysQuery, useUpdateMCPClientMutation } from "@/lib/store";
+import { getErrorMessage, useGetCoreConfigQuery, useUpdateMCPClientMutation } from "@/lib/store";
 import { MCPClient, MCPVKConfig } from "@/lib/types/mcp";
 import { mcpClientUpdateSchema, type MCPClientUpdateSchema } from "@/lib/types/schemas";
 import { parseArrayFromText } from "@/lib/utils/array";
@@ -42,7 +42,6 @@ import { ChevronDown, ChevronRight, Info, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { OAuthAdvancedFields } from "./oauthAdvancedFields";
-import { OAuth2Authorizer } from "./oauth2Authorizer";
 import { SectionHeader } from "./sectionHeader";
 import { TLSConfigFields } from "./tlsConfigFields";
 import { TokenExchangeFields } from "./tokenExchangeFields";
@@ -134,7 +133,11 @@ export default function MCPClientSheet({
 
 	// Initial VK configs come directly from the MCP client response — always complete, no pagination issue.
 	const initialVKConfigs = useMemo<MCPVKConfig[]>(
-		() => (mcpClient.vk_configs ?? []).map((vc) => ({ virtual_key_id: vc.virtual_key_id, tools_to_execute: vc.tools_to_execute })),
+		() =>
+			(mcpClient.vk_configs ?? []).map((vc) => ({
+				virtual_key_id: vc.virtual_key_id,
+				tools_to_execute: vc.tools_to_execute,
+			})),
 		[mcpClient.vk_configs],
 	);
 
@@ -194,7 +197,9 @@ export default function MCPClientSheet({
 	// Entra's on-behalf-of grant requires use_idp_credentials — see the
 	// Prerequisites warning in docs/mcp/auth/token-exchange.mdx for why a
 	// dedicated exchange app structurally can't work there.
-	const { data: scimProviders } = useGetSCIMProvidersQuery(undefined, { skip: !IS_ENTERPRISE || !supportsTokenExchangeCredentialUpdate });
+	const { data: scimProviders } = useGetSCIMProvidersQuery(undefined, {
+		skip: !IS_ENTERPRISE || !supportsTokenExchangeCredentialUpdate,
+	});
 	const enabledScimProvider = scimProviders?.find((p) => (p as { enabled?: boolean }).enabled) as { name?: string } | undefined;
 	// Matches the create form's idpConfigured gate: without an enabled
 	// provider there's nothing for use_idp_credentials to resolve against at
@@ -1311,13 +1316,21 @@ export default function MCPClientSheet({
 																					data-testid="mcpclient-tools-enable-all"
 																					onChange={(nextSelectedIds) => {
 																						if (nextSelectedIds.length === 0) {
-																							form.setValue("tools_to_execute", [], { shouldDirty: true });
+																							form.setValue("tools_to_execute", [], {
+																								shouldDirty: true,
+																							});
 																							// Also clear auto-execute when disabling all
-																							form.setValue("tools_to_auto_execute", [], { shouldDirty: true });
+																							form.setValue("tools_to_auto_execute", [], {
+																								shouldDirty: true,
+																							});
 																						} else if (nextSelectedIds.length === allToolNames.length) {
-																							form.setValue("tools_to_execute", ["*"], { shouldDirty: true });
+																							form.setValue("tools_to_execute", ["*"], {
+																								shouldDirty: true,
+																							});
 																						} else {
-																							form.setValue("tools_to_execute", nextSelectedIds, { shouldDirty: true });
+																							form.setValue("tools_to_execute", nextSelectedIds, {
+																								shouldDirty: true,
+																							});
 																						}
 																					}}
 																				/>
@@ -1368,9 +1381,13 @@ export default function MCPClientSheet({
 																					data-testid="mcpclient-tools-autoexecute-all"
 																					onChange={(nextSelectedIds) => {
 																						if (nextSelectedIds.length === 0) {
-																							form.setValue("tools_to_auto_execute", [], { shouldDirty: true });
+																							form.setValue("tools_to_auto_execute", [], {
+																								shouldDirty: true,
+																							});
 																						} else if (nextSelectedIds.length === enabledToolNames.length) {
-																							form.setValue("tools_to_auto_execute", ["*"], { shouldDirty: true });
+																							form.setValue("tools_to_auto_execute", ["*"], {
+																								shouldDirty: true,
+																							});
 																						} else {
 																							form.setValue("tools_to_auto_execute", nextSelectedIds, { shouldDirty: true });
 																						}
@@ -1640,7 +1657,8 @@ export default function MCPClientSheet({
 													<p className="text-muted-foreground flex items-center gap-1 text-xs">
 														<Info className="h-3 w-3 shrink-0" />
 														Configuring access for a virtual key here overrides the{" "}
-														<span className="font-medium">Allow on All Virtual Keys</span>&nbsp;setting for that key.
+														<span className="font-medium">Allow on All Virtual Keys</span>
+														&nbsp;setting for that key.
 													</p>
 												)}
 											</div>

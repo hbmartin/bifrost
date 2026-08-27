@@ -382,6 +382,7 @@ func TestMissingThoughtSignatureUsesBypassSentinel(t *testing.T) {
 			},
 		},
 	})
+	require.NoError(t, err)
 
 	require.Len(t, result.Contents, 3)
 	require.Len(t, result.Contents[1].Parts, 1)
@@ -469,6 +470,7 @@ func TestEmbeddedThoughtSignatureDoesNotUseBypassSentinel(t *testing.T) {
 			},
 		}},
 	})
+	require.NoError(t, err)
 
 	require.Len(t, result.Contents, 1)
 	require.Len(t, result.Contents[0].Parts, 1)
@@ -817,6 +819,7 @@ func TestBifrostToGeminiToolConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *gemini.GeminiGenerationRequest) {
+				t.Helper()
 				require.Len(t, result.Tools, 1)
 				fd := result.Tools[0].FunctionDeclarations[0]
 
@@ -900,6 +903,7 @@ func TestBifrostToGeminiToolConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *gemini.GeminiGenerationRequest) {
+				t.Helper()
 				require.Len(t, result.Tools, 1)
 				fd := result.Tools[0].FunctionDeclarations[0]
 				params := parseToolParams(t, fd)
@@ -984,6 +988,7 @@ func TestBifrostToGeminiToolConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *gemini.GeminiGenerationRequest) {
+				t.Helper()
 				require.Len(t, result.Tools, 1)
 				fd := result.Tools[0].FunctionDeclarations[0]
 				assert.Equal(t, "browser_fill_form", fd.Name)
@@ -1039,6 +1044,7 @@ func TestBifrostToGeminiToolConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *gemini.GeminiGenerationRequest) {
+				t.Helper()
 				fd := result.Tools[0].FunctionDeclarations[0]
 				params := parseToolParams(t, fd)
 				dataProp := getSchemaProperty(t, params, "data")
@@ -1096,6 +1102,7 @@ func TestBifrostToGeminiToolConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *gemini.GeminiGenerationRequest) {
+				t.Helper()
 				require.Len(t, result.Tools, 1)
 				fd := result.Tools[0].FunctionDeclarations[0]
 				params := parseToolParams(t, fd)
@@ -1155,6 +1162,7 @@ func TestBifrostToGeminiToolConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *gemini.GeminiGenerationRequest) {
+				t.Helper()
 				require.Len(t, result.Tools, 1)
 				fd := result.Tools[0].FunctionDeclarations[0]
 				params := parseToolParams(t, fd)
@@ -1203,6 +1211,7 @@ func TestBifrostToGeminiToolConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *gemini.GeminiGenerationRequest) {
+				t.Helper()
 				require.Len(t, result.Tools, 1)
 				fd := result.Tools[0].FunctionDeclarations[0]
 				params := parseToolParams(t, fd)
@@ -1256,6 +1265,7 @@ func TestBifrostToGeminiToolConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *gemini.GeminiGenerationRequest) {
+				t.Helper()
 				require.Len(t, result.Tools, 1)
 				fd := result.Tools[0].FunctionDeclarations[0]
 				params := parseToolParams(t, fd)
@@ -1426,6 +1436,7 @@ func TestStructuredOutputConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *gemini.GeminiGenerationRequest) {
+				t.Helper()
 				// Verify ResponseMIMEType is set
 				assert.Equal(t, "application/json", result.GenerationConfig.ResponseMIMEType, "responseMimeType should be application/json")
 
@@ -1499,6 +1510,7 @@ func TestStructuredOutputConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *gemini.GeminiGenerationRequest) {
+				t.Helper()
 				schemaMap, ok := asPlainMap(t, result.GenerationConfig.ResponseJSONSchema)
 				require.True(t, ok, "ResponseJSONSchema should be a map")
 				properties, ok := asPlainMap(t, schemaMap["properties"])
@@ -1558,6 +1570,7 @@ func TestStructuredOutputConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *gemini.GeminiGenerationRequest) {
+				t.Helper()
 				assert.Equal(t, "application/json", result.GenerationConfig.ResponseMIMEType)
 				assert.NotNil(t, result.GenerationConfig.ResponseJSONSchema)
 
@@ -1600,6 +1613,7 @@ func TestStructuredOutputConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *gemini.GeminiGenerationRequest) {
+				t.Helper()
 				// json_object should only set ResponseMIMEType without schema
 				assert.Equal(t, "application/json", result.GenerationConfig.ResponseMIMEType)
 				assert.Nil(t, result.GenerationConfig.ResponseJSONSchema)
@@ -1687,6 +1701,7 @@ func TestStructuredOutputWithToolsConflict(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *gemini.GeminiGenerationRequest) {
+				t.Helper()
 				assert.Empty(t, result.GenerationConfig.ResponseMIMEType, "responseMimeType should be dropped for Gemini 2.5 when tools are present")
 				// json_object carries no schema, so there is nothing to forward.
 				assert.Nil(t, result.GenerationConfig.ResponseJSONSchema)
@@ -1704,6 +1719,7 @@ func TestStructuredOutputWithToolsConflict(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *gemini.GeminiGenerationRequest) {
+				t.Helper()
 				assert.Empty(t, result.GenerationConfig.ResponseMIMEType, "responseMimeType should be dropped for Gemini 2.5 when tools are present")
 				assert.Nil(t, result.GenerationConfig.ResponseJSONSchema, "responseJsonSchema should also be dropped for Gemini 2.5 when tools are present")
 				assert.NotEmpty(t, result.Tools, "tools should be retained")
@@ -1720,6 +1736,7 @@ func TestStructuredOutputWithToolsConflict(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *gemini.GeminiGenerationRequest) {
+				t.Helper()
 				assert.Equal(t, "application/json", result.GenerationConfig.ResponseMIMEType, "Gemini 3.x supports tools + structured output")
 				assert.NotNil(t, result.GenerationConfig.ResponseJSONSchema)
 				assert.NotEmpty(t, result.Tools)
@@ -1735,6 +1752,7 @@ func TestStructuredOutputWithToolsConflict(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *gemini.GeminiGenerationRequest) {
+				t.Helper()
 				assert.Equal(t, "application/json", result.GenerationConfig.ResponseMIMEType, "structured output is fine when no tools are present")
 				assert.NotNil(t, result.GenerationConfig.ResponseJSONSchema)
 			},
@@ -1826,6 +1844,7 @@ func TestResponsesStructuredOutputConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *gemini.GeminiGenerationRequest) {
+				t.Helper()
 				// Verify ResponseMIMEType is set
 				assert.Equal(t, "application/json", result.GenerationConfig.ResponseMIMEType)
 				assert.NotNil(t, result.GenerationConfig.ResponseJSONSchema)
@@ -1891,6 +1910,7 @@ func TestResponsesStructuredOutputConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *gemini.GeminiGenerationRequest) {
+				t.Helper()
 				schemaMap, ok := asPlainMap(t, result.GenerationConfig.ResponseJSONSchema)
 				require.True(t, ok, "ResponseJSONSchema should be a map")
 				properties, ok := asPlainMap(t, schemaMap["properties"])
@@ -2122,6 +2142,7 @@ func TestParallelFunctionCallingConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *gemini.GeminiGenerationRequest) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.Len(t, result.Contents, 3, "Should have 3 Contents: user, assistant with tool calls, tool response")
 
@@ -2193,6 +2214,7 @@ func TestParallelFunctionCallingConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *gemini.GeminiGenerationRequest) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.Len(t, result.Contents, 3, "Should have 3 Contents: user, assistant with tool calls, grouped tool responses")
 
@@ -2255,6 +2277,7 @@ func TestParallelFunctionCallingConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *gemini.GeminiGenerationRequest) {
+				t.Helper()
 				require.Len(t, result.Contents, 3, "Should have 3 Contents: user, assistant with tool calls, grouped tool responses")
 
 				toolResponseContent := result.Contents[2]
@@ -2307,6 +2330,7 @@ func TestParallelFunctionCallingConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *gemini.GeminiGenerationRequest) {
+				t.Helper()
 				require.Len(t, result.Contents, 4, "Should have 4 Contents: user, assistant with tool calls, grouped tool responses, user")
 
 				// First user message
@@ -2362,6 +2386,7 @@ func TestParallelFunctionCallingConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *gemini.GeminiGenerationRequest) {
+				t.Helper()
 				require.Len(t, result.Contents, 3, "Should have 3 Contents: user, assistant with tool calls, grouped tool responses")
 
 				// Grouped tool responses at the end should still be flushed
@@ -2445,6 +2470,7 @@ func TestResponsesAPIParallelFunctionCalling(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *gemini.GeminiGenerationRequest) {
+				t.Helper()
 				require.NotNil(t, result)
 
 				// Find the Content with function responses
@@ -2510,6 +2536,7 @@ func TestResponsesAPIParallelFunctionCalling(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *gemini.GeminiGenerationRequest) {
+				t.Helper()
 				// Find the Content with function response
 				var toolResponseContent *gemini.Content
 				for i := range result.Contents {
@@ -2587,6 +2614,7 @@ func TestResponsesAPIParallelFunctionCalling(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *gemini.GeminiGenerationRequest) {
+				t.Helper()
 				// Find grouped function responses
 				var groupedToolContent *gemini.Content
 				for i := range result.Contents {
@@ -2647,6 +2675,7 @@ func TestResponsesAPIParallelFunctionCalling(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *gemini.GeminiGenerationRequest) {
+				t.Helper()
 				// Find the Content with function response
 				var toolResponseContent *gemini.Content
 				for i := range result.Contents {
@@ -2718,6 +2747,7 @@ func TestResponsesAPIParallelFunctionCalling(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *gemini.GeminiGenerationRequest) {
+				t.Helper()
 				var fr *gemini.FunctionResponse
 				for i := range result.Contents {
 					for _, p := range result.Contents[i].Parts {
@@ -2783,6 +2813,7 @@ func TestResponsesAPIParallelFunctionCalling(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *gemini.GeminiGenerationRequest) {
+				t.Helper()
 				var fr *gemini.FunctionResponse
 				for i := range result.Contents {
 					for _, p := range result.Contents[i].Parts {
@@ -2836,6 +2867,7 @@ func TestResponsesAPIParallelFunctionCalling(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *gemini.GeminiGenerationRequest) {
+				t.Helper()
 				var fr *gemini.FunctionResponse
 				for i := range result.Contents {
 					for _, p := range result.Contents[i].Parts {
@@ -2862,6 +2894,7 @@ func TestResponsesAPIParallelFunctionCalling(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Helper()
 			result, err := gemini.ToGeminiResponsesRequest(nil, tt.input)
 			require.NoError(t, err)
 			require.NotNil(t, result, "Responses API conversion should not return nil")
@@ -2922,6 +2955,7 @@ func TestBifrostResponsesToGeminiToolConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *gemini.GeminiGenerationRequest) {
+				t.Helper()
 				require.Len(t, result.Tools, 1)
 				fd := result.Tools[0].FunctionDeclarations[0]
 
@@ -2983,6 +3017,7 @@ func TestBifrostResponsesToGeminiToolConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *gemini.GeminiGenerationRequest) {
+				t.Helper()
 				require.Len(t, result.Tools, 1)
 				fd := result.Tools[0].FunctionDeclarations[0]
 				require.NotNil(t, fd.ParametersJSONSchema, "ParametersJSONSchema must be set")
@@ -3080,6 +3115,7 @@ func TestBifrostResponsesToGeminiToolConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *gemini.GeminiGenerationRequest) {
+				t.Helper()
 				require.Len(t, result.Tools, 1)
 				fd := result.Tools[0].FunctionDeclarations[0]
 				params := parseToolParams(t, fd)
@@ -3141,6 +3177,7 @@ func TestBifrostResponsesToGeminiToolConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *gemini.GeminiGenerationRequest) {
+				t.Helper()
 				fd := result.Tools[0].FunctionDeclarations[0]
 				params := parseToolParams(t, fd)
 				arrayProp := getSchemaProperty(t, params, "any_array")
@@ -3931,6 +3968,7 @@ func TestThinkingLevelFromEffort(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.model+"_"+tt.effort, func(t *testing.T) {
+			t.Helper()
 			req := &schemas.BifrostChatRequest{
 				Model: tt.model,
 				Input: minimalChatInput(),
@@ -3995,9 +4033,11 @@ func TestThinkingConfigResolvesPerProvider(t *testing.T) {
 // fallback side is covered by TestStructuredOutputWithToolsConflict,
 // TestThinkingLevelFromEffort and TestMultimodalFunctionResponse_RoundTrip.
 func TestGemini3CapabilityGatesReadDatasheet(t *testing.T) {
+	t.Helper()
 	const model = "gemini-2.5-flash"
 
 	withCaps := func(t *testing.T, record *schemas.ModelCapabilities) {
+		t.Helper()
 		schemas.SetCapabilityResolver(func(_ schemas.ModelProvider, m string) *schemas.ModelCapabilities {
 			if m != model {
 				return nil
@@ -4355,6 +4395,7 @@ func TestNormalizeRawGenerateContentRequestForCompatibility(t *testing.T) {
 			name:  "StripsFallbacksField",
 			input: `{"contents":[{"parts":[{"text":"Hello"}]}],"fallbacks":["openai/gpt-4o","vertex/gemini-2-flash"]}`,
 			validate: func(t *testing.T, m map[string]interface{}) {
+				t.Helper()
 				assert.NotContains(t, m, "fallbacks", "fallbacks must not be forwarded to Gemini")
 				assert.Contains(t, m, "contents", "contents must be preserved")
 			},
@@ -4363,6 +4404,7 @@ func TestNormalizeRawGenerateContentRequestForCompatibility(t *testing.T) {
 			name:  "StripsGenerationConfigCompatFields",
 			input: `{"contents":[{"parts":[{"text":"Hi"}]}],"generationConfig":{"temperature":0.7,"responseLogprobs":true,"logprobs":5,"presencePenalty":0.5,"frequencyPenalty":0.3}}`,
 			validate: func(t *testing.T, m map[string]interface{}) {
+				t.Helper()
 				gc := genConfig(m)
 				require.NotNil(t, gc)
 				assert.NotContains(t, gc, "responseLogprobs")
@@ -4376,6 +4418,7 @@ func TestNormalizeRawGenerateContentRequestForCompatibility(t *testing.T) {
 			name:  "StripsFallbacksAlongsideCompatFields",
 			input: `{"contents":[{"parts":[{"text":"Hi"}]}],"fallbacks":["openai/gpt-4o"],"generationConfig":{"temperature":0.5,"presencePenalty":0.2}}`,
 			validate: func(t *testing.T, m map[string]interface{}) {
+				t.Helper()
 				assert.NotContains(t, m, "fallbacks")
 				gc := genConfig(m)
 				require.NotNil(t, gc)
@@ -4387,6 +4430,7 @@ func TestNormalizeRawGenerateContentRequestForCompatibility(t *testing.T) {
 			name:  "PreservesValidBodyWithNoStrippableFields",
 			input: `{"contents":[{"parts":[{"text":"Hi"}]}],"generationConfig":{"temperature":0.7,"maxOutputTokens":1000}}`,
 			validate: func(t *testing.T, m map[string]interface{}) {
+				t.Helper()
 				assert.Contains(t, m, "contents")
 				gc := genConfig(m)
 				require.NotNil(t, gc)
@@ -4398,6 +4442,7 @@ func TestNormalizeRawGenerateContentRequestForCompatibility(t *testing.T) {
 			name:  "HandlesBodyWithOnlyFallbacks",
 			input: `{"fallbacks":["openai/gpt-4o"]}`,
 			validate: func(t *testing.T, m map[string]interface{}) {
+				t.Helper()
 				assert.NotContains(t, m, "fallbacks")
 			},
 		},

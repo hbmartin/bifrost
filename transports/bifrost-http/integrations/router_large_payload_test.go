@@ -148,7 +148,7 @@ func TestResolveLargePayloadMetadata_NilContext(t *testing.T) {
 }
 
 func TestResolveLargePayloadMetadata_SyncPath(t *testing.T) {
-	ctx := schemas.NewBifrostContext(nil, time.Time{})
+	ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 	meta := &schemas.LargePayloadMetadata{Model: "gpt-4o"}
 	ctx.SetValue(schemas.BifrostContextKeyLargePayloadMetadata, meta)
 
@@ -158,7 +158,7 @@ func TestResolveLargePayloadMetadata_SyncPath(t *testing.T) {
 }
 
 func TestResolveLargePayloadMetadata_DeferredReady(t *testing.T) {
-	ctx := schemas.NewBifrostContext(nil, time.Time{})
+	ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 	ch := make(chan *schemas.LargePayloadMetadata, 1)
 	ch <- &schemas.LargePayloadMetadata{Model: "claude-4"}
 	ctx.SetValue(schemas.BifrostContextKeyDeferredLargePayloadMetadata, (<-chan *schemas.LargePayloadMetadata)(ch))
@@ -174,7 +174,7 @@ func TestResolveLargePayloadMetadata_DeferredReady(t *testing.T) {
 }
 
 func TestResolveLargePayloadMetadata_DeferredNotReady(t *testing.T) {
-	ctx := schemas.NewBifrostContext(nil, time.Time{})
+	ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 	ch := make(chan *schemas.LargePayloadMetadata, 1) // empty, not ready
 	ctx.SetValue(schemas.BifrostContextKeyDeferredLargePayloadMetadata, (<-chan *schemas.LargePayloadMetadata)(ch))
 
@@ -184,7 +184,7 @@ func TestResolveLargePayloadMetadata_DeferredNotReady(t *testing.T) {
 }
 
 func TestResolveLargePayloadMetadata_SyncTakesPrecedence(t *testing.T) {
-	ctx := schemas.NewBifrostContext(nil, time.Time{})
+	ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 	syncMeta := &schemas.LargePayloadMetadata{Model: "sync-model"}
 	ctx.SetValue(schemas.BifrostContextKeyLargePayloadMetadata, syncMeta)
 

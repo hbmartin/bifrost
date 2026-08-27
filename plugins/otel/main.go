@@ -612,7 +612,7 @@ func (p *OtelPlugin) buildTarget(index int, profile *Profile) (*otelTarget, erro
 	if profile.MetricsEnabled {
 		if profile.MetricsEndpoint.GetValue() == "" {
 			if target.client != nil {
-				target.client.Close()
+				_ = target.client.Close()
 			}
 			return nil, fmt.Errorf("profile %d: metrics_endpoint is required when metrics_enabled is true", index)
 		}
@@ -621,7 +621,7 @@ func (p *OtelPlugin) buildTarget(index int, profile *Profile) (*otelTarget, erro
 			pushInterval = 15 // default 15 seconds
 		} else if pushInterval > 300 {
 			if target.client != nil {
-				target.client.Close()
+				_ = target.client.Close()
 			}
 			return nil, fmt.Errorf("profile %d: metrics_push_interval must be between 1 and 300 seconds, got %d", index, pushInterval)
 		}
@@ -638,7 +638,7 @@ func (p *OtelPlugin) buildTarget(index int, profile *Profile) (*otelTarget, erro
 		if err != nil {
 			// Clean up trace client if metrics exporter fails
 			if target.client != nil {
-				target.client.Close()
+				_ = target.client.Close()
 			}
 			return nil, fmt.Errorf("profile %d: failed to initialize metrics exporter: %w", index, err)
 		}

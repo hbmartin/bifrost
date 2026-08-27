@@ -277,7 +277,10 @@ const isReasoningResponsesMessage = (m: ResponsesMessage): boolean => m.type ===
 const flattenDeclaredTools = (tools: any[]): any[] =>
 	tools.flatMap((tool) =>
 		tool?.type === "namespace" && Array.isArray(tool.tools)
-			? (tool.tools as any[]).map((nested) => ({ ...nested, name: `${tool.name ?? "namespace"}.${nested?.name ?? ""}` }))
+			? (tool.tools as any[]).map((nested) => ({
+					...nested,
+					name: `${tool.name ?? "namespace"}.${nested?.name ?? ""}`,
+				}))
 			: [tool],
 	);
 
@@ -956,7 +959,12 @@ interface LogDetailViewProps {
 	onFilterByParentRequestId?: (parentRequestId: string) => void;
 }
 
-export function LogDetailView({
+export function LogDetailView({ ...props }: LogDetailViewProps) {
+	if (!props.log) return null;
+	return <LogDetailViewContent {...props} log={props.log} />;
+}
+
+function LogDetailViewContent({
 	log,
 	resolvedSelectedPromptName,
 	loading = false,
@@ -965,7 +973,7 @@ export function LogDetailView({
 	onClose,
 	headerAction,
 	onFilterByParentRequestId,
-}: LogDetailViewProps) {
+}: LogDetailViewProps & { log: LogEntry }) {
 	const { copy: copyBody } = useCopyToClipboard({
 		successMessage: "Request body copied to clipboard",
 		errorMessage: "Failed to copy request body",
@@ -987,8 +995,6 @@ export function LogDetailView({
 	const handleToggleReveal = (checked: boolean) => {
 		setShowRevealedValues(checked && revealAvailable);
 	};
-
-	if (!log) return null;
 
 	const selectedPromptDisplayName = resolvedSelectedPromptName ?? log.selected_prompt_name ?? "";
 
@@ -1059,11 +1065,12 @@ export function LogDetailView({
 		}
 		return [];
 	}, [batchRawRequest]);
+	const batchFileName = (batchRawRequest?.batch as any)?.inputConfig?.fileName;
 	const batchInputFileId =
 		typeof batchRawRequest?.input_file_id === "string"
 			? (batchRawRequest.input_file_id as string)
-			: typeof (batchRawRequest?.batch as any)?.inputConfig?.fileName === "string"
-				? ((batchRawRequest?.batch as any).inputConfig.fileName as string)
+			: typeof batchFileName === "string"
+				? batchFileName
 				: null;
 	const batchRawResponse = useMemo(() => {
 		if (!isBatch || !log.raw_response) return null;
@@ -1296,7 +1303,12 @@ export function LogDetailView({
 							{log.routing_rule && (
 								<Link
 									to="/workspace/logs"
-									search={(prev) => ({ ...prev, offset: 0, selected_log: "", routing_rule_ids: [log.routing_rule!.id] })}
+									search={(prev) => ({
+										...prev,
+										offset: 0,
+										selected_log: "",
+										routing_rule_ids: [log.routing_rule!.id],
+									})}
 									data-testid="logdetails-header-routing-rule-link"
 								>
 									<Badge variant="outline" className="bg-card text-muted-foreground rounded-sm px-2 py-0.5 font-normal hover:underline">
@@ -1377,7 +1389,12 @@ export function LogDetailView({
 								<div className="text-muted-foreground w-24 shrink-0 text-[10.5px] font-semibold tracking-wider uppercase">Rule</div>
 								<Link
 									to="/workspace/logs"
-									search={(prev) => ({ ...prev, offset: 0, selected_log: "", routing_rule_ids: [log.routing_rule!.id] })}
+									search={(prev) => ({
+										...prev,
+										offset: 0,
+										selected_log: "",
+										routing_rule_ids: [log.routing_rule!.id],
+									})}
 									className="truncate text-[13px] font-medium text-blue-600 hover:underline dark:text-blue-400"
 									data-testid="logdetails-header-rule-link"
 								>
@@ -1390,7 +1407,12 @@ export function LogDetailView({
 								<div className="text-muted-foreground w-24 shrink-0 text-[10.5px] font-semibold tracking-wider uppercase">Key</div>
 								<Link
 									to="/workspace/logs"
-									search={(prev) => ({ ...prev, offset: 0, selected_log: "", selected_key_ids: [log.selected_key_id] })}
+									search={(prev) => ({
+										...prev,
+										offset: 0,
+										selected_log: "",
+										selected_key_ids: [log.selected_key_id],
+									})}
 									className="truncate font-mono text-[13px] text-blue-600 hover:underline dark:text-blue-400"
 									data-testid="logdetails-header-selected-key-link"
 								>
@@ -1646,7 +1668,12 @@ export function LogDetailView({
 									value={
 										<Link
 											to="/workspace/logs"
-											search={(prev) => ({ ...prev, offset: 0, selected_log: "", selected_key_ids: [log.selected_key_id] })}
+											search={(prev) => ({
+												...prev,
+												offset: 0,
+												selected_log: "",
+												selected_key_ids: [log.selected_key_id],
+											})}
 											className="text-blue-600 hover:underline dark:text-blue-400"
 											data-testid="logdetails-selected-key-link"
 										>
@@ -1690,7 +1717,12 @@ export function LogDetailView({
 												<Link
 													key={t.id}
 													to="/workspace/logs"
-													search={(prev) => ({ ...prev, offset: 0, selected_log: "", team_ids: [t.id] })}
+													search={(prev) => ({
+														...prev,
+														offset: 0,
+														selected_log: "",
+														team_ids: [t.id],
+													})}
 													className="text-blue-600 hover:underline dark:text-blue-400"
 													data-testid={`logdetails-team-link-${t.id}`}
 												>
@@ -1709,13 +1741,21 @@ export function LogDetailView({
 									value={
 										<span className="inline-flex flex-wrap gap-x-1">
 											{(log.customer_ids?.length
-												? log.customer_ids.map((id, i) => ({ id, name: log.customer_names?.[i] || id }))
+												? log.customer_ids.map((id, i) => ({
+														id,
+														name: log.customer_names?.[i] || id,
+													}))
 												: [{ id: log.customer_id!, name: log.customer_name || log.customer_id! }]
 											).map((c, i, arr) => (
 												<Link
 													key={c.id}
 													to="/workspace/logs"
-													search={(prev) => ({ ...prev, offset: 0, selected_log: "", customer_ids: [c.id] })}
+													search={(prev) => ({
+														...prev,
+														offset: 0,
+														selected_log: "",
+														customer_ids: [c.id],
+													})}
 													className="text-blue-600 hover:underline dark:text-blue-400"
 													data-testid={`logdetails-customer-link-${c.id}`}
 												>
@@ -1734,13 +1774,26 @@ export function LogDetailView({
 									value={
 										<span className="inline-flex flex-wrap gap-x-1">
 											{(log.business_unit_ids?.length
-												? log.business_unit_ids.map((id, i) => ({ id, name: log.business_unit_names?.[i] || id }))
-												: [{ id: log.business_unit_id!, name: log.business_unit_name || log.business_unit_id! }]
+												? log.business_unit_ids.map((id, i) => ({
+														id,
+														name: log.business_unit_names?.[i] || id,
+													}))
+												: [
+														{
+															id: log.business_unit_id!,
+															name: log.business_unit_name || log.business_unit_id!,
+														},
+													]
 											).map((b, i, arr) => (
 												<Link
 													key={b.id}
 													to="/workspace/logs"
-													search={(prev) => ({ ...prev, offset: 0, selected_log: "", business_unit_ids: [b.id] })}
+													search={(prev) => ({
+														...prev,
+														offset: 0,
+														selected_log: "",
+														business_unit_ids: [b.id],
+													})}
 													className="text-blue-600 hover:underline dark:text-blue-400"
 													data-testid={`logdetails-business-unit-link-${b.id}`}
 												>
@@ -1761,7 +1814,12 @@ export function LogDetailView({
 											<TooltipTrigger asChild>
 												<Link
 													to="/workspace/logs"
-													search={(prev) => ({ ...prev, offset: 0, selected_log: "", user_ids: [log.user_id] })}
+													search={(prev) => ({
+														...prev,
+														offset: 0,
+														selected_log: "",
+														user_ids: [log.user_id],
+													})}
 													className={`block max-w-full min-w-0 cursor-pointer truncate text-sm font-normal text-blue-600 underline-offset-2 hover:underline dark:text-blue-400${log.user_name ? "" : " font-mono"}`}
 													data-testid="logdetails-user-link"
 												>
@@ -1821,7 +1879,12 @@ export function LogDetailView({
 									value={
 										<Link
 											to="/workspace/logs"
-											search={(prev) => ({ ...prev, offset: 0, selected_log: "", routing_rule_ids: [log.routing_rule!.id] })}
+											search={(prev) => ({
+												...prev,
+												offset: 0,
+												selected_log: "",
+												routing_rule_ids: [log.routing_rule!.id],
+											})}
 											className="text-blue-600 hover:underline dark:text-blue-400"
 											data-testid="logdetails-routing-rule-link"
 										>
@@ -2483,7 +2546,8 @@ export function LogDetailView({
 															</Badge>
 														)}
 														<span className="text-muted-foreground text-[11px]">
-															{request.messages.length} message{request.messages.length === 1 ? "" : "s"}
+															{request.messages.length} message
+															{request.messages.length === 1 ? "" : "s"}
 														</span>
 													</span>
 												</AccordionTrigger>
@@ -2618,7 +2682,8 @@ export function LogDetailView({
 										onCheckedChange={(checked) =>
 											setVisibleRoles((prev) => {
 												const next = new Set(prev);
-												checked ? next.add(role) : next.delete(role);
+												if (checked) next.add(role);
+												else next.delete(role);
 												return next;
 											})
 										}
@@ -2946,8 +3011,14 @@ export function LogDetailView({
 						const outputMsgs =
 							visibleRoles.size < allRoles.length ? rawOutput.filter((m) => visibleRoles.has(getResponsesRole(m))) : rawOutput;
 						const all: Array<{ msg: ResponsesMessage; mapping?: Record<string, string> }> = [
-							...coalesceResponsesMessages(inputMsgs).map((msg) => ({ msg, mapping: activeInputRevealMapping })),
-							...coalesceResponsesMessages(outputMsgs).map((msg) => ({ msg, mapping: activeOutputRevealMapping })),
+							...coalesceResponsesMessages(inputMsgs).map((msg) => ({
+								msg,
+								mapping: activeInputRevealMapping,
+							})),
+							...coalesceResponsesMessages(outputMsgs).map((msg) => ({
+								msg,
+								mapping: activeOutputRevealMapping,
+							})),
 						];
 						if (all.length === 0) return null;
 						return (

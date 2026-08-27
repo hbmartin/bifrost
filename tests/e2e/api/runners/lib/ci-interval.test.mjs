@@ -16,10 +16,7 @@ function test(name, fn) {
 }
 
 test("uses the default when the flag is absent", () => {
-  assert.strictEqual(
-    resolveCiIntervalMs(undefined),
-    CI_INTERVAL_DEFAULT_SECONDS * 1000
-  );
+  assert.strictEqual(resolveCiIntervalMs(undefined), CI_INTERVAL_DEFAULT_SECONDS * 1000);
 });
 
 // The harness prints nothing but the status table, so the interval is the only
@@ -63,21 +60,21 @@ test("clamps an oversized interval down to the maximum", () => {
   assert.strictEqual(ms, CI_INTERVAL_MAX_SECONDS * 1000);
   assert.ok(
     ms <= 2_147_483_647,
-    `delay must fit a 32-bit signed int or Node resets it to 1ms, got ${ms}`
+    `delay must fit a 32-bit signed int or Node resets it to 1ms, got ${ms}`,
   );
 });
 
 test("clamps a merely-too-large interval to the maximum", () => {
   assert.strictEqual(
     resolveCiIntervalMs(String(CI_INTERVAL_MAX_SECONDS + 1)),
-    CI_INTERVAL_MAX_SECONDS * 1000
+    CI_INTERVAL_MAX_SECONDS * 1000,
   );
 });
 
 test("honours an interval exactly at the maximum", () => {
   assert.strictEqual(
     resolveCiIntervalMs(String(CI_INTERVAL_MAX_SECONDS)),
-    CI_INTERVAL_MAX_SECONDS * 1000
+    CI_INTERVAL_MAX_SECONDS * 1000,
   );
 });
 

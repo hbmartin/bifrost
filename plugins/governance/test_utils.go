@@ -308,16 +308,20 @@ func fetchDatasheetBaseIndex() {
 		datasheetErr = err
 		return
 	}
-	defer resp.Body.Close()
-
 	if resp.StatusCode != http.StatusOK {
+		_ = resp.Body.Close()
 		datasheetErr = fmt.Errorf("datasheet HTTP %d", resp.StatusCode)
 		return
 	}
 
 	data, err := io.ReadAll(resp.Body)
+	closeErr := resp.Body.Close()
 	if err != nil {
 		datasheetErr = err
+		return
+	}
+	if closeErr != nil {
+		datasheetErr = closeErr
 		return
 	}
 

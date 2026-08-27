@@ -729,7 +729,7 @@ func TestResponsesContentConverterReportsDroppableVersusUnknown(t *testing.T) {
 
 func TestResponsesAbsentContentAlwaysReturnsError(t *testing.T) {
 	role := schemas.ResponsesInputMessageRoleAssistant
-	for _, content := range []*schemas.ResponsesMessageContent{nil, &schemas.ResponsesMessageContent{}} {
+	for _, content := range []*schemas.ResponsesMessageContent{nil, {}} {
 		_, disposition, err := convertBifrostMessageToBedrockMessageWithDisposition(context.Background(), reviewRegressionTestModel, &schemas.ResponsesMessage{
 			Role: &role, Content: content,
 		})

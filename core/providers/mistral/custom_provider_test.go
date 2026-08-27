@@ -42,19 +42,24 @@ func TestMistralProvider_CustomAliasChatStreamUsesBaseCompatibilityAndAliasMetad
 	var capturedRequest map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
-		require.NoError(t, err)
-		require.NoError(t, sonic.Unmarshal(body, &capturedRequest))
+		if !assert.NoError(t, err) || !assert.NoError(t, sonic.Unmarshal(body, &capturedRequest)) {
+			return
+		}
 
 		w.Header().Set("Content-Type", "text/event-stream")
 		flusher, ok := w.(http.Flusher)
-		require.True(t, ok)
+		if !assert.True(t, ok) {
+			return
+		}
 
 		_, err = w.Write([]byte("data: {\"id\":\"chatcmpl-1\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"mistral-small-latest\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"hello\"}}]}\n\n"))
-		require.NoError(t, err)
+		if !assert.NoError(t, err) {
+			return
+		}
 		flusher.Flush()
 
 		_, err = w.Write([]byte("data: [DONE]\n\n"))
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		flusher.Flush()
 	}))
 	defer server.Close()
@@ -131,7 +136,7 @@ func TestMistralProvider_CustomAliasEmbeddingReportsAliasMetadata(t *testing.T) 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, err := w.Write([]byte(`{"object":"list","data":[{"object":"embedding","embedding":[0.1,0.2],"index":0}],"model":"codestral-embed","usage":{"prompt_tokens":1,"total_tokens":1}}`))
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}))
 	defer server.Close()
 

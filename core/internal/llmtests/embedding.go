@@ -37,6 +37,7 @@ func cosineSimilarity(a, b []float64) float64 {
 
 // RunEmbeddingTest executes the embedding test scenario
 func RunEmbeddingTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.Embedding {
 		t.Logf("Embedding not supported for provider %s", testConfig.Provider)
 		return
@@ -115,6 +116,7 @@ func RunEmbeddingTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context
 // validateEmbeddingSemantics performs semantic validation on embedding responses
 // This is complementary to the main validation framework and focuses on embedding-specific concerns
 func validateEmbeddingSemantics(t *testing.T, response *schemas.BifrostEmbeddingResponse, testTexts []string) {
+	t.Helper()
 	if response == nil || response.Data == nil {
 		t.Fatal("Invalid embedding response structure")
 	}

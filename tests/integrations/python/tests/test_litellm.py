@@ -32,63 +32,59 @@ Tests all 19 core scenarios using LiteLLM SDK directly:
 19. Multi-provider comparison
 """
 
-import pytest
 import json
+from typing import Any
+
 import litellm
-from typing import List, Dict, Any
+import pytest
 
 from .utils.common import (
-    Config,
-    SIMPLE_CHAT_MESSAGES,
-    MULTI_TURN_MESSAGES,
-    SINGLE_TOOL_CALL_MESSAGES,
-    MULTIPLE_TOOL_CALL_MESSAGES,
-    IMAGE_URL_MESSAGES,
-    IMAGE_BASE64_MESSAGES,
-    MULTIPLE_IMAGES_MESSAGES,
-    COMPLEX_E2E_MESSAGES,
-    INVALID_ROLE_MESSAGES,
-    STREAMING_CHAT_MESSAGES,
-    STREAMING_TOOL_CALL_MESSAGES,
-    WEATHER_TOOL,
     CALCULATOR_TOOL,
-    mock_tool_response,
-    assert_valid_chat_response,
-    assert_has_tool_calls,
-    assert_valid_image_response,
-    assert_valid_error_response,
-    assert_error_propagation,
-    assert_valid_streaming_response,
-    collect_streaming_content,
-    extract_tool_calls,
-    get_api_key,
-    skip_if_no_api_key,
     COMPARISON_KEYWORDS,
-    WEATHER_KEYWORDS,
-    LOCATION_KEYWORDS,
-    # Audio and embeddings test data
-    EMBEDDINGS_SINGLE_TEXT,
+    COMPLEX_E2E_MESSAGES,
     EMBEDDINGS_MULTIPLE_TEXTS,
     EMBEDDINGS_SIMILAR_TEXTS,
-    SPEECH_TEST_INPUT,
-    generate_test_audio,
-    assert_valid_speech_response,
-    assert_valid_transcription_response,
-    assert_valid_embedding_response,
-    assert_valid_embeddings_batch_response,
-    calculate_cosine_similarity,
-    collect_streaming_transcription_content,
-    get_provider_voice,
-    get_provider_voices,
+    # Audio and embeddings test data
+    EMBEDDINGS_SINGLE_TEXT,
+    IMAGE_BASE64_MESSAGES,
+    IMAGE_URL_MESSAGES,
+    INPUT_TOKENS_LONG_TEXT,
     # Token counting test data
     INPUT_TOKENS_SIMPLE_TEXT,
-    INPUT_TOKENS_LONG_TEXT,
     INPUT_TOKENS_WITH_SYSTEM,
+    INVALID_ROLE_MESSAGES,
+    LOCATION_KEYWORDS,
+    MULTI_TURN_MESSAGES,
+    MULTIPLE_IMAGES_MESSAGES,
+    MULTIPLE_TOOL_CALL_MESSAGES,
+    SIMPLE_CHAT_MESSAGES,
+    SINGLE_TOOL_CALL_MESSAGES,
+    SPEECH_TEST_INPUT,
+    STREAMING_CHAT_MESSAGES,
+    STREAMING_TOOL_CALL_MESSAGES,
+    WEATHER_KEYWORDS,
+    WEATHER_TOOL,
+    Config,
+    assert_error_propagation,
+    assert_has_tool_calls,
+    assert_valid_chat_response,
+    assert_valid_embedding_response,
+    assert_valid_embeddings_batch_response,
+    assert_valid_error_response,
+    assert_valid_image_response,
+    assert_valid_speech_response,
+    assert_valid_transcription_response,
+    calculate_cosine_similarity,
+    collect_streaming_content,
+    extract_tool_calls,
+    generate_test_audio,
+    get_provider_voice,
+    mock_tool_response,
 )
 from .utils.config_loader import get_model
 from .utils.parametrize import (
-    get_cross_provider_params_for_scenario,
     format_provider_model,
+    get_cross_provider_params_for_scenario,
 )
 
 # LiteLLM-specific provider exclusions
@@ -107,6 +103,18 @@ def format_litellm_model(provider: str, model: str) -> str:
     return f"openai/{format_provider_model(provider, model)}"
 
 
+@pytest.mark.parametrize(
+    ("provider", "model", "expected"),
+    [
+        ("openai", "gpt-4o", "openai/openai/gpt-4o"),
+        ("anthropic", "claude-3-haiku-20240307", "openai/anthropic/claude-3-haiku-20240307"),
+        ("mistral", "mistral-7b-instruct", "openai/mistral/mistral-7b-instruct"),
+    ],
+)
+def test_format_litellm_model(provider: str, model: str, expected: str) -> None:
+    assert format_litellm_model(provider, model) == expected
+
+
 @pytest.fixture
 def test_config():
     """Test configuration"""
@@ -117,8 +125,8 @@ def test_config():
 def setup_litellm(monkeypatch):
     """Setup LiteLLM with Bifrost configuration and dummy credentials"""
     import os
-    from .utils.config_loader import get_integration_url, get_config
-    from unittest.mock import MagicMock
+
+    from .utils.config_loader import get_config, get_integration_url
 
     # Set dummy credentials since Bifrost handles actual authentication
     os.environ["OPENAI_API_KEY"] = "dummy-openai-key-bifrost-handles-auth"
@@ -176,7 +184,7 @@ def setup_litellm(monkeypatch):
         litellm.set_verbose = integration_settings["debug"]
 
 
-def convert_to_litellm_tools(tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def convert_to_litellm_tools(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Convert common tool format to LiteLLM format (OpenAI-compatible)"""
     return [{"type": "function", "function": tool} for tool in tools]
 
@@ -401,9 +409,9 @@ class TestLiteLLMIntegration:
         assert_valid_image_response(response)
         content = response.choices[0].message.content.lower()
         # Should mention comparison or differences
-        assert any(
-            word in content for word in COMPARISON_KEYWORDS
-        ), f"Response should contain comparison keywords. Got content: {content}"
+        assert any(word in content for word in COMPARISON_KEYWORDS), (
+            f"Response should contain comparison keywords. Got content: {content}"
+        )
 
     @pytest.mark.parametrize(
         "provider, model",
@@ -467,12 +475,12 @@ class TestLiteLLMIntegration:
         # Test 1: Multiple integrations through LiteLLM
         # Note: Gemini is excluded as LiteLLM routes it through Vertex AI-specific endpoints
         integrations_to_test = [
-            "gpt-3.5-turbo",  # OpenAI
-            "claude-3-haiku-20240307",  # Anthropic
-            "mistral/mistral-7b-instruct",  # Mistral
+            ("openai", "gpt-3.5-turbo"),
+            ("anthropic", "claude-3-haiku-20240307"),
+            ("mistral", "mistral-7b-instruct"),
         ]
 
-        for model in integrations_to_test:
+        for provider, model in integrations_to_test:
             try:
                 response = litellm.completion(
                     model=format_litellm_model(provider, model),
@@ -545,7 +553,9 @@ class TestLiteLLMIntegration:
         )
 
         content, chunk_count, tool_calls_detected = collect_streaming_content(
-            stream, "openai", timeout=120  # LiteLLM uses OpenAI format
+            stream,
+            "openai",
+            timeout=120,  # LiteLLM uses OpenAI format
         )
 
         # Validate streaming results
@@ -562,8 +572,10 @@ class TestLiteLLMIntegration:
             stream=True,
         )
 
-        content_tools, chunk_count_tools, tool_calls_detected_tools = collect_streaming_content(
-            stream_with_tools, "openai", timeout=120  # LiteLLM uses OpenAI format
+        _content_tools, chunk_count_tools, tool_calls_detected_tools = collect_streaming_content(
+            stream_with_tools,
+            "openai",
+            timeout=120,  # LiteLLM uses OpenAI format
         )
 
         # Validate tool streaming results
@@ -588,9 +600,9 @@ class TestLiteLLMIntegration:
 
             assert_valid_chat_response(response)
             content = response.choices[0].message.content.lower()
-            assert any(
-                word in content for word in ["machine", "learning", "data", "algorithm"]
-            ), f"Response should mention ML concepts. Got: {content}"
+            assert any(word in content for word in ["machine", "learning", "data", "algorithm"]), (
+                f"Response should mention ML concepts. Got: {content}"
+            )
 
             # Test with tool calling if supported
             tools = convert_to_litellm_tools([CALCULATOR_TOOL])
@@ -630,9 +642,9 @@ class TestLiteLLMIntegration:
 
             assert_valid_chat_response(response)
             content = response.choices[0].message.content.lower()
-            assert any(
-                word in content for word in ["recursion", "function", "itself", "call"]
-            ), f"Response should explain recursion. Got: {content}"
+            assert any(word in content for word in ["recursion", "function", "itself", "call"]), (
+                f"Response should explain recursion. Got: {content}"
+            )
 
             # Test with different temperature
             response_creative = litellm.completion(
@@ -686,9 +698,9 @@ class TestLiteLLMIntegration:
 
             # Calculate similarity between similar texts
             similarity = calculate_cosine_similarity(embeddings[0], embeddings[1])
-            assert (
-                similarity > 0.7
-            ), f"Similar texts should have high similarity, got {similarity:.4f}"
+            assert similarity > 0.7, (
+                f"Similar texts should have high similarity, got {similarity:.4f}"
+            )
 
         except Exception as e:
             pytest.skip(f"OpenAI embeddings through LiteLLM not available: {e}")
@@ -731,9 +743,9 @@ class TestLiteLLMIntegration:
             assert_valid_speech_response(audio_content2, expected_audio_size_min=500)
 
             # Different voices should produce different audio
-            assert (
-                audio_content != audio_content2
-            ), "Different voices should produce different audio"
+            assert audio_content != audio_content2, (
+                "Different voices should produce different audio"
+            )
 
         except Exception as e:
             pytest.skip(f"OpenAI speech through LiteLLM not available: {e}")
@@ -769,14 +781,14 @@ class TestLiteLLMIntegration:
         """Test Case 19: Compare responses across different providers through LiteLLM"""
         test_prompt = "What is the capital of Japan? Answer in one word."
         models_to_test = [
-            "gpt-3.5-turbo",  # OpenAI
-            "claude-3-haiku-20240307",  # Anthropic
-            "gemini-2.0-flash-001",  # Google
+            ("openai", "gpt-3.5-turbo"),
+            ("anthropic", "claude-3-haiku-20240307"),
+            ("gemini", "gemini-2.0-flash-001"),
         ]
 
         responses = {}
 
-        for model in models_to_test:
+        for provider, model in models_to_test:
             try:
                 response = litellm.completion(
                     model=format_litellm_model(provider, model),
@@ -796,9 +808,9 @@ class TestLiteLLMIntegration:
 
         # All responses should mention Tokyo or Japan
         for model, content in responses.items():
-            assert any(
-                word in content for word in ["tokyo", "japan"]
-            ), f"Model {model} should mention Tokyo. Got: {content}"
+            assert any(word in content for word in ["tokyo", "japan"]), (
+                f"Model {model} should mention Tokyo. Got: {content}"
+            )
 
     @pytest.mark.parametrize(
         "provider, model",
@@ -822,9 +834,7 @@ class TestLiteLLMIntegration:
             assert isinstance(token_count, int), "Token count should be an integer"
             assert token_count > 0, "Token count should be positive"
             # Simple text should have a reasonable token count (between 3-20 tokens)
-            assert 3 <= token_count <= 20, (
-                f"Simple text should have 3-20 tokens, got {token_count}"
-            )
+            assert 3 <= token_count <= 20, f"Simple text should have 3-20 tokens, got {token_count}"
 
         except Exception as e:
             pytest.skip(f"Token counting not available for {provider}/{model}: {e}")
@@ -851,9 +861,7 @@ class TestLiteLLMIntegration:
             assert isinstance(token_count, int), "Token count should be an integer"
             assert token_count > 0, "Token count should be positive"
             # With system message should have more tokens than simple text
-            assert token_count > 2, (
-                f"With system message should have >2 tokens, got {token_count}"
-            )
+            assert token_count > 2, f"With system message should have >2 tokens, got {token_count}"
 
         except Exception as e:
             pytest.skip(f"Token counting not available for {provider}/{model}: {e}")
@@ -878,17 +886,14 @@ class TestLiteLLMIntegration:
 
             # Validate token count
             assert isinstance(token_count, int), "Token count should be an integer"
-            assert token_count > 100, (
-                f"Long text should have >100 tokens, got {token_count}"
-            )
+            assert token_count > 100, f"Long text should have >100 tokens, got {token_count}"
 
         except Exception as e:
             pytest.skip(f"Token counting not available for {provider}/{model}: {e}")
 
 
-
 # Additional helper functions specific to LiteLLM
-def extract_litellm_tool_calls(response: Any) -> List[Dict[str, Any]]:
+def extract_litellm_tool_calls(response: Any) -> list[dict[str, Any]]:
     """Extract tool calls from LiteLLM response format (OpenAI-compatible) with proper type checking"""
     tool_calls = []
 

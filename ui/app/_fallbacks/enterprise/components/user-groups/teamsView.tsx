@@ -52,8 +52,10 @@ export function TeamsView() {
 	// Snap offset back when total shrinks past current page (e.g. delete last item on last page)
 	useEffect(() => {
 		if (!teamsData || urlState.offset < teamsTotal) return;
-		setUrlState({ offset: teamsTotal === 0 ? 0 : Math.floor((teamsTotal - 1) / PAGE_SIZE) * PAGE_SIZE });
-	}, [teamsTotal, urlState.offset]);
+		setUrlState({
+			offset: teamsTotal === 0 ? 0 : Math.floor((teamsTotal - 1) / PAGE_SIZE) * PAGE_SIZE,
+		});
+	}, [setUrlState, teamsData, teamsTotal, urlState.offset]);
 
 	useEffect(() => {
 		if (!teamsError) {

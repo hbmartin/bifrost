@@ -125,7 +125,7 @@ func BenchmarkMockerPlugin_PreHook_RegexRule(b *testing.B) {
 
 // BenchmarkMockerPlugin_PreHook_MultipleRules benchmarks multiple rule evaluation
 func BenchmarkMockerPlugin_PreHook_MultipleRules(b *testing.B) {
-	rules := make([]MockRule, 10)
+	rules := make([]MockRule, 11)
 	for i := 0; i < 10; i++ {
 		rules[i] = MockRule{
 			Name:        "rule-" + strconv.Itoa(i),
@@ -147,7 +147,7 @@ func BenchmarkMockerPlugin_PreHook_MultipleRules(b *testing.B) {
 	}
 
 	// Add a matching rule at the end
-	rules = append(rules, MockRule{
+	rules[10] = MockRule{
 		Name:        "matching-rule",
 		Enabled:     true,
 		Priority:    50,
@@ -163,7 +163,7 @@ func BenchmarkMockerPlugin_PreHook_MultipleRules(b *testing.B) {
 				},
 			},
 		},
-	})
+	}
 
 	plugin, err := Init(MockerConfig{
 		Enabled: true,

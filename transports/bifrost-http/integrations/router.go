@@ -3304,15 +3304,15 @@ func parseMultipartPassthroughBody(body []byte, boundary string) (model string, 
 		switch part.FormName() {
 		case "model":
 			val, _ := io.ReadAll(part)
-			part.Close()
+			_ = part.Close()
 			model = strings.TrimSpace(string(val))
 		case "stream":
 			val, _ := io.ReadAll(part)
-			part.Close()
+			_ = part.Close()
 			s := strings.TrimSpace(strings.ToLower(string(val)))
 			isStream = s == "true" || s == "1"
 		default:
-			part.Close()
+			_ = part.Close()
 		}
 
 		if model != "" && isStream {

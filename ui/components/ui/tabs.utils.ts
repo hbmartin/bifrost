@@ -26,7 +26,10 @@ export interface TabsOverflowResult {
 }
 
 export function partitionTabs({ itemWidths, containerWidth, moreButtonWidth, activeIndex }: TabsOverflowInput): TabsOverflowResult {
-	const allVisible = () => ({ visible: itemWidths.map((_, index) => index), overflow: [] as number[] });
+	const allVisible = () => ({
+		visible: itemWidths.map((_, index) => index),
+		overflow: [] as number[],
+	});
 
 	if (itemWidths.length === 0) return { visible: [], overflow: [] };
 	// Width is 0 until the first layout pass. Collapsing on that reading would

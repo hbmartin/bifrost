@@ -436,7 +436,12 @@ function MCPClientFilterSection({ filters, onFiltersChange }: SidebarProps) {
 	}, [filters.kind]);
 
 	const { data, isFetching } = useGetMCPClientsQuery(
-		{ limit: MCP_CLIENT_PAGE_SIZE, offset: 0, search: searchQuery || undefined, auth_type: authType },
+		{
+			limit: MCP_CLIENT_PAGE_SIZE,
+			offset: 0,
+			search: searchQuery || undefined,
+			auth_type: authType,
+		},
 		{ skip: !opened && !hasActive },
 	);
 	const mcpClients = data?.clients || [];
@@ -452,7 +457,10 @@ function MCPClientFilterSection({ filters, onFiltersChange }: SidebarProps) {
 			<SearchableCheckboxList
 				inputRef={searchInputRef}
 				placeholder="Search MCP servers"
-				items={mcpClients.map((client) => ({ key: client.config.client_id, label: client.config.name || client.config.client_id }))}
+				items={mcpClients.map((client) => ({
+					key: client.config.client_id,
+					label: client.config.name || client.config.client_id,
+				}))}
 				isSelected={(key) => filters.mcp_client_id.includes(key)}
 				onToggle={toggle}
 				onSearch={setSearchQuery}

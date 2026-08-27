@@ -592,7 +592,7 @@ func TestVisionWithImageData_Integration(t *testing.T) {
 	if err != nil {
 		t.Skipf("failed to fetch test image: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		t.Skipf("test image URL returned %d", resp.StatusCode)
 	}

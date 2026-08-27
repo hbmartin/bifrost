@@ -28,7 +28,6 @@ import (
 // mockHandlerStore implements lib.HandlerStore for testing
 type mockHandlerStore struct {
 	headerMatcher              *lib.HeaderMatcher
-	availableProviders         []schemas.ModelProvider
 	mcpHeaderCombinedAllowlist schemas.WhiteList
 	modelCatalog               *modelcatalog.ModelCatalog
 }

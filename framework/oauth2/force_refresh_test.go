@@ -54,7 +54,7 @@ func tokenRefreshServer(t *testing.T, accessToken string) *httptest.Server {
 	t.Helper()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"access_token": accessToken,
 			"token_type":   "bearer",
 			"expires_in":   3600,
@@ -131,7 +131,7 @@ func TestForceRefreshAccessToken_SharedOAuth_InactiveToken_ShortCircuitsWithoutN
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called = true
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"access_token": "should-not-be-used", "token_type": "bearer"})
+		_ = json.NewEncoder(w).Encode(map[string]any{"access_token": "should-not-be-used", "token_type": "bearer"})
 	}))
 	defer server.Close()
 

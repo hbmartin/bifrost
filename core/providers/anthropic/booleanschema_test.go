@@ -1,6 +1,7 @@
 package anthropic
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -20,7 +21,7 @@ func booleanSchemaTextConfig(schema *schemas.JSONSchemaOrBool) *schemas.Response
 }
 
 func TestConvertResponsesTextFormatToTool_CompositeObjectSchema(t *testing.T) {
-	ctx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	composite := schemas.NewOrderedMapFromPairs(
 		schemas.KV("type", "object"),
 		schemas.KV("properties", schemas.NewOrderedMapFromPairs(
@@ -47,7 +48,7 @@ func TestConvertResponsesTextFormatToTool_CompositeObjectSchema(t *testing.T) {
 }
 
 func TestConvertResponsesTextFormatToTool_BooleanSchemaTrue(t *testing.T) {
-	ctx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 
 	tool, err := convertResponsesTextFormatToTool(ctx, booleanSchemaTextConfig(&schemas.JSONSchemaOrBool{SchemaBool: schemas.Ptr(true)}))
 	if err != nil {
@@ -65,7 +66,7 @@ func TestConvertResponsesTextFormatToTool_BooleanSchemaTrue(t *testing.T) {
 }
 
 func TestConvertResponsesTextFormatToTool_BooleanSchemaFalse(t *testing.T) {
-	ctx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 
 	tool, err := convertResponsesTextFormatToTool(ctx, booleanSchemaTextConfig(&schemas.JSONSchemaOrBool{SchemaBool: schemas.Ptr(false)}))
 	if !errors.Is(err, schemas.ErrUnsatisfiableSchema) {

@@ -366,7 +366,7 @@ func TestToAnthropicResponsesStreamResponse_RedactedThinkingEgress(t *testing.T)
 		t.Fatal("expected an output_item.added event to feed the egress converter")
 	}
 
-	ctx := schemas.NewBifrostContext(nil, time.Time{})
+	ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 	frames := ToAnthropicResponsesStreamResponse(ctx, addedEvent)
 
 	found := false
@@ -464,7 +464,7 @@ func TestToAnthropicResponsesRequest_ReplaysStreamedRedactedThinking(t *testing.
 		Model: "claude-sonnet-4-5-20250929",
 		Input: []schemas.ResponsesMessage{replayed, functionCallItem()},
 	}
-	ctx := schemas.NewBifrostContext(nil, time.Time{})
+	ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 	out, err := ToAnthropicResponsesRequest(ctx, req)
 	if err != nil {
 		t.Fatalf("ToAnthropicResponsesRequest: %v", err)
@@ -493,7 +493,7 @@ func TestToAnthropicResponsesRequest_ReplaysRedactedItemWithEmptySummaryList(t *
 		Model: "claude-sonnet-4-5-20250929",
 		Input: []schemas.ResponsesMessage{item, functionCallItem()},
 	}
-	ctx := schemas.NewBifrostContext(nil, time.Time{})
+	ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 	out, err := ToAnthropicResponsesRequest(ctx, req)
 	if err != nil {
 		t.Fatalf("ToAnthropicResponsesRequest: %v", err)

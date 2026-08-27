@@ -14,6 +14,7 @@ import (
 // (GET /v1/responses/{id}?stream=true&starting_after=N), list input_items, delete.
 // Cancel is only meaningful for background responses and is omitted.
 func RunResponsesLifecycleTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.ResponsesLifecycle {
 		return
 	}

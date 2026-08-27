@@ -39,7 +39,7 @@ func (request *GeminiGenerationRequest) ToBifrostTranscriptionRequest(ctx *schem
 			if part.InlineData != nil && strings.HasPrefix(strings.ToLower(part.InlineData.MIMEType), "audio/") {
 				decodedData, err := decodeBase64StringToBytes(part.InlineData.Data)
 				if err != nil {
-					return nil, fmt.Errorf("failed to decode base64 audio data: %v", err)
+					return nil, fmt.Errorf("failed to decode base64 audio data: %w", err)
 				}
 				audioData = append(audioData, decodedData...)
 				if audioMimeType == "" {

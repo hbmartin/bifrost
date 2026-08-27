@@ -27,10 +27,9 @@ const (
 // discovery + JWKS + signature/issuer/audience/expiry verification path
 // go-oidc performs — nothing about the verifier itself is mocked.
 type testIdP struct {
-	server  *httptest.Server
-	key     *rsa.PrivateKey
-	issuer  string
-	signKey *josejwt.SigningKey
+	server *httptest.Server
+	key    *rsa.PrivateKey
+	issuer string
 }
 
 func newTestIdP(t *testing.T) *testIdP {

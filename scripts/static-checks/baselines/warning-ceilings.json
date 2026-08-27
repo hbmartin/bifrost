@@ -1,0 +1,6 @@
+{
+  "ui": { "typescript/no-explicit-any": 288 },
+  "tests/e2e": { "typescript/no-explicit-any": 3 },
+  "examples/mcps/parallel-test-server": { "typescript/no-explicit-any": 1 },
+  "examples/mcps/edge-case-server": { "typescript/no-explicit-any": 3 }
+}

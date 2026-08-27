@@ -113,7 +113,7 @@ export function UserMessageView({
 			clone.attachments = latest.attachments.filter((_, i) => i !== index);
 			onChange(clone.serialized);
 		},
-		[message, onChange],
+		[onChange],
 	);
 
 	const handleFileSelect = useCallback(

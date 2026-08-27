@@ -1,6 +1,7 @@
 package openai
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -45,7 +46,7 @@ func TestToOpenAIChatRequest_ToolNormalization(t *testing.T) {
 		},
 	}
 
-	ctx, cancel := schemas.NewBifrostContextWithCancel(nil)
+	ctx, cancel := schemas.NewBifrostContextWithCancel(context.Background())
 	defer cancel()
 	result := ToOpenAIChatRequest(ctx, bifrostReq)
 	if result == nil {
@@ -130,7 +131,7 @@ func TestToOpenAIChatRequest_InvalidatesStaleSerializedCache(t *testing.T) {
 		Params:   &schemas.ChatParameters{Tools: []schemas.ChatTool{tool}},
 	}
 
-	ctx, cancel := schemas.NewBifrostContextWithCancel(nil)
+	ctx, cancel := schemas.NewBifrostContextWithCancel(context.Background())
 	defer cancel()
 	result := ToOpenAIChatRequest(ctx, bifrostReq)
 	require.NotNil(t, result)
@@ -161,7 +162,7 @@ func TestToOpenAIChatRequest_PreservesN(t *testing.T) {
 		},
 	}
 
-	out := ToOpenAIChatRequest(schemas.NewBifrostContext(nil, schemas.NoDeadline), req)
+	out := ToOpenAIChatRequest(schemas.NewBifrostContext(context.Background(), schemas.NoDeadline), req)
 	if out == nil {
 		t.Fatal("expected request")
 	}
@@ -354,7 +355,7 @@ func TestToOpenAIChatRequest_NormalizesReasoningEffort(t *testing.T) {
 				},
 			}
 
-			out := ToOpenAIChatRequest(schemas.NewBifrostContext(nil, schemas.NoDeadline), req)
+			out := ToOpenAIChatRequest(schemas.NewBifrostContext(context.Background(), schemas.NoDeadline), req)
 			if out == nil {
 				t.Fatal("expected OpenAI chat request")
 			}
@@ -416,7 +417,7 @@ func TestToOpenAIChatRequest_VertexDropsNoneReasoningEffort(t *testing.T) {
 				},
 			}
 
-			out := ToOpenAIChatRequest(schemas.NewBifrostContext(nil, schemas.NoDeadline), req)
+			out := ToOpenAIChatRequest(schemas.NewBifrostContext(context.Background(), schemas.NoDeadline), req)
 			if out == nil {
 				t.Fatal("expected OpenAI chat request")
 			}
@@ -649,7 +650,7 @@ func TestToOpenAIChatRequest_PreservesPropertyOrder(t *testing.T) {
 		},
 	}
 
-	ctx, cancel := schemas.NewBifrostContextWithCancel(nil)
+	ctx, cancel := schemas.NewBifrostContextWithCancel(context.Background())
 	defer cancel()
 	result := ToOpenAIChatRequest(ctx, bifrostReq)
 
@@ -677,7 +678,7 @@ func TestToOpenAIChatRequest_PreservesExplicitEmptyToolParameters(t *testing.T) 
 		},
 	}
 
-	ctx, cancel := schemas.NewBifrostContextWithCancel(nil)
+	ctx, cancel := schemas.NewBifrostContextWithCancel(context.Background())
 	defer cancel()
 	result := ToOpenAIChatRequest(ctx, bifrostReq)
 	if result == nil {
@@ -741,7 +742,7 @@ func TestToOpenAIChatRequest_CachingDeterminism(t *testing.T) {
 		)),
 	)
 
-	ctx, cancel := schemas.NewBifrostContextWithCancel(nil)
+	ctx, cancel := schemas.NewBifrostContextWithCancel(context.Background())
 	defer cancel()
 	resultA := ToOpenAIChatRequest(ctx, makeReq(propsA))
 	resultB := ToOpenAIChatRequest(ctx, makeReq(propsB))
@@ -761,7 +762,7 @@ func TestToOpenAIChatRequest_CachingDeterminism(t *testing.T) {
 }
 
 func TestToOpenAIChatRequest_PromptCacheOptions(t *testing.T) {
-	ctx, cancel := schemas.NewBifrostContextWithCancel(nil)
+	ctx, cancel := schemas.NewBifrostContextWithCancel(context.Background())
 	defer cancel()
 
 	mode := "explicit"
@@ -798,7 +799,7 @@ func TestToOpenAIChatRequest_PromptCacheOptions(t *testing.T) {
 }
 
 func TestToOpenAIChatRequest_FireworksPreservesReasoningAndCacheIsolation(t *testing.T) {
-	ctx, cancel := schemas.NewBifrostContextWithCancel(nil)
+	ctx, cancel := schemas.NewBifrostContextWithCancel(context.Background())
 	defer cancel()
 
 	cacheKey := "cache-key-1"
@@ -903,7 +904,7 @@ func TestToOpenAIChatRequest_StripsAssistantReasoningContentForCompatibleProvide
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx, cancel := schemas.NewBifrostContextWithCancel(nil)
+			ctx, cancel := schemas.NewBifrostContextWithCancel(context.Background())
 			defer cancel()
 
 			reasoning := "step by step"
@@ -1006,7 +1007,7 @@ func TestToOpenAIChatRequest_AnnotationsNotInWirePayload(t *testing.T) {
 		},
 	}
 
-	ctx, cancel := schemas.NewBifrostContextWithCancel(nil)
+	ctx, cancel := schemas.NewBifrostContextWithCancel(context.Background())
 	defer cancel()
 
 	result := ToOpenAIChatRequest(ctx, bifrostReq)
@@ -1044,7 +1045,7 @@ func TestToOpenAIChatRequest_IntegrationMetadataDoesNotAffectWirePayload(t *test
 	requestWithMetadata := *baseRequest
 	requestWithMetadata.IntegrationMetadata = struct{ Secret string }{Secret: "integration-only"}
 
-	ctx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	withoutMetadata, err := providerUtils.MarshalSorted(ToOpenAIChatRequest(ctx, baseRequest))
 	require.NoError(t, err)
 	withMetadata, err := providerUtils.MarshalSorted(ToOpenAIChatRequest(ctx, &requestWithMetadata))
@@ -1075,6 +1076,7 @@ func TestApplyXAICompatibility(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, req *OpenAIChatRequest) {
+				t.Helper()
 				// frequency_penalty should be preserved
 				if req.FrequencyPenalty == nil || *req.FrequencyPenalty != 0.5 {
 					t.Errorf("Expected FrequencyPenalty to be preserved at 0.5, got %v", req.FrequencyPenalty)
@@ -1115,6 +1117,7 @@ func TestApplyXAICompatibility(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, req *OpenAIChatRequest) {
+				t.Helper()
 				// presence_penalty should be cleared
 				if req.PresencePenalty != nil {
 					t.Errorf("Expected PresencePenalty to be cleared (nil), got %v", *req.PresencePenalty)
@@ -1155,6 +1158,7 @@ func TestApplyXAICompatibility(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, req *OpenAIChatRequest) {
+				t.Helper()
 				// presence_penalty should be cleared
 				if req.PresencePenalty != nil {
 					t.Errorf("Expected PresencePenalty to be cleared (nil), got %v", *req.PresencePenalty)
@@ -1195,6 +1199,7 @@ func TestApplyXAICompatibility(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, req *OpenAIChatRequest) {
+				t.Helper()
 				// presence_penalty should be cleared
 				if req.PresencePenalty != nil {
 					t.Errorf("Expected PresencePenalty to be cleared (nil), got %v", *req.PresencePenalty)
@@ -1235,6 +1240,7 @@ func TestApplyXAICompatibility(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, req *OpenAIChatRequest) {
+				t.Helper()
 				// presence_penalty should be cleared
 				if req.PresencePenalty != nil {
 					t.Errorf("Expected PresencePenalty to be cleared (nil), got %v", *req.PresencePenalty)
@@ -1275,6 +1281,7 @@ func TestApplyXAICompatibility(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, req *OpenAIChatRequest) {
+				t.Helper()
 				// All parameters should be preserved for non-reasoning models
 				if req.FrequencyPenalty == nil || *req.FrequencyPenalty != 0.5 {
 					t.Errorf("Expected FrequencyPenalty to be preserved at 0.5, got %v", req.FrequencyPenalty)
@@ -1310,6 +1317,7 @@ func TestApplyXAICompatibility(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, req *OpenAIChatRequest) {
+				t.Helper()
 				// Should handle nil reasoning without panicking
 				if req.Reasoning != nil {
 					t.Errorf("Expected Reasoning to remain nil, got %v", req.Reasoning)
@@ -1338,6 +1346,7 @@ func TestApplyXAICompatibility(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, req *OpenAIChatRequest) {
+				t.Helper()
 				if req.Reasoning == nil || req.Reasoning.Effort == nil {
 					t.Fatal("Expected Reasoning.Effort to be preserved for grok-4.6")
 				}
@@ -1359,6 +1368,7 @@ func TestApplyXAICompatibility(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, req *OpenAIChatRequest) {
+				t.Helper()
 				if req.Reasoning == nil || req.Reasoning.Effort == nil {
 					t.Fatal("Expected Reasoning.Effort to be preserved for grok-4.5")
 				}
@@ -1380,6 +1390,7 @@ func TestApplyXAICompatibility(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, req *OpenAIChatRequest) {
+				t.Helper()
 				if req.Reasoning == nil || req.Reasoning.Effort == nil {
 					t.Fatal("Expected Reasoning.Effort to be preserved for grok-4.3")
 				}
@@ -1401,6 +1412,7 @@ func TestApplyXAICompatibility(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, req *OpenAIChatRequest) {
+				t.Helper()
 				if req.Reasoning == nil || req.Reasoning.Effort == nil {
 					t.Fatal("Expected Reasoning.Effort to be preserved for grok-4.20-multi-agent")
 				}
@@ -1422,6 +1434,7 @@ func TestApplyXAICompatibility(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, req *OpenAIChatRequest) {
+				t.Helper()
 				if req.Reasoning == nil {
 					t.Fatal("Expected Reasoning to remain non-nil")
 				}
@@ -1444,6 +1457,7 @@ func TestApplyXAICompatibility(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, req *OpenAIChatRequest) {
+				t.Helper()
 				// Unrelated parameters should be preserved
 				if req.Temperature == nil || *req.Temperature != 0.8 {
 					t.Errorf("Expected Temperature to be preserved at 0.8, got %v", req.Temperature)
@@ -1525,7 +1539,7 @@ func TestToOpenAIChatRequest_CacheControl_OpenRouterOnly(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx, cancel := schemas.NewBifrostContextWithCancel(nil)
+			ctx, cancel := schemas.NewBifrostContextWithCancel(context.Background())
 			defer cancel()
 
 			result := ToOpenAIChatRequest(ctx, makeReq(tt.provider))
@@ -1565,7 +1579,7 @@ func TestOpenAIInbound_ServerToolNameSurvives(t *testing.T) {
 		t.Fatalf("PARSE dropped name: %+v", req.ChatParameters.Tools)
 	}
 
-	ctx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	bifReq := req.ToBifrostChatRequest(ctx)
 	if bifReq.Params == nil || len(bifReq.Params.Tools) != 1 || bifReq.Params.Tools[0].Name != "bash" {
 		t.Fatalf("ToBifrostChatRequest dropped name: %+v", bifReq.Params)
@@ -1583,7 +1597,7 @@ func TestOpenAIInbound_MaxCompletionTokensTakesPriorityOverMaxTokens(t *testing.
 		t.Fatalf("unmarshal: %v", err)
 	}
 
-	ctx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	bifReq := req.ToBifrostChatRequest(ctx)
 	if bifReq.Params == nil || bifReq.Params.MaxCompletionTokens == nil {
 		t.Fatalf("ToBifrostChatRequest dropped max_completion_tokens: %+v", bifReq.Params)
@@ -1618,7 +1632,7 @@ func TestToOpenAIChatRequest_OpencodeUsesLegacyMaxTokensOnWire(t *testing.T) {
 				},
 			}
 
-			converted := ToOpenAIChatRequest(schemas.NewBifrostContext(nil, schemas.NoDeadline), bifrostReq)
+			converted := ToOpenAIChatRequest(schemas.NewBifrostContext(context.Background(), schemas.NoDeadline), bifrostReq)
 			require.NotNil(t, converted)
 
 			wireJSON, err := json.Marshal(converted)
@@ -1667,7 +1681,7 @@ func TestToOpenAIChatRequest_StripsThoughtSignatureFromToolCallIDs(t *testing.T)
 		},
 	}
 
-	ctx, cancel := schemas.NewBifrostContextWithCancel(nil)
+	ctx, cancel := schemas.NewBifrostContextWithCancel(context.Background())
 	defer cancel()
 	result := ToOpenAIChatRequest(ctx, req)
 	require.NotNil(t, result)
@@ -1727,7 +1741,7 @@ func TestToOpenAIChatRequest_PreservesShortToolCallIDsContainingSeparator(t *tes
 		},
 	}
 
-	ctx, cancel := schemas.NewBifrostContextWithCancel(nil)
+	ctx, cancel := schemas.NewBifrostContextWithCancel(context.Background())
 	defer cancel()
 	result := ToOpenAIChatRequest(ctx, req)
 	require.NotNil(t, result)
@@ -1815,7 +1829,7 @@ func TestOpenAIChatRequest_StripsWebSearchOptionsFilters(t *testing.T) {
 // tool_call turns (400 without it) while rejecting it on ordinary assistant turns, so the
 // strip must be selective rather than unconditional.
 func TestToOpenAIChatRequest_PreservesDeepSeekToolCallReasoningContent(t *testing.T) {
-	ctx, cancel := schemas.NewBifrostContextWithCancel(nil)
+	ctx, cancel := schemas.NewBifrostContextWithCancel(context.Background())
 	defer cancel()
 
 	toolCallReasoning := "the user wants the time, call the tool"
@@ -1897,7 +1911,7 @@ func TestConvertOpenAIMessagesToBifrostMessages_NormalizesReasoningSpellings(t *
 // on OpenAIChatAssistantMessage: the "reasoning" and "reasoning_details" aliases exist to
 // parse requests and must never appear on the outbound wire for any provider.
 func TestToOpenAIChatRequest_DoesNotEmitInboundReasoningAliases(t *testing.T) {
-	ctx, cancel := schemas.NewBifrostContextWithCancel(nil)
+	ctx, cancel := schemas.NewBifrostContextWithCancel(context.Background())
 	defer cancel()
 
 	reasoning := "step by step"
@@ -1976,7 +1990,7 @@ func TestXAIReasoningEffortEndToEnd(t *testing.T) {
 				},
 			}
 
-			ctx, cancel := schemas.NewBifrostContextWithCancel(nil)
+			ctx, cancel := schemas.NewBifrostContextWithCancel(context.Background())
 			defer cancel()
 
 			result := ToOpenAIChatRequest(ctx, bifrostReq)

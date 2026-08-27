@@ -13,7 +13,9 @@ export function titleCaseFromSnakeCase(value: string): string {
 		.join(" ");
 }
 
-export type TrimmableKeys<T> = { [K in keyof T]: T[K] extends string | string[] | undefined ? K : never }[keyof T];
+export type TrimmableKeys<T> = {
+	[K in keyof T]: T[K] extends string | string[] | undefined ? K : never;
+}[keyof T];
 
 // trimFields trims whitespace from the named string (or string[]) fields of obj, in place.
 // Undefined fields are left untouched.

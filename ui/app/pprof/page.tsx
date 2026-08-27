@@ -615,8 +615,14 @@ export default function PprofPage() {
 	const [expandedGoroutines, setExpandedGoroutines] = useState<Set<string>>(new Set());
 	const [skippedGoroutines, setSkippedGoroutines] = useState<Set<string>>(new Set());
 	const [hasLoadedSkipped, setHasLoadedSkipped] = useState(false);
-	const [allocationSort, setAllocationSort] = useState<AllocationSortState>({ field: "bytes", direction: "desc" });
-	const [inuseSort, setInuseSort] = useState<AllocationSortState>({ field: "bytes", direction: "desc" });
+	const [allocationSort, setAllocationSort] = useState<AllocationSortState>({
+		field: "bytes",
+		direction: "desc",
+	});
+	const [inuseSort, setInuseSort] = useState<AllocationSortState>({
+		field: "bytes",
+		direction: "desc",
+	});
 	const [expandedAlloc, setExpandedAlloc] = useState<Set<string>>(new Set());
 	const [expandedInuse, setExpandedInuse] = useState<Set<string>>(new Set());
 	const [expandedLeaks, setExpandedLeaks] = useState<Set<string>>(new Set());
@@ -704,7 +710,10 @@ export default function PprofPage() {
 	}, [data?.timestamp, data?.inuse_allocations]);
 
 	const leakCandidates = useMemo(
-		() => detectLeaks(data?.top_allocations ?? [], data?.inuse_allocations ?? [], inuseHistoryRef.current),
+		() => {
+			void historyVersion;
+			return detectLeaks(data?.top_allocations ?? [], data?.inuse_allocations ?? [], inuseHistoryRef.current);
+		},
 		// historyVersion bumps when the ref is mutated; top/inuse refs change per poll
 		[data?.top_allocations, data?.inuse_allocations, historyVersion],
 	);
@@ -724,7 +733,7 @@ export default function PprofPage() {
 		const isGrowing = current > avg * 1.1;
 		const growthPercent = avg > 0 ? ((current - avg) / avg) * 100 : 0;
 		return { isGrowing, growthPercent, avg };
-	}, [data?.history, data?.runtime?.num_goroutine]);
+	}, [data?.history, data?.runtime]);
 
 	// Filter problem goroutines
 	const filteredGoroutines = useMemo(() => {

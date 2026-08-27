@@ -1,24 +1,24 @@
-import { join, resolve } from 'path'
-import { MCPClientConfig, EnvVarLike } from './pages/mcp-registry.page'
+import { join, resolve } from "path";
+import { MCPClientConfig, EnvVarLike } from "./pages/mcp-registry.page";
 
 /** Normalize header value from env (string or EnvVarLike) to EnvVarLike */
 function toEnvVarLike(v: string | EnvVarLike): EnvVarLike {
-  if (typeof v === 'object' && v !== null && 'value' in v) return v as EnvVarLike
-  return { value: String(v), env_var: '', from_env: false }
+  if (typeof v === "object" && v !== null && "value" in v) return v as EnvVarLike;
+  return { value: String(v), env_var: "", from_env: false };
 }
 
 /**
  * Resolve header value: if string starts with "env.", use process.env[VAR_NAME].
  */
 function resolveHeaderValue(v: EnvVarLike): EnvVarLike {
-  if (v.value.startsWith('env.')) {
-    const envVar = v.value.slice(4)
-    const resolved = process.env[envVar]
+  if (v.value.startsWith("env.")) {
+    const envVar = v.value.slice(4);
+    const resolved = process.env[envVar];
     if (resolved !== undefined) {
-      return { value: resolved, env_var: envVar, from_env: true }
+      return { value: resolved, env_var: envVar, from_env: true };
     }
   }
-  return v
+  return v;
 }
 
 /**
@@ -26,25 +26,25 @@ function resolveHeaderValue(v: EnvVarLike): EnvVarLike {
  * e.g. {"Authorization":"Bearer ..."},{"ENV_EXA_API_KEY":"..."} → merged into one record
  */
 function parseSSEHeadersRaw(raw: string): Record<string, string | EnvVarLike> {
-  const trimmed = raw.trim()
-  if (!trimmed) return {}
+  const trimmed = raw.trim();
+  if (!trimmed) return {};
   try {
-    const parsed = JSON.parse(trimmed)
-    if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
-      return parsed
+    const parsed = JSON.parse(trimmed);
+    if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+      return parsed;
     }
   } catch {
     // Fallback: concatenated objects {"a":1},{"b":2} → wrap in [ ] and merge
   }
   try {
-    const asArray = JSON.parse('[' + trimmed + ']')
-    if (Array.isArray(asArray) && asArray.every((o) => typeof o === 'object' && o !== null)) {
-      return Object.assign({}, ...asArray)
+    const asArray = JSON.parse("[" + trimmed + "]");
+    if (Array.isArray(asArray) && asArray.every((o) => typeof o === "object" && o !== null)) {
+      return Object.assign({}, ...asArray);
     }
   } catch {
     // ignore
   }
-  return {}
+  return {};
 }
 
 /**
@@ -53,10 +53,10 @@ function parseSSEHeadersRaw(raw: string): Record<string, string | EnvVarLike> {
 export function createMCPClientData(overrides: Partial<MCPClientConfig> = {}): MCPClientConfig {
   return {
     name: `test_client_${Date.now()}`,
-    connectionType: 'http',
-    connectionUrl: 'http://localhost:3001/',
+    connectionType: "http",
+    connectionUrl: "http://localhost:3001/",
     ...overrides,
-  }
+  };
 }
 
 /**
@@ -65,25 +65,25 @@ export function createMCPClientData(overrides: Partial<MCPClientConfig> = {}): M
  */
 export function createHTTPClientData(overrides: Partial<MCPClientConfig> = {}): MCPClientConfig {
   return createMCPClientData({
-    connectionType: 'http',
-    connectionUrl: 'http://localhost:3001/', // http-no-ping-server
-    authType: 'none',
+    connectionType: "http",
+    connectionUrl: "http://localhost:3001/", // http-no-ping-server
+    authType: "none",
     isPingAvailable: false, // http-no-ping-server doesn't support ping
     ...overrides,
-  })
+  });
 }
 
 /**
  * Normalize parsed headers to EnvVarLike format (handles both plain values and nested EnvVar objects).
  */
 function normalizeHeaders(parsed: Record<string, string | EnvVarLike>): Record<string, EnvVarLike> {
-  const out: Record<string, EnvVarLike> = {}
+  const out: Record<string, EnvVarLike> = {};
   for (const [k, v] of Object.entries(parsed)) {
     if (v !== undefined && v !== null) {
-      out[k] = resolveHeaderValue(toEnvVarLike(v))
+      out[k] = resolveHeaderValue(toEnvVarLike(v));
     }
   }
-  return out
+  return out;
 }
 
 /**
@@ -92,18 +92,18 @@ function normalizeHeaders(parsed: Record<string, string | EnvVarLike>): Record<s
  * Supports: {"Authorization":"Bearer ...","K":"V"} or {"Authorization":{"value":"...","env_var":"","from_env":false}}.
  */
 export function createSSEClientData(overrides: Partial<MCPClientConfig> = {}): MCPClientConfig {
-  const connectionUrl = "https://ts-mcp-sse-proxy.fly.dev/npx%20-y%20exa-mcp-server/sse"
-  const raw = process.env.MCP_SSE_HEADERS
-  const parsed = raw ? parseSSEHeadersRaw(raw) : {}
-  const headers = normalizeHeaders(parsed)
+  const connectionUrl = "https://ts-mcp-sse-proxy.fly.dev/npx%20-y%20exa-mcp-server/sse";
+  const raw = process.env.MCP_SSE_HEADERS;
+  const parsed = raw ? parseSSEHeadersRaw(raw) : {};
+  const headers = normalizeHeaders(parsed);
   return createMCPClientData({
-    connectionType: 'sse',
+    connectionType: "sse",
     connectionUrl,
-    authType: 'headers',
+    authType: "headers",
     headers: headers,
     isPingAvailable: false,
     ...overrides,
-  })
+  });
 }
 
 /**
@@ -112,77 +112,85 @@ export function createSSEClientData(overrides: Partial<MCPClientConfig> = {}): M
  */
 export function createSTDIOClientData(overrides: Partial<MCPClientConfig> = {}): MCPClientConfig {
   // Use the built test-tools-server
-  const REPO_ROOT = resolve(__dirname, '..', '..', '..', '..')
+  const REPO_ROOT = resolve(__dirname, "..", "..", "..", "..");
 
   // Then for the stdio server:
-  const serverPath = join(REPO_ROOT, 'examples', 'mcps', 'test-tools-server', 'dist', 'index.js')
+  const serverPath = join(REPO_ROOT, "examples", "mcps", "test-tools-server", "dist", "index.js");
   return createMCPClientData({
     name: `stdio_client_${Date.now()}`,
-    connectionType: 'stdio',
-    command: 'node',
+    connectionType: "stdio",
+    command: "node",
     args: serverPath, // Run the actual MCP server
     ...overrides,
-  })
+  });
 }
 
 /**
  * Create HTTP client with headers auth
  */
-export function createHTTPClientWithHeaders(overrides: Partial<MCPClientConfig> = {}): MCPClientConfig {
+export function createHTTPClientWithHeaders(
+  overrides: Partial<MCPClientConfig> = {},
+): MCPClientConfig {
   return createMCPClientData({
-    connectionType: 'http',
-    connectionUrl: 'http://localhost:3001/', // http-no-ping-server
-    authType: 'headers',
+    connectionType: "http",
+    connectionUrl: "http://localhost:3001/", // http-no-ping-server
+    authType: "headers",
     isPingAvailable: false,
     ...overrides,
-  })
+  });
 }
 
 /**
  * Create HTTP client with OAuth auth (minimal config for testing)
  * Note: http-no-ping-server doesn't support OAuth, so this is for UI testing only
  */
-export function createHTTPClientWithOAuth(overrides: Partial<MCPClientConfig> = {}): MCPClientConfig {
+export function createHTTPClientWithOAuth(
+  overrides: Partial<MCPClientConfig> = {},
+): MCPClientConfig {
   return createMCPClientData({
     name: `oauth_client_${Date.now()}`,
-    connectionType: 'http',
-    connectionUrl: 'http://localhost:3001/', // http-no-ping-server
-    authType: 'oauth',
-    oauthClientId: 'test-client-id',
-    oauthAuthorizeUrl: 'http://localhost:3001/oauth/authorize',
-    oauthTokenUrl: 'http://localhost:3001/oauth/token',
+    connectionType: "http",
+    connectionUrl: "http://localhost:3001/", // http-no-ping-server
+    authType: "oauth",
+    oauthClientId: "test-client-id",
+    oauthAuthorizeUrl: "http://localhost:3001/oauth/authorize",
+    oauthTokenUrl: "http://localhost:3001/oauth/token",
     isPingAvailable: false,
     ...overrides,
-  })
+  });
 }
 
 /**
  * Create client with code mode enabled
  */
-export function createCodeModeClientData(overrides: Partial<MCPClientConfig> = {}): MCPClientConfig {
+export function createCodeModeClientData(
+  overrides: Partial<MCPClientConfig> = {},
+): MCPClientConfig {
   return createMCPClientData({
     isCodeMode: true,
     ...overrides,
-  })
+  });
 }
 
 /**
  * Create HTTP client pointing at auth-demo-server (port 3002) with header auth.
  * Requires auth-demo-server to be running: examples/mcps/auth-demo-server
  */
-export function createHeadersAuthClientData(overrides: Partial<MCPClientConfig> = {}): MCPClientConfig {
+export function createHeadersAuthClientData(
+  overrides: Partial<MCPClientConfig> = {},
+): MCPClientConfig {
   return createMCPClientData({
     name: `headers_auth_client_${Date.now()}`,
-    connectionType: 'http',
-    connectionUrl: 'http://localhost:3002/',
-    authType: 'headers',
+    connectionType: "http",
+    connectionUrl: "http://localhost:3002/",
+    authType: "headers",
     headers: {
-      'X-API-Key': { value: 'super-secret-key', env_var: '', from_env: false },
-      'X-Tool-Token': { value: 'tool-exec-secret', env_var: '', from_env: false },
+      "X-API-Key": { value: "super-secret-key", env_var: "", from_env: false },
+      "X-Tool-Token": { value: "tool-exec-secret", env_var: "", from_env: false },
     },
     isPingAvailable: false,
     ...overrides,
-  })
+  });
 }
 
 /**
@@ -193,12 +201,12 @@ export function createHeadersAuthClientData(overrides: Partial<MCPClientConfig> 
 export function createOAuthClientData(overrides: Partial<MCPClientConfig> = {}): MCPClientConfig {
   return createMCPClientData({
     name: `oauth_client_${Date.now()}`,
-    connectionType: 'http',
-    connectionUrl: 'http://localhost:3003/mcp',
-    authType: 'oauth',
+    connectionType: "http",
+    connectionUrl: "http://localhost:3003/mcp",
+    authType: "oauth",
     isPingAvailable: false,
     ...overrides,
-  })
+  });
 }
 
 /**
@@ -206,13 +214,15 @@ export function createOAuthClientData(overrides: Partial<MCPClientConfig> = {}):
  * Requires user consent via browser before tools are accessible.
  * Requires oauth-demo-server to be running: examples/mcps/oauth-demo-server
  */
-export function createPerUserOAuthClientData(overrides: Partial<MCPClientConfig> = {}): MCPClientConfig {
+export function createPerUserOAuthClientData(
+  overrides: Partial<MCPClientConfig> = {},
+): MCPClientConfig {
   return createMCPClientData({
     name: `per_user_oauth_client_${Date.now()}`,
-    connectionType: 'http',
-    connectionUrl: 'http://localhost:3003/mcp',
-    authType: 'per_user_oauth',
+    connectionType: "http",
+    connectionUrl: "http://localhost:3003/mcp",
+    authType: "per_user_oauth",
     isPingAvailable: false,
     ...overrides,
-  })
+  });
 }

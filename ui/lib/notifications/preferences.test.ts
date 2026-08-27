@@ -13,7 +13,10 @@ describe("notification preferences", () => {
 
 	it("isolates read and dismissed IDs by user scope", () => {
 		writeNotificationPreferences("user-a", { readIds: ["n1"], dismissedIds: ["n2"] });
-		expect(readNotificationPreferences("user-a")).toEqual({ readIds: ["n1"], dismissedIds: ["n2"] });
+		expect(readNotificationPreferences("user-a")).toEqual({
+			readIds: ["n1"],
+			dismissedIds: ["n2"],
+		});
 		expect(readNotificationPreferences("user-b")).toEqual({ readIds: [], dismissedIds: [] });
 		expect(notificationPreferenceKey("user@example.com")).toContain("user%40example.com");
 	});

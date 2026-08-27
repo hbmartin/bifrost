@@ -73,7 +73,7 @@ func TestInject_GRPCExportHonoursTimeout(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewOtelClientGRPC: %v", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	const timeout = 400 * time.Millisecond
 	plugin := &OtelPlugin{targets: []*otelTarget{testTarget(t, client, timeout)}}
@@ -106,7 +106,7 @@ func TestInject_HTTPExportHonoursTimeout(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewOtelClientHTTP: %v", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	plugin := &OtelPlugin{targets: []*otelTarget{testTarget(t, client, timeout)}}
 

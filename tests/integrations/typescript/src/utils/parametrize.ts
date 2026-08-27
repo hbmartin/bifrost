@@ -5,15 +5,15 @@
  * with automatic scenario-based filtering.
  */
 
-import { getConfig } from './config-loader'
+import { getConfig } from "./config-loader";
 
 export interface ProviderModelParam {
-  provider: string
-  model: string
+  provider: string;
+  model: string;
 }
 
 export interface ProviderModelVkParam extends ProviderModelParam {
-  vkEnabled: boolean
+  vkEnabled: boolean;
 }
 
 /**
@@ -27,45 +27,45 @@ export interface ProviderModelVkParam extends ProviderModelParam {
 export function getCrossProviderParamsForScenario(
   scenario: string,
   includeProviders?: string[],
-  excludeProviders?: string[]
+  excludeProviders?: string[],
 ): ProviderModelParam[] {
-  const config = getConfig()
+  const config = getConfig();
 
   // Get providers that support this scenario
-  let providers = config.getProvidersForScenario(scenario)
+  let providers = config.getProvidersForScenario(scenario);
 
   // Apply include filter
   if (includeProviders && includeProviders.length > 0) {
-    providers = providers.filter((p) => includeProviders.includes(p))
+    providers = providers.filter((p) => includeProviders.includes(p));
   }
 
   // Apply exclude filter
   if (excludeProviders && excludeProviders.length > 0) {
-    providers = providers.filter((p) => !excludeProviders.includes(p))
+    providers = providers.filter((p) => !excludeProviders.includes(p));
   }
 
   // Generate { provider, model } objects
   // Automatically maps: scenario → capability → model
-  const params: ProviderModelParam[] = []
+  const params: ProviderModelParam[] = [];
 
   for (const provider of providers.sort()) {
     // Map scenario to capability, then get model
-    const capability = config.getScenarioCapability(scenario)
-    const model = config.getProviderModel(provider, capability)
+    const capability = config.getScenarioCapability(scenario);
+    const model = config.getProviderModel(provider, capability);
 
     // Only add if provider has a model for this scenario's capability
     if (model) {
-      params.push({ provider, model })
+      params.push({ provider, model });
     }
   }
 
   // If no providers available, return a dummy tuple to avoid test errors
   // The test will be skipped with appropriate message
   if (params.length === 0) {
-    params.push({ provider: '_no_providers_', model: '_no_model_' })
+    params.push({ provider: "_no_providers_", model: "_no_model_" });
   }
 
-  return params
+  return params;
 }
 
 /**
@@ -82,33 +82,37 @@ export function getCrossProviderParamsForScenario(
 export function getCrossProviderParamsWithVkForScenario(
   scenario: string,
   includeProviders?: string[],
-  excludeProviders?: string[]
+  excludeProviders?: string[],
 ): ProviderModelVkParam[] {
-  const config = getConfig()
+  const config = getConfig();
 
   // Get base params without VK
-  const baseParams = getCrossProviderParamsForScenario(scenario, includeProviders, excludeProviders)
+  const baseParams = getCrossProviderParamsForScenario(
+    scenario,
+    includeProviders,
+    excludeProviders,
+  );
 
   // Handle the dummy tuple case
-  if (baseParams.length === 1 && baseParams[0].provider === '_no_providers_') {
-    return [{ provider: '_no_providers_', model: '_no_model_', vkEnabled: false }]
+  if (baseParams.length === 1 && baseParams[0].provider === "_no_providers_") {
+    return [{ provider: "_no_providers_", model: "_no_model_", vkEnabled: false }];
   }
 
   // Build params list with VK flag
-  const params: ProviderModelVkParam[] = []
-  const vkConfigured = config.isVirtualKeyConfigured()
+  const params: ProviderModelVkParam[] = [];
+  const vkConfigured = config.isVirtualKeyConfigured();
 
   for (const { provider, model } of baseParams) {
     // Always add the non-VK variant
-    params.push({ provider, model, vkEnabled: false })
+    params.push({ provider, model, vkEnabled: false });
 
     // Add VK variant only if VK is configured
     if (vkConfigured) {
-      params.push({ provider, model, vkEnabled: true })
+      params.push({ provider, model, vkEnabled: true });
     }
   }
 
-  return params
+  return params;
 }
 
 /**
@@ -120,8 +124,8 @@ export function getCrossProviderParamsWithVkForScenario(
  * @returns Formatted test ID string
  */
 export function formatVkTestId(provider: string, model: string, vkEnabled: boolean): string {
-  const vkSuffix = vkEnabled ? 'with_vk' : 'no_vk'
-  return `${provider}-${model}-${vkSuffix}`
+  const vkSuffix = vkEnabled ? "with_vk" : "no_vk";
+  return `${provider}-${model}-${vkSuffix}`;
 }
 
 /**
@@ -132,14 +136,14 @@ export function formatVkTestId(provider: string, model: string, vkEnabled: boole
  * @returns Formatted string "provider/model"
  */
 export function formatProviderModel(provider: string, model: string): string {
-  return `${provider}/${model}`
+  return `${provider}/${model}`;
 }
 
 /**
  * Helper to check if test should be skipped due to no providers.
  */
 export function shouldSkipNoProviders(params: ProviderModelParam | ProviderModelVkParam): boolean {
-  return params.provider === '_no_providers_'
+  return params.provider === "_no_providers_";
 }
 
 /**
@@ -160,9 +164,9 @@ export function shouldSkipNoProviders(params: ProviderModelParam | ProviderModel
 export function getTestCasesForScenario(
   scenario: string,
   includeProviders?: string[],
-  excludeProviders?: string[]
+  excludeProviders?: string[],
 ): ProviderModelParam[] {
-  return getCrossProviderParamsForScenario(scenario, includeProviders, excludeProviders)
+  return getCrossProviderParamsForScenario(scenario, includeProviders, excludeProviders);
 }
 
 /**
@@ -181,22 +185,27 @@ export function getTestCasesForScenario(
 export function getTestCasesWithVkForScenario(
   scenario: string,
   includeProviders?: string[],
-  excludeProviders?: string[]
+  excludeProviders?: string[],
 ): ProviderModelVkParam[] {
-  return getCrossProviderParamsWithVkForScenario(scenario, includeProviders, excludeProviders)
+  return getCrossProviderParamsWithVkForScenario(scenario, includeProviders, excludeProviders);
 }
 
 /**
  * Create a test name with provider and model info.
  */
 export function createTestName(baseName: string, provider: string, model: string): string {
-  return `${baseName} [${provider}/${model}]`
+  return `${baseName} [${provider}/${model}]`;
 }
 
 /**
  * Create a test name with provider, model, and VK info.
  */
-export function createTestNameWithVk(baseName: string, provider: string, model: string, vkEnabled: boolean): string {
-  const vkSuffix = vkEnabled ? ' (with VK)' : ''
-  return `${baseName} [${provider}/${model}]${vkSuffix}`
+export function createTestNameWithVk(
+  baseName: string,
+  provider: string,
+  model: string,
+  vkEnabled: boolean,
+): string {
+  const vkSuffix = vkEnabled ? " (with VK)" : "";
+  return `${baseName} [${provider}/${model}]${vkSuffix}`;
 }

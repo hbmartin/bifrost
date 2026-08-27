@@ -47,7 +47,7 @@ func dropSharedTestNamespace() {
 			if err != nil {
 				return // backend not configured/available in this environment
 			}
-			defer store.Close(context.Background(), SharedTestNamespace)
+			defer func() { _ = store.Close(context.Background(), SharedTestNamespace) }()
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 			_ = store.DeleteNamespace(ctx, SharedTestNamespace)

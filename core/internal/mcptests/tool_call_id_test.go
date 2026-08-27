@@ -286,13 +286,10 @@ func TestToolCallID_UniqueIDsInBatch(t *testing.T) {
 	ctx := createTestContext()
 
 	// Create 10 tool calls with unique IDs
-	uniqueIDs := []string{}
 	toolCalls := []schemas.ChatAssistantMessageToolCall{}
 
 	for i := 0; i < 10; i++ {
 		id := fmt.Sprintf("unique_id_%03d", i)
-		uniqueIDs = append(uniqueIDs, id)
-
 		toolCalls = append(toolCalls, GetSampleEchoToolCall(id, fmt.Sprintf("message %d", i)))
 	}
 

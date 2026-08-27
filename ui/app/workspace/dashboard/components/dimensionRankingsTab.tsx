@@ -48,7 +48,14 @@ function TopDimensionChart({
 	attributed?: boolean;
 }) {
 	const { chartData, grandTotal, rankedItems, actualTotal, attributedTotal } = useMemo(() => {
-		if (!data?.rankings?.length) return { chartData: [], grandTotal: null, rankedItems: [], actualTotal: null, attributedTotal: null };
+		if (!data?.rankings?.length)
+			return {
+				chartData: [],
+				grandTotal: null,
+				rankedItems: [],
+				actualTotal: null,
+				attributedTotal: null,
+			};
 
 		const sorted = [...data.rankings].sort((a, b) => b.total_requests - a.total_requests);
 		const top = sorted.slice(0, 10);
@@ -72,7 +79,13 @@ function TopDimensionChart({
 		const actual = attributed ? (data.total_actual_requests ?? null) : null;
 		const attributedSum = actual !== null ? (data.total_attributed_requests ?? total) : total;
 
-		return { chartData: chart, grandTotal: total, rankedItems: items, actualTotal: actual, attributedTotal: attributedSum };
+		return {
+			chartData: chart,
+			grandTotal: total,
+			rankedItems: items,
+			actualTotal: actual,
+			attributedTotal: attributedSum,
+		};
 	}, [data, attributed]);
 
 	return (

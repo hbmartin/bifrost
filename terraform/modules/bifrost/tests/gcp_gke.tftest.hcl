@@ -30,7 +30,6 @@ mock_provider "kubernetes" {}
 
 run "gke_basic" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider = "gcp"
     service        = "gke"
@@ -42,7 +41,6 @@ run "gke_basic" {
 
 run "gke_create_cluster" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider = "gcp"
     service        = "gke"
@@ -55,7 +53,6 @@ run "gke_create_cluster" {
 
 run "gke_skip_cluster" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider = "gcp"
     service        = "gke"
@@ -68,7 +65,6 @@ run "gke_skip_cluster" {
 
 run "gke_custom_namespace" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider       = "gcp"
     service              = "gke"
@@ -81,7 +77,6 @@ run "gke_custom_namespace" {
 
 run "gke_with_hpa" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider     = "gcp"
     service            = "gke"
@@ -96,7 +91,6 @@ run "gke_with_hpa" {
 
 run "gke_with_ingress" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider       = "gcp"
     service              = "gke"
@@ -110,7 +104,6 @@ run "gke_with_ingress" {
 
 run "gke_custom_nodes" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider    = "gcp"
     service           = "gke"
@@ -124,7 +117,6 @@ run "gke_custom_nodes" {
 
 run "gke_custom_volume" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider = "gcp"
     service        = "gke"
@@ -137,7 +129,6 @@ run "gke_custom_volume" {
 
 run "gke_existing_vpc" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider      = "gcp"
     service             = "gke"

@@ -598,9 +598,9 @@ func (provider *ReplicateProvider) TextCompletionStream(ctx *schemas.BifrostCont
 	go func() {
 		defer providerUtils.EnsureStreamFinalizerCalled(ctx, postHookSpanFinalizer)
 		defer func() {
-			if ctx.Err() == context.Canceled {
+			if errors.Is(ctx.Err(), context.Canceled) {
 				providerUtils.HandleStreamCancellation(ctx, postHookRunner, responseChan, provider.logger, postHookSpanFinalizer, jsonData)
-			} else if ctx.Err() == context.DeadlineExceeded {
+			} else if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 				providerUtils.HandleStreamTimeout(ctx, postHookRunner, responseChan, provider.logger, postHookSpanFinalizer, jsonData)
 			}
 			providerUtils.CloseStream(ctx, responseChan)
@@ -642,7 +642,7 @@ func (provider *ReplicateProvider) TextCompletionStream(ctx *schemas.BifrostCont
 				if ctx.Err() != nil {
 					return
 				}
-				if readErr != io.EOF {
+				if !errors.Is(readErr, io.EOF) {
 					ctx.SetValue(schemas.BifrostContextKeyStreamEndIndicator, true)
 					provider.logger.Warn("Error reading stream: %v", readErr)
 					enrichedErr := providerUtils.EnrichError(ctx, providerUtils.NewBifrostOperationError(schemas.ErrProviderDoRequest, readErr), jsonData, nil, provider.sendBackRawRequest, provider.sendBackRawResponse, latency)
@@ -717,7 +717,7 @@ func (provider *ReplicateProvider) TextCompletionStream(ctx *schemas.BifrostCont
 					enrichedErr := providerUtils.EnrichError(ctx, bifrostErr, jsonData, nil, provider.sendBackRawRequest, provider.sendBackRawResponse, latency)
 					providerUtils.ProcessAndSendBifrostError(ctx, postHookRunner, enrichedErr, responseChan, provider.logger, postHookSpanFinalizer)
 					// Explicitly close the body stream to terminate connection to Replicate
-					resp.CloseBodyStream()
+					_ = resp.CloseBodyStream()
 					return
 
 				case "error":
@@ -732,7 +732,7 @@ func (provider *ReplicateProvider) TextCompletionStream(ctx *schemas.BifrostCont
 					enrichedErr := providerUtils.EnrichError(ctx, bifrostErr, jsonData, nil, provider.sendBackRawRequest, provider.sendBackRawResponse, latency)
 					providerUtils.ProcessAndSendBifrostError(ctx, postHookRunner, enrichedErr, responseChan, provider.logger, postHookSpanFinalizer)
 					// Explicitly close the body stream to terminate connection to Replicate
-					resp.CloseBodyStream()
+					_ = resp.CloseBodyStream()
 					return
 				}
 
@@ -758,7 +758,7 @@ func (provider *ReplicateProvider) TextCompletionStream(ctx *schemas.BifrostCont
 				providerUtils.ProcessAndSendResponse(ctx, postHookRunner,
 					providerUtils.GetBifrostResponseForStreamResponse(finalResponse, nil, nil, nil, nil, nil),
 					responseChan, postHookSpanFinalizer)
-				resp.CloseBodyStream()
+				_ = resp.CloseBodyStream()
 				return
 			}
 		}
@@ -948,9 +948,9 @@ func (provider *ReplicateProvider) ChatCompletionStream(ctx *schemas.BifrostCont
 	go func() {
 		defer providerUtils.EnsureStreamFinalizerCalled(ctx, postHookSpanFinalizer)
 		defer func() {
-			if ctx.Err() == context.Canceled {
+			if errors.Is(ctx.Err(), context.Canceled) {
 				providerUtils.HandleStreamCancellation(ctx, postHookRunner, responseChan, provider.logger, postHookSpanFinalizer, jsonData)
-			} else if ctx.Err() == context.DeadlineExceeded {
+			} else if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 				providerUtils.HandleStreamTimeout(ctx, postHookRunner, responseChan, provider.logger, postHookSpanFinalizer, jsonData)
 			}
 			providerUtils.CloseStream(ctx, responseChan)
@@ -992,7 +992,7 @@ func (provider *ReplicateProvider) ChatCompletionStream(ctx *schemas.BifrostCont
 				if ctx.Err() != nil {
 					return
 				}
-				if readErr != io.EOF {
+				if !errors.Is(readErr, io.EOF) {
 					ctx.SetValue(schemas.BifrostContextKeyStreamEndIndicator, true)
 					provider.logger.Warn("Error reading stream: %v", readErr)
 					enrichedErr := providerUtils.EnrichError(ctx, providerUtils.NewBifrostOperationError(schemas.ErrProviderDoRequest, readErr), jsonData, nil, provider.sendBackRawRequest, provider.sendBackRawResponse, latency)
@@ -1073,7 +1073,7 @@ func (provider *ReplicateProvider) ChatCompletionStream(ctx *schemas.BifrostCont
 					enrichedErr := providerUtils.EnrichError(ctx, bifrostErr, jsonData, nil, provider.sendBackRawRequest, provider.sendBackRawResponse, latency)
 					providerUtils.ProcessAndSendBifrostError(ctx, postHookRunner, enrichedErr, responseChan, provider.logger, postHookSpanFinalizer)
 					// Explicitly close the body stream to terminate connection to Replicate
-					resp.CloseBodyStream()
+					_ = resp.CloseBodyStream()
 					return
 
 				case "error":
@@ -1088,7 +1088,7 @@ func (provider *ReplicateProvider) ChatCompletionStream(ctx *schemas.BifrostCont
 					enrichedErr := providerUtils.EnrichError(ctx, bifrostErr, jsonData, nil, provider.sendBackRawRequest, provider.sendBackRawResponse, latency)
 					providerUtils.ProcessAndSendBifrostError(ctx, postHookRunner, enrichedErr, responseChan, provider.logger, postHookSpanFinalizer)
 					// Explicitly close the body stream to terminate connection to Replicate
-					resp.CloseBodyStream()
+					_ = resp.CloseBodyStream()
 					return
 				}
 
@@ -1123,7 +1123,7 @@ func (provider *ReplicateProvider) ChatCompletionStream(ctx *schemas.BifrostCont
 				providerUtils.ProcessAndSendResponse(ctx, postHookRunner,
 					providerUtils.GetBifrostResponseForStreamResponse(nil, finalResponse, nil, nil, nil, nil),
 					responseChan, postHookSpanFinalizer)
-				resp.CloseBodyStream()
+				_ = resp.CloseBodyStream()
 				return
 			}
 		}
@@ -1351,9 +1351,9 @@ func (provider *ReplicateProvider) ResponsesStream(ctx *schemas.BifrostContext, 
 		// otherwise skip any finalizer declared later in this goroutine.
 		defer providerUtils.EnsureStreamFinalizerCalled(ctx, postHookSpanFinalizer)
 		defer func() {
-			if ctx.Err() == context.Canceled {
+			if errors.Is(ctx.Err(), context.Canceled) {
 				providerUtils.HandleStreamCancellation(ctx, postHookRunner, responseChan, provider.logger, postHookSpanFinalizer, jsonData)
-			} else if ctx.Err() == context.DeadlineExceeded {
+			} else if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 				providerUtils.HandleStreamTimeout(ctx, postHookRunner, responseChan, provider.logger, postHookSpanFinalizer, jsonData)
 			}
 			providerUtils.CloseStream(ctx, responseChan)
@@ -1410,7 +1410,7 @@ func (provider *ReplicateProvider) ResponsesStream(ctx *schemas.BifrostContext, 
 				if ctx.Err() != nil {
 					return
 				}
-				if readErr != io.EOF {
+				if !errors.Is(readErr, io.EOF) {
 					ctx.SetValue(schemas.BifrostContextKeyStreamEndIndicator, true)
 					provider.logger.Warn("Error reading stream: %v", readErr)
 					bifrostErr := providerUtils.NewBifrostOperationError(schemas.ErrProviderDoRequest, readErr)
@@ -1678,7 +1678,7 @@ func (provider *ReplicateProvider) ResponsesStream(ctx *schemas.BifrostContext, 
 					providerUtils.ProcessAndSendResponse(ctx, postHookRunner,
 						providerUtils.GetBifrostResponseForStreamResponse(nil, nil, completedResp, nil, nil, nil),
 						responseChan, postHookSpanFinalizer)
-					resp.CloseBodyStream()
+					_ = resp.CloseBodyStream()
 					return
 				case "error":
 					// Accumulate error event in raw responses if enabled
@@ -1703,7 +1703,7 @@ func (provider *ReplicateProvider) ResponsesStream(ctx *schemas.BifrostContext, 
 					ctx.SetValue(schemas.BifrostContextKeyStreamEndIndicator, true)
 					enrichedErr := providerUtils.EnrichError(ctx, bifrostErr, jsonData, nil, sendBackRawRequest, sendBackRawResponse, latency)
 					providerUtils.ProcessAndSendBifrostError(ctx, postHookRunner, enrichedErr, responseChan, provider.logger, postHookSpanFinalizer)
-					resp.CloseBodyStream()
+					_ = resp.CloseBodyStream()
 					return
 				}
 			}
@@ -1947,9 +1947,9 @@ func (provider *ReplicateProvider) ImageGenerationStream(ctx *schemas.BifrostCon
 	go func() {
 		defer providerUtils.EnsureStreamFinalizerCalled(ctx, postHookSpanFinalizer)
 		defer func() {
-			if ctx.Err() == context.Canceled {
+			if errors.Is(ctx.Err(), context.Canceled) {
 				providerUtils.HandleStreamCancellation(ctx, postHookRunner, responseChan, provider.logger, postHookSpanFinalizer, jsonData)
-			} else if ctx.Err() == context.DeadlineExceeded {
+			} else if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 				providerUtils.HandleStreamTimeout(ctx, postHookRunner, responseChan, provider.logger, postHookSpanFinalizer, jsonData)
 			}
 			providerUtils.CloseStream(ctx, responseChan)
@@ -1993,7 +1993,7 @@ func (provider *ReplicateProvider) ImageGenerationStream(ctx *schemas.BifrostCon
 				if ctx.Err() != nil {
 					return
 				}
-				if readErr != io.EOF {
+				if !errors.Is(readErr, io.EOF) {
 					ctx.SetValue(schemas.BifrostContextKeyStreamEndIndicator, true)
 					provider.logger.Warn(fmt.Sprintf("Error reading SSE stream: %v", readErr))
 					enrichedErr := providerUtils.EnrichError(ctx, providerUtils.NewBifrostOperationError(schemas.ErrProviderDoRequest, readErr), jsonData, nil, sendBackRawRequest, sendBackRawResponse, latency)
@@ -2373,9 +2373,9 @@ func (provider *ReplicateProvider) ImageEditStream(ctx *schemas.BifrostContext, 
 	go func() {
 		defer providerUtils.EnsureStreamFinalizerCalled(ctx, postHookSpanFinalizer)
 		defer func() {
-			if ctx.Err() == context.Canceled {
+			if errors.Is(ctx.Err(), context.Canceled) {
 				providerUtils.HandleStreamCancellation(ctx, postHookRunner, responseChan, provider.logger, postHookSpanFinalizer, jsonData)
-			} else if ctx.Err() == context.DeadlineExceeded {
+			} else if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 				providerUtils.HandleStreamTimeout(ctx, postHookRunner, responseChan, provider.logger, postHookSpanFinalizer, jsonData)
 			}
 			providerUtils.CloseStream(ctx, responseChan)
@@ -2419,7 +2419,7 @@ func (provider *ReplicateProvider) ImageEditStream(ctx *schemas.BifrostContext, 
 				if ctx.Err() != nil {
 					return
 				}
-				if readErr != io.EOF {
+				if !errors.Is(readErr, io.EOF) {
 					enrichedErr := providerUtils.EnrichError(ctx, providerUtils.NewBifrostOperationError("stream read error", readErr), jsonData, nil, sendBackRawRequest, sendBackRawResponse, latency)
 					ctx.SetValue(schemas.BifrostContextKeyStreamEndIndicator, true)
 					providerUtils.ProcessAndSendBifrostError(ctx, postHookRunner, enrichedErr, responseChan, provider.logger, postHookSpanFinalizer)

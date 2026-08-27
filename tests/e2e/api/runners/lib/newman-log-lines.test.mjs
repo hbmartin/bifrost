@@ -64,13 +64,16 @@ test("does not match prose that merely contains brackets", () => {
 // ----- the other shapes -------------------------------------------------------
 
 test("reads a folder heading and its name", () => {
-  assert.strictEqual("❏ 4. Bedrock (via /bedrock)".match(RE_FOLDER)[1], "4. Bedrock (via /bedrock)");
+  assert.strictEqual(
+    "❏ 4. Bedrock (via /bedrock)".match(RE_FOLDER)[1],
+    "4. Bedrock (via /bedrock)",
+  );
 });
 
 test("reads a request heading and its name", () => {
   assert.strictEqual(
     "↳ Prompt caching (cache_control: ephemeral)".match(RE_REQUEST)[1],
-    "Prompt caching (cache_control: ephemeral)"
+    "Prompt caching (cache_control: ephemeral)",
   );
 });
 
@@ -87,7 +90,7 @@ test("recognises an errored request", () => {
 test("reads a numbered assertion failure", () => {
   assert.strictEqual(
     "  1. expected 400 to be within 200..299".match(RE_ASSERT_FAIL)[1],
-    "expected 400 to be within 200..299"
+    "expected 400 to be within 200..299",
   );
 });
 
@@ -114,10 +117,7 @@ test("classifies each line shape", () => {
 // wrong would mark the request failed but never done, so it would count as
 // neither a pass nor a fail.
 test("reads a failing summary as done, not as an assertion failure", () => {
-  assert.strictEqual(
-    classifyLine("  POST http://x/y [400 Bad Request, 1.24kB, 340ms]"),
-    "done"
-  );
+  assert.strictEqual(classifyLine("  POST http://x/y [400 Bad Request, 1.24kB, 340ms]"), "done");
 });
 
 console.log(`\n${passed} passed`);

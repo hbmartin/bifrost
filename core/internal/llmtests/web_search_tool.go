@@ -13,6 +13,7 @@ import (
 
 // This test verifies that the web search tool is properly invoked and returns results
 func RunWebSearchToolTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.WebSearchTool {
 		t.Logf("Web search tool not supported for provider %s", testConfig.Provider)
 		return
@@ -156,6 +157,7 @@ func WebSearchRetryConfig() ResponsesRetryConfig {
 			&ResponsesGenericResponseCondition{},
 		},
 		OnRetry: func(attempt int, reason string, t *testing.T) {
+			t.Helper()
 			t.Logf("🔄 Retrying web search test (attempt %d): %s", attempt, reason)
 		},
 	}
@@ -170,6 +172,7 @@ func WebSearchExpectations() ResponseExpectations {
 
 // RunWebSearchToolStreamTest executes streaming web search test
 func RunWebSearchToolStreamTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.WebSearchTool {
 		t.Logf("Web search tool not supported for provider %s", testConfig.Provider)
 		return
@@ -334,6 +337,7 @@ func RunWebSearchToolStreamTest(t *testing.T, client *bifrost.Bifrost, ctx conte
 
 // RunWebSearchToolWithDomainsTest tests web search with domain filtering
 func RunWebSearchToolWithDomainsTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.WebSearchTool {
 		t.Logf("Web search tool not supported for provider %s", testConfig.Provider)
 		return
@@ -435,6 +439,7 @@ func RunWebSearchToolWithDomainsTest(t *testing.T, client *bifrost.Bifrost, ctx 
 
 // RunWebSearchToolContextSizesTest tests different search context sizes
 func RunWebSearchToolContextSizesTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.WebSearchTool {
 		t.Logf("Web search tool not supported for provider %s", testConfig.Provider)
 		return
@@ -541,6 +546,7 @@ func RunWebSearchToolContextSizesTest(t *testing.T, client *bifrost.Bifrost, ctx
 
 // RunWebSearchToolMultiTurnTest tests multi-turn conversation with web search
 func RunWebSearchToolMultiTurnTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.WebSearchTool {
 		t.Logf("Web search tool not supported for provider %s", testConfig.Provider)
 		return
@@ -676,6 +682,7 @@ func RunWebSearchToolMultiTurnTest(t *testing.T, client *bifrost.Bifrost, ctx co
 
 // RunWebSearchToolMaxUsesTest tests Anthropic-specific max uses parameter
 func RunWebSearchToolMaxUsesTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.WebSearchTool {
 		t.Logf("Web search tool not supported for provider %s", testConfig.Provider)
 		return
@@ -764,6 +771,7 @@ func RunWebSearchToolMaxUsesTest(t *testing.T, client *bifrost.Bifrost, ctx cont
 
 // ValidateWebSearchSources validates web search sources structure and domain filtering
 func ValidateWebSearchSources(t *testing.T, sources []schemas.ResponsesWebSearchToolCallActionSearchSource, allowedDomains []string) {
+	t.Helper()
 	require.NotEmpty(t, sources, "Sources should not be empty")
 
 	for i, source := range sources {

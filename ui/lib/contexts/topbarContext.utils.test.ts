@@ -11,7 +11,10 @@ describe("claimTitle", () => {
 
 	it("lets a later page take over the title", () => {
 		const owned = claimTitle(EMPTY_TITLE_ENTRY, pageA, "Logs");
-		expect(claimTitle(owned, pageB, "Budgets & Limits")).toEqual({ value: "Budgets & Limits", owner: pageB });
+		expect(claimTitle(owned, pageB, "Budgets & Limits")).toEqual({
+			value: "Budgets & Limits",
+			owner: pageB,
+		});
 	});
 
 	it("returns the same object when nothing changed, so the provider does not re-render", () => {

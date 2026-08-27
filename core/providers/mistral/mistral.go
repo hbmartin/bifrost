@@ -474,9 +474,9 @@ func (provider *MistralProvider) TranscriptionStream(ctx *schemas.BifrostContext
 	// Start streaming in a goroutine
 	go func() {
 		defer func() {
-			if ctx.Err() == context.Canceled {
+			if errors.Is(ctx.Err(), context.Canceled) {
 				providerUtils.HandleStreamCancellation(ctx, postHookRunner, responseChan, provider.logger, postHookSpanFinalizer, nil)
-			} else if ctx.Err() == context.DeadlineExceeded {
+			} else if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 				providerUtils.HandleStreamTimeout(ctx, postHookRunner, responseChan, provider.logger, postHookSpanFinalizer, nil)
 			}
 			providerUtils.CloseStream(ctx, responseChan)
@@ -513,7 +513,7 @@ func (provider *MistralProvider) TranscriptionStream(ctx *schemas.BifrostContext
 				if ctx.Err() != nil {
 					return
 				}
-				if readErr != io.EOF {
+				if !errors.Is(readErr, io.EOF) {
 					ctx.SetValue(schemas.BifrostContextKeyStreamEndIndicator, true)
 					provider.logger.Warn("Error reading stream: %v", readErr)
 					providerUtils.ProcessAndSendError(ctx, postHookRunner, readErr, responseChan, provider.logger, postHookSpanFinalizer)

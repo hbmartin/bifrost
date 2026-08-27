@@ -29,6 +29,7 @@ type QdrantTestSetup struct {
 }
 
 func NewQdrantTestSetup(t *testing.T) *QdrantTestSetup {
+	t.Helper()
 	host := schemas.NewSecretVar(getEnvWithDefault("QDRANT_HOST", QdrantTestDefaultHost))
 	port := schemas.NewSecretVar(getEnvWithDefault("QDRANT_PORT", QdrantTestDefaultPort))
 	apiKey := schemas.NewSecretVar(os.Getenv("QDRANT_API_KEY"))
@@ -64,6 +65,7 @@ func NewQdrantTestSetup(t *testing.T) *QdrantTestSetup {
 }
 
 func (ts *QdrantTestSetup) Cleanup(t *testing.T) {
+	t.Helper()
 	defer ts.cancel()
 
 	if !testing.Short() {
@@ -76,6 +78,7 @@ func (ts *QdrantTestSetup) Cleanup(t *testing.T) {
 }
 
 func (ts *QdrantTestSetup) ensureCollectionExists(t *testing.T) {
+	t.Helper()
 	properties := map[string]VectorStoreProperties{
 		"key": {
 			DataType: VectorStorePropertyTypeString,
@@ -123,6 +126,7 @@ func (ts *QdrantTestSetup) ensureCollectionExists(t *testing.T) {
 }
 
 func (ts *QdrantTestSetup) cleanupTestData(t *testing.T) {
+	t.Helper()
 	allTestKeys, _, err := ts.Store.GetAll(ts.ctx, QdrantTestCollection, []Query{}, []string{}, nil, 1000)
 	if err != nil {
 		t.Logf("Warning: Failed to get all test keys: %v", err)
@@ -435,7 +439,7 @@ func TestVectorStoreFactory_Qdrant(t *testing.T) {
 	if err != nil {
 		t.Skipf("Could not create Qdrant store: %v", err)
 	}
-	defer store.Close(context.Background(), QdrantTestCollection)
+	defer func() { _ = store.Close(context.Background(), QdrantTestCollection) }()
 
 	qdrantStore, ok := store.(*QdrantStore)
 	assert.True(t, ok)
@@ -473,7 +477,7 @@ func TestQdrantStore_DimensionHandling(t *testing.T) {
 	require.NoError(t, err)
 	assert.GreaterOrEqual(t, len(results), 1)
 
-	setup.Store.DeleteNamespace(setup.ctx, testCollection)
+	_ = setup.Store.DeleteNamespace(setup.ctx, testCollection)
 }
 
 func TestQdrantStore_ErrorHandling(t *testing.T) {

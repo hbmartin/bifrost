@@ -50,7 +50,7 @@ func (s *StarlarkCodeMode) handleGetToolDocs(ctx context.Context, toolCall schem
 	// Parse tool arguments
 	var arguments map[string]interface{}
 	if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &arguments); err != nil {
-		return nil, fmt.Errorf("failed to parse tool arguments: %v", err)
+		return nil, fmt.Errorf("failed to parse tool arguments: %w", err)
 	}
 
 	serverName, ok := arguments["server"].(string)

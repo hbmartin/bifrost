@@ -60,7 +60,7 @@ func assertCanonicalModelRankings(t *testing.T, res *ModelRankingResult) {
 
 func TestCanonicalModelRankings_SQLite(t *testing.T) {
 	store := newTestSQLiteStore(t)
-	defer store.Close(context.Background())
+	defer func() { _ = store.Close(context.Background()) }()
 	filters := seedCanonicalModelLogs(t, store.db)
 
 	res, err := store.GetModelRankings(context.Background(), filters)

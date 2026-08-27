@@ -17,6 +17,7 @@ import (
 // RunRealtimeTest dials the provider's native Realtime WebSocket endpoint,
 // sends a text-based conversation turn, and validates the session + response events.
 func RunRealtimeTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.Realtime {
 		t.Logf("Realtime not supported for provider %s", testConfig.Provider)
 		return
@@ -70,11 +71,11 @@ func RunRealtimeTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context,
 				buf := make([]byte, 1024)
 				n, _ := resp.Body.Read(buf)
 				body = string(buf[:n])
-				resp.Body.Close()
+				_ = resp.Body.Close()
 			}
 			t.Fatalf("failed to dial Realtime WS %s: %v (body: %s)", wsURL, dialErr, body)
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 
 		t.Logf("connected to Realtime endpoint: %s", wsURL)
 
@@ -88,9 +89,10 @@ func RunRealtimeTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context,
 
 // runOpenAIRealtimeTest drives an OpenAI Realtime session using text modality only.
 func runOpenAIRealtimeTest(t *testing.T, conn *ws.Conn, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	var gotSessionCreated bool
 	eventCount := 0
-	conn.SetReadDeadline(time.Now().Add(30 * time.Second))
+	_ = conn.SetReadDeadline(time.Now().Add(30 * time.Second))
 
 	for i := 0; i < 5; i++ {
 		_, msg, err := conn.ReadMessage()
@@ -120,7 +122,7 @@ func runOpenAIRealtimeTest(t *testing.T, conn *ws.Conn, testConfig Comprehensive
 	}
 	writeJSON(t, conn, sessionUpdate)
 
-	conn.SetReadDeadline(time.Now().Add(10 * time.Second))
+	_ = conn.SetReadDeadline(time.Now().Add(10 * time.Second))
 	gotSessionUpdated := false
 	for !gotSessionUpdated {
 		_, msg, err := conn.ReadMessage()
@@ -160,7 +162,7 @@ func runOpenAIRealtimeTest(t *testing.T, conn *ws.Conn, testConfig Comprehensive
 		gotResponseDone bool
 	)
 
-	conn.SetReadDeadline(time.Now().Add(30 * time.Second))
+	_ = conn.SetReadDeadline(time.Now().Add(30 * time.Second))
 	for {
 		_, msg, err := conn.ReadMessage()
 		if err != nil {
@@ -199,9 +201,10 @@ func runOpenAIRealtimeTest(t *testing.T, conn *ws.Conn, testConfig Comprehensive
 // runElevenLabsRealtimeTest drives an ElevenLabs Conversational AI session.
 // ElevenLabs sessions start with conversation_initiation_metadata and require pong heartbeats.
 func runElevenLabsRealtimeTest(t *testing.T, conn *ws.Conn, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	var gotInitMetadata bool
 	eventCount := 0
-	conn.SetReadDeadline(time.Now().Add(30 * time.Second))
+	_ = conn.SetReadDeadline(time.Now().Add(30 * time.Second))
 
 	for i := 0; i < 10; i++ {
 		_, msg, err := conn.ReadMessage()
@@ -228,7 +231,7 @@ func runElevenLabsRealtimeTest(t *testing.T, conn *ws.Conn, testConfig Comprehen
 	}
 
 	var gotAgentResponse bool
-	conn.SetReadDeadline(time.Now().Add(30 * time.Second))
+	_ = conn.SetReadDeadline(time.Now().Add(30 * time.Second))
 	for i := 0; i < 50; i++ {
 		_, msg, err := conn.ReadMessage()
 		if err != nil {
@@ -266,7 +269,7 @@ func extractEventType(msg []byte) string {
 	}
 	if typeBytes, ok := raw["type"]; ok {
 		var eventType string
-		json.Unmarshal(typeBytes, &eventType)
+		_ = json.Unmarshal(typeBytes, &eventType) // Invalid event metadata remains unknown and is ignored below.
 		return eventType
 	}
 	return "unknown"

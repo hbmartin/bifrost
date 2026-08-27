@@ -1,0 +1,73 @@
+version: "2"
+
+run:
+  timeout: 10m
+  tests: true
+  relative-path-mode: gomod
+
+linters:
+  default: none
+  enable:
+    - bodyclose
+    - durationcheck
+    - errcheck
+    - errorlint
+    - exhaustive
+    - govet
+    - ineffassign
+    - makezero
+    - nilerr
+    - nilnesserr
+    - nolintlint
+    - reassign
+    - rowserrcheck
+    - sloglint
+    - spancheck
+    - sqlclosecheck
+    - staticcheck
+    - testifylint
+    - thelper
+    - unused
+    - usetesting
+  exclusions:
+    generated: strict
+  settings:
+    errcheck:
+      exclude-functions:
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - fmt.Fprint
+    exhaustive:
+      default-signifies-exhaustive: true
+      explicit-exhaustive-switch: true
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+    sloglint:
+      no-global: all
+      context: scope
+    staticcheck:
+      checks:
+        - all
+        - -QF*
+        - -S*
+        - -ST*
+        - -SA1019
+    testifylint:
+      disable-all: true
+      enable:
+        - go-require
+    thelper:
+      test:
+        first: false
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  exclusions:
+    generated: strict
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

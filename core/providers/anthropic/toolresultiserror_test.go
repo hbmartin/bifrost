@@ -1,6 +1,7 @@
 package anthropic
 
 import (
+	"context"
 	"testing"
 
 	"github.com/maximhq/bifrost/core/schemas"
@@ -11,7 +12,7 @@ import (
 // set. Claude is trained to treat errored tool results differently, so
 // dropping the marker silently changes model behavior on replayed histories.
 func TestToolResultIsErrorReachesAnthropicWire(t *testing.T) {
-	ctx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 
 	req := &schemas.BifrostChatRequest{
 		Provider: schemas.Anthropic,

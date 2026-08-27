@@ -30,6 +30,7 @@ func getFakeBatchID(provider schemas.ModelProvider) string {
 
 // RunBatchCreateTest tests the batch create functionality
 func RunBatchCreateTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.BatchCreate {
 		t.Logf("[SKIPPED] Batch Create: Not supported by provider %s", testConfig.Provider)
 		return
@@ -113,6 +114,7 @@ func RunBatchCreateTest(t *testing.T, client *bifrost.Bifrost, ctx context.Conte
 
 // RunBatchListTest tests the batch list functionality
 func RunBatchListTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.BatchList {
 		t.Logf("[SKIPPED] Batch List: Not supported by provider %s", testConfig.Provider)
 		return
@@ -177,6 +179,7 @@ func RunBatchListTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context
 
 // RunBatchRetrieveTest tests the batch retrieve functionality
 func RunBatchRetrieveTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.BatchRetrieve {
 		t.Logf("[SKIPPED] Batch Retrieve: Not supported by provider %s", testConfig.Provider)
 		return
@@ -305,6 +308,7 @@ func RunBatchRetrieveTest(t *testing.T, client *bifrost.Bifrost, ctx context.Con
 
 // RunBatchCancelTest tests the batch cancel functionality
 func RunBatchCancelTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.BatchCancel {
 		t.Logf("[SKIPPED] Batch Cancel: Not supported by provider %s", testConfig.Provider)
 		return
@@ -431,6 +435,7 @@ func RunBatchCancelTest(t *testing.T, client *bifrost.Bifrost, ctx context.Conte
 
 // RunBatchResultsTest tests the batch results functionality
 func RunBatchResultsTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.BatchResults {
 		t.Logf("[SKIPPED] Batch Results: Not supported by provider %s", testConfig.Provider)
 		return
@@ -505,6 +510,7 @@ func RunBatchResultsTest(t *testing.T, client *bifrost.Bifrost, ctx context.Cont
 
 // RunBatchUnsupportedTest tests that unsupported providers return appropriate errors
 func RunBatchUnsupportedTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	// Only run this test for providers that don't support batch
 	if testConfig.Scenarios.BatchCreate || testConfig.Scenarios.BatchList ||
 		testConfig.Scenarios.BatchRetrieve || testConfig.Scenarios.BatchCancel ||
@@ -563,6 +569,7 @@ func RunBatchUnsupportedTest(t *testing.T, client *bifrost.Bifrost, ctx context.
 
 // RunFileUploadTest tests the file upload functionality
 func RunFileUploadTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.FileUpload {
 		t.Logf("[SKIPPED] File Upload: Not supported by provider %s", testConfig.Provider)
 		return
@@ -604,8 +611,8 @@ func RunFileUploadTest(t *testing.T, client *bifrost.Bifrost, ctx context.Contex
 			fileContent := []byte(`{"custom_id": "test-1", "method": "POST", "url": "/v1/chat/completions", "body": {"model": "gpt-4o-mini", "messages": [{"role": "user", "content": "Hello"}]}}
 `)
 			request := &schemas.BifrostFileUploadRequest{
-				Provider:    testConfig.Provider,
-				File:        fileContent,
+				Provider:      testConfig.Provider,
+				File:          fileContent,
 				Filename:      "test_batch.jsonl",
 				Purpose:       "batch",
 				ExtraParams:   testConfig.FileExtraParams,
@@ -638,6 +645,7 @@ func RunFileUploadTest(t *testing.T, client *bifrost.Bifrost, ctx context.Contex
 
 // RunFileListTest tests the file list functionality
 func RunFileListTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.FileList {
 		t.Logf("[SKIPPED] File List: Not supported by provider %s", testConfig.Provider)
 		return
@@ -704,6 +712,7 @@ func RunFileListTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context,
 
 // RunFileRetrieveTest tests the file retrieve functionality
 func RunFileRetrieveTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.FileRetrieve {
 		t.Logf("[SKIPPED] File Retrieve: Not supported by provider %s", testConfig.Provider)
 		return
@@ -745,8 +754,8 @@ func RunFileRetrieveTest(t *testing.T, client *bifrost.Bifrost, ctx context.Cont
 			fileContent := []byte(`{"custom_id": "test-retrieve-1", "method": "POST", "url": "/v1/chat/completions", "body": {"model": "gpt-4o-mini", "messages": [{"role": "user", "content": "Hello"}]}}
 `)
 			uploadRequest := &schemas.BifrostFileUploadRequest{
-				Provider:    testConfig.Provider,
-				File:        fileContent,
+				Provider:      testConfig.Provider,
+				File:          fileContent,
 				Filename:      "test_retrieve.jsonl",
 				Purpose:       "batch",
 				ExtraParams:   testConfig.FileExtraParams,
@@ -823,6 +832,7 @@ func RunFileRetrieveTest(t *testing.T, client *bifrost.Bifrost, ctx context.Cont
 
 // RunFileDeleteTest tests the file delete functionality
 func RunFileDeleteTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.FileDelete {
 		t.Logf("[SKIPPED] File Delete: Not supported by provider %s", testConfig.Provider)
 		return
@@ -864,8 +874,8 @@ func RunFileDeleteTest(t *testing.T, client *bifrost.Bifrost, ctx context.Contex
 			fileContent := []byte(`{"custom_id": "test-delete-1", "method": "POST", "url": "/v1/chat/completions", "body": {"model": "gpt-4o-mini", "messages": [{"role": "user", "content": "Hello"}]}}
 `)
 			uploadRequest := &schemas.BifrostFileUploadRequest{
-				Provider:    testConfig.Provider,
-				File:        fileContent,
+				Provider:      testConfig.Provider,
+				File:          fileContent,
 				Filename:      "test_delete.jsonl",
 				Purpose:       "batch",
 				ExtraParams:   testConfig.FileExtraParams,
@@ -942,6 +952,7 @@ func RunFileDeleteTest(t *testing.T, client *bifrost.Bifrost, ctx context.Contex
 
 // RunFileContentTest tests the file content download functionality
 func RunFileContentTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.FileContent {
 		t.Logf("[SKIPPED] File Content: Not supported by provider %s", testConfig.Provider)
 		return
@@ -983,8 +994,8 @@ func RunFileContentTest(t *testing.T, client *bifrost.Bifrost, ctx context.Conte
 			originalContent := []byte(`{"custom_id": "test-content-1", "method": "POST", "url": "/v1/chat/completions", "body": {"model": "gpt-4o-mini", "messages": [{"role": "user", "content": "Hello"}]}}
 `)
 			uploadRequest := &schemas.BifrostFileUploadRequest{
-				Provider:    testConfig.Provider,
-				File:        originalContent,
+				Provider:      testConfig.Provider,
+				File:          originalContent,
 				Filename:      "test_content.jsonl",
 				Purpose:       "batch",
 				ExtraParams:   testConfig.FileExtraParams,
@@ -1063,6 +1074,7 @@ func RunFileContentTest(t *testing.T, client *bifrost.Bifrost, ctx context.Conte
 
 // RunFileUnsupportedTest tests that unsupported providers return appropriate errors for file operations
 func RunFileUnsupportedTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	// Only run this test for providers that don't support any file operations
 	if testConfig.Scenarios.FileUpload || testConfig.Scenarios.FileList ||
 		testConfig.Scenarios.FileRetrieve || testConfig.Scenarios.FileDelete ||
@@ -1107,6 +1119,7 @@ func RunFileUnsupportedTest(t *testing.T, client *bifrost.Bifrost, ctx context.C
 
 // RunFileAndBatchIntegrationTest tests the integration between file upload and batch create
 func RunFileAndBatchIntegrationTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	// Skip if file-based batch input is not supported
 	if !testConfig.Scenarios.FileBatchInput {
 		t.Logf("[SKIPPED] File and Batch Integration: FileBatchInput=%v for provider %s",
@@ -1123,8 +1136,8 @@ func RunFileAndBatchIntegrationTest(t *testing.T, client *bifrost.Bifrost, ctx c
 `)
 
 		uploadRequest := &schemas.BifrostFileUploadRequest{
-			Provider:    testConfig.Provider,
-			File:        fileContent,
+			Provider:      testConfig.Provider,
+			File:          fileContent,
 			Filename:      "integration_test_batch.jsonl",
 			Purpose:       "batch",
 			ExtraParams:   testConfig.FileExtraParams,

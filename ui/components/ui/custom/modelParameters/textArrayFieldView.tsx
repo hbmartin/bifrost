@@ -113,7 +113,7 @@ const StringInput = (props: {
 				}}
 				onKeyDown={(e) => {
 					if (e.key === "Enter" || e.code === "Enter") {
-						props.onEnterPress && props.onEnterPress();
+						props.onEnterPress?.();
 					}
 				}}
 			/>

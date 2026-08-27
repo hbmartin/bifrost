@@ -30,7 +30,6 @@ mock_provider "kubernetes" {}
 
 run "eks_basic" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider = "aws"
     service        = "eks"
@@ -41,7 +40,6 @@ run "eks_basic" {
 
 run "eks_create_cluster" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider = "aws"
     service        = "eks"
@@ -53,7 +51,6 @@ run "eks_create_cluster" {
 
 run "eks_skip_cluster" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider = "aws"
     service        = "eks"
@@ -65,7 +62,6 @@ run "eks_skip_cluster" {
 
 run "eks_custom_namespace" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider       = "aws"
     service              = "eks"
@@ -77,7 +73,6 @@ run "eks_custom_namespace" {
 
 run "eks_with_hpa" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider     = "aws"
     service            = "eks"
@@ -91,7 +86,6 @@ run "eks_with_hpa" {
 
 run "eks_with_ingress" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider       = "aws"
     service              = "eks"
@@ -104,7 +98,6 @@ run "eks_with_ingress" {
 
 run "eks_with_https" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider       = "aws"
     service              = "eks"
@@ -118,7 +111,6 @@ run "eks_with_https" {
 
 run "eks_custom_nodes" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider    = "aws"
     service           = "eks"
@@ -131,7 +123,6 @@ run "eks_custom_nodes" {
 
 run "eks_custom_volume" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider = "aws"
     service        = "eks"

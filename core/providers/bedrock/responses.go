@@ -3953,7 +3953,6 @@ func ConvertBifrostMessagesToBedrockMessages(ctx context.Context, model string, 
 			Role:    BedrockMessageRoleAssistant,
 			Content: pendingServerToolBlocks,
 		})
-		pendingServerToolBlocks = nil
 	}
 
 	// Flush any remaining pending tool calls

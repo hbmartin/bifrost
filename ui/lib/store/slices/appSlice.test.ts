@@ -69,7 +69,10 @@ describe("notification state", () => {
 	});
 
 	it("drops rows the server has already expired", () => {
-		let state = reducer(undefined, setNotifications([notification("live", "2026-08-17T10:00:00Z"), expired("stale", "2026-08-17T11:00:00Z")]));
+		let state = reducer(
+			undefined,
+			setNotifications([notification("live", "2026-08-17T10:00:00Z"), expired("stale", "2026-08-17T11:00:00Z")]),
+		);
 		expect(state.notifications.map(({ id }) => id)).toEqual(["live"]);
 
 		state = reducer(state, addNotification(expired("stale-push", "2026-08-17T12:00:00Z")));
@@ -78,7 +81,9 @@ describe("notification state", () => {
 
 	it("prunes rows that expire while the tab stays open", () => {
 		// Seeded past the reducer's own filter, as a long-lived tab accumulates them.
-		const seeded = { notifications: [notification("live", "2026-08-17T10:00:00Z"), expired("stale", "2026-08-17T11:00:00Z")] };
+		const seeded = {
+			notifications: [notification("live", "2026-08-17T10:00:00Z"), expired("stale", "2026-08-17T11:00:00Z")],
+		};
 		const state = reducer(seeded as never, pruneExpiredNotifications());
 		expect(state.notifications.map(({ id }) => id)).toEqual(["live"]);
 	});

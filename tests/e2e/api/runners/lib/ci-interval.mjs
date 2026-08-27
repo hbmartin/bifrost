@@ -25,9 +25,6 @@ export const CI_INTERVAL_MAX_SECONDS = 45 * 60;
 export function resolveCiIntervalMs(raw) {
   const parsed = parseInt(raw, 10);
   const seconds = Number.isFinite(parsed) ? parsed : CI_INTERVAL_DEFAULT_SECONDS;
-  const clamped = Math.min(
-    CI_INTERVAL_MAX_SECONDS,
-    Math.max(CI_INTERVAL_MIN_SECONDS, seconds)
-  );
+  const clamped = Math.min(CI_INTERVAL_MAX_SECONDS, Math.max(CI_INTERVAL_MIN_SECONDS, seconds));
   return clamped * 1000;
 }

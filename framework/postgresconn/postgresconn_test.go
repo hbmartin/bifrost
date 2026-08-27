@@ -73,6 +73,7 @@ func TestBuildDSNQuotesSpecialCharacters(t *testing.T) {
 				cfg.User = schemas.NewSecretVar("service'account")
 			},
 			validate: func(t *testing.T, pgxConfig *pgx.ConnConfig) {
+				t.Helper()
 				require.Equal(t, "service'account", pgxConfig.User)
 			},
 		},
@@ -82,6 +83,7 @@ func TestBuildDSNQuotesSpecialCharacters(t *testing.T) {
 				cfg.Host = schemas.NewSecretVar(`C:\postgres\socket`)
 			},
 			validate: func(t *testing.T, pgxConfig *pgx.ConnConfig) {
+				t.Helper()
 				require.Equal(t, `C:\postgres\socket`, pgxConfig.Host)
 			},
 		},
@@ -91,6 +93,7 @@ func TestBuildDSNQuotesSpecialCharacters(t *testing.T) {
 				cfg.DBName = schemas.NewSecretVar(`bifrost\tenant's`)
 			},
 			validate: func(t *testing.T, pgxConfig *pgx.ConnConfig) {
+				t.Helper()
 				require.Equal(t, `bifrost\tenant's`, pgxConfig.Database)
 			},
 		},

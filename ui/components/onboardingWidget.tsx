@@ -405,7 +405,10 @@ export default function OnboardingWidget() {
 									mode="single"
 									autoFocus
 									defaultMonth={addDaysFromToday(1)}
-									disabled={{ before: addDaysFromToday(1), after: addDaysFromToday(MAX_SNOOZE_DAYS) }}
+									disabled={{
+										before: addDaysFromToday(1),
+										after: addDaysFromToday(MAX_SNOOZE_DAYS),
+									}}
 									onSelect={(date) => date && handleRemindAt(date)}
 									className="p-0"
 								/>

@@ -481,7 +481,10 @@ export function ApiKeyFormFragment({ control, providerName, baseProviderType, fo
 							value={azureAuthType}
 							onValueChange={(v) => {
 								setAzureAuthType(v as "api_key" | "entra_id" | "default_credential");
-								form.setValue("key.azure_key_config._auth_type", v, { shouldDirty: true, shouldValidate: true });
+								form.setValue("key.azure_key_config._auth_type", v, {
+									shouldDirty: true,
+									shouldValidate: true,
+								});
 								if (v === "entra_id" || v === "default_credential") {
 									// Clear API key when switching away from API Key
 									form.setValue("key.value", undefined, { shouldDirty: true });
@@ -489,7 +492,9 @@ export function ApiKeyFormFragment({ control, providerName, baseProviderType, fo
 								if (v === "api_key" || v === "default_credential") {
 									// Clear Entra ID fields when switching away from Entra ID
 									form.setValue("key.azure_key_config.client_id", undefined, { shouldDirty: true });
-									form.setValue("key.azure_key_config.client_secret", undefined, { shouldDirty: true });
+									form.setValue("key.azure_key_config.client_secret", undefined, {
+										shouldDirty: true,
+									});
 									form.setValue("key.azure_key_config.tenant_id", undefined, { shouldDirty: true });
 									form.setValue("key.azure_key_config.scopes", undefined, { shouldDirty: true });
 								}
@@ -635,10 +640,15 @@ export function ApiKeyFormFragment({ control, providerName, baseProviderType, fo
 							value={vertexAuthType}
 							onValueChange={(v) => {
 								setVertexAuthType(v as "service_account" | "service_account_json" | "api_key");
-								form.setValue("key.vertex_key_config._auth_type", v, { shouldDirty: true, shouldValidate: true });
+								form.setValue("key.vertex_key_config._auth_type", v, {
+									shouldDirty: true,
+									shouldValidate: true,
+								});
 								if (v === "service_account" || v === "api_key") {
 									// Clear auth credentials when switching away from service account JSON
-									form.setValue("key.vertex_key_config.auth_credentials", undefined, { shouldDirty: true });
+									form.setValue("key.vertex_key_config.auth_credentials", undefined, {
+										shouldDirty: true,
+									});
 								}
 								if (v === "service_account" || v === "service_account_json") {
 									// Clear API key when switching away from API Key
@@ -887,24 +897,45 @@ export function ApiKeyFormFragment({ control, providerName, baseProviderType, fo
 							value={bedrockAuthType}
 							onValueChange={(v) => {
 								setBedrockAuthType(v as "iam_role" | "explicit" | "api_key");
-								form.setValue("key.bedrock_key_config._auth_type", v, { shouldDirty: true, shouldValidate: true });
+								form.setValue("key.bedrock_key_config._auth_type", v, {
+									shouldDirty: true,
+									shouldValidate: true,
+								});
 								if (v === "iam_role") {
 									// Clear explicit credentials and API key when switching to IAM Role
-									form.setValue("key.bedrock_key_config.access_key", undefined, { shouldDirty: true });
-									form.setValue("key.bedrock_key_config.secret_key", undefined, { shouldDirty: true });
-									form.setValue("key.bedrock_key_config.session_token", undefined, { shouldDirty: true });
+									form.setValue("key.bedrock_key_config.access_key", undefined, {
+										shouldDirty: true,
+									});
+									form.setValue("key.bedrock_key_config.secret_key", undefined, {
+										shouldDirty: true,
+									});
+									form.setValue("key.bedrock_key_config.session_token", undefined, {
+										shouldDirty: true,
+									});
 									form.setValue("key.value", undefined, { shouldDirty: true });
 								} else if (v === "explicit") {
 									// Clear API key when switching to Explicit Credentials
 									form.setValue("key.value", undefined, { shouldDirty: true });
 								} else if (v === "api_key") {
 									// Clear AWS credentials and assume-role fields when switching to API Key
-									form.setValue("key.bedrock_key_config.access_key", undefined, { shouldDirty: true });
-									form.setValue("key.bedrock_key_config.secret_key", undefined, { shouldDirty: true });
-									form.setValue("key.bedrock_key_config.session_token", undefined, { shouldDirty: true });
-									form.setValue("key.bedrock_key_config.role_arn", undefined, { shouldDirty: true });
-									form.setValue("key.bedrock_key_config.external_id", undefined, { shouldDirty: true });
-									form.setValue("key.bedrock_key_config.session_name", undefined, { shouldDirty: true });
+									form.setValue("key.bedrock_key_config.access_key", undefined, {
+										shouldDirty: true,
+									});
+									form.setValue("key.bedrock_key_config.secret_key", undefined, {
+										shouldDirty: true,
+									});
+									form.setValue("key.bedrock_key_config.session_token", undefined, {
+										shouldDirty: true,
+									});
+									form.setValue("key.bedrock_key_config.role_arn", undefined, {
+										shouldDirty: true,
+									});
+									form.setValue("key.bedrock_key_config.external_id", undefined, {
+										shouldDirty: true,
+									});
+									form.setValue("key.bedrock_key_config.session_name", undefined, {
+										shouldDirty: true,
+									});
 								}
 							}}
 						>
@@ -1136,24 +1167,45 @@ export function ApiKeyFormFragment({ control, providerName, baseProviderType, fo
 							value={bedrockMantleAuthType}
 							onValueChange={(v) => {
 								setBedrockMantleAuthType(v as "iam_role" | "explicit" | "api_key");
-								form.setValue("key.bedrock_mantle_key_config._auth_type", v, { shouldDirty: true, shouldValidate: true });
+								form.setValue("key.bedrock_mantle_key_config._auth_type", v, {
+									shouldDirty: true,
+									shouldValidate: true,
+								});
 								if (v === "iam_role") {
 									// Clear explicit credentials and API key when switching to IAM Role
-									form.setValue("key.bedrock_mantle_key_config.access_key", undefined, { shouldDirty: true });
-									form.setValue("key.bedrock_mantle_key_config.secret_key", undefined, { shouldDirty: true });
-									form.setValue("key.bedrock_mantle_key_config.session_token", undefined, { shouldDirty: true });
+									form.setValue("key.bedrock_mantle_key_config.access_key", undefined, {
+										shouldDirty: true,
+									});
+									form.setValue("key.bedrock_mantle_key_config.secret_key", undefined, {
+										shouldDirty: true,
+									});
+									form.setValue("key.bedrock_mantle_key_config.session_token", undefined, {
+										shouldDirty: true,
+									});
 									form.setValue("key.value", undefined, { shouldDirty: true });
 								} else if (v === "explicit") {
 									// Clear API key when switching to Explicit Credentials
 									form.setValue("key.value", undefined, { shouldDirty: true });
 								} else if (v === "api_key") {
 									// Clear AWS credentials and assume-role fields when switching to API Key
-									form.setValue("key.bedrock_mantle_key_config.access_key", undefined, { shouldDirty: true });
-									form.setValue("key.bedrock_mantle_key_config.secret_key", undefined, { shouldDirty: true });
-									form.setValue("key.bedrock_mantle_key_config.session_token", undefined, { shouldDirty: true });
-									form.setValue("key.bedrock_mantle_key_config.role_arn", undefined, { shouldDirty: true });
-									form.setValue("key.bedrock_mantle_key_config.external_id", undefined, { shouldDirty: true });
-									form.setValue("key.bedrock_mantle_key_config.session_name", undefined, { shouldDirty: true });
+									form.setValue("key.bedrock_mantle_key_config.access_key", undefined, {
+										shouldDirty: true,
+									});
+									form.setValue("key.bedrock_mantle_key_config.secret_key", undefined, {
+										shouldDirty: true,
+									});
+									form.setValue("key.bedrock_mantle_key_config.session_token", undefined, {
+										shouldDirty: true,
+									});
+									form.setValue("key.bedrock_mantle_key_config.role_arn", undefined, {
+										shouldDirty: true,
+									});
+									form.setValue("key.bedrock_mantle_key_config.external_id", undefined, {
+										shouldDirty: true,
+									});
+									form.setValue("key.bedrock_mantle_key_config.session_name", undefined, {
+										shouldDirty: true,
+									});
 								}
 							}}
 						>

@@ -108,7 +108,11 @@ function MCPTabImpl({
 				}
 				totalTooltip={
 					mcpCostTotal !== null
-						? mcpCostTotal.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 6 })
+						? mcpCostTotal.toLocaleString("en-US", {
+								style: "currency",
+								currency: "USD",
+								maximumFractionDigits: 6,
+							})
 						: undefined
 				}
 				legend={

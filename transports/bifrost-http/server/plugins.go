@@ -197,17 +197,25 @@ func (s *BifrostHTTPServer) loadBuiltinPlugins(ctx context.Context) error {
 		pluginConfig = telemetryPluginConfig.Config
 	}
 	if telemetryPluginConfig == nil || telemetryPluginConfig.Enabled {
-		s.registerPluginWithStatus(ctx, telemetry.PluginName, nil, pluginConfig, false)
+		if err := s.registerPluginWithStatus(ctx, telemetry.PluginName, nil, pluginConfig, false); err != nil {
+			return fmt.Errorf("register telemetry plugin: %w", err)
+		}
 	} else {
-		s.markPluginDisabled(telemetry.PluginName)
+		if err := s.markPluginDisabled(telemetry.PluginName); err != nil {
+			return fmt.Errorf("mark telemetry plugin disabled: %w", err)
+		}
 	}
 	s.Config.SetPluginOrderInfo(telemetry.PluginName, builtinPlacement, schemas.Ptr(1))
 
 	// 2. Prompts (requires config store for prompt repository; disabled in enterprise)
 	if s.Config.ConfigStore != nil && ctx.Value(schemas.BifrostContextKeyIsEnterprise) == nil {
-		s.registerPluginWithStatus(ctx, prompts.PluginName, nil, nil, false)
+		if err := s.registerPluginWithStatus(ctx, prompts.PluginName, nil, nil, false); err != nil {
+			return fmt.Errorf("register prompts plugin: %w", err)
+		}
 	} else {
-		s.markPluginDisabled(prompts.PluginName)
+		if err := s.markPluginDisabled(prompts.PluginName); err != nil {
+			return fmt.Errorf("mark prompts plugin disabled: %w", err)
+		}
 	}
 	s.Config.SetPluginOrderInfo(prompts.PluginName, builtinPlacement, schemas.Ptr(2))
 
@@ -221,9 +229,13 @@ func (s *BifrostHTTPServer) loadBuiltinPlugins(ctx context.Context) error {
 		if s.Config.LogsStoreConfig != nil {
 			config.Writer = s.Config.LogsStoreConfig.Writer
 		}
-		s.registerPluginWithStatus(ctx, logging.PluginName, nil, config, false)
+		if err := s.registerPluginWithStatus(ctx, logging.PluginName, nil, config, false); err != nil {
+			return fmt.Errorf("register logging plugin: %w", err)
+		}
 	} else {
-		s.markPluginDisabled(logging.PluginName)
+		if err := s.markPluginDisabled(logging.PluginName); err != nil {
+			return fmt.Errorf("mark logging plugin disabled: %w", err)
+		}
 	}
 	s.Config.SetPluginOrderInfo(logging.PluginName, builtinPlacement, schemas.Ptr(3))
 
@@ -234,9 +246,13 @@ func (s *BifrostHTTPServer) loadBuiltinPlugins(ctx context.Context) error {
 			RequiredHeaders:       &s.Config.ClientConfig.RequiredHeaders,
 			DisableAutoToolInject: &s.Config.ClientConfig.MCPDisableAutoToolInject,
 		}
-		s.registerPluginWithStatus(ctx, governance.PluginName, nil, config, false)
+		if err := s.registerPluginWithStatus(ctx, governance.PluginName, nil, config, false); err != nil {
+			return fmt.Errorf("register governance plugin: %w", err)
+		}
 	} else {
-		s.markPluginDisabled(governance.PluginName)
+		if err := s.markPluginDisabled(governance.PluginName); err != nil {
+			return fmt.Errorf("mark governance plugin disabled: %w", err)
+		}
 	}
 	s.Config.SetPluginOrderInfo(governance.PluginName, builtinPlacement, schemas.Ptr(4))
 
@@ -247,27 +263,39 @@ func (s *BifrostHTTPServer) loadBuiltinPlugins(ctx context.Context) error {
 		config := &routing.Config{
 			ChainMaxDepth: &s.Config.ClientConfig.RoutingChainMaxDepth,
 		}
-		s.registerPluginWithStatus(ctx, routing.PluginName, nil, config, false)
+		if err := s.registerPluginWithStatus(ctx, routing.PluginName, nil, config, false); err != nil {
+			return fmt.Errorf("register routing plugin: %w", err)
+		}
 	} else {
-		s.markPluginDisabled(routing.PluginName)
+		if err := s.markPluginDisabled(routing.PluginName); err != nil {
+			return fmt.Errorf("mark routing plugin disabled: %w", err)
+		}
 	}
 	s.Config.SetPluginOrderInfo(routing.PluginName, builtinPlacement, schemas.Ptr(5))
 
 	// 6. OTEL (if configured in PluginConfigs)
 	otelConfig := s.getPluginConfig(otel.PluginName)
 	if otelConfig != nil && otelConfig.Enabled {
-		s.registerPluginWithStatus(ctx, otel.PluginName, nil, otelConfig.Config, false)
+		if err := s.registerPluginWithStatus(ctx, otel.PluginName, nil, otelConfig.Config, false); err != nil {
+			return fmt.Errorf("register OTEL plugin: %w", err)
+		}
 	} else {
-		s.markPluginDisabled(otel.PluginName)
+		if err := s.markPluginDisabled(otel.PluginName); err != nil {
+			return fmt.Errorf("mark OTEL plugin disabled: %w", err)
+		}
 	}
 	s.Config.SetPluginOrderInfo(otel.PluginName, builtinPlacement, schemas.Ptr(6))
 
 	// 7. Semantic Cache (if configured in PluginConfigs)
 	semanticCacheConfig := s.getPluginConfig(semanticcache.PluginName)
 	if semanticCacheConfig != nil && semanticCacheConfig.Enabled {
-		s.registerPluginWithStatus(ctx, semanticcache.PluginName, nil, semanticCacheConfig.Config, false)
+		if err := s.registerPluginWithStatus(ctx, semanticcache.PluginName, nil, semanticCacheConfig.Config, false); err != nil {
+			return fmt.Errorf("register semantic cache plugin: %w", err)
+		}
 	} else {
-		s.markPluginDisabled(semanticcache.PluginName)
+		if err := s.markPluginDisabled(semanticcache.PluginName); err != nil {
+			return fmt.Errorf("mark semantic cache plugin disabled: %w", err)
+		}
 	}
 	s.Config.SetPluginOrderInfo(semanticcache.PluginName, builtinPlacement, schemas.Ptr(7))
 
@@ -279,15 +307,21 @@ func (s *BifrostHTTPServer) loadBuiltinPlugins(ctx context.Context) error {
 		ShouldDropParams:       cc.ShouldDropParams,
 		ShouldConvertParams:    cc.ShouldConvertParams,
 	}
-	s.registerPluginWithStatus(ctx, compat.PluginName, nil, compatCfg, false)
+	if err := s.registerPluginWithStatus(ctx, compat.PluginName, nil, compatCfg, false); err != nil {
+		return fmt.Errorf("register compatibility plugin: %w", err)
+	}
 	s.Config.SetPluginOrderInfo(compat.PluginName, builtinPlacement, schemas.Ptr(8))
 
 	// 9. Maxim (if configured in PluginConfigs)
 	maximConfig := s.getPluginConfig(maxim.PluginName)
 	if maximConfig != nil && maximConfig.Enabled {
-		s.registerPluginWithStatus(ctx, maxim.PluginName, nil, maximConfig.Config, false)
+		if err := s.registerPluginWithStatus(ctx, maxim.PluginName, nil, maximConfig.Config, false); err != nil {
+			return fmt.Errorf("register Maxim plugin: %w", err)
+		}
 	} else {
-		s.markPluginDisabled(maxim.PluginName)
+		if err := s.markPluginDisabled(maxim.PluginName); err != nil {
+			return fmt.Errorf("mark Maxim plugin disabled: %w", err)
+		}
 	}
 	s.Config.SetPluginOrderInfo(maxim.PluginName, builtinPlacement, schemas.Ptr(9))
 
@@ -296,9 +330,13 @@ func (s *BifrostHTTPServer) loadBuiltinPlugins(ctx context.Context) error {
 	// already set one. CEL rules can still match on provider == "" because this runs last.
 	// Requires a model catalog; only register when one is configured.
 	if s.Config.ModelCatalog != nil {
-		s.registerPluginWithStatus(ctx, modelcatalogresolver.PluginName, nil, nil, false)
+		if err := s.registerPluginWithStatus(ctx, modelcatalogresolver.PluginName, nil, nil, false); err != nil {
+			return fmt.Errorf("register model catalog resolver plugin: %w", err)
+		}
 	} else {
-		s.markPluginDisabled(modelcatalogresolver.PluginName)
+		if err := s.markPluginDisabled(modelcatalogresolver.PluginName); err != nil {
+			return fmt.Errorf("mark model catalog resolver plugin disabled: %w", err)
+		}
 	}
 	// Place it in post_builtin with a max order so it runs after every other routing plugin,
 	// including post_builtin ones like the enterprise load balancer (which would otherwise run
@@ -359,7 +397,12 @@ func (s *BifrostHTTPServer) loadCustomPlugins(ctx context.Context) error {
 		}
 
 		// Register enabled plugin and mark as active
-		s.Config.ReloadPlugin(plugin)
+		if err := s.Config.ReloadPlugin(plugin); err != nil {
+			logger.Error("failed to register plugin %s: %v", cfg.Name, err)
+			s.Config.UpdatePluginOverallStatus(cfg.Name, cfg.Name, schemas.PluginStatusError,
+				[]string{fmt.Sprintf("error registering plugin %s: %v", cfg.Name, err)}, InferPluginTypes(plugin))
+			continue
+		}
 		s.Config.SetPluginOrderInfo(plugin.GetName(), cfg.Placement, cfg.Order)
 		s.Config.UpdatePluginOverallStatus(plugin.GetName(), cfg.Name, schemas.PluginStatusActive,
 			[]string{fmt.Sprintf("plugin %s initialized successfully", cfg.Name)}, InferPluginTypes(plugin))

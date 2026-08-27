@@ -93,10 +93,10 @@ export function FilePreview({
 	file,
 	skillName,
 	mode,
-	onContentChange,
+	onContentChange: _onContentChange,
 	onFileUpdate,
-	editValue,
-	onEditChange,
+	editValue: _editValue,
+	onEditChange: _onEditChange,
 	downloadUrl,
 }: {
 	file: SkillFileEntry;
@@ -116,16 +116,12 @@ export function FilePreview({
 	const fileName = file.path.split("/").filter(Boolean).pop() || file.path;
 	const resolvedDownloadUrl = downloadUrl ?? source.url;
 
-	if (mode === "edit") {
-		return <FileSourceEditor file={file} skillName={skillName} onFileUpdate={onFileUpdate} />;
-	}
-
 	// Text fetched from a URL/serve endpoint (for both view and edit modes).
 	const [fetchedText, setFetchedText] = useState<string | null>(null);
 	const [fetchState, setFetchState] = useState<"idle" | "loading" | "error">("idle");
 
 	useEffect(() => {
-		if (kind !== "text" || source.inlineText != null || !source.url) {
+		if (mode === "edit" || kind !== "text" || source.inlineText != null || !source.url) {
 			setFetchedText(null);
 			setFetchState("idle");
 			return;
@@ -149,7 +145,11 @@ export function FilePreview({
 		return () => {
 			cancelled = true;
 		};
-	}, [kind, source.inlineText, source.url]);
+	}, [kind, mode, source.inlineText, source.url]);
+
+	if (mode === "edit") {
+		return <FileSourceEditor file={file} skillName={skillName} onFileUpdate={onFileUpdate} />;
+	}
 
 	// ---- Unavailable (e.g. unsaved upload) ----
 	if (source.unavailable && kind !== "text") {
@@ -164,7 +164,6 @@ export function FilePreview({
 	if (kind === "image" && source.url) {
 		return (
 			<div className="bg-muted/20 flex items-center justify-center p-4">
-				{/* eslint-disable-next-line @next/next/no-img-element */}
 				<img src={source.url} alt={fileName} className="max-h-full max-w-full object-contain" />
 			</div>
 		);

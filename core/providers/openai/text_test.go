@@ -1,6 +1,7 @@
 package openai
 
 import (
+	"context"
 	"testing"
 
 	"github.com/bytedance/sonic"
@@ -9,7 +10,7 @@ import (
 )
 
 func TestToOpenAITextCompletionRequest_FireworksUsesCacheIsolation(t *testing.T) {
-	ctx, cancel := schemas.NewBifrostContextWithCancel(nil)
+	ctx, cancel := schemas.NewBifrostContextWithCancel(context.Background())
 	defer cancel()
 	ctx.SetValue(schemas.BifrostContextKeyPassthroughExtraParams, true)
 

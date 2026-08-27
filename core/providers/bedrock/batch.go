@@ -108,9 +108,9 @@ type BedrockBatchJobSummary struct {
 
 // BedrockBatchResultRecord represents a single result record in Bedrock batch output JSONL.
 type BedrockBatchResultRecord struct {
-	RecordID    string                 `json:"recordId"`
-	ModelOutput json.RawMessage        `json:"modelOutput,omitempty"`
-	Error       *BedrockBatchError     `json:"error,omitempty"`
+	RecordID    string             `json:"recordId"`
+	ModelOutput json.RawMessage    `json:"modelOutput,omitempty"`
+	Error       *BedrockBatchError `json:"error,omitempty"`
 }
 
 // BedrockBatchError represents an error in batch processing.
@@ -407,24 +407,6 @@ func ToBedrockBatchCancelResponse(resp *schemas.BifrostBatchCancelResponse) *Bed
 		JobArn: resp.ID,
 		Status: toBedrockBatchStatus(resp.Status),
 	}
-}
-
-// splitJSONL splits JSONL content into individual lines.
-func splitJSONL(data []byte) [][]byte {
-	var lines [][]byte
-	start := 0
-	for i, b := range data {
-		if b == '\n' {
-			if i > start {
-				lines = append(lines, data[start:i])
-			}
-			start = i + 1
-		}
-	}
-	if start < len(data) {
-		lines = append(lines, data[start:])
-	}
-	return lines
 }
 
 // BedrockVpcConfig represents VPC configuration for a batch job.

@@ -90,7 +90,12 @@ export default function VirtualKeyDetailSheet({
 		const toRows = (budgets: VirtualKeyProviderConfig["budgets"]) =>
 			(budgets ?? [])
 				.filter((b) => b.id)
-				.map((b) => ({ key: b.id, label: parseResetPeriod(b.reset_duration), budget: b, calendarAligned: virtualKey.calendar_aligned }));
+				.map((b) => ({
+					key: b.id,
+					label: parseResetPeriod(b.reset_duration),
+					budget: b,
+					calendarAligned: virtualKey.calendar_aligned,
+				}));
 		const sections: BudgetOverrideSection[] = [];
 		const providerRows = toRows(config.budgets);
 		if (providerRows.length > 0) sections.push({ key: "provider", title: "Provider budget", rows: providerRows });
@@ -457,10 +462,15 @@ export default function VirtualKeyDetailSheet({
 																						<span>
 																							Resets {parseResetPeriod(b.reset_duration)}
 																							{virtualKey.calendar_aligned && supportsCalendarAlignment(b.reset_duration) && " (calendar)"}
-																			{fiscalQuarterNote(b.reset_duration, b.reset_config)}
+																							{fiscalQuarterNote(b.reset_duration, b.reset_config)}
 																						</span>
 																						{b.last_reset ? (
-																							<span>Last reset {formatDistanceToNow(new Date(b.last_reset), { addSuffix: true })}</span>
+																							<span>
+																								Last reset{" "}
+																								{formatDistanceToNow(new Date(b.last_reset), {
+																									addSuffix: true,
+																								})}
+																							</span>
 																						) : null}
 																					</div>
 																				</div>

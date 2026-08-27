@@ -222,7 +222,7 @@ func newPostgresLogStore(ctx context.Context, config *PostgresConfig, logger sch
 	}
 
 	if err := postgresconn.ApplyPoolTuning(db, pgConfig, logger); err != nil {
-		closePool(db)
+		_ = closePool(db)
 		return nil, err
 	}
 	logger.Info("logstore: runtime connection pool ready")

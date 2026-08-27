@@ -62,7 +62,8 @@ func (t *TableTeam) BeforeSave(tx *gorm.DB) error {
 		if err != nil {
 			return err
 		}
-		t.Profile = new(string(data))
+		serialized := string(data)
+		t.Profile = &serialized
 	} else {
 		t.Profile = nil
 	}
@@ -71,7 +72,8 @@ func (t *TableTeam) BeforeSave(tx *gorm.DB) error {
 		if err != nil {
 			return err
 		}
-		t.Config = new(string(data))
+		serialized := string(data)
+		t.Config = &serialized
 	} else {
 		t.Config = nil
 	}
@@ -80,7 +82,8 @@ func (t *TableTeam) BeforeSave(tx *gorm.DB) error {
 		if err != nil {
 			return err
 		}
-		t.Claims = new(string(data))
+		serialized := string(data)
+		t.Claims = &serialized
 	} else {
 		t.Claims = nil
 	}

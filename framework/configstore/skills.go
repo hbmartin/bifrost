@@ -63,7 +63,7 @@ func runPendingSkillObjectWrites(ctx context.Context, db *gorm.DB, objectStore o
 				compensationErr = compensationDB.Where("id = ?", versionID).Delete(&tables.TableSkillVersion{}).Error
 			}
 			if compensationErr != nil {
-				return fmt.Errorf("%w; failed to compensate committed skill rows: %v", writeErr, compensationErr)
+				return fmt.Errorf("%w; failed to compensate committed skill rows: %w", writeErr, compensationErr)
 			}
 
 			// Best-effort cleanup of objects written in earlier iterations.

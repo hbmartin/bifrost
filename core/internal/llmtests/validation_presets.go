@@ -611,11 +611,6 @@ func ConsistencyExpectations(expectedConsistencyMarkers []string) ResponseExpect
 // UTILITY FUNCTIONS
 // =============================================================================
 
-// stringPtr returns a pointer to a string
-func stringPtr(s string) *string {
-	return &s
-}
-
 // CombineExpectations merges multiple expectations (later ones override earlier ones)
 func CombineExpectations(expectations ...ResponseExpectations) ResponseExpectations {
 	if len(expectations) == 0 {

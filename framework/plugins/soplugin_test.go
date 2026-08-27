@@ -24,6 +24,8 @@ const (
 	helloWorldBuildDir  = "../../examples/plugins/hello-world/build"
 )
 
+type testContextKey string
+
 // TestDynamicPluginLifecycle tests the complete lifecycle of a dynamic plugin
 func TestDynamicPluginLifecycle(t *testing.T) {
 	// Build the hello-world plugin first
@@ -302,7 +304,7 @@ func TestDynamicPlugin_ContextPropagation(t *testing.T) {
 	require.True(t, ok, "Plugin should implement LLMPlugin interface")
 
 	// Create a context with a value
-	ctx := context.WithValue(context.Background(), "test-key", "test-value")
+	ctx := context.WithValue(context.Background(), testContextKey("test-key"), "test-value")
 
 	// Test PreLLMHook with context
 	req := &schemas.BifrostRequest{
@@ -402,7 +404,7 @@ func buildHelloWorldPlugin(t *testing.T) string {
 
 	// Clean and create build directory to ensure fresh build with current Go version
 	buildDir := filepath.Join(absPluginDir, "build")
-	os.RemoveAll(buildDir)
+	_ = os.RemoveAll(buildDir)
 	err = os.MkdirAll(buildDir, 0755)
 	require.NoError(t, err, "Failed to create build directory")
 
@@ -597,7 +599,7 @@ func buildHelloWorldPluginForBenchmark(b *testing.B) string {
 	// Clean and create build directory to ensure fresh build with current Go version
 	buildDir := filepath.Join(absPluginDir, "build")
 	pluginPath := filepath.Join(buildDir, "hello-world"+pluginExt)
-	os.RemoveAll(buildDir)
+	_ = os.RemoveAll(buildDir)
 	err = os.MkdirAll(buildDir, 0755)
 	require.NoError(b, err, "Failed to create build directory")
 
@@ -834,7 +836,7 @@ func TestSharedObjectPluginLoader_ZeroValueBlocksPrivateDownload(t *testing.T) {
 func TestNewSharedObjectPluginLoader_AllowlistPermitsConfiguredHost(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("not a real plugin binary"))
+		_, _ = w.Write([]byte("not a real plugin binary"))
 	}))
 	defer server.Close()
 

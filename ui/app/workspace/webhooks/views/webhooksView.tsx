@@ -238,7 +238,10 @@ export default function WebhooksView() {
 	const handleToggle = async (endpoint: WebhookEndpoint, enabled: boolean) => {
 		setTogglingIds((prev) => new Set(prev).add(endpoint.id));
 		try {
-			await updateWebhookEndpoint({ id: endpoint.id, data: toRequest(endpoint, { disabled: !enabled }) }).unwrap();
+			await updateWebhookEndpoint({
+				id: endpoint.id,
+				data: toRequest(endpoint, { disabled: !enabled }),
+			}).unwrap();
 			toast.success(`Endpoint ${enabled ? "enabled" : "disabled"} successfully`);
 		} catch (err) {
 			toast.error(getErrorMessage(err));

@@ -70,7 +70,13 @@ export class Message {
 	static toolCallResponse(content: string, toolCalls: ToolCall[], index = 0, usage?: CompletionUsage): Message {
 		return new Message(uuidv4(), index, MessageType.CompletionResult, {
 			id: uuidv4(),
-			choices: [{ index: 0, message: { role: MessageRole.ASSISTANT, content, tool_calls: toolCalls }, finish_reason: "tool_calls" }],
+			choices: [
+				{
+					index: 0,
+					message: { role: MessageRole.ASSISTANT, content, tool_calls: toolCalls },
+					finish_reason: "tool_calls",
+				},
+			],
 			usage,
 		} as CompletionResult);
 	}
@@ -394,7 +400,12 @@ export class Message {
 		}
 
 		// Legacy { role, content } format
-		const legacy = data as { role: string; content: string | null; tool_calls?: ToolCall[]; tool_call_id?: string };
+		const legacy = data as {
+			role: string;
+			content: string | null;
+			tool_calls?: ToolCall[];
+			tool_call_id?: string;
+		};
 
 		if (legacy.tool_calls && legacy.tool_calls.length > 0) {
 			return new Message(uuidv4(), index, MessageType.CompletionResult, {
@@ -424,7 +435,12 @@ export class Message {
 		if (role === MessageRole.ASSISTANT) {
 			return new Message(uuidv4(), index, MessageType.CompletionResult, {
 				id: uuidv4(),
-				choices: [{ index: 0, message: { role: MessageRole.ASSISTANT, content: (legacy.content as string) ?? "" } }],
+				choices: [
+					{
+						index: 0,
+						message: { role: MessageRole.ASSISTANT, content: (legacy.content as string) ?? "" },
+					},
+				],
 			});
 		}
 

@@ -21,164 +21,161 @@ import { ModelLimitsPage } from "../../features/model-limits/pages/model-limits.
  * Custom test fixtures type
  */
 type BifrostFixtures = {
-	closeDevProfiler: void;
-	handleLoginRedirect: void;
-	skipAutoLogin: boolean;
-	sidebarPage: SidebarPage;
-	providersPage: ProvidersPage;
-	virtualKeysPage: VirtualKeysPage;
-	dashboardPage: DashboardPage;
-	logsPage: LogsPage;
-	mcpLogsPage: MCPLogsPage;
-	routingRulesPage: RoutingRulesPage;
-	mcpRegistryPage: MCPRegistryPage;
-	pluginsPage: PluginsPage;
-	observabilityPage: ObservabilityPage;
-	configSettingsPage: ConfigSettingsPage;
-	governancePage: GovernancePage;
-	modelLimitsPage: ModelLimitsPage;
-	mcpSettingsPage: MCPSettingsPage;
-	mcpToolGroupsPage: MCPToolGroupsPage;
-	mcpAuthConfigPage: MCPAuthConfigPage;
+  closeDevProfiler: void;
+  handleLoginRedirect: void;
+  skipAutoLogin: boolean;
+  sidebarPage: SidebarPage;
+  providersPage: ProvidersPage;
+  virtualKeysPage: VirtualKeysPage;
+  dashboardPage: DashboardPage;
+  logsPage: LogsPage;
+  mcpLogsPage: MCPLogsPage;
+  routingRulesPage: RoutingRulesPage;
+  mcpRegistryPage: MCPRegistryPage;
+  pluginsPage: PluginsPage;
+  observabilityPage: ObservabilityPage;
+  configSettingsPage: ConfigSettingsPage;
+  governancePage: GovernancePage;
+  modelLimitsPage: ModelLimitsPage;
+  mcpSettingsPage: MCPSettingsPage;
+  mcpToolGroupsPage: MCPToolGroupsPage;
+  mcpAuthConfigPage: MCPAuthConfigPage;
 };
 
 /**
  * Extended test with Bifrost-specific fixtures
  */
 export const test = base.extend<BifrostFixtures>({
-	closeDevProfiler: [
-		async ({ page }, use) => {
-			// Keep the development profiler from stealing focus or blocking assertions when
-			// tests reuse a manually started dev server that was not launched with
-			// BIFROST_DISABLE_PROFILER=1.
-			await page.addInitScript(() => {
-				window.localStorage.setItem("devProfiler.isVisible", "false");
-				window.localStorage.setItem("devProfiler.isExpanded", "false");
-			});
+  closeDevProfiler: [
+    async ({ page }, use) => {
+      // Keep the development profiler from stealing focus or blocking assertions when
+      // tests reuse a manually started dev server that was not launched with
+      // BIFROST_DISABLE_PROFILER=1.
+      await page.addInitScript(() => {
+        window.localStorage.setItem("devProfiler.isVisible", "false");
+        window.localStorage.setItem("devProfiler.isExpanded", "false");
+      });
 
-			await page.addLocatorHandler(
-				page.getByText("Dev Profiler", { exact: true }),
-				async () => {
-					await page.evaluate(() => {
-						window.localStorage.setItem("devProfiler.isVisible", "false");
-						window.localStorage.setItem("devProfiler.isExpanded", "false");
-					});
-					await page
-						.locator('button[title="Dismiss"]')
-						.click({ force: true, timeout: 1000 })
-						.catch(() => {});
-				},
-				{ noWaitAfter: true },
-			);
-			await use();
-		},
-		{ auto: true },
-	],
+      await page.addLocatorHandler(
+        page.getByText("Dev Profiler", { exact: true }),
+        async () => {
+          await page.evaluate(() => {
+            window.localStorage.setItem("devProfiler.isVisible", "false");
+            window.localStorage.setItem("devProfiler.isExpanded", "false");
+          });
+          await page
+            .locator('button[title="Dismiss"]')
+            .click({ force: true, timeout: 1000 })
+            .catch(() => {});
+        },
+        { noWaitAfter: true },
+      );
+      await use();
+    },
+    { auto: true },
+  ],
 
-	skipAutoLogin: [false, { option: true }],
+  skipAutoLogin: [false, { option: true }],
 
-	handleLoginRedirect: [
-		async ({ page, skipAutoLogin }, use) => {
-			// Any test can hit an auth wall: dashboard auth redirects to /login (via a
-			// baseApi 401 handler) whenever the session is missing/expired. Transparently
-			// complete the login flow whenever that happens so feature tests don't each
-			// need their own auth handling.
-			if (skipAutoLogin) {
-				await use();
-				return;
-			}
-			await page.addLocatorHandler(
-				page.locator("#username"),
-				async () => {
-					const username = process.env.BIFROST_ADMIN_USERNAME;
-					const password = process.env.BIFROST_ADMIN_PASSWORD;
-					if (!username || !password) {
-						throw new Error(
-							"Redirected to /login but BIFROST_ADMIN_USERNAME/BIFROST_ADMIN_PASSWORD are not set.",
-						);
-					}
-					// The login form always redirects to /workspace on success, ignoring
-					// ?goto=; capture it here and navigate back so the test lands on the
-					// page it originally asked for.
-					const goto = new URL(page.url()).searchParams.get("goto");
-					await page.locator("#username").fill(username);
-					await page.locator("#password").fill(password);
-					await page.getByRole("button", { name: /Sign in/i }).click();
-					await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 15000 });
-					if (goto) {
-						await page.goto(goto);
-					}
-					await waitForNetworkIdle(page);
-				},
-			);
-			await use();
-		},
-		{ auto: true },
-	],
+  handleLoginRedirect: [
+    async ({ page, skipAutoLogin }, use) => {
+      // Any test can hit an auth wall: dashboard auth redirects to /login (via a
+      // baseApi 401 handler) whenever the session is missing/expired. Transparently
+      // complete the login flow whenever that happens so feature tests don't each
+      // need their own auth handling.
+      if (skipAutoLogin) {
+        await use();
+        return;
+      }
+      await page.addLocatorHandler(page.locator("#username"), async () => {
+        const username = process.env.BIFROST_ADMIN_USERNAME;
+        const password = process.env.BIFROST_ADMIN_PASSWORD;
+        if (!username || !password) {
+          throw new Error(
+            "Redirected to /login but BIFROST_ADMIN_USERNAME/BIFROST_ADMIN_PASSWORD are not set.",
+          );
+        }
+        // The login form always redirects to /workspace on success, ignoring
+        // ?goto=; capture it here and navigate back so the test lands on the
+        // page it originally asked for.
+        const goto = new URL(page.url()).searchParams.get("goto");
+        await page.locator("#username").fill(username);
+        await page.locator("#password").fill(password);
+        await page.getByRole("button", { name: /Sign in/i }).click();
+        await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 15000 });
+        if (goto) {
+          await page.goto(goto);
+        }
+        await waitForNetworkIdle(page);
+      });
+      await use();
+    },
+    { auto: true },
+  ],
 
-	sidebarPage: async ({ page }, use) => {
-		await use(new SidebarPage(page));
-	},
+  sidebarPage: async ({ page }, use) => {
+    await use(new SidebarPage(page));
+  },
 
-	providersPage: async ({ page }, use) => {
-		await use(new ProvidersPage(page));
-	},
+  providersPage: async ({ page }, use) => {
+    await use(new ProvidersPage(page));
+  },
 
-	virtualKeysPage: async ({ page }, use) => {
-		await use(new VirtualKeysPage(page));
-	},
+  virtualKeysPage: async ({ page }, use) => {
+    await use(new VirtualKeysPage(page));
+  },
 
-	dashboardPage: async ({ page }, use) => {
-		await use(new DashboardPage(page));
-	},
+  dashboardPage: async ({ page }, use) => {
+    await use(new DashboardPage(page));
+  },
 
-	logsPage: async ({ page }, use) => {
-		await use(new LogsPage(page));
-	},
+  logsPage: async ({ page }, use) => {
+    await use(new LogsPage(page));
+  },
 
-	mcpLogsPage: async ({ page }, use) => {
-		await use(new MCPLogsPage(page));
-	},
+  mcpLogsPage: async ({ page }, use) => {
+    await use(new MCPLogsPage(page));
+  },
 
-	routingRulesPage: async ({ page }, use) => {
-		await use(new RoutingRulesPage(page));
-	},
+  routingRulesPage: async ({ page }, use) => {
+    await use(new RoutingRulesPage(page));
+  },
 
-	mcpRegistryPage: async ({ page }, use) => {
-		await use(new MCPRegistryPage(page));
-	},
+  mcpRegistryPage: async ({ page }, use) => {
+    await use(new MCPRegistryPage(page));
+  },
 
-	pluginsPage: async ({ page }, use) => {
-		await use(new PluginsPage(page));
-	},
+  pluginsPage: async ({ page }, use) => {
+    await use(new PluginsPage(page));
+  },
 
-	observabilityPage: async ({ page }, use) => {
-		await use(new ObservabilityPage(page));
-	},
+  observabilityPage: async ({ page }, use) => {
+    await use(new ObservabilityPage(page));
+  },
 
-	configSettingsPage: async ({ page }, use) => {
-		await use(new ConfigSettingsPage(page));
-	},
+  configSettingsPage: async ({ page }, use) => {
+    await use(new ConfigSettingsPage(page));
+  },
 
-	governancePage: async ({ page }, use) => {
-		await use(new GovernancePage(page));
-	},
+  governancePage: async ({ page }, use) => {
+    await use(new GovernancePage(page));
+  },
 
-	modelLimitsPage: async ({ page }, use) => {
-		await use(new ModelLimitsPage(page));
-	},
+  modelLimitsPage: async ({ page }, use) => {
+    await use(new ModelLimitsPage(page));
+  },
 
-	mcpSettingsPage: async ({ page }, use) => {
-		await use(new MCPSettingsPage(page));
-	},
+  mcpSettingsPage: async ({ page }, use) => {
+    await use(new MCPSettingsPage(page));
+  },
 
-	mcpToolGroupsPage: async ({ page }, use) => {
-		await use(new MCPToolGroupsPage(page));
-	},
+  mcpToolGroupsPage: async ({ page }, use) => {
+    await use(new MCPToolGroupsPage(page));
+  },
 
-	mcpAuthConfigPage: async ({ page }, use) => {
-		await use(new MCPAuthConfigPage(page));
-	},
+  mcpAuthConfigPage: async ({ page }, use) => {
+    await use(new MCPAuthConfigPage(page));
+  },
 });
 
 export { expect };

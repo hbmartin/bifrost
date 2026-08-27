@@ -44,9 +44,15 @@ const item = () => ({
 test("no credential survives serialization of the public report", () => {
   const serialized = JSON.stringify(redactItemsForPublic([item()]));
   for (const secret of SECRETS) {
-    assert.ok(!serialized.includes(secret), `published report still contains ${secret.slice(0, 12)}...`);
+    assert.ok(
+      !serialized.includes(secret),
+      `published report still contains ${secret.slice(0, 12)}...`,
+    );
   }
-  assert.ok(!serialized.includes("session=abc123"), "published report still contains a session cookie");
+  assert.ok(
+    !serialized.includes("session=abc123"),
+    "published report still contains a session cookie",
+  );
 });
 
 // A report that hides what ran is not worth publishing, so redaction has to be
@@ -60,11 +66,14 @@ test("the report stays legible after redaction", () => {
   // Header NAMES stay, so the report still shows what was sent.
   assert.deepStrictEqual(
     out.reqHeaders.map((h) => h.key),
-    ["Authorization", "x-api-key", "Content-Type"]
+    ["Authorization", "x-api-key", "Content-Type"],
   );
   assert.strictEqual(out.reqHeaders[2].value, "application/json");
   assert.strictEqual(out.reqHeaders[0].value, REDACTED);
-  assert.ok(out.respBody.includes("Incorrect API key provided"), "error text must survive redaction");
+  assert.ok(
+    out.respBody.includes("Incorrect API key provided"),
+    "error text must survive redaction",
+  );
   assert.deepStrictEqual(out.assertions, [{ name: "status is 200", passed: true, error: null }]);
 });
 
@@ -109,7 +118,10 @@ test("a credential in the username position is redacted", () => {
   const [out] = redactItemsForPublic([
     { idx: 0, name: "x", url: "https://sk-proj-abcdefghijklmnop1234@gateway.example/v1/chat" },
   ]);
-  assert.ok(!out.url.includes("sk-proj-abcdefghijklmnop1234"), `username credential leaked: ${out.url}`);
+  assert.ok(
+    !out.url.includes("sk-proj-abcdefghijklmnop1234"),
+    `username credential leaked: ${out.url}`,
+  );
   assert.ok(out.url.includes("gateway.example"), "the host must stay legible");
 });
 
@@ -129,7 +141,7 @@ test("a signed URL embedded in a body has its credentials redacted", () => {
   assert.ok(out.respBody.includes("bucket.s3.amazonaws.com"), "the host must stay legible");
   assert.ok(
     out.respBody.includes("X-Amz-Algorithm=AWS4-HMAC-SHA256"),
-    "non-credential parameters must survive"
+    "non-credential parameters must survive",
   );
 });
 
@@ -143,14 +155,20 @@ test("a slash-escaped signed URL in a body is redacted", () => {
   const [out] = redactItemsForPublic([{ idx: 0, name: "x", respBody: body }]);
   assert.ok(!out.respBody.includes(signature), `slash-escaped signed URL leaked: ${out.respBody}`);
   assert.ok(out.respBody.includes("bucket.s3.amazonaws.com"), "the host must stay legible");
-  assert.ok(out.respBody.includes("X-Amz-Algorithm=AWS4-HMAC-SHA256"), "non-credentials must survive");
+  assert.ok(
+    out.respBody.includes("X-Amz-Algorithm=AWS4-HMAC-SHA256"),
+    "non-credentials must survive",
+  );
   // The body has to stay parseable - redaction must not strip the JSON escaping.
   assert.doesNotThrow(() => JSON.parse(out.respBody), "redacted body must remain valid JSON");
 });
 
 // Redacting URLs inside bodies must not damage ordinary prose or plain links.
 test("a body without credentials is left intact", () => {
-  const body = JSON.stringify({ docs: "https://docs.example.com/guide?page=2", note: "no secrets here" });
+  const body = JSON.stringify({
+    docs: "https://docs.example.com/guide?page=2",
+    note: "no secrets here",
+  });
   const [out] = redactItemsForPublic([{ idx: 0, name: "x", reqBody: body }]);
   assert.strictEqual(out.reqBody, body, "a credential-free body must be unchanged");
 });
@@ -160,12 +178,19 @@ test("a body without credentials is left intact", () => {
 // has no query string at all, so the query-parameter path never runs.
 test("a credential in the fragment is redacted when there is no query string", () => {
   const [out] = redactItemsForPublic([
-    { idx: 0, name: "x", url: "https://gateway.example/callback#access_token=s3cr3t-token&state=xyz" },
+    {
+      idx: 0,
+      name: "x",
+      url: "https://gateway.example/callback#access_token=s3cr3t-token&state=xyz",
+    },
   ]);
   assert.ok(!out.url.includes("s3cr3t-token"), `fragment credential leaked: ${out.url}`);
   assert.ok(out.url.includes(`access_token=${REDACTED}`), out.url);
   assert.ok(out.url.includes("state=xyz"), "non-credential fragment parameters must survive");
-  assert.ok(out.url.startsWith("https://gateway.example/callback"), "the endpoint must stay legible");
+  assert.ok(
+    out.url.startsWith("https://gateway.example/callback"),
+    "the endpoint must stay legible",
+  );
 });
 
 // The query string does not shield the fragment: splitting on "?" alone leaves
@@ -173,9 +198,16 @@ test("a credential in the fragment is redacted when there is no query string", (
 // SECRET_PARAMS and publishes the token untouched.
 test("a credential in the fragment is redacted when a query string is present", () => {
   const [out] = redactItemsForPublic([
-    { idx: 0, name: "x", url: "https://gateway.example/callback?alt=sse#access_token=s3cr3t-token" },
+    {
+      idx: 0,
+      name: "x",
+      url: "https://gateway.example/callback?alt=sse#access_token=s3cr3t-token",
+    },
   ]);
-  assert.ok(!out.url.includes("s3cr3t-token"), `fragment credential leaked past the query: ${out.url}`);
+  assert.ok(
+    !out.url.includes("s3cr3t-token"),
+    `fragment credential leaked past the query: ${out.url}`,
+  );
   assert.ok(out.url.includes("alt=sse"), "unrelated query parameters must survive");
 });
 

@@ -28,7 +28,12 @@ import {
 } from "./lib/collection-builder.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const DEFAULT_OUT = join(HERE, "..", "collections", "bifrost-model-catalog-wiring.postman_collection.json");
+const DEFAULT_OUT = join(
+  HERE,
+  "..",
+  "collections",
+  "bifrost-model-catalog-wiring.postman_collection.json",
+);
 
 // Each entry generates the full six-scenario suite against a custom provider
 // whose base_provider_type is `type`. Key values use Bifrost's `env.<NAME>`
@@ -36,9 +41,27 @@ const DEFAULT_OUT = join(HERE, "..", "collections", "bifrost-model-catalog-wirin
 // time, so the collection carries no secret and the runner injects nothing.
 // base_url is omitted — the base provider type's default applies.
 const PROVIDERS = [
-  { type: "openai", keyEnv: "OPENAI_API_KEY", modelA: "gpt-4o", modelB: "gpt-4o-mini", inferenceModel: "gpt-4o-mini" },
-  { type: "anthropic", keyEnv: "ANTHROPIC_API_KEY", modelA: "claude-sonnet-4-5", modelB: "claude-haiku-4-5", inferenceModel: "claude-haiku-4-5" },
-  { type: "gemini", keyEnv: "GEMINI_API_KEY", modelA: "gemini-2.5-flash", modelB: "gemini-2.5-flash-lite", inferenceModel: "gemini-2.5-flash-lite" },
+  {
+    type: "openai",
+    keyEnv: "OPENAI_API_KEY",
+    modelA: "gpt-4o",
+    modelB: "gpt-4o-mini",
+    inferenceModel: "gpt-4o-mini",
+  },
+  {
+    type: "anthropic",
+    keyEnv: "ANTHROPIC_API_KEY",
+    modelA: "claude-sonnet-4-5",
+    modelB: "claude-haiku-4-5",
+    inferenceModel: "claude-haiku-4-5",
+  },
+  {
+    type: "gemini",
+    keyEnv: "GEMINI_API_KEY",
+    modelA: "gemini-2.5-flash",
+    modelB: "gemini-2.5-flash-lite",
+    inferenceModel: "gemini-2.5-flash-lite",
+  },
 ];
 
 // --------------------------------------------------------------------------- //
@@ -79,7 +102,10 @@ const jsProviderName = (sid) => `'catwiring-${sid}-' + pm.variables.get('run_id'
 // Assertion line builders
 // --------------------------------------------------------------------------- //
 
-function listModelsAssertLines(sid, { subset = [], superset = [], absent = [], absentVars = [], empty = false, nonEmpty = false }) {
+function listModelsAssertLines(
+  sid,
+  { subset = [], superset = [], absent = [], absentVars = [], empty = false, nonEmpty = false },
+) {
   return [
     `var providerName = ${jsProviderName(sid)};`,
     `var expectSubset = ${JSON.stringify(subset)};`,
@@ -179,21 +205,34 @@ function expandScenario(sc) {
     return item(
       nextId("add-key"),
       name,
-      request("POST", url(["api", "providers", seg, "keys"]), keyBody(k, sid, keyName(sid, k.id), provider.keyEnv)),
-      events(null, mutationTest(name, [200, 201], cleanupName))
+      request(
+        "POST",
+        url(["api", "providers", seg, "keys"]),
+        keyBody(k, sid, keyName(sid, k.id), provider.keyEnv),
+      ),
+      events(null, mutationTest(name, [200, 201], cleanupName)),
     );
   };
 
   for (const step of sc.steps) {
     switch (step.type) {
       case "addProvider": {
-        const customProviderConfig = { base_provider_type: provider.type, is_key_less: !!step.keyless };
+        const customProviderConfig = {
+          base_provider_type: provider.type,
+          is_key_less: !!step.keyless,
+        };
         if (step.allowedRequests) customProviderConfig.allowed_requests = step.allowedRequests;
         const body = { provider: seg, custom_provider_config: customProviderConfig };
         if (step.baseUrl) body.network_config = { base_url: step.baseUrl };
         const name = uniq("add provider");
-        items.push(item(nextId("add-provider"), name, request("POST", url(["api", "providers"]), body),
-          events(null, mutationTest(name, [200, 201], cleanupName))));
+        items.push(
+          item(
+            nextId("add-provider"),
+            name,
+            request("POST", url(["api", "providers"]), body),
+            events(null, mutationTest(name, [200, 201], cleanupName)),
+          ),
+        );
         for (const k of step.keys || []) items.push(addKey(k));
         break;
       }
@@ -202,57 +241,133 @@ function expandScenario(sc) {
         break;
       case "updateKey": {
         const name = uniq("update key " + step.key.id);
-        items.push(item(nextId("update-key"), name,
-          request("PUT", url(["api", "providers", seg, "keys", keyId(sid, step.key.id)]), keyBody(step.key, sid, keyName(sid, step.key.id), provider.keyEnv)),
-          events(null, mutationTest(name, [200], cleanupName))));
+        items.push(
+          item(
+            nextId("update-key"),
+            name,
+            request(
+              "PUT",
+              url(["api", "providers", seg, "keys", keyId(sid, step.key.id)]),
+              keyBody(step.key, sid, keyName(sid, step.key.id), provider.keyEnv),
+            ),
+            events(null, mutationTest(name, [200], cleanupName)),
+          ),
+        );
         break;
       }
       case "deleteKey": {
         const name = uniq("delete key " + step.id);
-        items.push(item(nextId("delete-key"), name,
-          request("DELETE", url(["api", "providers", seg, "keys", keyId(sid, step.id)]), null),
-          events(null, mutationTest(name, [200, 204], cleanupName))));
+        items.push(
+          item(
+            nextId("delete-key"),
+            name,
+            request("DELETE", url(["api", "providers", seg, "keys", keyId(sid, step.id)]), null),
+            events(null, mutationTest(name, [200, 204], cleanupName)),
+          ),
+        );
         break;
       }
       case "deleteProvider": {
         const name = uniq("delete provider");
-        items.push(item(nextId("delete-provider"), name,
-          request("DELETE", url(["api", "providers", seg]), null),
-          events(null, mutationTest(name, [200, 204], cleanupName))));
+        items.push(
+          item(
+            nextId("delete-provider"),
+            name,
+            request("DELETE", url(["api", "providers", seg]), null),
+            events(null, mutationTest(name, [200, 204], cleanupName)),
+          ),
+        );
         break;
       }
       case "assertModels": {
         const name = uniq(step.label);
-        const query = [{ key: "provider", value: seg }, { key: "limit", value: "1000" }];
-        items.push(item(nextId("assert-models"), name, request("GET", url(["api", "models"], query), null),
-          events(pollPrerequest(step.waitSeconds), pollTest(name, listModelsAssertLines(sid, step), cleanupName))));
+        const query = [
+          { key: "provider", value: seg },
+          { key: "limit", value: "1000" },
+        ];
+        items.push(
+          item(
+            nextId("assert-models"),
+            name,
+            request("GET", url(["api", "models"], query), null),
+            events(
+              pollPrerequest(step.waitSeconds),
+              pollTest(name, listModelsAssertLines(sid, step), cleanupName),
+            ),
+          ),
+        );
         break;
       }
       case "captureModel": {
         const name = uniq(step.label);
-        const query = [{ key: "provider", value: seg }, { key: "limit", value: "2000" }];
-        items.push(item(nextId("capture-model"), name, request("GET", url(["api", "models"], query), null),
-          events(pollPrerequest(step.waitSeconds), pollTest(name, captureModelAssertLines(sid, step.prefix, step.varName), cleanupName))));
+        const query = [
+          { key: "provider", value: seg },
+          { key: "limit", value: "2000" },
+        ];
+        items.push(
+          item(
+            nextId("capture-model"),
+            name,
+            request("GET", url(["api", "models"], query), null),
+            events(
+              pollPrerequest(step.waitSeconds),
+              pollTest(name, captureModelAssertLines(sid, step.prefix, step.varName), cleanupName),
+            ),
+          ),
+        );
         break;
       }
       case "assertModelDetails": {
         const name = uniq(step.label);
-        const query = [{ key: "provider", value: seg }, { key: "limit", value: "1000" }];
-        items.push(item(nextId("assert-model-details"), name, request("GET", url(["api", "models", "details"], query), null),
-          events(pollPrerequest(step.waitSeconds), pollTest(name, listModelsAssertLines(sid, step), cleanupName))));
+        const query = [
+          { key: "provider", value: seg },
+          { key: "limit", value: "1000" },
+        ];
+        items.push(
+          item(
+            nextId("assert-model-details"),
+            name,
+            request("GET", url(["api", "models", "details"], query), null),
+            events(
+              pollPrerequest(step.waitSeconds),
+              pollTest(name, listModelsAssertLines(sid, step), cleanupName),
+            ),
+          ),
+        );
         break;
       }
       case "assertProviders": {
         const name = uniq(step.label);
-        items.push(item(nextId("assert-providers"), name, request("GET", url(["api", "providers"]), null),
-          events(pollPrerequest(step.waitSeconds), pollTest(name, providersAssertLines(sid), cleanupName))));
+        items.push(
+          item(
+            nextId("assert-providers"),
+            name,
+            request("GET", url(["api", "providers"]), null),
+            events(
+              pollPrerequest(step.waitSeconds),
+              pollTest(name, providersAssertLines(sid), cleanupName),
+            ),
+          ),
+        );
         break;
       }
       case "assertBaseModels": {
         const name = uniq(step.label);
-        const query = [{ key: "query", value: step.model }, { key: "limit", value: "1000" }];
-        items.push(item(nextId("assert-base-models"), name, request("GET", url(["api", "models", "base"], query), null),
-          events(pollPrerequest(step.waitSeconds), pollTest(name, baseModelsAssertLines(step.model), cleanupName))));
+        const query = [
+          { key: "query", value: step.model },
+          { key: "limit", value: "1000" },
+        ];
+        items.push(
+          item(
+            nextId("assert-base-models"),
+            name,
+            request("GET", url(["api", "models", "base"], query), null),
+            events(
+              pollPrerequest(step.waitSeconds),
+              pollTest(name, baseModelsAssertLines(step.model), cleanupName),
+            ),
+          ),
+        );
         break;
       }
       case "assertInference": {
@@ -262,8 +377,17 @@ function expandScenario(sc) {
           messages: [{ role: "user", content: "Reply with the single word: ok." }],
           max_tokens: 5,
         };
-        items.push(item(nextId("assert-inference"), name, request("POST", url(["v1", "chat", "completions"]), body),
-          events(pollPrerequest(step.waitSeconds), pollTest(name, inferenceAssertLines(step.expectResolved), cleanupName))));
+        items.push(
+          item(
+            nextId("assert-inference"),
+            name,
+            request("POST", url(["v1", "chat", "completions"]), body),
+            events(
+              pollPrerequest(step.waitSeconds),
+              pollTest(name, inferenceAssertLines(step.expectResolved), cleanupName),
+            ),
+          ),
+        );
         break;
       }
       case "cleanup":
@@ -277,7 +401,7 @@ function expandScenario(sc) {
     `catwiring-${sid}-cleanup`,
     cleanupName,
     request("DELETE", url(["api", "providers", seg]), null),
-    events(null, cleanupTest(cleanupName))
+    events(null, cleanupTest(cleanupName)),
   );
 
   return {
@@ -306,49 +430,98 @@ function scenariosFor(provider) {
     {
       id: `${p}-add-provider-and-key`,
       title: `Add provider and key surfaces models (${p})`,
-      description: "A fresh provider plus one gated key surfaces that key's allowed model in the catalog.",
+      description:
+        "A fresh provider plus one gated key surfaces that key's allowed model in the catalog.",
       steps: [
         { type: "addProvider" },
         { type: "addKey", key: key({ id: "k1", models: [MODEL_A] }) },
-        { type: "assertModels", subset: [MODEL_A], waitSeconds: 2, label: "key model appears in catalog" },
+        {
+          type: "assertModels",
+          subset: [MODEL_A],
+          waitSeconds: 2,
+          label: "key model appears in catalog",
+        },
         { type: "cleanup" },
       ],
     },
     {
       id: `${p}-update-key-models`,
       title: `Updating key model set re-gates the catalog (${p})`,
-      description: "Changing a key's allow-list invalidates the stale live entry and re-gates the surfaced models.",
+      description:
+        "Changing a key's allow-list invalidates the stale live entry and re-gates the surfaced models.",
       steps: [
         { type: "addProvider", keys: [key({ id: "k1", models: [MODEL_A] })] },
-        { type: "assertModels", subset: [MODEL_A], waitSeconds: 2, label: "initial model gated in" },
+        {
+          type: "assertModels",
+          subset: [MODEL_A],
+          waitSeconds: 2,
+          label: "initial model gated in",
+        },
         { type: "updateKey", key: key({ id: "k1", models: [MODEL_B] }) },
-        { type: "assertModels", subset: [MODEL_B], absent: [MODEL_A], waitSeconds: 2, label: "new model gated in, old gated out" },
+        {
+          type: "assertModels",
+          subset: [MODEL_B],
+          absent: [MODEL_A],
+          waitSeconds: 2,
+          label: "new model gated in, old gated out",
+        },
         { type: "cleanup" },
       ],
     },
     {
       id: `${p}-disable-reenable-key`,
       title: `Disabled key drops models, re-enable restores (${p})`,
-      description: "A disabled key is skipped during aggregation; re-enabling it brings its models back.",
+      description:
+        "A disabled key is skipped during aggregation; re-enabling it brings its models back.",
       steps: [
         { type: "addProvider", keys: [key({ id: "k1", models: [MODEL_A] })] },
-        { type: "assertModels", subset: [MODEL_A], waitSeconds: 2, label: "model present while enabled" },
+        {
+          type: "assertModels",
+          subset: [MODEL_A],
+          waitSeconds: 2,
+          label: "model present while enabled",
+        },
         { type: "updateKey", key: key({ id: "k1", models: [MODEL_A], enabled: false }) },
-        { type: "assertModels", absent: [MODEL_A], waitSeconds: 2, label: "model gone while disabled" },
+        {
+          type: "assertModels",
+          absent: [MODEL_A],
+          waitSeconds: 2,
+          label: "model gone while disabled",
+        },
         { type: "updateKey", key: key({ id: "k1", models: [MODEL_A], enabled: true }) },
-        { type: "assertModels", subset: [MODEL_A], waitSeconds: 2, label: "model returns when re-enabled" },
+        {
+          type: "assertModels",
+          subset: [MODEL_A],
+          waitSeconds: 2,
+          label: "model returns when re-enabled",
+        },
         { type: "cleanup" },
       ],
     },
     {
       id: `${p}-delete-key-sibling-survives`,
       title: `Deleting one key leaves sibling models intact (${p})`,
-      description: "With two keys gating distinct models, deleting one removes only its models; the sibling's survive.",
+      description:
+        "With two keys gating distinct models, deleting one removes only its models; the sibling's survive.",
       steps: [
-        { type: "addProvider", keys: [key({ id: "k1", models: [MODEL_A] }), key({ id: "k2", models: [MODEL_B] })] },
-        { type: "assertModels", superset: [MODEL_A, MODEL_B], waitSeconds: 2, label: "both keys' models present" },
+        {
+          type: "addProvider",
+          keys: [key({ id: "k1", models: [MODEL_A] }), key({ id: "k2", models: [MODEL_B] })],
+        },
+        {
+          type: "assertModels",
+          superset: [MODEL_A, MODEL_B],
+          waitSeconds: 2,
+          label: "both keys' models present",
+        },
         { type: "deleteKey", id: "k1" },
-        { type: "assertModels", subset: [MODEL_B], absent: [MODEL_A], waitSeconds: 2, label: "sibling model survives delete" },
+        {
+          type: "assertModels",
+          subset: [MODEL_B],
+          absent: [MODEL_A],
+          waitSeconds: 2,
+          label: "sibling model survives delete",
+        },
         { type: "cleanup" },
       ],
     },
@@ -358,20 +531,51 @@ function scenariosFor(provider) {
       description: "Removing the provider drops all of its models from the catalog read endpoints.",
       steps: [
         { type: "addProvider", keys: [key({ id: "k1", models: [MODEL_A] })] },
-        { type: "assertModels", subset: [MODEL_A], waitSeconds: 2, label: "model present before delete" },
+        {
+          type: "assertModels",
+          subset: [MODEL_A],
+          waitSeconds: 2,
+          label: "model present before delete",
+        },
         { type: "deleteProvider" },
-        { type: "assertModels", empty: true, waitSeconds: 1, label: "no models after provider delete" },
+        {
+          type: "assertModels",
+          empty: true,
+          waitSeconds: 1,
+          label: "no models after provider delete",
+        },
         { type: "cleanup" },
       ],
     },
     {
       id: `${p}-alias-resolution`,
       title: `Alias resolves to underlying model at inference (${p})`,
-      description: "A key alias routes an inference request to the underlying wire model rather than being rejected.",
+      description:
+        "A key alias routes an inference request to the underlying wire model rather than being rejected.",
       steps: [
-        { type: "addProvider", keys: [key({ id: "k1", models: [ALIAS, INFERENCE_MODEL], aliases: { [ALIAS]: INFERENCE_MODEL } })] },
-        { type: "assertModels", subset: [INFERENCE_MODEL], waitSeconds: 2, label: "aliased key model present" },
-        { type: "assertInference", requestModel: ALIAS, expectResolved: INFERENCE_MODEL, waitSeconds: 2, label: "alias resolves to underlying model" },
+        {
+          type: "addProvider",
+          keys: [
+            key({
+              id: "k1",
+              models: [ALIAS, INFERENCE_MODEL],
+              aliases: { [ALIAS]: INFERENCE_MODEL },
+            }),
+          ],
+        },
+        {
+          type: "assertModels",
+          subset: [INFERENCE_MODEL],
+          waitSeconds: 2,
+          label: "aliased key model present",
+        },
+        {
+          type: "assertInference",
+          requestModel: ALIAS,
+          expectResolved: INFERENCE_MODEL,
+          waitSeconds: 2,
+          label: "alias resolves to underlying model",
+        },
         { type: "cleanup" },
       ],
     },
@@ -384,29 +588,60 @@ function scenariosFor(provider) {
         "from the live list at run time because some upstreams only report dated ids.",
       steps: [
         { type: "addProvider", keys: [key({ id: "k1", models: ["*"] })] },
-        { type: "captureModel", prefix: MODEL_A, varName: BL_VAR, waitSeconds: 2, label: "wildcard catalog serves live models" },
-        { type: "updateKey", key: key({ id: "k1", models: ["*"], blacklisted: [`{{${BL_VAR}}}`] }) },
-        { type: "assertModels", absentVars: [BL_VAR], nonEmpty: true, waitSeconds: 2, label: "blacklisted model gated out, catalog still populated" },
+        {
+          type: "captureModel",
+          prefix: MODEL_A,
+          varName: BL_VAR,
+          waitSeconds: 2,
+          label: "wildcard catalog serves live models",
+        },
+        {
+          type: "updateKey",
+          key: key({ id: "k1", models: ["*"], blacklisted: [`{{${BL_VAR}}}`] }),
+        },
+        {
+          type: "assertModels",
+          absentVars: [BL_VAR],
+          nonEmpty: true,
+          waitSeconds: 2,
+          label: "blacklisted model gated out, catalog still populated",
+        },
         { type: "cleanup" },
       ],
     },
     {
       id: `${p}-multi-key-union`,
       title: `Catalog aggregates the union across enabled keys (${p})`,
-      description: "Two keys gating distinct models both contribute: the catalog lists the union of their allow-lists.",
+      description:
+        "Two keys gating distinct models both contribute: the catalog lists the union of their allow-lists.",
       steps: [
-        { type: "addProvider", keys: [key({ id: "k1", models: [MODEL_A] }), key({ id: "k2", models: [MODEL_B] })] },
-        { type: "assertModels", superset: [MODEL_A, MODEL_B], waitSeconds: 2, label: "catalog lists union of both keys' models" },
+        {
+          type: "addProvider",
+          keys: [key({ id: "k1", models: [MODEL_A] }), key({ id: "k2", models: [MODEL_B] })],
+        },
+        {
+          type: "assertModels",
+          superset: [MODEL_A, MODEL_B],
+          waitSeconds: 2,
+          label: "catalog lists union of both keys' models",
+        },
         { type: "cleanup" },
       ],
     },
     {
       id: `${p}-model-details-gating`,
       title: `Model details endpoint respects the key gate (${p})`,
-      description: "/api/models/details lists only the models the provider's keys allow, like the plain list endpoint.",
+      description:
+        "/api/models/details lists only the models the provider's keys allow, like the plain list endpoint.",
       steps: [
         { type: "addProvider", keys: [key({ id: "k1", models: [MODEL_A] })] },
-        { type: "assertModelDetails", subset: [MODEL_A], absent: [MODEL_B], waitSeconds: 2, label: "details list gated to key models" },
+        {
+          type: "assertModelDetails",
+          subset: [MODEL_A],
+          absent: [MODEL_B],
+          waitSeconds: 2,
+          label: "details list gated to key models",
+        },
         { type: "cleanup" },
       ],
     },
@@ -418,9 +653,19 @@ function scenariosFor(provider) {
         "allow-list must not remove its base name from that list.",
       steps: [
         { type: "addProvider", keys: [key({ id: "k1", models: [MODEL_A] })] },
-        { type: "assertBaseModels", model: MODEL_A, waitSeconds: 1, label: "base name listed while key allows it" },
+        {
+          type: "assertBaseModels",
+          model: MODEL_A,
+          waitSeconds: 1,
+          label: "base name listed while key allows it",
+        },
         { type: "updateKey", key: key({ id: "k1", models: [MODEL_B] }) },
-        { type: "assertBaseModels", model: MODEL_A, waitSeconds: 1, label: "base name still listed after key change" },
+        {
+          type: "assertBaseModels",
+          model: MODEL_A,
+          waitSeconds: 1,
+          label: "base name still listed after key change",
+        },
         { type: "cleanup" },
       ],
     },
@@ -442,8 +687,17 @@ const GLOBAL_SCENARIOS = [
     provider: PROVIDERS[0],
     steps: [
       { type: "addProvider", keyless: true },
-      { type: "assertProviders", waitSeconds: 1, label: "keyless provider appears in providers list" },
-      { type: "assertModels", empty: true, waitSeconds: 1, label: "keyless provider has no catalog rows" },
+      {
+        type: "assertProviders",
+        waitSeconds: 1,
+        label: "keyless provider appears in providers list",
+      },
+      {
+        type: "assertModels",
+        empty: true,
+        waitSeconds: 1,
+        label: "keyless provider has no catalog rows",
+      },
       { type: "cleanup" },
     ],
   },
@@ -459,8 +713,17 @@ const GLOBAL_SCENARIOS = [
       "still surfaces the models explicitly allowed by its keys.",
     provider: PROVIDERS[0],
     steps: [
-      { type: "addProvider", baseUrl: "http://127.0.0.1:9", keys: [key({ id: "k1", models: [PROVIDERS[0].modelA] })] },
-      { type: "assertModels", subset: [PROVIDERS[0].modelA], waitSeconds: 2, label: "key allow-list survives discovery failure" },
+      {
+        type: "addProvider",
+        baseUrl: "http://127.0.0.1:9",
+        keys: [key({ id: "k1", models: [PROVIDERS[0].modelA] })],
+      },
+      {
+        type: "assertModels",
+        subset: [PROVIDERS[0].modelA],
+        waitSeconds: 2,
+        label: "key allow-list survives discovery failure",
+      },
       { type: "cleanup" },
     ],
   },
@@ -482,9 +745,19 @@ const GLOBAL_SCENARIOS = [
         allowedRequests: { chat_completion: true, chat_completion_stream: true },
         keys: [key({ id: "k1", models: ["*"] })],
       },
-      { type: "assertModels", empty: true, waitSeconds: 4, label: "wildcard key surfaces nothing without discovery" },
+      {
+        type: "assertModels",
+        empty: true,
+        waitSeconds: 4,
+        label: "wildcard key surfaces nothing without discovery",
+      },
       { type: "addKey", key: key({ id: "k2", models: [PROVIDERS[0].modelB] }) },
-      { type: "assertModels", subset: [PROVIDERS[0].modelB], waitSeconds: 2, label: "explicit allow-list still surfaces" },
+      {
+        type: "assertModels",
+        subset: [PROVIDERS[0].modelB],
+        waitSeconds: 2,
+        label: "explicit allow-list still surfaces",
+      },
       { type: "cleanup" },
     ],
   },
@@ -504,4 +777,8 @@ const collection = buildCollection({
   expandedScenarios: SCENARIOS.map(expandScenario),
 });
 
-writeCollection(resolveOutPath(DEFAULT_OUT), collection, SCENARIOS.map((s) => s.id));
+writeCollection(
+  resolveOutPath(DEFAULT_OUT),
+  collection,
+  SCENARIOS.map((s) => s.id),
+);

@@ -172,7 +172,7 @@ func RunTabbed(ctx context.Context, stdout, stderr io.Writer, version string, up
 		}
 		return RunInteractive(ctx, stdout, stderr, *spec)
 	}
-	defer term.Restore(int(os.Stdin.Fd()), oldState)
+	defer func() { _ = term.Restore(int(os.Stdin.Fd()), oldState) }()
 
 	defer func() {
 		tm.resetHostInputModes()
@@ -223,7 +223,7 @@ func RunTabbed(ctx context.Context, stdout, stderr io.Writer, version string, up
 	if err != nil {
 		return fmt.Errorf("open /dev/tty: %w", err)
 	}
-	defer tm.stdinPollFd.Close()
+	defer func() { _ = tm.stdinPollFd.Close() }()
 
 	tm.stdinCh = make(chan stdinResult, 1)
 	go func() {
@@ -342,7 +342,7 @@ func (tm *TabManager) startTab(tab *Tab) {
 	// Wait for process exit
 	go func() {
 		tab.exitErr = tab.cmd.Cmd.Wait()
-		tab.ptmx.Close()
+		_ = tab.ptmx.Close()
 		tab.exited.Store(true)
 		close(tab.done)
 		if tab.cmd.Cleanup != nil {
@@ -438,7 +438,7 @@ func (tm *TabManager) readPTY(tab *Tab) {
 					// Capture the child's intended cursor position at the exact
 					// moment it shows the cursor, before any later bytes in the
 					// same chunk can move the live VT cursor elsewhere.
-					tab.vt.Write(data[:showEnd])
+					_, _ = tab.vt.Write(data[:showEnd])
 					tab.vt.Lock()
 					cursor := tab.vt.Cursor()
 					tab.vt.Unlock()
@@ -448,11 +448,11 @@ func (tm *TabManager) readPTY(tab *Tab) {
 					tm.traceClaudeCursorf(tab, "cursor_saved_from_show vt_cursor=(%d,%d)", cursor.X, cursor.Y)
 
 					if showEnd < len(data) {
-						tab.vt.Write(data[showEnd:])
+						_, _ = tab.vt.Write(data[showEnd:])
 					}
 				} else {
 					// Write to VT emulator — self-locking, parses ANSI sequences.
-					tab.vt.Write(data)
+					_, _ = tab.vt.Write(data)
 				}
 
 				if tab.cursorVisible.Load() {
@@ -1805,18 +1805,6 @@ func (tm *TabManager) cycleTab() {
 	tm.mu.Unlock()
 }
 
-func (tm *TabManager) moveTabSelection(delta int) {
-	tm.mu.Lock()
-	if len(tm.tabs) == 0 {
-		tm.mu.Unlock()
-		return
-	}
-	next := (tm.activeIdx + delta + len(tm.tabs)) % len(tm.tabs)
-	tm.activeIdx = next
-	tm.needsRender = true
-	tm.mu.Unlock()
-}
-
 // moveCommandSelection moves the command popup cursor across existing tabs and
 // the trailing "New tab" action row.
 func (tm *TabManager) moveCommandSelection(delta int) {
@@ -1826,30 +1814,6 @@ func (tm *TabManager) moveCommandSelection(delta int) {
 	tm.needsRender = true
 	tm.mu.Unlock()
 	tm.renderFrame()
-}
-
-// closeAllTabs sends SIGHUP to every tab's process for a clean exit.
-func (tm *TabManager) closeAllTabs() {
-	tm.mu.Lock()
-	tabs := make([]*Tab, len(tm.tabs))
-	copy(tabs, tm.tabs)
-	tm.mu.Unlock()
-
-	for _, tab := range tabs {
-		if tab.cmd != nil && tab.cmd.Cmd.Process != nil && !tab.exited.Load() {
-			tab.cmd.Cmd.Process.Signal(syscall.SIGHUP)
-		}
-	}
-
-	// Wait briefly for processes to exit gracefully
-	timeout := time.After(500 * time.Millisecond)
-	for _, tab := range tabs {
-		select {
-		case <-tab.done:
-		case <-timeout:
-			return
-		}
-	}
 }
 
 // closeCurrentTab sends SIGHUP to the active tab's process.
@@ -1863,7 +1827,7 @@ func (tm *TabManager) closeCurrentTab() {
 	tm.mu.Unlock()
 
 	if tab.cmd != nil && tab.cmd.Cmd.Process != nil && !tab.exited.Load() {
-		tab.cmd.Cmd.Process.Signal(syscall.SIGHUP)
+		_ = tab.cmd.Cmd.Process.Signal(syscall.SIGHUP)
 	}
 }
 
@@ -2881,23 +2845,11 @@ func (tm *TabManager) handleResize() {
 			tab.vt.Resize(int(cols), contentRows)
 		}
 		if !tab.exited.Load() && tab.ptmx != nil {
-			pty.Setsize(tab.ptmx, sz)
+			_ = pty.Setsize(tab.ptmx, sz)
 		}
 	}
 	// When paused (chooser active), the chooser's View includes the tab bar
 	// via TabBarLine — Bubble Tea redraws it as part of its own render cycle.
-}
-
-func (tm *TabManager) redrawActiveTab() {
-	tm.mu.Lock()
-	tm.needsRender = true
-	tm.mu.Unlock()
-}
-
-func (tm *TabManager) redrawTab(tab *Tab) {
-	tm.mu.Lock()
-	tm.needsRender = true
-	tm.mu.Unlock()
 }
 
 func (tm *TabManager) tabBarContentWidth(tabs []*Tab) int {
@@ -3096,12 +3048,6 @@ func normalizeTerminalSize(cols, rows int) (uint16, uint16) {
 		rows = 2
 	}
 	return uint16(cols), uint16(rows)
-}
-
-func (tm *TabManager) writeBytes(data []byte) {
-	tm.outputMu.Lock()
-	defer tm.outputMu.Unlock()
-	_, _ = tm.stdout.Write(data)
 }
 
 func (tm *TabManager) writeString(s string) {

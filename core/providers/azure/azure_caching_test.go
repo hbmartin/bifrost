@@ -1,6 +1,7 @@
 package azure_test
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -58,7 +59,7 @@ func TestAzure_OpenAIModel_CachingDeterminism(t *testing.T) {
 	)
 
 	// Azure delegates OpenAI models to openai.ToOpenAIChatRequest()
-	ctx, cancel := schemas.NewBifrostContextWithCancel(nil)
+	ctx, cancel := schemas.NewBifrostContextWithCancel(context.Background())
 	defer cancel()
 	resultA := openai.ToOpenAIChatRequest(ctx, makeReq(propsA))
 	resultB := openai.ToOpenAIChatRequest(ctx, makeReq(propsB))
@@ -109,7 +110,7 @@ func TestAzure_OpenAIModel_PreservesPropertyOrder(t *testing.T) {
 		},
 	}
 
-	ctx, cancel := schemas.NewBifrostContextWithCancel(nil)
+	ctx, cancel := schemas.NewBifrostContextWithCancel(context.Background())
 	defer cancel()
 	result := openai.ToOpenAIChatRequest(ctx, bifrostReq)
 
@@ -161,7 +162,7 @@ func TestAzure_ToolInputKeyOrderPreservation(t *testing.T) {
 		},
 	}
 
-	ctx, cancel := schemas.NewBifrostContextWithCancel(nil)
+	ctx, cancel := schemas.NewBifrostContextWithCancel(context.Background())
 	defer cancel()
 	result := openai.ToOpenAIChatRequest(ctx, bifrostReq)
 	if result == nil {

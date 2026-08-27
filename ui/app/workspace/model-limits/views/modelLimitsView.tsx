@@ -53,7 +53,7 @@ export default function ModelLimitsView() {
 	useEffect(() => {
 		if (!modelConfigsData || offset < totalCount) return;
 		setOffset(totalCount === 0 ? 0 : Math.floor((totalCount - 1) / PAGE_SIZE) * PAGE_SIZE);
-	}, [totalCount, offset]);
+	}, [modelConfigsData, offset, totalCount]);
 
 	// Handle query errors
 	useEffect(() => {

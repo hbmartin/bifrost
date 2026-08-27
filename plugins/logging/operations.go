@@ -1365,7 +1365,7 @@ func validateUserAgentMapping(mapping *logstore.UserAgentMapping) error {
 		schemas.UserAgentMappingMatchTypeExact:
 	case schemas.UserAgentMappingMatchTypeRegex:
 		if _, err := regexp.Compile(mapping.Pattern); err != nil {
-			return fmt.Errorf("%w: invalid regex pattern: %v", ErrInvalidUserAgentMapping, err)
+			return fmt.Errorf("%w: invalid regex pattern: %w", ErrInvalidUserAgentMapping, err)
 		}
 	default:
 		return fmt.Errorf("%w: unsupported match_type %q", ErrInvalidUserAgentMapping, mapping.MatchType)

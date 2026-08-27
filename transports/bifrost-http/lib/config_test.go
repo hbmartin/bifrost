@@ -2428,13 +2428,7 @@ func (m *MockConfigStore) DeletePromptSession(ctx context.Context, id uint) erro
 // createTempDir creates a temporary directory for test files
 func createTempDir(t *testing.T) string {
 	t.Helper()
-	dir, err := os.MkdirTemp("", "bifrost-test-*")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	t.Cleanup(func() {
-		os.RemoveAll(dir)
-	})
+	dir := t.TempDir()
 	// Hand the directory a database that has already been through a first boot,
 	// so LoadConfig opens it instead of building it - see
 	// configstoretemplate_test.go for why that matters.
@@ -2570,14 +2564,6 @@ func makeProviderConfig(keyName, keyValue string) configstore.ProviderConfig {
 	}
 }
 
-func makeMCPClientConfig(id, name string) schemas.MCPClientConfig {
-	return schemas.MCPClientConfig{
-		ID:             id,
-		Name:           name,
-		ConnectionType: schemas.MCPConnectionTypeHTTP,
-	}
-}
-
 // =============================================================================
 // SQLite Integration Test Helpers
 // =============================================================================
@@ -2618,15 +2604,10 @@ func createTestSQLiteConfigStore(t *testing.T, dir string) configstore.ConfigSto
 	}
 	t.Cleanup(func() {
 		if store != nil {
-			store.Close(context.Background())
+			require.NoError(t, store.Close(context.Background()))
 		}
 	})
 	return store
-}
-
-// makeConfigDataWithProviders creates a ConfigData with only providers configured
-func makeConfigDataWithProviders(providers map[string]configstore.ProviderConfig) *ConfigData {
-	return makeConfigDataWithProvidersAndDir(providers, "")
 }
 
 // makeConfigDataWithProvidersAndDir creates a ConfigData with providers and a specific temp directory for the DB
@@ -2648,11 +2629,6 @@ func makeConfigDataWithProvidersAndDir(providers map[string]configstore.Provider
 		},
 		Providers: providers,
 	}
-}
-
-// makeConfigDataWithVirtualKeys creates a ConfigData with providers and virtual keys
-func makeConfigDataWithVirtualKeys(providers map[string]configstore.ProviderConfig, vks []tables.TableVirtualKey) *ConfigData {
-	return makeConfigDataWithVirtualKeysAndDir(providers, vks, "")
 }
 
 // makeConfigDataWithVirtualKeysAndDir creates a ConfigData with providers, virtual keys, and a specific temp directory
@@ -2677,11 +2653,6 @@ func makeConfigDataWithVirtualKeysAndDir(providers map[string]configstore.Provid
 			VirtualKeys: vks,
 		},
 	}
-}
-
-// makeConfigDataFull creates a full ConfigData with all configurations
-func makeConfigDataFull(client *configstore.ClientConfig, providers map[string]configstore.ProviderConfig, governance *configstore.GovernanceConfig) *ConfigData {
-	return makeConfigDataFullWithDir(client, providers, governance, "")
 }
 
 // makeConfigDataFullWithDir creates a full ConfigData with all configurations and a specific temp directory
@@ -2726,16 +2697,6 @@ func makeProviderConfigWithNetwork(keyName, keyValue, baseURL string) configstor
 	}
 }
 
-// makeProviderConfigWithMultipleKeys creates a provider config with multiple keys
-func makeProviderConfigWithMultipleKeys(keys []schemas.Key, baseURL string) configstore.ProviderConfig {
-	return configstore.ProviderConfig{
-		Keys: keys,
-		NetworkConfig: &schemas.NetworkConfig{
-			BaseURL: baseURL,
-		},
-	}
-}
-
 // makeVirtualKey creates a virtual key for testing
 func makeVirtualKey(id, name, value string) tables.TableVirtualKey {
 	return tables.TableVirtualKey{
@@ -2744,64 +2705,6 @@ func makeVirtualKey(id, name, value string) tables.TableVirtualKey {
 		Description: "Test virtual key",
 		Value:       *schemas.NewSecretVar(value),
 		IsActive:    schemas.Ptr(true),
-	}
-}
-
-// makeVirtualKeyWithTeam creates a virtual key with team association
-func makeVirtualKeyWithTeam(id, name, value, teamID string) tables.TableVirtualKey {
-	return tables.TableVirtualKey{
-		ID:          id,
-		Name:        name,
-		Description: "Test virtual key with team",
-		Value:       *schemas.NewSecretVar(value),
-		IsActive:    schemas.Ptr(true),
-		TeamID:      &teamID,
-	}
-}
-
-// makeVirtualKeyWithCustomer creates a virtual key with customer association
-func makeVirtualKeyWithCustomer(id, name, value, customerID string) tables.TableVirtualKey {
-	return tables.TableVirtualKey{
-		ID:          id,
-		Name:        name,
-		Description: "Test virtual key with customer",
-		Value:       *schemas.NewSecretVar(value),
-		IsActive:    schemas.Ptr(true),
-		CustomerID:  &customerID,
-	}
-}
-
-// makeVirtualKeyWithProviderConfigs creates a virtual key with provider configurations
-func makeVirtualKeyWithProviderConfigs(id, name, value string, providerConfigs []tables.TableVirtualKeyProviderConfig) tables.TableVirtualKey {
-	return tables.TableVirtualKey{
-		ID:              id,
-		Name:            name,
-		Description:     "Test virtual key with provider configs",
-		Value:           *schemas.NewSecretVar(value),
-		IsActive:        schemas.Ptr(true),
-		ProviderConfigs: providerConfigs,
-	}
-}
-
-// makeVirtualKeyProviderConfig creates a provider config for virtual keys
-func makeVirtualKeyProviderConfig(provider string, weight float64, allowedModels []string, keys []tables.TableKey) tables.TableVirtualKeyProviderConfig {
-	return tables.TableVirtualKeyProviderConfig{
-		Provider:      provider,
-		Weight:        &weight,
-		AllowedModels: allowedModels,
-		Keys:          keys,
-	}
-}
-
-// makeTableKey creates a TableKey for use in virtual key provider configs
-func makeTableKey(keyID, name, value, provider string) tables.TableKey {
-	defaultWeight := 1.0
-	return tables.TableKey{
-		KeyID:    keyID,
-		Name:     name,
-		Value:    *schemas.NewSecretVar(value),
-		Provider: provider,
-		Weight:   &defaultWeight,
 	}
 }
 
@@ -2834,16 +2737,6 @@ func verifyVirtualKeyInDB(t *testing.T, store configstore.ConfigStore, vkID stri
 		t.Fatalf("virtual key %s not found in DB", vkID)
 	}
 	return vk
-}
-
-// verifyVirtualKeyNotInDB checks that a virtual key does NOT exist in the database
-func verifyVirtualKeyNotInDB(t *testing.T, store configstore.ConfigStore, vkID string) {
-	t.Helper()
-	ctx := context.Background()
-	vk, err := store.GetVirtualKey(ctx, vkID)
-	if err == nil && vk != nil {
-		t.Fatalf("virtual key %s should not exist in DB but was found", vkID)
-	}
 }
 
 // Tests
@@ -4947,11 +4840,6 @@ func TestProviderHashComparison_FieldValueChanges(t *testing.T) {
 	if hashConc1 == hashConc2 {
 		t.Error("Expected different hash when Concurrency value changes")
 	}
-}
-
-// Helper function for string pointers
-func stringPtr(s string) *string {
-	return &s
 }
 
 // TestProviderHashComparison_FieldRemoved tests hash changes when fields are removed
@@ -11569,7 +11457,7 @@ func TestSQLite_VirtualKey_DashboardMCPConfig_DeletedOnFileChange(t *testing.T) 
 	vk.MCPConfigs = []tables.TableVirtualKeyMCPConfig{mcpConfig1}
 	newHash, _ := configstore.GenerateVirtualKeyHash(*vk)
 	vk.ConfigHash = newHash
-	config1.ConfigStore.UpdateVirtualKey(ctx, vk)
+	require.NoError(t, config1.ConfigStore.UpdateVirtualKey(ctx, vk))
 
 	// Step 3: Simulate dashboard adding MCP config for client 2
 	mcpConfig2 := tables.TableVirtualKeyMCPConfig{
@@ -11700,8 +11588,8 @@ func TestSQLite_VKMCPConfig_AddRemove(t *testing.T) {
 	}
 
 	// Create MCP clients
-	config1.ConfigStore.CreateMCPClientConfig(ctx, &schemas.MCPClientConfig{ID: "mcp-1", Name: "mcp-1", ConnectionType: schemas.MCPConnectionTypeHTTP})
-	config1.ConfigStore.CreateMCPClientConfig(ctx, &schemas.MCPClientConfig{ID: "mcp-2", Name: "mcp-2", ConnectionType: schemas.MCPConnectionTypeHTTP})
+	require.NoError(t, config1.ConfigStore.CreateMCPClientConfig(ctx, &schemas.MCPClientConfig{ID: "mcp-1", Name: "mcp-1", ConnectionType: schemas.MCPConnectionTypeHTTP}))
+	require.NoError(t, config1.ConfigStore.CreateMCPClientConfig(ctx, &schemas.MCPClientConfig{ID: "mcp-2", Name: "mcp-2", ConnectionType: schemas.MCPConnectionTypeHTTP}))
 
 	mcpClient1, _ := config1.ConfigStore.GetMCPClientByName(ctx, "mcp-1")
 	mcpClient2, _ := config1.ConfigStore.GetMCPClientByName(ctx, "mcp-2")
@@ -11822,7 +11710,7 @@ func TestSQLite_VKMCPConfig_UpdateTools(t *testing.T) {
 	}
 
 	// Create MCP client
-	config1.ConfigStore.CreateMCPClientConfig(ctx, &schemas.MCPClientConfig{ID: "mcp-client", Name: "mcp-client", ConnectionType: schemas.MCPConnectionTypeHTTP})
+	require.NoError(t, config1.ConfigStore.CreateMCPClientConfig(ctx, &schemas.MCPClientConfig{ID: "mcp-client", Name: "mcp-client", ConnectionType: schemas.MCPConnectionTypeHTTP}))
 	mcpClient, _ := config1.ConfigStore.GetMCPClientByName(ctx, "mcp-client")
 
 	// Create VK with MCP config
@@ -11838,14 +11726,14 @@ func TestSQLite_VKMCPConfig_UpdateTools(t *testing.T) {
 	}
 	hash, _ := configstore.GenerateVirtualKeyHash(vk)
 	vk.ConfigHash = hash
-	config1.ConfigStore.CreateVirtualKey(ctx, &vk)
+	require.NoError(t, config1.ConfigStore.CreateVirtualKey(ctx, &vk))
 
 	mcpConfigToCreate := tables.TableVirtualKeyMCPConfig{
 		VirtualKeyID:   "vk-1",
 		MCPClientID:    mcpClient.ID,
 		ToolsToExecute: []string{"tool1", "tool2"},
 	}
-	config1.ConfigStore.CreateVirtualKeyMCPConfig(ctx, &mcpConfigToCreate)
+	require.NoError(t, config1.ConfigStore.CreateVirtualKeyMCPConfig(ctx, &mcpConfigToCreate))
 
 	config1.Close(ctx)
 
@@ -11916,7 +11804,7 @@ func TestSQLite_VK_ProviderAndMCPConfigs_Combined(t *testing.T) {
 	}
 
 	// Create MCP client
-	config1.ConfigStore.CreateMCPClientConfig(ctx, &schemas.MCPClientConfig{ID: "mcp-client", Name: "mcp-client", ConnectionType: schemas.MCPConnectionTypeHTTP})
+	require.NoError(t, config1.ConfigStore.CreateMCPClientConfig(ctx, &schemas.MCPClientConfig{ID: "mcp-client", Name: "mcp-client", ConnectionType: schemas.MCPConnectionTypeHTTP}))
 	mcpClient, _ := config1.ConfigStore.GetMCPClientByName(ctx, "mcp-client")
 
 	config1.Close(ctx)
@@ -15339,6 +15227,7 @@ func TestSQLite_Governance_PricingOverrides_Reconciliation(t *testing.T) {
 
 // setupTestDB creates an in-memory SQLite database for testing
 func setupTestDB(t *testing.T) *gorm.DB {
+	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("Failed to create test database: %v", err)
@@ -16945,16 +16834,6 @@ func TestGenerateVirtualKeyHash_ProviderConfigRateLimit(t *testing.T) {
 	}
 }
 
-// intPtr is a helper to create a pointer to an int
-func intPtr(i int) *int {
-	return &i
-}
-
-// int64Ptr is a helper to create a pointer to an int64
-func int64Ptr(i int64) *int64 {
-	return &i
-}
-
 // TestKeyHashComparison_VertexConfigSyncScenarios tests full lifecycle for Vertex key configs
 func TestKeyHashComparison_VertexConfigSyncScenarios(t *testing.T) {
 	// === Scenario 1: Vertex config in DB + same in file -> hash matches, no update ===
@@ -17412,7 +17291,7 @@ func TestProviderHashComparison_VertexDBValuePreservedWhenHashMatches(t *testing
 	providers1, _ := config1.ConfigStore.GetProvidersConfig(context.Background())
 	vertexConfig := providers1[schemas.Vertex]
 	vertexConfig.Keys[0].VertexKeyConfig.AuthCredentials = *schemas.NewSecretVar(`{"type":"service_account","edited":true}`)
-	config1.ConfigStore.UpdateProvidersConfig(context.Background(), providers1)
+	require.NoError(t, config1.ConfigStore.UpdateProvidersConfig(context.Background(), providers1))
 	config1.Close(context.Background())
 
 	// Reload with same config file - DB value should be preserved since hash matches
@@ -18105,6 +17984,7 @@ var excludedSchemaFields = map[string]map[string]bool{
 
 // loadJSONSchema loads and parses the JSON schema file
 func loadJSONSchema(t *testing.T) map[string]interface{} {
+	t.Helper()
 	_, currentFile, _, ok := runtime.Caller(0)
 	require.True(t, ok, "Failed to get current file path")
 
@@ -18571,10 +18451,10 @@ func TestResolveFrameworkPricingConfig(t *testing.T) {
 		// must not be persisted over a valid DB value — skip guard preserves it.
 		rawModelParams := "env.BIFROST_TEST_MODEL_PARAMS_URL_NONEXISTENT_XYZ"
 		prev, existed := os.LookupEnv("BIFROST_TEST_MODEL_PARAMS_URL_NONEXISTENT_XYZ")
-		os.Unsetenv("BIFROST_TEST_MODEL_PARAMS_URL_NONEXISTENT_XYZ")
+		_ = os.Unsetenv("BIFROST_TEST_MODEL_PARAMS_URL_NONEXISTENT_XYZ")
 		t.Cleanup(func() {
 			if existed {
-				os.Setenv("BIFROST_TEST_MODEL_PARAMS_URL_NONEXISTENT_XYZ", prev)
+				_ = os.Setenv("BIFROST_TEST_MODEL_PARAMS_URL_NONEXISTENT_XYZ", prev) //nolint:usetesting // This test must distinguish an unset variable from an empty one.
 			}
 		})
 		validDBModelParams := "https://db.example.com/model-parameters.json"
@@ -18949,10 +18829,10 @@ func TestResolveFrameworkPricingConfig(t *testing.T) {
 		// Use a name that is guaranteed not to be set in the test environment
 		rawURL := "env.BIFROST_TEST_PRICING_URL_NONEXISTENT_XYZ"
 		prev, existed := os.LookupEnv("BIFROST_TEST_PRICING_URL_NONEXISTENT_XYZ")
-		os.Unsetenv("BIFROST_TEST_PRICING_URL_NONEXISTENT_XYZ")
+		_ = os.Unsetenv("BIFROST_TEST_PRICING_URL_NONEXISTENT_XYZ")
 		t.Cleanup(func() {
 			if existed {
-				os.Setenv("BIFROST_TEST_PRICING_URL_NONEXISTENT_XYZ", prev)
+				_ = os.Setenv("BIFROST_TEST_PRICING_URL_NONEXISTENT_XYZ", prev) //nolint:usetesting // This test must distinguish an unset variable from an empty one.
 			}
 		})
 		fileConfig := &framework.FrameworkConfig{

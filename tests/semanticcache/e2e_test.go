@@ -84,7 +84,7 @@ func doRaw(method, path string) (int, []byte, http.Header, error) {
 	if err != nil {
 		return 0, nil, nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	var b []byte
 	if resp.Body != nil {
 		b, _ = readAllSafe(resp.Body)

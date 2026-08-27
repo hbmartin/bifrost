@@ -261,7 +261,7 @@ func TestUserAgentFromContextFallsBackToUserAgentKey(t *testing.T) {
 
 func TestPreLLMHookSetsAppContextFromDetectedApp(t *testing.T) {
 	store := newTestStore(t)
-	defer store.Close(context.Background())
+	defer func() { _ = store.Close(context.Background()) }()
 	plugin, err := Init(context.Background(), &Config{}, testLogger{}, store, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("Init() error = %v", err)
@@ -303,7 +303,7 @@ func TestPreLLMHookSetsAppContextFromDetectedApp(t *testing.T) {
 // this context key.
 func TestPreLLMHookContextKeyComesFromUserAgentNotAgentHeader(t *testing.T) {
 	store := newTestStore(t)
-	defer store.Close(context.Background())
+	defer func() { _ = store.Close(context.Background()) }()
 	plugin, err := Init(context.Background(), &Config{}, testLogger{}, store, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("Init() error = %v", err)
@@ -342,7 +342,7 @@ func TestPreLLMHookContextKeyComesFromUserAgentNotAgentHeader(t *testing.T) {
 
 func TestCustomUserAgentMappingOverridesBuiltInDetection(t *testing.T) {
 	store := newTestStore(t)
-	defer store.Close(context.Background())
+	defer func() { _ = store.Close(context.Background()) }()
 	plugin, err := Init(context.Background(), &Config{}, testLogger{}, store, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("Init() error = %v", err)
@@ -370,7 +370,7 @@ func TestCustomUserAgentMappingOverridesBuiltInDetection(t *testing.T) {
 
 func TestPreLLMHookSetsAppContextFromCustomMapping(t *testing.T) {
 	store := newTestStore(t)
-	defer store.Close(context.Background())
+	defer func() { _ = store.Close(context.Background()) }()
 	plugin, err := Init(context.Background(), &Config{}, testLogger{}, store, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("Init() error = %v", err)
@@ -2551,6 +2551,7 @@ func TestApplyNonStreamingOutputToEntryVideoOutputs(t *testing.T) {
 			name:   "generation",
 			result: videoResponse(schemas.VideoGenerationRequest),
 			verify: func(t *testing.T, entry *logstore.Log) {
+				t.Helper()
 				if entry.VideoGenerationOutputParsed == nil {
 					t.Fatal("expected VideoGenerationOutputParsed to be set")
 				}
@@ -2566,6 +2567,7 @@ func TestApplyNonStreamingOutputToEntryVideoOutputs(t *testing.T) {
 			name:   "remix routes to generation",
 			result: videoResponse(schemas.VideoRemixRequest),
 			verify: func(t *testing.T, entry *logstore.Log) {
+				t.Helper()
 				if entry.VideoGenerationOutputParsed == nil {
 					t.Error("expected VideoGenerationOutputParsed to be set")
 				}
@@ -2575,6 +2577,7 @@ func TestApplyNonStreamingOutputToEntryVideoOutputs(t *testing.T) {
 			name:   "retrieve",
 			result: videoResponse(schemas.VideoRetrieveRequest),
 			verify: func(t *testing.T, entry *logstore.Log) {
+				t.Helper()
 				if entry.VideoRetrieveOutputParsed == nil {
 					t.Fatal("expected VideoRetrieveOutputParsed to be set")
 				}
@@ -2593,6 +2596,7 @@ func TestApplyNonStreamingOutputToEntryVideoOutputs(t *testing.T) {
 				},
 			},
 			verify: func(t *testing.T, entry *logstore.Log) {
+				t.Helper()
 				if entry.VideoDownloadOutputParsed == nil {
 					t.Error("expected VideoDownloadOutputParsed to be set")
 				}
@@ -2608,6 +2612,7 @@ func TestApplyNonStreamingOutputToEntryVideoOutputs(t *testing.T) {
 				},
 			},
 			verify: func(t *testing.T, entry *logstore.Log) {
+				t.Helper()
 				if entry.VideoListOutputParsed == nil {
 					t.Error("expected VideoListOutputParsed to be set")
 				}
@@ -2623,6 +2628,7 @@ func TestApplyNonStreamingOutputToEntryVideoOutputs(t *testing.T) {
 				},
 			},
 			verify: func(t *testing.T, entry *logstore.Log) {
+				t.Helper()
 				if entry.VideoDeleteOutputParsed == nil {
 					t.Error("expected VideoDeleteOutputParsed to be set")
 				}
@@ -2650,7 +2656,7 @@ func TestApplyNonStreamingOutputToEntryVideoOutputs(t *testing.T) {
 
 // TestGuardrailDebugForLogReadsContextWithoutResponse verifies input blocks remain observable.
 func TestGuardrailDebugForLogReadsContextWithoutResponse(t *testing.T) {
-	ctx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	requireCall := schemas.BifrostGuardrailJudgeCall{
 		JudgeProvider: schemas.OpenAI,
 		JudgeModel:    "gpt-test",

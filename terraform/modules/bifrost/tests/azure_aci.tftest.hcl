@@ -36,7 +36,6 @@ mock_provider "kubernetes" {}
 
 run "aci_basic" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider = "azure"
     service        = "aci"
@@ -47,7 +46,6 @@ run "aci_basic" {
 
 run "aci_custom_compute" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider = "azure"
     service        = "aci"
@@ -60,7 +58,6 @@ run "aci_custom_compute" {
 
 run "aci_existing_resource_group" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider            = "azure"
     service                   = "aci"
@@ -72,7 +69,6 @@ run "aci_existing_resource_group" {
 
 run "aci_existing_vnet" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider      = "azure"
     service             = "aci"
@@ -85,7 +81,6 @@ run "aci_existing_vnet" {
 
 run "aci_custom_prefix" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider = "azure"
     service        = "aci"

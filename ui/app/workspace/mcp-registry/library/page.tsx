@@ -103,7 +103,10 @@ export default function MCPLibraryPage() {
 	const totalCount = libraryData?.total_count || 0;
 
 	// Installed-detection: match on connection_url or name (case-insensitive)
-	const { data: mcpClientsData, error: mcpClientsError } = useGetMCPClientsQuery({ limit: 100, offset: 0 });
+	const { data: mcpClientsData, error: mcpClientsError } = useGetMCPClientsQuery({
+		limit: 100,
+		offset: 0,
+	});
 
 	useEffect(() => {
 		if (!libraryError && !mcpClientsError) return;

@@ -403,6 +403,7 @@ func (ar *AllowedRequests) IsOperationAllowed(operation RequestType) bool {
 		return true // Default to allowed if no restrictions
 	}
 
+	//exhaustive
 	switch operation {
 	case ListModelsRequest:
 		return ar.ListModels

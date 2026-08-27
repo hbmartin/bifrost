@@ -9,6 +9,7 @@ import (
 
 	bifrost "github.com/maximhq/bifrost/core"
 	"github.com/maximhq/bifrost/core/schemas"
+	"github.com/stretchr/testify/require"
 )
 
 // TestChatStreamingFinalChunkNoDeadlock tests that processing the final chunk doesn't deadlock
@@ -285,9 +286,7 @@ func TestGetLastChunkMethodsSafe(t *testing.T) {
 
 	// This should not deadlock - getLastChatChunk doesn't acquire locks anymore
 	lastChunk := acc.getLastChatChunk()
-	if lastChunk == nil {
-		t.Error("Expected to get last chunk, got nil")
-	}
+	require.NotNil(t, lastChunk, "Expected to get last chunk")
 	if lastChunk.ChunkIndex != 0 {
 		t.Errorf("Expected chunk index 0, got %d", lastChunk.ChunkIndex)
 	}

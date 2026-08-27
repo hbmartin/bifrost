@@ -29,7 +29,9 @@ const unavailable = () => {
 };
 
 export const useAttachVirtualKeyUsersMutation = (): [
-	(_args: { vkId: string; data: { user_ids: string[]; preserve_usage?: boolean } }) => { unwrap: () => Promise<{ message: string }> },
+	(_args: { vkId: string; data: { user_ids: string[]; preserve_usage?: boolean } }) => {
+		unwrap: () => Promise<{ message: string }>;
+	},
 	{ isLoading: boolean },
 ] => [() => ({ unwrap: unavailable }), { isLoading: false }];
 

@@ -362,9 +362,9 @@ func TestStreamReplay_FullDrain(t *testing.T) {
 // scopedTestContext returns a plugin-scoped BifrostContext so ctx.Log entries
 // land on the per-request log store and can be inspected via GetPluginLogs.
 // In production the framework wraps every plugin hook this way.
-func scopedTestContext(t testing.TB, suffix string) *schemas.BifrostContext {
-	t.Helper()
-	root := CreateContextWithCacheKey(t, suffix)
+func scopedTestContext(tb testing.TB, suffix string) *schemas.BifrostContext {
+	tb.Helper()
+	root := CreateContextWithCacheKey(tb, suffix)
 	name := PluginName
 	return root.WithPluginScope(&name)
 }
@@ -404,24 +404,6 @@ func TestPreLLMHook_EmitsPluginLogOnEmbeddingFailure(t *testing.T) {
 	if !found {
 		t.Fatalf("expected a Warn plugin log mentioning semantic search skipped + the upstream error, got %+v", logs)
 	}
-}
-
-// pluginLogContains is a small assertion helper: returns true if any log
-// entry from PluginName matches the substring at the given level (or any
-// level if level is "").
-func pluginLogContains(logs []schemas.PluginLogEntry, level schemas.LogLevel, substr string) bool {
-	for _, l := range logs {
-		if l.PluginName != PluginName {
-			continue
-		}
-		if level != "" && l.Level != level {
-			continue
-		}
-		if strings.Contains(l.Message, substr) {
-			return true
-		}
-	}
-	return false
 }
 
 func TestPreLLMHook_NoDebugLogsOnFlow(t *testing.T) {

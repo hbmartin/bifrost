@@ -111,7 +111,7 @@ func TestDoHTTPRequestAccumulates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if got := upstream(t, ctx); got < 40*time.Millisecond {
 		t.Fatalf("upstream = %v, want >= 40ms", got)
@@ -125,7 +125,7 @@ func TestDoHTTPRequestAccumulatesBodyReadTime(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 		w.(http.Flusher).Flush() // headers out immediately; the wait below is body-only
 		time.Sleep(60 * time.Millisecond)
-		w.Write([]byte("payload"))
+		_, _ = w.Write([]byte("payload"))
 	}))
 	defer server.Close()
 
@@ -139,7 +139,7 @@ func TestDoHTTPRequestAccumulatesBodyReadTime(t *testing.T) {
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	afterHeaders := upstream(t, ctx)
 	if _, err := io.ReadAll(resp.Body); err != nil {

@@ -3,6 +3,7 @@ package llmtests
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -299,11 +300,11 @@ func validateMP3Decode(data []byte) error {
 	// Try to read a small sample to verify decoding works
 	buf := make([]byte, 4096)
 	n, err := decoder.Read(buf)
-	if err != nil && err != io.EOF {
+	if err != nil && !errors.Is(err, io.EOF) {
 		return fmt.Errorf("failed to decode MP3 sample: %w", err)
 	}
 
-	if n == 0 && err != io.EOF {
+	if n == 0 && !errors.Is(err, io.EOF) {
 		return fmt.Errorf("no audio data decoded from MP3")
 	}
 

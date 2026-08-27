@@ -24,17 +24,6 @@ var stdioFixtureSemaphore = make(chan struct{}, 2)
 // SETUP HELPERS FOR CODE MODE WITH STDIO SERVERS
 // =============================================================================
 
-// toCamelCase converts kebab-case to camelCase (e.g., "edge-case-server" -> "edgeCaseServer")
-func toCamelCase(s string) string {
-	parts := strings.Split(s, "-")
-	for i := 1; i < len(parts); i++ {
-		if len(parts[i]) > 0 {
-			parts[i] = strings.ToUpper(parts[i][:1]) + parts[i][1:]
-		}
-	}
-	return strings.Join(parts, "")
-}
-
 // setupCodeModeWithSTDIOServers sets up multiple STDIO MCP servers for code mode testing
 // Uses fixture functions for proper server configuration
 func setupCodeModeWithSTDIOServers(t *testing.T, serverNames ...string) (*mcp.MCPManager, *bifrost.Bifrost) {
@@ -234,6 +223,7 @@ func TestCodeMode_STDIO_ToolCallSingleServer(t *testing.T) {
 			name: "echo_tool",
 			code: `result = testToolsServer.echo(message="test message")`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok, "result should be an object")
 				assert.Equal(t, "test message", result["message"])
@@ -243,6 +233,7 @@ func TestCodeMode_STDIO_ToolCallSingleServer(t *testing.T) {
 			name: "calculator_add",
 			code: `result = testToolsServer.calculator(operation="add", x=15, y=27)`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok, "result should be an object")
 				assert.Equal(t, float64(42), result["result"])
@@ -252,6 +243,7 @@ func TestCodeMode_STDIO_ToolCallSingleServer(t *testing.T) {
 			name: "calculator_multiply",
 			code: `result = testToolsServer.calculator(operation="multiply", x=6, y=7)`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok, "result should be an object")
 				assert.Equal(t, float64(42), result["result"])
@@ -261,6 +253,7 @@ func TestCodeMode_STDIO_ToolCallSingleServer(t *testing.T) {
 			name: "get_weather",
 			code: `result = testToolsServer.get_weather(location="San Francisco", units="celsius")`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok, "result should be an object")
 				assert.Equal(t, "San Francisco", result["location"])
@@ -273,6 +266,7 @@ func TestCodeMode_STDIO_ToolCallSingleServer(t *testing.T) {
 echo2 = testToolsServer.echo(message="second")
 result = {"first": echo1, "second": echo2}`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok, "result should be an object")
 
@@ -326,6 +320,7 @@ func TestCodeMode_STDIO_MultipleServers(t *testing.T) {
 			name: "call_tool_from_first_server",
 			code: `result = testToolsServer.echo(message="from test-tools")`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok)
 				assert.Equal(t, "from test-tools", result["message"])
@@ -335,6 +330,7 @@ func TestCodeMode_STDIO_MultipleServers(t *testing.T) {
 			name: "call_tool_from_second_server",
 			code: `result = temperature.get_temperature(location="Tokyo")`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result := execResult["result"]
 				require.NotNil(t, result)
 				// Temperature server returns a string, not an object
@@ -349,6 +345,7 @@ func TestCodeMode_STDIO_MultipleServers(t *testing.T) {
 temp = temperature.get_temperature(location="London")
 result = {"echo": echo, "temp": temp}`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok)
 
@@ -365,6 +362,7 @@ result = {"echo": echo, "temp": temp}`,
 calc2 = temperature.calculator(operation="multiply", x=3, y=4)
 result = {"tools": calc1, "temp": calc2}`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok)
 
@@ -733,6 +731,7 @@ func TestCodeMode_STDIO_ComplexCodePatterns(t *testing.T) {
     return results
 result = main()`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				results, ok := execResult["result"].([]interface{})
 				require.True(t, ok, "result should be array")
 				assert.Len(t, results, 3)
@@ -748,6 +747,7 @@ result = main()`,
         return testToolsServer.echo(message="small")
 result = main()`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok)
 				assert.Equal(t, float64(15), result["result"])
@@ -760,6 +760,7 @@ r2 = testToolsServer.echo(message="two")
 r3 = testToolsServer.echo(message="three")
 result = [r1, r2, r3]`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				results, ok := execResult["result"].([]interface{})
 				require.True(t, ok)
 				assert.Len(t, results, 3)
@@ -775,6 +776,7 @@ result = {
     "total": calc1["result"] + calc2["result"]
 }`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok)
 				assert.Equal(t, float64(30), result["sum"])
@@ -823,6 +825,7 @@ func TestCodeMode_STDIO_EdgeCaseServer_Unicode(t *testing.T) {
 			name: "unicode_emoji",
 			code: `result = edgeCaseServer.return_unicode(type="emoji")`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok)
 				assert.Equal(t, "emoji", result["type"])
@@ -836,6 +839,7 @@ func TestCodeMode_STDIO_EdgeCaseServer_Unicode(t *testing.T) {
 			code: `r = edgeCaseServer.return_unicode(type="emoji")
 result = {"type": r["type"], "length": r["length"], "starts_with_hello": r["text"].startswith("Hello")}`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok)
 				assert.Equal(t, "emoji", result["type"])
@@ -880,6 +884,7 @@ func TestCodeMode_STDIO_EdgeCaseServer_BinaryAndEncoding(t *testing.T) {
 			name: "binary_data_base64",
 			code: `result = edgeCaseServer.return_binary(size=100, encoding="base64")`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok)
 				assert.Equal(t, "base64", result["encoding"])
@@ -891,6 +896,7 @@ func TestCodeMode_STDIO_EdgeCaseServer_BinaryAndEncoding(t *testing.T) {
 			name: "binary_data_hex",
 			code: `result = edgeCaseServer.return_binary(size=50, encoding="hex")`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok)
 				assert.Equal(t, "hex", result["encoding"])
@@ -903,6 +909,7 @@ func TestCodeMode_STDIO_EdgeCaseServer_BinaryAndEncoding(t *testing.T) {
 			code: `r = edgeCaseServer.return_binary(size=10, encoding="base64")
 result = {"size": r["size"], "encoding": r["encoding"], "data_length": len(r["data"])}`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok)
 				assert.Equal(t, float64(10), result["size"])
@@ -948,6 +955,7 @@ func TestCodeMode_STDIO_EdgeCaseServer_EmptyAndNull(t *testing.T) {
 			code: `r = edgeCaseServer.return_null()
 result = {"empty_string": r["empty_string"], "empty_array": r["empty_array"]}`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok)
 				assert.Equal(t, "", result["empty_string"])
@@ -961,6 +969,7 @@ result = {"empty_string": r["empty_string"], "empty_array": r["empty_array"]}`,
 			code: `r = edgeCaseServer.return_null()
 result = {"empty_object": r["empty_object"], "has_property": "empty_object" in r}`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok)
 				assert.Equal(t, true, result["has_property"])
@@ -971,6 +980,7 @@ result = {"empty_object": r["empty_object"], "has_property": "empty_object" in r
 			code: `r = edgeCaseServer.return_null()
 result = {"has_null": r["null_value"] == None, "zero": r["zero"], "false": r["false"]}`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok)
 				assert.Equal(t, true, result["has_null"])
@@ -984,6 +994,7 @@ result = {"has_null": r["null_value"] == None, "zero": r["zero"], "false": r["fa
 keys = list(r.keys())
 result = {"key_count": len(keys), "has_empty_string": "empty_string" in r}`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok)
 				assert.Greater(t, result["key_count"], float64(0))
@@ -1027,6 +1038,7 @@ func TestCodeMode_STDIO_EdgeCaseServer_NestedAndSpecialChars(t *testing.T) {
 			name: "nested_structure_default",
 			code: `result = edgeCaseServer.return_nested_structure(depth=5)`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok)
 				assert.Equal(t, float64(5), result["depth"])
@@ -1040,6 +1052,7 @@ func TestCodeMode_STDIO_EdgeCaseServer_NestedAndSpecialChars(t *testing.T) {
 			name: "nested_structure_deeper",
 			code: `result = edgeCaseServer.return_nested_structure(depth=10)`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok)
 				assert.Equal(t, float64(10), result["depth"])
@@ -1050,6 +1063,7 @@ func TestCodeMode_STDIO_EdgeCaseServer_NestedAndSpecialChars(t *testing.T) {
 			code: `r = edgeCaseServer.return_special_chars()
 result = {"has_quotes": "quotes" in r, "has_backslashes": "backslashes" in r}`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok)
 				assert.Equal(t, true, result["has_quotes"])
@@ -1061,6 +1075,7 @@ result = {"has_quotes": "quotes" in r, "has_backslashes": "backslashes" in r}`,
 			code: `r = edgeCaseServer.return_special_chars()
 result = {"has_newlines": "newlines" in r, "has_tabs": "tabs" in r}`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok)
 				assert.Equal(t, true, result["has_newlines"])
@@ -1073,6 +1088,7 @@ result = {"has_newlines": "newlines" in r, "has_tabs": "tabs" in r}`,
 keys = list(r.keys())
 result = {"count": len(keys), "has_mixed": "mixed" in r}`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok)
 				assert.Greater(t, result["count"], float64(5))
@@ -1117,6 +1133,7 @@ func TestCodeMode_STDIO_EdgeCaseServer_ExtremeSizes(t *testing.T) {
 			code: `r = edgeCaseServer.return_large_payload(size_kb=1)
 result = {"item_count": r["item_count"], "requested_size_kb": r["requested_size_kb"]}`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok)
 				assert.Equal(t, float64(1), result["requested_size_kb"])
@@ -1128,6 +1145,7 @@ result = {"item_count": r["item_count"], "requested_size_kb": r["requested_size_
 			code: `r = edgeCaseServer.return_large_payload(size_kb=10)
 result = {"item_count": r["item_count"], "requested_size_kb": r["requested_size_kb"]}`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok)
 				assert.Equal(t, float64(10), result["requested_size_kb"])
@@ -1143,6 +1161,7 @@ result = {
     "has_items": "items" in r
 }`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok)
 				assert.Equal(t, float64(100), result["requested_size_kb"])
@@ -1192,6 +1211,7 @@ func TestCodeMode_STDIO_ErrorTestServer_NetworkErrors(t *testing.T) {
 			code: `r = errorTestServer.return_error(error_type="network")
 result = {"error_message": r}`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok)
 				assert.Contains(t, result["error_message"], "Network")
@@ -1202,6 +1222,7 @@ result = {"error_message": r}`,
 			code: `r = errorTestServer.return_error(error_type="timeout")
 result = {"error_message": r}`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok)
 				assert.Contains(t, result["error_message"], "Timeout")
@@ -1212,6 +1233,7 @@ result = {"error_message": r}`,
 			code: `r = errorTestServer.return_error(error_type="validation")
 result = {"error_message": r}`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok)
 				assert.Contains(t, result["error_message"], "Validation")
@@ -1222,6 +1244,7 @@ result = {"error_message": r}`,
 			code: `r = errorTestServer.return_error(error_type="permission")
 result = {"error_message": r}`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok)
 				assert.Contains(t, result["error_message"], "Permission")
@@ -1264,6 +1287,7 @@ func TestCodeMode_STDIO_ErrorTestServer_MalformedAndPartial(t *testing.T) {
 			name: "return_malformed_json",
 			code: `result = errorTestServer.return_malformed_json()`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				// return_malformed_json returns invalid JSON which should be handled
 				result := execResult["result"]
 				assert.NotNil(t, result)
@@ -1273,6 +1297,7 @@ func TestCodeMode_STDIO_ErrorTestServer_MalformedAndPartial(t *testing.T) {
 			name: "return_error",
 			code: `result = errorTestServer.timeout_after(seconds=0.05)`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				// Use timeout_after instead of return_error since return_error throws
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok)
@@ -1283,6 +1308,7 @@ func TestCodeMode_STDIO_ErrorTestServer_MalformedAndPartial(t *testing.T) {
 			name: "timeout_after_short",
 			code: `result = errorTestServer.timeout_after(seconds=0.1)`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok)
 				assert.Equal(t, float64(0.1), result["delayed_seconds"])
@@ -1292,6 +1318,7 @@ func TestCodeMode_STDIO_ErrorTestServer_MalformedAndPartial(t *testing.T) {
 			name: "intermittent_fail_low_rate",
 			code: `result = errorTestServer.intermittent_fail(fail_rate=0.1)`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				// Either success or error
 				result := execResult["result"]
 				assert.NotNil(t, result)
@@ -1302,6 +1329,7 @@ func TestCodeMode_STDIO_ErrorTestServer_MalformedAndPartial(t *testing.T) {
 			code: `r = errorTestServer.memory_intensive(size_mb=1)
 result = {"allocated_mb": r["allocated_mb"], "has_checksum": "checksum" in r}`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok)
 				assert.Equal(t, float64(1), result["allocated_mb"])
@@ -1350,6 +1378,7 @@ result = {
     "has_checksum": "checksum" in r
 }`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok)
 				assert.Equal(t, float64(5), result["allocated_mb"])
@@ -1366,6 +1395,7 @@ result = {
     "has_message": "message" in r
 }`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok)
 				assert.Equal(t, float64(10), result["allocated_mb"])
@@ -1410,6 +1440,7 @@ func TestCodeMode_STDIO_ErrorTestServer_IntermittentAndHandling(t *testing.T) {
 			name: "intermittent_fail_low_rate",
 			code: `result = errorTestServer.intermittent_fail(id="test-1", fail_rate=0.1)`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok)
 				// Either success or error
@@ -1424,6 +1455,7 @@ func TestCodeMode_STDIO_ErrorTestServer_IntermittentAndHandling(t *testing.T) {
 			name: "intermittent_fail_high_rate",
 			code: `result = errorTestServer.intermittent_fail(id="test-2", fail_rate=0.9)`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok)
 				// Most likely error
@@ -1434,6 +1466,7 @@ func TestCodeMode_STDIO_ErrorTestServer_IntermittentAndHandling(t *testing.T) {
 			name: "error_handling_in_code",
 			code: `result = errorTestServer.return_error(error_type="network")`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				// Either error message or error response
 				result := execResult["result"]
 				assert.NotNil(t, result)
@@ -1480,6 +1513,7 @@ func TestCodeMode_STDIO_ParallelTestServer_Sequential(t *testing.T) {
 			name: "fast_tool_1",
 			code: `result = parallelTestServer.fast_operation()`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok)
 				assert.Equal(t, "fast", result["operation"])
@@ -1490,6 +1524,7 @@ func TestCodeMode_STDIO_ParallelTestServer_Sequential(t *testing.T) {
 			name: "medium_tool_1",
 			code: `result = parallelTestServer.medium_operation()`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok)
 				assert.Equal(t, "medium", result["operation"])
@@ -1500,6 +1535,7 @@ func TestCodeMode_STDIO_ParallelTestServer_Sequential(t *testing.T) {
 			name: "slow_tool_1",
 			code: `result = parallelTestServer.slow_operation()`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok)
 				assert.Equal(t, "slow", result["operation"])
@@ -1510,6 +1546,7 @@ func TestCodeMode_STDIO_ParallelTestServer_Sequential(t *testing.T) {
 			name: "variable_delay",
 			code: `result = parallelTestServer.very_slow_operation()`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok)
 				assert.Equal(t, "very_slow", result["operation"])
@@ -1555,6 +1592,7 @@ func TestCodeMode_STDIO_ParallelTestServer_Concurrent(t *testing.T) {
 r2 = parallelTestServer.return_timestamp()
 result = {"results": [r1, r2], "count": 2}`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok)
 				results, ok := result["results"].([]interface{})
@@ -1569,6 +1607,7 @@ r2 = parallelTestServer.medium_operation()
 r3 = parallelTestServer.slow_operation()
 result = {"results": [r1, r2, r3], "count": 3}`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok)
 				assert.Equal(t, float64(3), result["count"])
@@ -1587,6 +1626,7 @@ def get_op(r):
     return "timestamp"
 result = {"count": 5, "operations": [get_op(r1), get_op(r2), get_op(r3), get_op(r4), get_op(r5)]}`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok)
 				assert.Equal(t, float64(5), result["count"])
@@ -1646,6 +1686,7 @@ result = {
     "parallelTest": r4
 }`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok)
 				assert.Equal(t, float64(4), result["count"])
@@ -1674,6 +1715,7 @@ unicode = edgeCaseServer.return_unicode(type="emoji")
 fast = parallelTestServer.fast_operation()
 result = {"transform": transform, "unicode": unicode, "fast": fast}`,
 			verifyResult: func(t *testing.T, execResult map[string]interface{}) {
+				t.Helper()
 				result, ok := execResult["result"].(map[string]interface{})
 				require.True(t, ok)
 				assert.NotNil(t, result["transform"])

@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -68,7 +69,7 @@ func reconcileOneSkill(ctx context.Context, store configstore.ConfigStore, entry
 
 	// Check if skill already exists
 	existing, err := store.GetSkillByName(ctx, entry.Name)
-	if err != nil && err != configstore.ErrNotFound {
+	if err != nil && !errors.Is(err, configstore.ErrNotFound) {
 		return fmt.Errorf("failed to look up existing skill: %w", err)
 	}
 
@@ -206,7 +207,7 @@ func inferConfigLiveURLMimeType(ctx context.Context, rawURL string) (string, err
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		return "", fmt.Errorf("HEAD returned status %d", resp.StatusCode)
 	}

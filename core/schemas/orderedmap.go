@@ -738,7 +738,7 @@ func decodeOrderedValue(dec *json.Decoder) (interface{}, error) {
 	case json.Number:
 		f, err := v.Float64()
 		if err != nil {
-			return v.String(), nil
+			return v.String(), nil //nolint:nilerr // Values outside float64 range are preserved losslessly as strings.
 		}
 		return f, nil
 	default:

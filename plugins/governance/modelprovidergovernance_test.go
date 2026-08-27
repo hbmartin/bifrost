@@ -2066,7 +2066,7 @@ func TestPostHook_TracksVirtualKeyUsageWhenUserIDPresent(t *testing.T) {
 
 	plugin, err := InitFromStore(context.Background(), &Config{IsVkMandatory: boolPtr(false)}, logger, store, nil, nil, nil, nil)
 	require.NoError(t, err)
-	defer plugin.Cleanup()
+	defer requirePluginCleanup(t, plugin)
 
 	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	ctx.SetValue(schemas.BifrostContextKeyVirtualKey, "sk-bf-test")
@@ -2111,7 +2111,7 @@ func TestPostHook_SkipVirtualKeyUsageTrackingFlag(t *testing.T) {
 
 	plugin, err := InitFromStore(context.Background(), &Config{IsVkMandatory: boolPtr(false)}, logger, store, nil, nil, nil, nil)
 	require.NoError(t, err)
-	defer plugin.Cleanup()
+	defer requirePluginCleanup(t, plugin)
 
 	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	ctx.SetValue(schemas.BifrostContextKeyVirtualKey, "sk-bf-test")
@@ -2158,7 +2158,7 @@ func TestPostMCPHook_TracksVirtualKeyUsageWhenUserIDPresent(t *testing.T) {
 
 	plugin, err := InitFromStore(context.Background(), &Config{IsVkMandatory: boolPtr(false)}, logger, store, nil, nil, nil, nil)
 	require.NoError(t, err)
-	defer plugin.Cleanup()
+	defer requirePluginCleanup(t, plugin)
 
 	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	ctx.SetValue(schemas.BifrostContextKeyVirtualKey, "sk-bf-test")
@@ -2195,7 +2195,7 @@ func TestPostMCPHook_SkipVirtualKeyUsageTrackingFlag(t *testing.T) {
 
 	plugin, err := InitFromStore(context.Background(), &Config{IsVkMandatory: boolPtr(false)}, logger, store, nil, nil, nil, nil)
 	require.NoError(t, err)
-	defer plugin.Cleanup()
+	defer requirePluginCleanup(t, plugin)
 
 	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	ctx.SetValue(schemas.BifrostContextKeyVirtualKey, "sk-bf-test")

@@ -846,7 +846,11 @@ func (h *ConfigHandler) updateConfig(ctx *fasthttp.RequestCtx) {
 			return
 		}
 		// Reloading pricing manager
-		h.configManager.UpdateSyncConfig(ctx)
+		if err := h.configManager.UpdateSyncConfig(ctx); err != nil {
+			logger.Warn("failed to reload model catalog sync configuration: %v", err)
+			SendError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("failed to reload model catalog sync configuration: %v", err))
+			return
+		}
 	}
 	// Checking auth config and trying to update if required
 	if payload.AuthConfig != nil {
@@ -1268,7 +1272,7 @@ func checkURLAccessibility(rawURL string) error {
 	}
 	defer func() {
 		_, _ = io.Copy(io.Discard, resp.Body)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	}()
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("HTTP %d", resp.StatusCode)

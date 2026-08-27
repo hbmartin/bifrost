@@ -1,6 +1,7 @@
 package bedrock
 
 import (
+	"context"
 	"net/url"
 	"testing"
 
@@ -110,7 +111,7 @@ func TestResolveBedrockRegion_AliasOverride(t *testing.T) {
 	}
 
 	// Build ctx carrying an alias with Region override.
-	ctx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	ctx.SetValue(schemas.BifrostContextKeyResolvedAlias, &schemas.ResolvedAlias{
 		Key: "best-claude",
 		Config: &schemas.AliasConfig{
@@ -130,7 +131,7 @@ func TestResolveBedrockRegion_AliasOverride(t *testing.T) {
 	}
 
 	// No alias in ctx — falls through to key.Region.
-	emptyCtx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	emptyCtx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	if got := resolveBedrockRegion(emptyCtx, key, "anthropic.claude-v2"); got != keyRegion {
 		t.Errorf("no alias: should use key.Region: got %q, want %q", got, keyRegion)
 	}
@@ -153,7 +154,7 @@ func TestResolveBedrockARN_AliasOverride(t *testing.T) {
 	}
 
 	// Alias with InferenceProfileARN override wins.
-	ctx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	ctx.SetValue(schemas.BifrostContextKeyResolvedAlias, &schemas.ResolvedAlias{
 		Key: "best-claude",
 		Config: &schemas.AliasConfig{
@@ -168,7 +169,7 @@ func TestResolveBedrockARN_AliasOverride(t *testing.T) {
 	}
 
 	// Empty alias ARN — falls through to key.ARN.
-	ctx2 := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx2 := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	ctx2.SetValue(schemas.BifrostContextKeyResolvedAlias, &schemas.ResolvedAlias{
 		Key: "x",
 		Config: &schemas.AliasConfig{

@@ -14,7 +14,7 @@ import (
 const (
 	PineconeTestTimeout          = 30 * time.Second
 	PineconeTestNamespace        = "bifrost-test-namespace"
-	PineconeTestDimension        = 1536 // Matches text-embedding-3-small dimension
+	PineconeTestDimension        = 1536             // Matches text-embedding-3-small dimension
 	PineconeTestDefaultAPIKey    = "pclocal"        // Pinecone Local doesn't validate API keys
 	PineconeTestDefaultIndexHost = "localhost:5081" // Pinecone Local default port
 )
@@ -28,6 +28,7 @@ type PineconeTestSetup struct {
 }
 
 func NewPineconeTestSetup(t *testing.T) *PineconeTestSetup {
+	t.Helper()
 	apiKey := schemas.NewSecretVar(getEnvWithDefault("PINECONE_API_KEY", PineconeTestDefaultAPIKey))
 	indexHost := schemas.NewSecretVar(getEnvWithDefault("PINECONE_INDEX_HOST", PineconeTestDefaultIndexHost))
 
@@ -57,6 +58,7 @@ func NewPineconeTestSetup(t *testing.T) *PineconeTestSetup {
 }
 
 func (ts *PineconeTestSetup) Cleanup(t *testing.T) {
+	t.Helper()
 	defer ts.cancel()
 
 	if !testing.Short() {
@@ -69,6 +71,7 @@ func (ts *PineconeTestSetup) Cleanup(t *testing.T) {
 }
 
 func (ts *PineconeTestSetup) cleanupTestData(t *testing.T) {
+	t.Helper()
 	// Delete all vectors in the test namespace
 	err := ts.Store.DeleteNamespace(ts.ctx, PineconeTestNamespace)
 	if err != nil {
@@ -603,7 +606,7 @@ func TestVectorStoreFactory_Pinecone(t *testing.T) {
 	if err != nil {
 		t.Skipf("Could not create Pinecone store: %v", err)
 	}
-	defer store.Close(context.Background(), PineconeTestNamespace)
+	defer func() { _ = store.Close(context.Background(), PineconeTestNamespace) }()
 
 	pineconeStore, ok := store.(*PineconeStore)
 	assert.True(t, ok)

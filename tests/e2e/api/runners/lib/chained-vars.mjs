@@ -60,7 +60,7 @@ export function templateSourcesOf(item) {
   if (typeof url === "string") return [rawBodyOf(item), url];
   const query = (url?.query || []).flatMap((q) => [q?.key, q?.value]);
   return [rawBodyOf(item), url?.raw, ...(url?.host || []), ...(url?.path || []), ...query].filter(
-    (s) => typeof s === "string"
+    (s) => typeof s === "string",
   );
 }
 
@@ -129,7 +129,9 @@ const GUARD_MARKER = "// [chained-var-guard]";
 function guardScript(deps, itemName) {
   const vars = JSON.stringify(deps.map((d) => d.variable));
   const producers = JSON.stringify(deps.map((d) => `${d.variable} <- "${d.producer}"`).join("; "));
-  const label = JSON.stringify(`${itemName}: skipped - prerequisite request did not set its chained variable`);
+  const label = JSON.stringify(
+    `${itemName}: skipped - prerequisite request did not set its chained variable`,
+  );
   return [
     GUARD_MARKER,
     `var __cbgMissing = ${vars}.filter(function (name) {`,
@@ -165,15 +167,25 @@ export function injectChainedVarGuards(collection) {
     // the guard must run before whatever setup the item already does, and a skipped request
     // should not have run that setup at all.
     const events = (item.event || []).filter(
-      (e) => !(e.listen === "prerequest" && (e.script?.exec || []).some((l) => l.includes(GUARD_MARKER)))
+      (e) =>
+        !(
+          e.listen === "prerequest" && (e.script?.exec || []).some((l) => l.includes(GUARD_MARKER))
+        ),
     );
     const existing = events.find((e) => e.listen === "prerequest");
     const lines = guardScript(deps, item.name);
     if (existing) {
-      existing.script = { ...existing.script, type: existing.script?.type || "text/javascript", exec: [...lines, ...(existing.script?.exec || [])] };
+      existing.script = {
+        ...existing.script,
+        type: existing.script?.type || "text/javascript",
+        exec: [...lines, ...(existing.script?.exec || [])],
+      };
       item.event = events;
     } else {
-      item.event = [{ listen: "prerequest", script: { type: "text/javascript", exec: lines } }, ...events];
+      item.event = [
+        { listen: "prerequest", script: { type: "text/javascript", exec: lines } },
+        ...events,
+      ];
     }
     guarded += 1;
   }

@@ -1,6 +1,7 @@
 package bedrock
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -20,7 +21,7 @@ func booleanSchemaTextConfig(schema *schemas.JSONSchemaOrBool) *schemas.Response
 }
 
 func TestConvertTextFormatToTool_BooleanSchemaTrue(t *testing.T) {
-	ctx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 
 	tool, _, err := convertTextFormatToTool(ctx, "anthropic.claude-sonnet-4-20250514-v1:0", booleanSchemaTextConfig(&schemas.JSONSchemaOrBool{SchemaBool: schemas.Ptr(true)}))
 	if err != nil {
@@ -35,7 +36,7 @@ func TestConvertTextFormatToTool_BooleanSchemaTrue(t *testing.T) {
 }
 
 func TestConvertTextFormatToTool_BooleanSchemaFalse(t *testing.T) {
-	ctx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 
 	tool, _, err := convertTextFormatToTool(ctx, "anthropic.claude-sonnet-4-20250514-v1:0", booleanSchemaTextConfig(&schemas.JSONSchemaOrBool{SchemaBool: schemas.Ptr(false)}))
 	if !errors.Is(err, schemas.ErrUnsatisfiableSchema) {

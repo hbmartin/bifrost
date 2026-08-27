@@ -1,5 +1,18 @@
 version: 2
 updates:
+  # Static-analysis dependencies are updated independently from product deps.
+  - package-ecosystem: npm
+    directory: /tools/static
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: pip
+    directory: /tests/integrations/python
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
   - package-ecosystem: "docker"
     directory: "/transports"
     schedule:

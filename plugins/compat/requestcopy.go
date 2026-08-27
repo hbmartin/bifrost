@@ -321,18 +321,6 @@ func cloneAnyMap(input map[string]any) map[string]any {
 	return cloned
 }
 
-func cloneAnyMapSlice(input []map[string]any) []map[string]any {
-	if input == nil {
-		return nil
-	}
-
-	cloned := make([]map[string]any, len(input))
-	for i, value := range input {
-		cloned[i] = cloneAnyMap(value)
-	}
-	return cloned
-}
-
 func cloneAnySlice(input []any) []any {
 	if input == nil {
 		return nil

@@ -72,9 +72,7 @@ def result_pairs(response):
 class TestCohereRerank:
     """Rerank via the Cohere SDK through Bifrost."""
 
-    @pytest.mark.parametrize(
-        "provider,model", get_cross_provider_params_for_scenario("rerank")
-    )
+    @pytest.mark.parametrize("provider,model", get_cross_provider_params_for_scenario("rerank"))
     def test_01_rerank_string_documents(self, cohere_client, provider, model):
         """Plain string documents - the form every rerank SDK sends."""
         skip_if_no_api_key(provider)
@@ -89,9 +87,7 @@ class TestCohereRerank:
         assert response.results, f"no results from {format_provider_model(provider, model)}"
         assert_valid_rerank_results(result_pairs(response))
 
-    @pytest.mark.parametrize(
-        "provider,model", get_cross_provider_params_for_scenario("rerank")
-    )
+    @pytest.mark.parametrize("provider,model", get_cross_provider_params_for_scenario("rerank"))
     def test_02_rerank_object_documents(self, cohere_client, provider, model):
         """Object documents: Cohere ranks only `text`, other keys ride along.
 
@@ -116,9 +112,7 @@ class TestCohereRerank:
                 f"got {result.document!r}, sent {documents[result.index]!r}"
             )
 
-    @pytest.mark.parametrize(
-        "provider,model", get_cross_provider_params_for_scenario("rerank")
-    )
+    @pytest.mark.parametrize("provider,model", get_cross_provider_params_for_scenario("rerank"))
     def test_03_rerank_top_n(self, cohere_client, provider, model):
         """top_n truncates the ranking without disturbing the ordering."""
         skip_if_no_api_key(provider)

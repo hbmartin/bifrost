@@ -63,7 +63,7 @@ export function ApiStructureFormFragment({ provider }: Props) {
 
 	useEffect(() => {
 		dispatch(setProviderFormDirtyState(form.formState.isDirty));
-	}, [form.formState.isDirty]);
+	}, [dispatch, form.formState.isDirty]);
 
 	useEffect(() => {
 		form.reset(provider.custom_provider_config);

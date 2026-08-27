@@ -73,14 +73,14 @@ func TestParseTranscriptionFormDataBodyFromRequest_OrdersMetadataBeforeFile(t *t
 	t.Parallel()
 
 	req := &MistralTranscriptionRequest{
-		Model:          "voxtral-mini-latest",
-		File:           createMinimalAudioFile(),
-		Filename:       "sample.wav",
-		Stream:         schemas.Ptr(true),
-		Language:       schemas.Ptr("en"),
-		Prompt:         schemas.Ptr("hello"),
-		ResponseFormat: schemas.Ptr("json"),
-		Temperature:    schemas.Ptr(0.2),
+		Model:                  "voxtral-mini-latest",
+		File:                   createMinimalAudioFile(),
+		Filename:               "sample.wav",
+		Stream:                 schemas.Ptr(true),
+		Language:               schemas.Ptr("en"),
+		Prompt:                 schemas.Ptr("hello"),
+		ResponseFormat:         schemas.Ptr("json"),
+		Temperature:            schemas.Ptr(0.2),
 		TimestampGranularities: []string{"word", "segment"},
 	}
 
@@ -507,6 +507,7 @@ func TestTranscriptionWithMockServer(t *testing.T) {
 			},
 			statusCode: http.StatusOK,
 			validateResult: func(t *testing.T, resp *schemas.BifrostTranscriptionResponse) {
+				t.Helper()
 				assert.Equal(t, "Hello, this is a test transcription.", resp.Text)
 				require.NotNil(t, resp.Duration)
 				assert.Equal(t, 3.5, *resp.Duration)
@@ -528,6 +529,7 @@ func TestTranscriptionWithMockServer(t *testing.T) {
 			},
 			statusCode: http.StatusOK,
 			validateResult: func(t *testing.T, resp *schemas.BifrostTranscriptionResponse) {
+				t.Helper()
 				assert.Equal(t, "Hello world", resp.Text)
 				require.Len(t, resp.Segments, 2)
 				assert.Equal(t, "Hello", resp.Segments[0].Text)
@@ -545,6 +547,7 @@ func TestTranscriptionWithMockServer(t *testing.T) {
 			},
 			statusCode: http.StatusOK,
 			validateResult: func(t *testing.T, resp *schemas.BifrostTranscriptionResponse) {
+				t.Helper()
 				assert.Equal(t, "Hello world", resp.Text)
 				require.Len(t, resp.Words, 2)
 				assert.Equal(t, "Hello", resp.Words[0].Word)
@@ -585,7 +588,7 @@ func TestTranscriptionWithMockServer(t *testing.T) {
 				// Send response
 				w.WriteHeader(tt.statusCode)
 				responseJSON, _ := sonic.Marshal(tt.responseBody)
-				w.Write(responseJSON)
+				_, _ = w.Write(responseJSON)
 			}))
 			defer server.Close()
 
@@ -697,6 +700,7 @@ func TestTranscriptionStreamWithMockServer(t *testing.T) {
 				"event: transcription.done\ndata: {\"model\": \"voxtral-mini-latest\", \"usage\": {\"prompt_audio_seconds\": 5, \"prompt_tokens\": 10, \"total_tokens\": 100, \"completion_tokens\": 90}}\n",
 			},
 			validateResult: func(t *testing.T, responses []*schemas.BifrostTranscriptionStreamResponse) {
+				t.Helper()
 				require.GreaterOrEqual(t, len(responses), 3, "Expected at least 3 responses")
 
 				// Check for delta events
@@ -732,6 +736,7 @@ func TestTranscriptionStreamWithMockServer(t *testing.T) {
 				"event: transcription.done\ndata: {\"model\": \"voxtral-mini-latest\", \"usage\": {\"prompt_audio_seconds\": 3}}\n",
 			},
 			validateResult: func(t *testing.T, responses []*schemas.BifrostTranscriptionStreamResponse) {
+				t.Helper()
 				require.GreaterOrEqual(t, len(responses), 2, "Expected at least 2 responses")
 
 				// Check segment content
@@ -773,11 +778,13 @@ func TestTranscriptionStreamWithMockServer(t *testing.T) {
 
 				// Send SSE events
 				flusher, ok := w.(http.Flusher)
-				require.True(t, ok, "ResponseWriter must support Flusher")
+				if !assert.True(t, ok, "ResponseWriter must support Flusher") {
+					return
+				}
 
 				for _, event := range tt.streamEvents {
-					w.Write([]byte(event))
-					w.Write([]byte("\n"))
+					_, _ = w.Write([]byte(event))
+					_, _ = w.Write([]byte("\n"))
 					flusher.Flush()
 				}
 			}))
@@ -1125,6 +1132,7 @@ func TestTranscriptionStreamEdgeCases(t *testing.T) {
 			},
 			statusCode: http.StatusOK,
 			validateResult: func(t *testing.T, responses []*schemas.BifrostTranscriptionStreamResponse, err *schemas.BifrostError) {
+				t.Helper()
 				require.Nil(t, err)
 				require.GreaterOrEqual(t, len(responses), 1)
 				// Should handle empty text gracefully
@@ -1145,6 +1153,7 @@ func TestTranscriptionStreamEdgeCases(t *testing.T) {
 			},
 			statusCode: http.StatusOK,
 			validateResult: func(t *testing.T, responses []*schemas.BifrostTranscriptionStreamResponse, err *schemas.BifrostError) {
+				t.Helper()
 				require.Nil(t, err)
 				require.GreaterOrEqual(t, len(responses), 1)
 				// Should handle missing usage gracefully
@@ -1170,6 +1179,7 @@ func TestTranscriptionStreamEdgeCases(t *testing.T) {
 			},
 			statusCode: http.StatusOK,
 			validateResult: func(t *testing.T, responses []*schemas.BifrostTranscriptionStreamResponse, err *schemas.BifrostError) {
+				t.Helper()
 				require.Nil(t, err)
 				require.GreaterOrEqual(t, len(responses), 4, "Expected at least 4 responses")
 
@@ -1191,6 +1201,7 @@ func TestTranscriptionStreamEdgeCases(t *testing.T) {
 			},
 			statusCode: http.StatusOK,
 			validateResult: func(t *testing.T, responses []*schemas.BifrostTranscriptionStreamResponse, err *schemas.BifrostError) {
+				t.Helper()
 				require.Nil(t, err)
 				require.GreaterOrEqual(t, len(responses), 1)
 			},
@@ -1201,6 +1212,7 @@ func TestTranscriptionStreamEdgeCases(t *testing.T) {
 			statusCode:   http.StatusUnauthorized,
 			expectError:  true,
 			validateResult: func(t *testing.T, responses []*schemas.BifrostTranscriptionStreamResponse, err *schemas.BifrostError) {
+				t.Helper()
 				require.NotNil(t, err)
 				assert.Nil(t, responses)
 			},
@@ -1211,6 +1223,7 @@ func TestTranscriptionStreamEdgeCases(t *testing.T) {
 			statusCode:   http.StatusInternalServerError,
 			expectError:  true,
 			validateResult: func(t *testing.T, responses []*schemas.BifrostTranscriptionStreamResponse, err *schemas.BifrostError) {
+				t.Helper()
 				require.NotNil(t, err)
 				assert.Nil(t, responses)
 			},
@@ -1223,6 +1236,7 @@ func TestTranscriptionStreamEdgeCases(t *testing.T) {
 			},
 			statusCode: http.StatusOK,
 			validateResult: func(t *testing.T, responses []*schemas.BifrostTranscriptionStreamResponse, err *schemas.BifrostError) {
+				t.Helper()
 				require.Nil(t, err)
 				require.GreaterOrEqual(t, len(responses), 2)
 
@@ -1248,7 +1262,7 @@ func TestTranscriptionStreamEdgeCases(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if tt.statusCode != http.StatusOK {
 					w.WriteHeader(tt.statusCode)
-					w.Write([]byte(`{"error": {"message": "Test error", "type": "test_error"}}`))
+					_, _ = w.Write([]byte(`{"error": {"message": "Test error", "type": "test_error"}}`))
 					return
 				}
 
@@ -1258,11 +1272,13 @@ func TestTranscriptionStreamEdgeCases(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 
 				flusher, ok := w.(http.Flusher)
-				require.True(t, ok)
+				if !assert.True(t, ok) {
+					return
+				}
 
 				for _, event := range tt.streamEvents {
-					w.Write([]byte(event))
-					w.Write([]byte("\n"))
+					_, _ = w.Write([]byte(event))
+					_, _ = w.Write([]byte("\n"))
 					flusher.Flush()
 				}
 			}))
@@ -1324,17 +1340,19 @@ func TestTranscriptionStreamContextCancellation(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 
 		flusher, ok := w.(http.Flusher)
-		require.True(t, ok)
+		if !assert.True(t, ok) {
+			return
+		}
 
 		// Send initial event
-		w.Write([]byte("event: transcription.text.delta\ndata: {\"text\": \"Starting...\"}\n\n"))
+		_, _ = w.Write([]byte("event: transcription.text.delta\ndata: {\"text\": \"Starting...\"}\n\n"))
 		flusher.Flush()
 
 		// Wait longer than the context timeout
 		time.Sleep(5 * time.Second)
 
 		// This should not be received
-		w.Write([]byte("event: transcription.done\ndata: {}\n\n"))
+		_, _ = w.Write([]byte("event: transcription.done\ndata: {}\n\n"))
 		flusher.Flush()
 	}))
 	defer server.Close()

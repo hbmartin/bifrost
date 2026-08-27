@@ -22,19 +22,34 @@ import {
 
 describe("budget overrides", () => {
 	it("adds active finite and permanent overrides to the base limit", () => {
-		expect(getEffectiveBudgetLimit({ max_limit: 100, override_amount: 25, override_mode: "cycles", override_cycles_remaining: 2 })).toBe(
-			125,
-		);
+		expect(
+			getEffectiveBudgetLimit({
+				max_limit: 100,
+				override_amount: 25,
+				override_mode: "cycles",
+				override_cycles_remaining: 2,
+			}),
+		).toBe(125);
 		expect(getEffectiveBudgetLimit({ max_limit: 100, override_amount: 50, override_mode: "forever" })).toBe(150);
 	});
 
 	it("ignores incomplete or expired override state", () => {
-		expect(hasActiveBudgetOverride({ max_limit: 100, override_amount: 25, override_mode: "cycles", override_cycles_remaining: 0 })).toBe(
-			false,
-		);
-		expect(getEffectiveBudgetLimit({ max_limit: 100, override_amount: 25, override_mode: "cycles", override_cycles_remaining: 0 })).toBe(
-			100,
-		);
+		expect(
+			hasActiveBudgetOverride({
+				max_limit: 100,
+				override_amount: 25,
+				override_mode: "cycles",
+				override_cycles_remaining: 0,
+			}),
+		).toBe(false);
+		expect(
+			getEffectiveBudgetLimit({
+				max_limit: 100,
+				override_amount: 25,
+				override_mode: "cycles",
+				override_cycles_remaining: 0,
+			}),
+		).toBe(100);
 	});
 
 	it("validates positive amounts and whole finite cycle counts", () => {
@@ -215,17 +230,36 @@ describe("budgetSignature", () => {
 
 	it("ignores the quarter start for non-quarterly durations", () => {
 		const monthly = (quarterStartMonth: number) => [
-			{ id: "b-1", max_limit: 500, reset_duration: "1M", reset_config: { quarter_start_month: quarterStartMonth } },
+			{
+				id: "b-1",
+				max_limit: 500,
+				reset_duration: "1M",
+				reset_config: { quarter_start_month: quarterStartMonth },
+			},
 		];
 		expect(budgetSignature(monthly(4))).toBe(budgetSignature(monthly(7)));
 	});
 
 	it("still tracks limit and duration edits", () => {
 		expect(budgetSignature(quarterly(4))).not.toBe(
-			budgetSignature([{ id: "b-1", max_limit: 900, reset_duration: "1Q", reset_config: { quarter_start_month: 4 } }]),
+			budgetSignature([
+				{
+					id: "b-1",
+					max_limit: 900,
+					reset_duration: "1Q",
+					reset_config: { quarter_start_month: 4 },
+				},
+			]),
 		);
 		expect(budgetSignature(quarterly(4))).not.toBe(
-			budgetSignature([{ id: "b-1", max_limit: 500, reset_duration: "1M", reset_config: { quarter_start_month: 4 } }]),
+			budgetSignature([
+				{
+					id: "b-1",
+					max_limit: 500,
+					reset_duration: "1M",
+					reset_config: { quarter_start_month: 4 },
+				},
+			]),
 		);
 	});
 

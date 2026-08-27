@@ -12,6 +12,7 @@ import (
 
 // RunChatAudioTest executes the chat audio test scenario
 func RunChatAudioTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.ChatAudio || testConfig.ChatAudioModel == "" {
 		t.Logf("Chat audio not supported for provider %s", testConfig.Provider)
 		return
@@ -151,6 +152,7 @@ func RunChatAudioTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context
 
 // RunChatAudioStreamTest executes the chat audio streaming test scenario
 func RunChatAudioStreamTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.ChatAudio || testConfig.ChatAudioModel == "" {
 		t.Logf("Chat audio streaming not supported for provider %s", testConfig.Provider)
 		return

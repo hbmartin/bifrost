@@ -1,7 +1,6 @@
-import { useId } from "react";
+import React, { useId } from "react";
 import { Parameter } from "./types";
 import { cn } from "@/lib/utils";
-import ParameterFieldView from "./paramFieldView";
 import { Switch } from "@/components/ui/switch";
 import FieldLabel from "./fieldLabel";
 
@@ -13,6 +12,7 @@ interface Props {
 	onClear?: () => void;
 	className?: string;
 	forceHideFields?: string[];
+	renderSubField: (field: Parameter, onChange: (value: unknown) => void) => React.ReactNode;
 }
 
 export default function BooleanFieldView(props: Props) {
@@ -90,15 +90,9 @@ export default function BooleanFieldView(props: Props) {
 			{currentField?.subFields && (
 				<div className="mt-2">
 					{currentField.subFields.map((subField) => (
-						<ParameterFieldView
-							key={subField.id}
-							field={subField}
-							parentField={field}
-							config={config}
-							onChange={(fieldValue) => onSubFieldChange(subField.id, fieldValue)}
-							disabled={props.disabled && props.disabled === true}
-							forceHideFields={props.forceHideFields}
-						/>
+						<React.Fragment key={subField.id}>
+							{props.renderSubField(subField, (value) => onSubFieldChange(subField.id, value))}
+						</React.Fragment>
 					))}
 				</div>
 			)}

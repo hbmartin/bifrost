@@ -1,17 +1,24 @@
 {
 	"$schema": "./node_modules/oxlint/configuration_schema.json",
-	"plugins": ["typescript", "import", "react"],
+	"plugins": ["typescript", "import", "react", "react-hooks"],
 	"env": {
 		"browser": true,
 		"es2024": true
 	},
 	"categories": {
-		"correctness": "warn"
+		"correctness": "error"
 	},
 	"rules": {
-		"import/no-cycle": ["warn", { "maxDepth": 1, "ignoreExternal": true }],
+		"import/no-cycle": ["error", { "maxDepth": 1, "ignoreExternal": true }],
 		"typescript/no-explicit-any": "warn",
-		"typescript/ban-ts-comment": "off"
+		"typescript/ban-ts-comment": "off",
+		"no-unused-expressions": "error",
+		"no-unsafe-optional-chaining": "error",
+		"react-hooks/rules-of-hooks": "error",
+		"react-hooks/exhaustive-deps": "error"
+	},
+	"options": {
+		"reportUnusedDisableDirectives": "error"
 	},
 	"ignorePatterns": ["out/**", "node_modules/**", "*.config.*"]
 }

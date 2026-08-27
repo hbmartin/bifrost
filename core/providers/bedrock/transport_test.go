@@ -143,7 +143,7 @@ func TestMakeStreamingRequest_StaleConnection_IsRetryable(t *testing.T) {
 			return
 		}
 		conn, _, _ := hj.Hijack()
-		conn.Close() // close without writing any response
+		_ = conn.Close() // close without writing any response
 	}))
 	defer ts.Close()
 
@@ -151,7 +151,10 @@ func TestMakeStreamingRequest_StaleConnection_IsRetryable(t *testing.T) {
 	ctx := testBedrockCtx()
 	key := testBedrockKey()
 
-	_, bifrostErr := provider.makeStreamingRequest(ctx, []byte(`{}`), key, "anthropic.claude-sonnet-4-5", "converse-stream")
+	resp, bifrostErr := provider.makeStreamingRequest(ctx, []byte(`{}`), key, "anthropic.claude-sonnet-4-5", "converse-stream")
+	if resp != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
 
 	require.NotNil(t, bifrostErr, "expected error when server closes connection")
 	assert.False(t, bifrostErr.IsBifrostError,
@@ -182,7 +185,7 @@ func TestChatCompletionStream_StaleConnection_ChunkIsRetryable(t *testing.T) {
 			return
 		}
 		conn, _, _ := hj.Hijack()
-		conn.Close() // close without any EventStream bytes
+		_ = conn.Close() // close without any EventStream bytes
 	}))
 	defer ts.Close()
 
@@ -246,7 +249,7 @@ func TestChatCompletionStream_NetOpError_ChunkIsRetryable(t *testing.T) {
 		if tc, ok := conn.(*net.TCPConn); ok {
 			_ = tc.SetLinger(0)
 		}
-		conn.Close()
+		_ = conn.Close()
 	}))
 	ts.Start()
 	defer ts.Close()

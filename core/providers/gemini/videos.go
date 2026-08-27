@@ -712,9 +712,6 @@ func ToGeminiVideoGenerationResponse(response *schemas.BifrostVideoGenerationRes
 					continue
 				}
 
-				if video == nil {
-					continue
-				}
 				generatedSamples = append(generatedSamples, &GeneratedVideo{
 					Video: video,
 				})

@@ -14,6 +14,7 @@ import (
 
 // RunSpeechSynthesisTest executes the speech synthesis test scenario
 func RunSpeechSynthesisTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.SpeechSynthesis {
 		t.Logf("Speech synthesis not supported for provider %s", testConfig.Provider)
 		return
@@ -133,7 +134,7 @@ func RunSpeechSynthesisTest(t *testing.T, client *bifrost.Bifrost, ctx context.C
 
 					// Register cleanup to remove temp file
 					t.Cleanup(func() {
-						os.Remove(audioFileName)
+						_ = os.Remove(audioFileName)
 					})
 
 					t.Logf("💾 Audio saved for SST testing: %s (text: '%s')", audioFileName, tc.text)
@@ -148,6 +149,7 @@ func RunSpeechSynthesisTest(t *testing.T, client *bifrost.Bifrost, ctx context.C
 
 // RunSpeechSynthesisAdvancedTest executes advanced speech synthesis test scenarios
 func RunSpeechSynthesisAdvancedTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.SpeechSynthesis {
 		t.Logf("Speech synthesis not supported for provider %s", testConfig.Provider)
 		return
@@ -331,6 +333,7 @@ func RunSpeechSynthesisAdvancedTest(t *testing.T, client *bifrost.Bifrost, ctx c
 // validateSpeechSynthesisSpecific performs speech-specific validation
 // This is complementary to the main validation framework and focuses on speech synthesis concerns
 func validateSpeechSynthesisSpecific(t *testing.T, response *schemas.BifrostSpeechResponse, expectMinBytes int, expectedModel string) {
+	t.Helper()
 	if response == nil {
 		t.Fatal("Invalid speech synthesis response structure")
 	}

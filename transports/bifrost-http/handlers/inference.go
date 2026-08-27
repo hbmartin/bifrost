@@ -10,9 +10,7 @@ import (
 	"fmt"
 	"io"
 	"mime/multipart"
-	"net/http"
 	"net/url"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -742,8 +740,7 @@ func createRequestTypeMiddleware(requestType schemas.RequestType) schemas.Bifros
 // RegisterRequestTypeMiddleware handles exact path matching for non-parameterized routes
 func RegisterRequestTypeMiddleware(next fasthttp.RequestHandler) fasthttp.RequestHandler {
 	return func(ctx *fasthttp.RequestCtx) {
-		path := string(ctx.Path())
-		if requestType, ok := PathToTypeMapping[path]; ok {
+		if requestType, ok := PathToTypeMapping[string(ctx.Path())]; ok {
 			ctx.SetUserValue(schemas.BifrostContextKeyHTTPRequestType, requestType)
 		}
 		next(ctx)
@@ -1480,7 +1477,7 @@ func (h *CompletionHandler) speech(ctx *fasthttp.RequestCtx) {
 func prepareTranscriptionRequest(ctx *fasthttp.RequestCtx, config *lib.Config) (*schemas.BifrostTranscriptionRequest, bool, error) {
 	form, err := ctx.MultipartForm()
 	if err != nil {
-		return nil, false, fmt.Errorf("failed to parse multipart form: %v", err)
+		return nil, false, fmt.Errorf("failed to parse multipart form: %w", err)
 	}
 	modelValues := form.Value["model"]
 	if len(modelValues) == 0 || modelValues[0] == "" {
@@ -1497,12 +1494,12 @@ func prepareTranscriptionRequest(ctx *fasthttp.RequestCtx, config *lib.Config) (
 	fileHeader := fileHeaders[0]
 	file, err := fileHeader.Open()
 	if err != nil {
-		return nil, false, fmt.Errorf("failed to open uploaded file: %v", err)
+		return nil, false, fmt.Errorf("failed to open uploaded file: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	fileData, err := io.ReadAll(file)
 	if err != nil {
-		return nil, false, fmt.Errorf("failed to read uploaded file: %v", err)
+		return nil, false, fmt.Errorf("failed to read uploaded file: %w", err)
 	}
 	transcriptionInput := &schemas.TranscriptionInput{
 		File:     fileData,
@@ -2229,83 +2226,6 @@ func (h *CompletionHandler) handleStreamingResponse(ctx *fasthttp.RequestCtx, bi
 	}()
 }
 
-// validateAudioFile checks if the file size and format are valid
-func (h *CompletionHandler) validateAudioFile(fileHeader *multipart.FileHeader) error {
-	// Check file size
-	if fileHeader.Size > MaxFileSize {
-		return fmt.Errorf("file size exceeds maximum limit of %d MB", MaxFileSize/1024/1024)
-	}
-
-	// Get file extension
-	ext := strings.ToLower(filepath.Ext(fileHeader.Filename))
-
-	// Check file extension
-	validExtensions := map[string]bool{
-		".flac": true,
-		".mp3":  true,
-		".mp4":  true,
-		".mpeg": true,
-		".mpga": true,
-		".m4a":  true,
-		".ogg":  true,
-		".wav":  true,
-		".webm": true,
-	}
-
-	if !validExtensions[ext] {
-		return fmt.Errorf("unsupported file format: %s. Supported formats: flac, mp3, mp4, mpeg, mpga, m4a, ogg, wav, webm", ext)
-	}
-
-	// Open file to check MIME type
-	file, err := fileHeader.Open()
-	if err != nil {
-		return fmt.Errorf("failed to open file: %v", err)
-	}
-	defer file.Close()
-
-	// Read first 512 bytes for MIME type detection
-	buffer := make([]byte, 512)
-	_, err = file.Read(buffer)
-	if err != nil && err != io.EOF {
-		return fmt.Errorf("failed to read file header: %v", err)
-	}
-
-	// Check MIME type
-	mimeType := http.DetectContentType(buffer)
-	validMimeTypes := map[string]bool{
-		// Primary MIME types
-		AudioMimeMP3:   true, // Covers MP3, MPEG, MPGA
-		AudioMimeMP4:   true,
-		AudioMimeM4A:   true,
-		AudioMimeOGG:   true,
-		AudioMimeWAV:   true,
-		AudioMimeWEBM:  true,
-		AudioMimeFLAC:  true,
-		AudioMimeFLAC2: true,
-
-		// Alternative MIME types
-		"audio/mpeg3":       true,
-		"audio/x-wav":       true,
-		"audio/vnd.wave":    true,
-		"audio/x-mpeg":      true,
-		"audio/x-mpeg3":     true,
-		"audio/x-mpg":       true,
-		"audio/x-mpegaudio": true,
-	}
-
-	if !validMimeTypes[mimeType] {
-		return fmt.Errorf("invalid file type: %s. Supported audio formats: flac, mp3, mp4, mpeg, mpga, m4a, ogg, wav, webm", mimeType)
-	}
-
-	// Reset file pointer for subsequent reads
-	_, err = file.Seek(0, 0)
-	if err != nil {
-		return fmt.Errorf("failed to reset file pointer: %v", err)
-	}
-
-	return nil
-}
-
 // prepareImageGenerationRequest prepares a BifrostImageGenerationRequest from the HTTP request body
 func prepareImageGenerationRequest(ctx *fasthttp.RequestCtx, config *lib.Config) (*ImageGenerationHTTPRequest, *schemas.BifrostImageGenerationRequest, error) {
 	req, base, err := prepareRequest[ImageGenerationHTTPRequest](ctx, config, imageGenerationParamsKnownFields)
@@ -2407,12 +2327,12 @@ func parseImageEditMultipartForm(form *multipart.Form, req *ImageEditHTTPRequest
 	for _, fh := range imageFiles {
 		f, err := fh.Open()
 		if err != nil {
-			return fmt.Errorf("failed to open uploaded file: %v", err)
+			return fmt.Errorf("failed to open uploaded file: %w", err)
 		}
 		fileData, err := io.ReadAll(f)
-		f.Close()
+		_ = f.Close()
 		if err != nil {
-			return fmt.Errorf("failed to read uploaded file: %v", err)
+			return fmt.Errorf("failed to read uploaded file: %w", err)
 		}
 		images = append(images, schemas.ImageInput{Image: fileData})
 	}
@@ -2436,7 +2356,7 @@ func parseImageEditMultipartForm(form *multipart.Form, req *ImageEditHTTPRequest
 	if nValues := form.Value["n"]; len(nValues) > 0 && nValues[0] != "" {
 		n, err := strconv.Atoi(nValues[0])
 		if err != nil {
-			return fmt.Errorf("invalid n value: %v", err)
+			return fmt.Errorf("invalid n value: %w", err)
 		}
 		req.ImageEditParameters.N = &n
 	}
@@ -2449,7 +2369,7 @@ func parseImageEditMultipartForm(form *multipart.Form, req *ImageEditHTTPRequest
 	if partialImagesValues := form.Value["partial_images"]; len(partialImagesValues) > 0 && partialImagesValues[0] != "" {
 		partialImages, err := strconv.Atoi(partialImagesValues[0])
 		if err != nil {
-			return fmt.Errorf("invalid partial_images value: %v", err)
+			return fmt.Errorf("invalid partial_images value: %w", err)
 		}
 		req.ImageEditParameters.PartialImages = &partialImages
 	}
@@ -2465,35 +2385,35 @@ func parseImageEditMultipartForm(form *multipart.Form, req *ImageEditHTTPRequest
 	if numInferenceStepsValues := form.Value["num_inference_steps"]; len(numInferenceStepsValues) > 0 && numInferenceStepsValues[0] != "" {
 		numInferenceSteps, err := strconv.Atoi(numInferenceStepsValues[0])
 		if err != nil {
-			return fmt.Errorf("invalid num_inference_steps value: %v", err)
+			return fmt.Errorf("invalid num_inference_steps value: %w", err)
 		}
 		req.ImageEditParameters.NumInferenceSteps = &numInferenceSteps
 	}
 	if upscaleFactorValues := form.Value["upscale_factor"]; len(upscaleFactorValues) > 0 && upscaleFactorValues[0] != "" {
 		upscaleFactor, err := strconv.Atoi(upscaleFactorValues[0])
 		if err != nil {
-			return fmt.Errorf("invalid upscale_factor value: %v", err)
+			return fmt.Errorf("invalid upscale_factor value: %w", err)
 		}
 		req.ImageEditParameters.UpscaleFactor = &upscaleFactor
 	}
 	if targetMegapixelsValues := form.Value["target_megapixels"]; len(targetMegapixelsValues) > 0 && targetMegapixelsValues[0] != "" {
 		targetMegapixels, err := strconv.Atoi(targetMegapixelsValues[0])
 		if err != nil {
-			return fmt.Errorf("invalid target_megapixels value: %v", err)
+			return fmt.Errorf("invalid target_megapixels value: %w", err)
 		}
 		req.ImageEditParameters.TargetMegapixels = &targetMegapixels
 	}
 	if seedValues := form.Value["seed"]; len(seedValues) > 0 && seedValues[0] != "" {
 		seed, err := strconv.Atoi(seedValues[0])
 		if err != nil {
-			return fmt.Errorf("invalid seed value: %v", err)
+			return fmt.Errorf("invalid seed value: %w", err)
 		}
 		req.ImageEditParameters.Seed = &seed
 	}
 	if outputCompressionValues := form.Value["output_compression"]; len(outputCompressionValues) > 0 && outputCompressionValues[0] != "" {
 		outputCompression, err := strconv.Atoi(outputCompressionValues[0])
 		if err != nil {
-			return fmt.Errorf("invalid output_compression value: %v", err)
+			return fmt.Errorf("invalid output_compression value: %w", err)
 		}
 		req.ImageEditParameters.OutputCompression = &outputCompression
 	}
@@ -2510,12 +2430,12 @@ func parseImageEditMultipartForm(form *multipart.Form, req *ImageEditHTTPRequest
 		maskFile := maskFiles[0]
 		f, err := maskFile.Open()
 		if err != nil {
-			return fmt.Errorf("failed to open mask file: %v", err)
+			return fmt.Errorf("failed to open mask file: %w", err)
 		}
 		maskData, err := io.ReadAll(f)
-		f.Close()
+		_ = f.Close()
 		if err != nil {
-			return fmt.Errorf("failed to read mask file: %v", err)
+			return fmt.Errorf("failed to read mask file: %w", err)
 		}
 		req.ImageEditParameters.Mask = maskData
 	}
@@ -2541,7 +2461,7 @@ func prepareImageEditRequest(ctx *fasthttp.RequestCtx, config *lib.Config) (*Ima
 	if isMultipartRequest(ctx) {
 		form, err := ctx.MultipartForm()
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to parse multipart form: %v", err)
+			return nil, nil, fmt.Errorf("failed to parse multipart form: %w", err)
 		}
 		if err := parseImageEditMultipartForm(form, &req); err != nil {
 			return nil, nil, err
@@ -2660,7 +2580,7 @@ func prepareImageVariationRequest(ctx *fasthttp.RequestCtx, config *lib.Config) 
 	rawBody := ctx.Request.Body()
 	form, err := ctx.MultipartForm()
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse multipart form: %v", err)
+		return nil, fmt.Errorf("failed to parse multipart form: %w", err)
 	}
 	modelValues := form.Value["model"]
 	if len(modelValues) == 0 || modelValues[0] == "" {
@@ -2683,12 +2603,12 @@ func prepareImageVariationRequest(ctx *fasthttp.RequestCtx, config *lib.Config) 
 	for _, fileHeader := range imageFiles {
 		file, err := fileHeader.Open()
 		if err != nil {
-			return nil, fmt.Errorf("failed to open uploaded file: %v", err)
+			return nil, fmt.Errorf("failed to open uploaded file: %w", err)
 		}
 		fileData, err := io.ReadAll(file)
-		file.Close()
+		_ = file.Close()
 		if err != nil {
-			return nil, fmt.Errorf("failed to read uploaded file: %v", err)
+			return nil, fmt.Errorf("failed to read uploaded file: %w", err)
 		}
 		images = append(images, fileData)
 	}
@@ -2701,7 +2621,7 @@ func prepareImageVariationRequest(ctx *fasthttp.RequestCtx, config *lib.Config) 
 	if nValues := form.Value["n"]; len(nValues) > 0 && nValues[0] != "" {
 		n, err := strconv.Atoi(nValues[0])
 		if err != nil {
-			return nil, fmt.Errorf("invalid n value: %v", err)
+			return nil, fmt.Errorf("invalid n value: %w", err)
 		}
 		variationParams.N = &n
 	}
@@ -2910,7 +2830,7 @@ func prepareVideoEditRequest(ctx *fasthttp.RequestCtx, config *lib.Config) (*sch
 	if isMultipartRequest(ctx) {
 		form, err := ctx.MultipartForm()
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse multipart form: %v", err)
+			return nil, fmt.Errorf("failed to parse multipart form: %w", err)
 		}
 		if err := parseVideoEditMultipartForm(&req, form); err != nil {
 			return nil, err
@@ -2981,12 +2901,12 @@ func parseVideoEditMultipartForm(req *VideoEditHTTPRequest, form *multipart.Form
 	if videoFiles := form.File["video"]; len(videoFiles) > 0 {
 		f, err := videoFiles[0].Open()
 		if err != nil {
-			return fmt.Errorf("failed to open uploaded file: %v", err)
+			return fmt.Errorf("failed to open uploaded file: %w", err)
 		}
 		fileData, err := io.ReadAll(f)
-		f.Close()
+		_ = f.Close()
 		if err != nil {
-			return fmt.Errorf("failed to read uploaded file: %v", err)
+			return fmt.Errorf("failed to read uploaded file: %w", err)
 		}
 		req.VideoEditInput.Video.Video = fileData
 	}
@@ -3014,21 +2934,21 @@ func parseVideoEditMultipartForm(req *VideoEditHTTPRequest, form *multipart.Form
 	if seedValues := form.Value["seed"]; len(seedValues) > 0 && seedValues[0] != "" {
 		seed, err := strconv.Atoi(seedValues[0])
 		if err != nil {
-			return fmt.Errorf("invalid seed value: %v", err)
+			return fmt.Errorf("invalid seed value: %w", err)
 		}
 		req.VideoEditParameters.Seed = &seed
 	}
 	if upscaleFactorValues := form.Value["upscale_factor"]; len(upscaleFactorValues) > 0 && upscaleFactorValues[0] != "" {
 		upscaleFactor, err := strconv.Atoi(upscaleFactorValues[0])
 		if err != nil {
-			return fmt.Errorf("invalid upscale_factor value: %v", err)
+			return fmt.Errorf("invalid upscale_factor value: %w", err)
 		}
 		req.VideoEditParameters.UpscaleFactor = &upscaleFactor
 	}
 	if targetMegapixelsValues := form.Value["target_megapixels"]; len(targetMegapixelsValues) > 0 && targetMegapixelsValues[0] != "" {
 		targetMegapixels, err := strconv.Atoi(targetMegapixelsValues[0])
 		if err != nil {
-			return fmt.Errorf("invalid target_megapixels value: %v", err)
+			return fmt.Errorf("invalid target_megapixels value: %w", err)
 		}
 		req.VideoEditParameters.TargetMegapixels = &targetMegapixels
 	}
@@ -3773,7 +3693,7 @@ func (h *CompletionHandler) fileUpload(ctx *fasthttp.RequestCtx) {
 			SendError(ctx, fasthttp.StatusInternalServerError, "Internal Server Error")
 			return
 		}
-		defer file.Close()
+		defer func() { _ = file.Close() }()
 
 		// Read file data
 		fileData, err = io.ReadAll(file)
@@ -4355,7 +4275,7 @@ func (h *CompletionHandler) containerFileCreate(ctx *fasthttp.RequestCtx) {
 			SendError(ctx, fasthttp.StatusInternalServerError, "Internal Server Error")
 			return
 		}
-		defer file.Close()
+		defer func() { _ = file.Close() }()
 
 		fileContent, err := io.ReadAll(file)
 		if err != nil {

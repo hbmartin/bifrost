@@ -1,4 +1,4 @@
-'use strict';
+"use strict";
 
 /**
  * Newman Token Parity Reporter
@@ -33,10 +33,10 @@
  * spelling we've observed or could plausibly hit, rather than relying on one.
  */
 
-const fs = require('fs');
-const path = require('path');
+const fs = require("fs");
+const path = require("path");
 
-const MARKER = 'TOKEN_PARITY_REPORT';
+const MARKER = "TOKEN_PARITY_REPORT";
 
 function firstDefined(options, keys) {
   for (const k of keys) {
@@ -46,14 +46,14 @@ function firstDefined(options, keys) {
 }
 
 module.exports = function (newman, options) {
-  const silent = !!firstDefined(options, ['silent', 'tokenParitySilent', 'token-parity-silent']);
+  const silent = !!firstDefined(options, ["silent", "tokenParitySilent", "token-parity-silent"]);
   const outPath =
-    firstDefined(options, ['out', 'tokenParityOut', 'token-parity-out']) ||
-    path.join('tmp', `harness-token-parity-${process.pid}.json`);
+    firstDefined(options, ["out", "tokenParityOut", "token-parity-out"]) ||
+    path.join("tmp", `harness-token-parity-${process.pid}.json`);
 
   const reports = [];
 
-  newman.on('console', function (err, args) {
+  newman.on("console", function (err, args) {
     if (err || !args || !Array.isArray(args.messages) || args.messages.length < 2) return;
     if (args.messages[0] !== MARKER) return;
     let parsed;
@@ -69,7 +69,7 @@ module.exports = function (newman, options) {
     }
   });
 
-  newman.on('done', function () {
+  newman.on("done", function () {
     if (reports.length === 0) return;
     fs.mkdirSync(path.dirname(outPath), { recursive: true });
     fs.writeFileSync(outPath, JSON.stringify(reports, null, 2));

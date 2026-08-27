@@ -79,7 +79,10 @@ export default function MultiBudgetLines({
 
 	function updateQuarterStartMonth(index: number, quarterStartMonth: number) {
 		const updated = [...lines];
-		updated[index] = { ...updated[index], reset_config: { quarter_start_month: quarterStartMonth } };
+		updated[index] = {
+			...updated[index],
+			reset_config: { quarter_start_month: quarterStartMonth },
+		};
 		onChange(updated);
 	}
 

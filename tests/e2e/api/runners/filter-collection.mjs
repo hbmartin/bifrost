@@ -36,16 +36,24 @@ const args = Object.fromEntries(
       acc.push([key, next && !next.startsWith("--") ? next : "true"]);
     }
     return acc;
-  }, [])
+  }, []),
 );
 
 const SOURCE = args.source;
 const OUT = args.out;
 const PROVIDER = (args.provider || "").toLowerCase();
-const FEATURE_PARTS = (args.feature || "").toLowerCase().split(",").map((s) => s.trim()).filter(Boolean);
+const FEATURE_PARTS = (args.feature || "")
+  .toLowerCase()
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
 // --feature-any is the OR-of-keywords counterpart of --feature (which ANDs). Item passes
 // if it matches at least one keyword. Combines with --feature/--provider via AND.
-const FEATURE_ANY_PARTS = (args["feature-any"] || "").toLowerCase().split(",").map((s) => s.trim()).filter(Boolean);
+const FEATURE_ANY_PARTS = (args["feature-any"] || "")
+  .toLowerCase()
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
 // --exclude-feature-any is the negation of --feature-any: an item matching ANY of these keywords
 // is dropped. It exists because the harness defers some row groups (cache-parity) to a separate
 // sequential pass, and the main pass needs to carve them out WITHOUT restating everything else as
@@ -93,8 +101,14 @@ const TIMINGS = args.timings && args.timings !== "true" ? args.timings : "";
 // HARNESS_SUBSHARDS table. It lives here rather than in its own script because sizing a cell means
 // selecting it first, and every predicate that does the selecting is already in this file.
 const PLAN = args.plan === "true";
-const PLAN_PROVIDERS = (args.providers || "").trim().split(/[\s,]+/).filter(Boolean);
-const PLAN_CLASSES = (args.classes || "").trim().split(/[\s,]+/).filter(Boolean);
+const PLAN_PROVIDERS = (args.providers || "")
+  .trim()
+  .split(/[\s,]+/)
+  .filter(Boolean);
+const PLAN_CLASSES = (args.classes || "")
+  .trim()
+  .split(/[\s,]+/)
+  .filter(Boolean);
 const PLAN_TARGET = Number(args.target) > 0 ? Number(args.target) : DEFAULT_TARGET_SECONDS;
 let SHARD_INDEX = 0;
 let SHARD_COUNT = 0;
@@ -107,7 +121,9 @@ if (SHARD && SHARD !== "true") {
   SHARD_INDEX = Number(m[1]);
   SHARD_COUNT = Number(m[2]);
   if (SHARD_COUNT < 1 || SHARD_INDEX < 1 || SHARD_INDEX > SHARD_COUNT) {
-    console.error(`[filter-collection] --shard "${SHARD}" is out of range: need 1 <= k <= n and n >= 1`);
+    console.error(
+      `[filter-collection] --shard "${SHARD}" is out of range: need 1 <= k <= n and n >= 1`,
+    );
     process.exit(2);
   }
 }
@@ -132,9 +148,21 @@ if (PLAN && (!PLAN_PROVIDERS.length || !PLAN_CLASSES.length)) {
   console.error("[filter-collection] --plan needs --providers and --classes");
   process.exit(2);
 }
-if (!PLAN && !PROVIDER && !FEATURE_PARTS.length && !FEATURE_ANY_PARTS.length && !EXCLUDE_FEATURE_ANY_PARTS.length && !FOLDER && !CLASS && !SHARD_COUNT && !RERUN_FAILED && !RERUN_RATE_LIMITED && !SMOKE) {
+if (
+  !PLAN &&
+  !PROVIDER &&
+  !FEATURE_PARTS.length &&
+  !FEATURE_ANY_PARTS.length &&
+  !EXCLUDE_FEATURE_ANY_PARTS.length &&
+  !FOLDER &&
+  !CLASS &&
+  !SHARD_COUNT &&
+  !RERUN_FAILED &&
+  !RERUN_RATE_LIMITED &&
+  !SMOKE
+) {
   console.error(
-    "[filter-collection] need at least one of: --provider, --feature, --feature-any, --exclude-feature-any, --folder, --class, --shard, --rerun-failed, --rerun-rate-limited, --smoke"
+    "[filter-collection] need at least one of: --provider, --feature, --feature-any, --exclude-feature-any, --folder, --class, --shard, --rerun-failed, --rerun-rate-limited, --smoke",
   );
   process.exit(2);
 }
@@ -163,10 +191,6 @@ const PROVIDER_KEYWORDS = {
 // short PROVIDER_KEYWORDS substring like "o1" or "gpt-" can appear in them by pure chance,
 // causing an item to be spuriously claimed by the wrong provider partition. Real searchable
 // text (model names, prompts, folder names) never runs 40+ contiguous base64-alphabet chars.
-const stripBase64Blobs = (s) => s.replace(/[A-Za-z0-9+/]{40,}={0,2}/g, "");
-
-
-
 // Structural keywords - matched against route shape, not name substring. Lets users
 // say FEATURE="cross-cut,structured output" and have it work for every row routed via
 // unified /v1/chat/completions with a provider/model prefix, regardless of how the
@@ -176,10 +200,12 @@ const STRUCTURAL_KEYWORDS = {
     const req = item.request || {};
     const url = (typeof req.url === "string" ? req.url : req.url?.raw) || "";
     const body = req.body?.raw || "";
-    const isUnified = /\/v1\/chat\/completions(\?|$)/.test(url) &&
+    const isUnified =
+      /\/v1\/chat\/completions(\?|$)/.test(url) &&
       !/\/(openai|anthropic|bedrock|genai|azure)\/v1/.test(url) &&
       !/_passthrough/.test(url);
-    const hasProviderPrefix = /"model"\s*:\s*"(openai|anthropic|bedrock|gemini|vertex|azure)\//.test(body);
+    const hasProviderPrefix =
+      /"model"\s*:\s*"(openai|anthropic|bedrock|gemini|vertex|azure)\//.test(body);
     return isUnified && hasProviderPrefix;
   },
   crosscut: (item) => STRUCTURAL_KEYWORDS["cross-cut"](item),
@@ -187,14 +213,37 @@ const STRUCTURAL_KEYWORDS = {
 
 const FEATURE_ALIASES = {
   chat: ["chat", "messages", "responses"],
-  streaming: ["streaming", "\"stream\": true", "streamgeneratecontent", "converse-stream", "alt=sse"],
+  streaming: ["streaming", '"stream": true', "streamgeneratecontent", "converse-stream", "alt=sse"],
   embeddings: ["embeddings", "embedding"],
   audio: ["audio", "speech", "transcription"],
   "image-gen": ["image-gen", "image generation", "image gen", "images/generations"],
-  tools: ["tools", "\"tools\"", "tool use", "tool_choice", "function calling", "functiondeclarations", "function_calling"],
-  vision: ["vision", "image_url", "\"type\":\"image\"", "\"type\": \"image\"", "inline_data", "filedata"],
-  json: ["json_schema", "json object", "structured output", "responseschema", "response_schema", "responsemimetype", "response mime"],
-  reasoning: ["reasoning", "thinking", "reasoning_effort", "budget_tokens", "thinkingbudget", "thinking_budget"],
+  tools: [
+    "tools",
+    '"tools"',
+    "tool use",
+    "tool_choice",
+    "function calling",
+    "functiondeclarations",
+    "function_calling",
+  ],
+  vision: ["vision", "image_url", '"type":"image"', '"type": "image"', "inline_data", "filedata"],
+  json: [
+    "json_schema",
+    "json object",
+    "structured output",
+    "responseschema",
+    "response_schema",
+    "responsemimetype",
+    "response mime",
+  ],
+  reasoning: [
+    "reasoning",
+    "thinking",
+    "reasoning_effort",
+    "budget_tokens",
+    "thinkingbudget",
+    "thinking_budget",
+  ],
   // Comparison matrices, not modalities. These match on generated folder names rather than body
   // fields because the rows are built programmatically and their request bodies look like any
   // other chat call - only the ancestor folder identifies them (buildHaystack folds ancestor
@@ -235,7 +284,9 @@ const CLASS_OTHER = "other";
 const ALL_CLASSES = [...CLASS_ORDER, CLASS_OTHER];
 
 if (CLASS && !ALL_CLASSES.includes(CLASS)) {
-  console.error(`[filter-collection] unknown --class "${CLASS}". Expected one of: ${ALL_CLASSES.join(", ")}`);
+  console.error(
+    `[filter-collection] unknown --class "${CLASS}". Expected one of: ${ALL_CLASSES.join(", ")}`,
+  );
   process.exit(2);
 }
 
@@ -308,22 +359,22 @@ const itemMatchesProvider = (item, ancestorNames, provider = PROVIDER) => {
 };
 
 const itemMatchesFeature = (item, ancestorNames) => {
-	if (!FEATURE_PARTS.length) return true;
-	const haystack = buildHaystack(item, ancestorNames);
-	return FEATURE_PARTS.every((p) => matchesKeyword(item, ancestorNames, haystack, p));
+  if (!FEATURE_PARTS.length) return true;
+  const haystack = buildHaystack(item, ancestorNames);
+  return FEATURE_PARTS.every((p) => matchesKeyword(item, ancestorNames, haystack, p));
 };
 
 const itemMatchesFeatureAny = (item, ancestorNames) => {
-	if (!FEATURE_ANY_PARTS.length) return true;
-	const haystack = buildHaystack(item, ancestorNames);
-	return FEATURE_ANY_PARTS.some((p) => matchesKeyword(item, ancestorNames, haystack, p));
+  if (!FEATURE_ANY_PARTS.length) return true;
+  const haystack = buildHaystack(item, ancestorNames);
+  return FEATURE_ANY_PARTS.some((p) => matchesKeyword(item, ancestorNames, haystack, p));
 };
 
 // Matched against ancestor folder names specifically (not the whole item body) so a request
 // whose prompt text happens to mention a folder's name doesn't get pulled in from elsewhere.
 const itemMatchesFolder = (item, ancestorNames) => {
-	if (!FOLDER) return true;
-	return ancestorNames.some((name) => name.toLowerCase().includes(FOLDER));
+  if (!FOLDER) return true;
+  return ancestorNames.some((name) => name.toLowerCase().includes(FOLDER));
 };
 
 // Keyed on "<immediate parent folder> <request name>", never on the name
@@ -367,7 +418,7 @@ const itemMatchesRateLimited = (item) => {
     }
     retryableNameSet = retryableNames(readReport(REPORT));
     console.error(
-      `[filter-collection] rerun-rate-limited: ${retryableNameSet.size} retryable item(s) (429/503/529) from ${REPORT}`
+      `[filter-collection] rerun-rate-limited: ${retryableNameSet.size} retryable item(s) (429/503/529) from ${REPORT}`,
     );
   }
   return retryableNameSet.has(item.name);
@@ -385,10 +436,13 @@ const itemMatchesRerunFailed = (item) => {
     failedNames = new Set();
     for (const e of r.run?.executions || []) {
       const code = e.response?.code ?? 0;
-      const failed = (e.assertions || []).some((a) => !!a.error) || code === 0 || code >= 400 || !e.response;
+      const failed =
+        (e.assertions || []).some((a) => !!a.error) || code === 0 || code >= 400 || !e.response;
       if (failed && e.item?.name) failedNames.add(e.item.name);
     }
-    console.error(`[filter-collection] rerun-failed: ${failedNames.size} failed item(s) from prior run`);
+    console.error(
+      `[filter-collection] rerun-failed: ${failedNames.size} failed item(s) from prior run`,
+    );
   }
   return failedNames.has(item.name);
 };
@@ -406,14 +460,16 @@ const itemIsExcluded = (item, ancestorNames) => {
 const passes = (item, ancestorNames, overrides = {}) => {
   if (!item.request) return true; // folders pass; we filter their items below
   if (itemIsExcluded(item, ancestorNames)) return false;
-  return itemMatchesProvider(item, ancestorNames, overrides.provider ?? PROVIDER) &&
+  return (
+    itemMatchesProvider(item, ancestorNames, overrides.provider ?? PROVIDER) &&
     itemMatchesFeature(item, ancestorNames) &&
     itemMatchesFeatureAny(item, ancestorNames) &&
     itemMatchesFolder(item, ancestorNames) &&
     itemMatchesClass(item, ancestorNames, overrides.cls ?? CLASS) &&
     itemMatchesSmoke(item, ancestorNames) &&
     itemMatchesRateLimited(item) &&
-    itemMatchesRerunFailed(item);
+    itemMatchesRerunFailed(item)
+  );
 };
 
 const filterTree = (items, keep) => {
@@ -450,7 +506,10 @@ const expandWithProducers = (selected, entries) => {
     // request that sets nothing while the actual producer is never pulled in -
     // leaving the consumer to fail on an unsubstituted {{var}}, which is the
     // failure this whole function exists to prevent.
-    for (const { producer, producerItem: dep, variable } of chainedDependencies(item, producerIndex)) {
+    for (const { producer, producerItem: dep, variable } of chainedDependencies(
+      item,
+      producerIndex,
+    )) {
       if (!dep || keep.has(dep)) continue;
       keep.add(dep);
       queue.push(dep);
@@ -458,7 +517,9 @@ const expandWithProducers = (selected, entries) => {
     }
   }
   if (pulled.length) {
-    console.error(`[filter-collection] pulled in ${pulled.length} prerequisite request(s) for chained variables:`);
+    console.error(
+      `[filter-collection] pulled in ${pulled.length} prerequisite request(s) for chained variables:`,
+    );
     for (const line of pulled) console.error(`  ${line}`);
   }
   return keep;
@@ -471,7 +532,9 @@ if (TIMINGS && !timings) {
   // Loud on stderr, but not fatal: the sweep ran without a timing table before this existed and
   // still has to. Silence here would let a sweep quietly go back to round-robin and read as a
   // regression in the harness rather than as a missing cache file.
-  console.error(`[filter-collection] no usable timings at ${TIMINGS} - falling back to round-robin slicing`);
+  console.error(
+    `[filter-collection] no usable timings at ${TIMINGS} - falling back to round-robin slicing`,
+  );
 }
 
 // --plan: size every (provider, class) cell and print the grid, then stop. Nothing below runs,
@@ -482,7 +545,9 @@ if (PLAN) {
   // which is strictly worse than the hand-written HARNESS_SUBSHARDS table it would be overriding.
   // An empty plan file is what tells the Makefile to keep using that table.
   if (!timings) {
-    console.error("[filter-collection] plan: no timings available - emitting no plan so the static sub-shard table stands");
+    console.error(
+      "[filter-collection] plan: no timings available - emitting no plan so the static sub-shard table stands",
+    );
     process.exit(0);
   }
   const lines = [];
@@ -509,19 +574,21 @@ if (PLAN) {
   }
   process.stdout.write(lines.map((l) => `${l}\n`).join(""));
   console.error(
-    `[filter-collection] plan: ${lines.length} cell(s), ${lines.reduce((s, l) => s + Number(l.split(" ")[2]), 0)} shard(s) at a ${PLAN_TARGET}s target (timings=${timings.size} rows)`
+    `[filter-collection] plan: ${lines.length} cell(s), ${lines.reduce((s, l) => s + Number(l.split(" ")[2]), 0)} shard(s) at a ${PLAN_TARGET}s target (timings=${timings.size} rows)`,
   );
   // Named rather than counted. "12 cells fell back" reads as a tuning detail; naming them shows a
   // reader WHICH slices of the sweep are still unbalanced, which is the actionable half.
   if (skipped.length) {
     console.error(
-      `[filter-collection] plan: ${skipped.length} cell(s) below ${Math.round(MIN_COVERAGE * 100)}% coverage keep their static sub-shard count: ${skipped.join(", ")}`
+      `[filter-collection] plan: ${skipped.length} cell(s) below ${Math.round(MIN_COVERAGE * 100)}% coverage keep their static sub-shard count: ${skipped.join(", ")}`,
     );
   }
   process.exit(0);
 }
 
-const matched = entries.filter(({ item, ancestors }) => passes(item, ancestors)).map(({ item }) => item);
+const matched = entries
+  .filter(({ item, ancestors }) => passes(item, ancestors))
+  .map(({ item }) => item);
 // Sliced BEFORE expandWithProducers, never after: a chained consumer that lands in slice 3 still
 // needs its producer to run inside slice 3's newman process, because collection variables do not
 // survive across invocations. Slicing afterwards would cut producers away from the consumers that
@@ -532,4 +599,6 @@ const keep = expandWithProducers(selected, entries);
 const filtered = { ...collection, item: filterTree(collection.item || [], keep) };
 const totalAfter = JSON.stringify(filtered).match(/"request":/g)?.length || 0;
 writeFileSync(OUT, JSON.stringify(filtered, null, 2));
-console.error(`[filter-collection] wrote ${OUT} with ${totalAfter} requests after filter (provider=${PROVIDER || "-"}, feature=${FEATURE_PARTS.join("+") || "-"}, feature-any=${FEATURE_ANY_PARTS.join("|") || "-"}, class=${CLASS || "-"}, shard=${SHARD_COUNT ? `${SHARD_INDEX}/${SHARD_COUNT} of ${matched.length}` : "-"}, smoke=${SMOKE || "-"}, rerun-failed=${RERUN_FAILED})`);
+console.error(
+  `[filter-collection] wrote ${OUT} with ${totalAfter} requests after filter (provider=${PROVIDER || "-"}, feature=${FEATURE_PARTS.join("+") || "-"}, feature-any=${FEATURE_ANY_PARTS.join("|") || "-"}, class=${CLASS || "-"}, shard=${SHARD_COUNT ? `${SHARD_INDEX}/${SHARD_COUNT} of ${matched.length}` : "-"}, smoke=${SMOKE || "-"}, rerun-failed=${RERUN_FAILED})`,
+);

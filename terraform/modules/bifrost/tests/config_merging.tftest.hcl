@@ -30,7 +30,6 @@ mock_provider "kubernetes" {}
 
 run "base_config_preserved" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider = "aws"
     service        = "ecs"
@@ -45,7 +44,6 @@ run "base_config_preserved" {
 
 run "override_wins" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider = "aws"
     service        = "ecs"
@@ -61,7 +59,6 @@ run "override_wins" {
 
 run "schema_url_injected" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider = "aws"
     service        = "ecs"
@@ -76,7 +73,6 @@ run "schema_url_injected" {
 
 run "schema_url_override" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider = "aws"
     service        = "ecs"
@@ -91,7 +87,6 @@ run "schema_url_override" {
 
 run "no_base_config" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider = "aws"
     service        = "ecs"
@@ -106,7 +101,6 @@ run "no_base_config" {
 
 run "multiple_overrides" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider = "aws"
     service        = "ecs"

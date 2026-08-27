@@ -1,6 +1,7 @@
 package gemini
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/valyala/fasthttp"
@@ -78,7 +79,8 @@ func TestProcessGeminiStreamChunk_MidStreamError(t *testing.T) {
 	if resp != nil {
 		t.Fatal("expected nil response for error chunk")
 	}
-	apiErr, ok := err.(*GeminiStreamAPIError)
+	apiErr := &GeminiStreamAPIError{}
+	ok := errors.As(err, &apiErr)
 	if !ok {
 		t.Fatalf("expected *GeminiStreamAPIError, got %T: %v", err, err)
 	}

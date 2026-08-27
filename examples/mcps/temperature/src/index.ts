@@ -2,33 +2,30 @@
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-} from "@modelcontextprotocol/sdk/types.js";
+import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import * as fs from "fs";
 
 // Dummy temperature data for popular locations
 const TEMPERATURE_DATA: Record<string, { temperature: number; unit: string; condition: string }> = {
   "new york": { temperature: 72, unit: "F", condition: "Partly Cloudy" },
-  "london": { temperature: 15, unit: "C", condition: "Rainy" },
-  "tokyo": { temperature: 22, unit: "C", condition: "Clear" },
-  "paris": { temperature: 18, unit: "C", condition: "Cloudy" },
-  "sydney": { temperature: 25, unit: "C", condition: "Sunny" },
-  "dubai": { temperature: 35, unit: "C", condition: "Hot and Sunny" },
-  "singapore": { temperature: 30, unit: "C", condition: "Humid" },
-  "mumbai": { temperature: 32, unit: "C", condition: "Humid and Partly Cloudy" },
+  london: { temperature: 15, unit: "C", condition: "Rainy" },
+  tokyo: { temperature: 22, unit: "C", condition: "Clear" },
+  paris: { temperature: 18, unit: "C", condition: "Cloudy" },
+  sydney: { temperature: 25, unit: "C", condition: "Sunny" },
+  dubai: { temperature: 35, unit: "C", condition: "Hot and Sunny" },
+  singapore: { temperature: 30, unit: "C", condition: "Humid" },
+  mumbai: { temperature: 32, unit: "C", condition: "Humid and Partly Cloudy" },
   "los angeles": { temperature: 75, unit: "F", condition: "Sunny" },
   "san francisco": { temperature: 62, unit: "F", condition: "Foggy" },
-  "chicago": { temperature: 68, unit: "F", condition: "Windy" },
-  "toronto": { temperature: 18, unit: "C", condition: "Clear" },
-  "berlin": { temperature: 16, unit: "C", condition: "Cloudy" },
-  "moscow": { temperature: 10, unit: "C", condition: "Cold" },
-  "beijing": { temperature: 20, unit: "C", condition: "Clear" },
-  "shanghai": { temperature: 24, unit: "C", condition: "Partly Cloudy" },
+  chicago: { temperature: 68, unit: "F", condition: "Windy" },
+  toronto: { temperature: 18, unit: "C", condition: "Clear" },
+  berlin: { temperature: 16, unit: "C", condition: "Cloudy" },
+  moscow: { temperature: 10, unit: "C", condition: "Cold" },
+  beijing: { temperature: 20, unit: "C", condition: "Clear" },
+  shanghai: { temperature: 24, unit: "C", condition: "Partly Cloudy" },
   "hong kong": { temperature: 28, unit: "C", condition: "Humid" },
-  "seoul": { temperature: 19, unit: "C", condition: "Clear" },
+  seoul: { temperature: 19, unit: "C", condition: "Clear" },
   "mexico city": { temperature: 22, unit: "C", condition: "Sunny" },
   "rio de janeiro": { temperature: 28, unit: "C", condition: "Tropical" },
 };
@@ -82,7 +79,7 @@ const server = new Server(
     capabilities: {
       tools: {},
     },
-  }
+  },
 );
 
 // Handler for listing available tools
@@ -91,7 +88,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
     tools: [
       {
         name: "get_temperature",
-        description: "Get the current temperature for a popular city. Supports major cities worldwide.",
+        description:
+          "Get the current temperature for a popular city. Supports major cities worldwide.",
         inputSchema: {
           type: "object",
           properties: {

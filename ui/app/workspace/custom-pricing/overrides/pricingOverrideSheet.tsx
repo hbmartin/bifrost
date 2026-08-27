@@ -87,7 +87,10 @@ export function patternError(matchType: PricingOverrideMatchType, pattern: strin
 	return undefined;
 }
 
-export function buildPatchFromForm(form: FormState): { patch: PricingOverridePatch; errors: FieldErrors } {
+export function buildPatchFromForm(form: FormState): {
+	patch: PricingOverridePatch;
+	errors: FieldErrors;
+} {
 	const errors: FieldErrors = {};
 	const patch: PricingOverridePatch = {};
 
@@ -675,7 +678,12 @@ export default function PricingOverrideSheet({ open, onOpenChange, editingOverri
 																		clearErrors("userID");
 																	}}
 																	fallbackOption={
-																		editingOverride?.user_id ? { value: editingOverride.user_id, label: editingOverride.user_id } : null
+																		editingOverride?.user_id
+																			? {
+																					value: editingOverride.user_id,
+																					label: editingOverride.user_id,
+																				}
+																			: null
 																	}
 																/>
 															) : (
@@ -718,7 +726,10 @@ export default function PricingOverrideSheet({ open, onOpenChange, editingOverri
 																}}
 																fallbackOption={
 																	editingOverride?.virtual_key_id
-																		? { value: editingOverride.virtual_key_id, label: editingOverride.virtual_key_id }
+																		? {
+																				value: editingOverride.virtual_key_id,
+																				label: editingOverride.virtual_key_id,
+																			}
 																		: null
 																}
 																placeholder="Select virtual key"
@@ -799,7 +810,10 @@ export default function PricingOverrideSheet({ open, onOpenChange, editingOverri
 															<FormControl>
 																<ComboboxSelect
 																	data-testid="pricing-override-provider-key-select"
-																	options={providerScopedKeyOptions.map((option) => ({ label: option.label, value: option.id }))}
+																	options={providerScopedKeyOptions.map((option) => ({
+																		label: option.label,
+																		value: option.id,
+																	}))}
 																	value={field.value || null}
 																	onValueChange={(value) => field.onChange(value ?? "")}
 																	placeholder="All provider keys"

@@ -103,17 +103,6 @@ func TestGovernanceStore_ConcurrentReads(t *testing.T) {
 // TestGovernanceStore_CheckBudget_SingleBudget tests budget validation with single budget
 func TestGovernanceStore_CheckBudget_SingleBudget(t *testing.T) {
 	logger := NewMockLogger()
-	budget := buildBudgetWithUsage("budget1", 100.0, 50.0, "1d")
-	vk := buildVirtualKeyWithBudget("vk1", "sk-bf-test", "Test VK", budget)
-
-	store, err := NewLocalGovernanceStore(context.Background(), logger, nil, &configstore.GovernanceConfig{
-		VirtualKeys: []configstoreTables.TableVirtualKey{*vk},
-		Budgets:     []configstoreTables.TableBudget{*budget},
-	}, nil)
-	require.NoError(t, err)
-
-	// Retrieve VK with budget
-	vk, _ = store.GetVirtualKey(context.Background(), "sk-bf-test")
 
 	tests := []struct {
 		name      string

@@ -114,38 +114,20 @@ export default function ObservabilityView() {
 	const getPluginNameForTab = (tabId: string) => (tabId === "prometheus" ? "telemetry" : tabId);
 
 	useEffect(() => {
-		if (!plugins || plugins.length === 0) return;
 		if (!selectedPluginId) {
 			setSelectedPluginId(supportedPlatforms[0].id);
-		} else {
-			const pluginName = getPluginNameForTab(selectedPluginId);
-			const plugin = plugins.find((plugin) => plugin.name === pluginName) ?? {
-				name: selectedPluginId,
-				enabled: false,
-				config: {},
-				isCustom: false,
-				path: "",
-			};
-			dispatch(setSelectedPlugin(plugin));
+			return;
 		}
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [plugins]);
-
-	useEffect(() => {
-		if (selectedPluginId) {
-			const pluginName = getPluginNameForTab(selectedPluginId);
-			const plugin = plugins?.find((plugin) => plugin.name === pluginName) ?? {
-				name: selectedPluginId,
-				enabled: false,
-				config: {},
-				isCustom: false,
-				path: "",
-			};
-			dispatch(setSelectedPlugin(plugin));
-		} else {
-			setSelectedPluginId(supportedPlatforms[0].id);
-		}
-	}, [selectedPluginId]);
+		const pluginName = getPluginNameForTab(selectedPluginId);
+		const plugin = plugins?.find((candidate) => candidate.name === pluginName) ?? {
+			name: selectedPluginId,
+			enabled: false,
+			config: {},
+			isCustom: false,
+			path: "",
+		};
+		dispatch(setSelectedPlugin(plugin));
+	}, [dispatch, plugins, selectedPluginId, setSelectedPluginId, supportedPlatforms]);
 
 	if (isLoading) {
 		return <FullPageLoader />;

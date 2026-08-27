@@ -28,7 +28,11 @@ export default function OAuthGrantsPage() {
 	const debouncedSearch = useDebouncedValue(urlState.q, 300);
 
 	const filters: OAuthGrantFilters = useMemo(
-		() => ({ mode: urlState.bf_mode, virtual_key_id: urlState.virtual_key_id, user_id: urlState.user_id }),
+		() => ({
+			mode: urlState.bf_mode,
+			virtual_key_id: urlState.virtual_key_id,
+			user_id: urlState.user_id,
+		}),
 		[urlState.bf_mode, urlState.virtual_key_id, urlState.user_id],
 	);
 

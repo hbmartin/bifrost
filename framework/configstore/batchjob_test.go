@@ -14,6 +14,7 @@ import (
 
 // setupBatchJobTestStore extends the base test store with the batch_jobs table.
 func setupBatchJobTestStore(t *testing.T) *RDBConfigStore {
+	t.Helper()
 	store := setupRDBTestStore(t)
 	require.NoError(t, store.DB().AutoMigrate(&tables.TableBatchJob{}), "migrate batch_jobs table")
 	return store

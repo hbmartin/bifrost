@@ -202,11 +202,6 @@ func convertServerToolToAnthropic(tool schemas.ChatTool, caps schemas.ModelCaps,
 		anthropicTool.AnthropicToolTextEditor = &AnthropicToolTextEditor{
 			MaxCharacters: tool.MaxCharacters,
 		}
-	case strings.HasPrefix(typeStr, "bash_"),
-		strings.HasPrefix(typeStr, "memory_"),
-		strings.HasPrefix(typeStr, "code_execution_"),
-		strings.HasPrefix(typeStr, "tool_search_tool_"):
-		// No variant-specific config — Type + Name alone.
 	default:
 		// Unknown type — pass through Type + Name and let Anthropic reject
 		// if it's truly invalid. This keeps forward-compat for new tool

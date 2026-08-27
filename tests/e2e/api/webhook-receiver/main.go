@@ -76,7 +76,7 @@ func (r *receiver) listCaptures(w http.ResponseWriter, req *http.Request) {
 	}
 	r.mu.Unlock()
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{"captures": matched, "count": len(matched)})
+	_ = json.NewEncoder(w).Encode(map[string]any{"captures": matched, "count": len(matched)})
 }
 
 func (r *receiver) setMode(w http.ResponseWriter, req *http.Request) {
@@ -110,5 +110,6 @@ func main() {
 	// beyond the host running the suite.
 	addr := "127.0.0.1:" + port
 	log.Printf("webhook-receiver listening on %s", addr)
-	log.Fatal(http.ListenAndServe(addr, mux))
+	httpSrv := &http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: 5 * time.Second}
+	log.Fatal(httpSrv.ListenAndServe())
 }

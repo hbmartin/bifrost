@@ -263,7 +263,6 @@ func (a *App) Run(ctx context.Context) error {
 			a.state.LastKnownVersion = result.LatestVersion
 			_ = config.SaveState(a.statePath, a.state) // best-effort
 		}
-		updateCh = nil
 	case <-time.After(4 * time.Second):
 	}
 
@@ -279,7 +278,7 @@ func (a *App) Run(ctx context.Context) error {
 			execPath, err := os.Executable()
 			if err != nil {
 				fmt.Fprintf(a.out, "Updated successfully. Please restart bifrost.\n")
-				return nil
+				return nil //nolint:nilerr // The update succeeded; failure to discover the re-exec path only requires a manual restart.
 			}
 			return reexecSelf(execPath, os.Args, os.Environ())
 		}
@@ -300,7 +299,7 @@ func (a *App) Run(ctx context.Context) error {
 			execPath, err := os.Executable()
 			if err != nil {
 				fmt.Fprintf(a.out, "Updated successfully. Please restart bifrost.\n")
-				return nil
+				return nil //nolint:nilerr // The update succeeded; failure to discover the re-exec path only requires a manual restart.
 			}
 			return reexecSelf(execPath, os.Args, os.Environ())
 		}

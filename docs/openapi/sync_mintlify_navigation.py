@@ -12,11 +12,8 @@ from collections import OrderedDict
 from pathlib import Path
 from typing import Any
 
-
 HTTP_METHODS = ("get", "post", "put", "patch", "delete", "options", "head", "trace")
-ENDPOINT_PAGE = re.compile(
-    r"^(GET|POST|PUT|PATCH|DELETE|OPTIONS|HEAD|TRACE) (/.+)$"
-)
+ENDPOINT_PAGE = re.compile(r"^(GET|POST|PUT|PATCH|DELETE|OPTIONS|HEAD|TRACE) (/.+)$")
 OPENAPI_SOURCE = "openapi/openapi.json"
 
 # Mintlify always expands top-level groups; only nested groups honour `expanded`.
@@ -139,9 +136,7 @@ def openapi_operations(spec: dict[str, Any]) -> list[tuple[str, str, str, bool]]
             tags = operation.get("tags") or ["Other"]
             summary = str(operation.get("summary") or f"{method.upper()} {path}")
             is_deprecated = bool(operation.get("x-bifrost-successor"))
-            operations.append(
-                (str(tags[0]), f"{method.upper()} {path}", summary, is_deprecated)
-            )
+            operations.append((str(tags[0]), f"{method.upper()} {path}", summary, is_deprecated))
     return operations
 
 
@@ -150,9 +145,7 @@ def collapsed(group: str, pages: list[Any]) -> dict[str, Any]:
     return {"group": group, "expanded": False, "pages": pages}
 
 
-def build_navigation(
-    docs: dict[str, Any], spec: dict[str, Any]
-) -> tuple[dict[str, Any], int]:
+def build_navigation(docs: dict[str, Any], spec: dict[str, Any]) -> tuple[dict[str, Any], int]:
     updated = copy.deepcopy(docs)
     api_tab = find_api_tab(updated)
     existing_groups = api_tab.get("groups", [])
@@ -165,8 +158,7 @@ def build_navigation(
         page
         for page in governance.get("pages", [])
         if not (
-            isinstance(page, dict)
-            and page.get("group") in ("Deprecated APIs", "Deprecated paths")
+            isinstance(page, dict) and page.get("group") in ("Deprecated APIs", "Deprecated paths")
         )
     ]
 
@@ -189,9 +181,7 @@ def build_navigation(
         )
 
     governed_openapi_pages = {
-        page
-        for _, page, _, _ in operations
-        if page.split(" ", 1)[1].startswith("/api/governance/")
+        page for _, page, _, _ in operations if page.split(" ", 1)[1].startswith("/api/governance/")
     }
     missing_governance_pages = sorted(governed_openapi_pages - governance_set)
     if missing_governance_pages:
@@ -234,9 +224,7 @@ def build_navigation(
     sections = [
         {
             "group": section,
-            "pages": [
-                collapsed(tag, pages_by_tag[tag]) for tag in tags if tag in pages_by_tag
-            ],
+            "pages": [collapsed(tag, pages_by_tag[tag]) for tag in tags if tag in pages_by_tag],
         }
         for section, tags in SECTIONS
     ]
@@ -258,9 +246,7 @@ def build_navigation(
         sections.append(
             {
                 "group": DEPRECATED_SECTION,
-                "pages": [
-                    collapsed(tag, pages) for tag, pages in deprecated_by_tag.items()
-                ],
+                "pages": [collapsed(tag, pages) for tag, pages in deprecated_by_tag.items()],
             }
         )
 
@@ -275,9 +261,7 @@ def build_navigation(
     if final_set != visible_operation_set:
         missing = sorted(visible_operation_set - final_set)
         extra = sorted(final_set - visible_operation_set)
-        raise ValueError(
-            f"API navigation does not match OpenAPI; missing={missing}, extra={extra}"
-        )
+        raise ValueError(f"API navigation does not match OpenAPI; missing={missing}, extra={extra}")
 
     return updated, len(visible_operation_set)
 

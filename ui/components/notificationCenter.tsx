@@ -41,7 +41,9 @@ export default function NotificationCenter() {
 	const notifications = useAppSelector(selectVisibleNotifications);
 	const unreadCount = useAppSelector(selectUnreadNotificationsCount);
 	const { readIds } = useAppSelector(selectNotificationPreferences);
-	const { isLoading, isFetching, isError, error, refetch } = useGetNotificationsQuery({ limit: 50 });
+	const { isLoading, isFetching, isError, error, refetch } = useGetNotificationsQuery({
+		limit: 50,
+	});
 
 	const openNotification = (id: string, actionPath?: string) => {
 		dispatch(markNotificationRead(id));
@@ -171,7 +173,11 @@ export default function NotificationCenter() {
 													{notification.message}
 												</span>
 												<span className="text-muted-foreground mt-1.5 flex items-center gap-2 text-[11px]">
-													<span>{formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}</span>
+													<span>
+														{formatDistanceToNow(new Date(notification.created_at), {
+															addSuffix: true,
+														})}
+													</span>
 													{notification.action_label && <span className="text-primary font-medium">{notification.action_label}</span>}
 												</span>
 											</span>

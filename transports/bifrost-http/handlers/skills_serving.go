@@ -87,7 +87,7 @@ func fetchURLSafe(ctx context.Context, rawURL string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("fetch: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, fmt.Errorf("URL returned status %d", resp.StatusCode)
@@ -607,7 +607,7 @@ func serveGitRepo(ctx *fasthttp.RequestCtx, spec *GitRepoSpec, repoBase string) 
 		SendError(ctx, fasthttp.StatusInternalServerError, "failed to prepare git repository")
 		return
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	pathInfo := strings.TrimPrefix(string(ctx.Path()), repoBase)
 	if strings.HasSuffix(pathInfo, "/info/refs") {
@@ -658,9 +658,9 @@ func serveInfoRefs(ctx *fasthttp.RequestCtx, repoDir, label string) {
 	ctx.SetStatusCode(fasthttp.StatusOK)
 
 	// Write pkt-line service announcement header, then the advertised refs.
-	ctx.Write(pktLine("# service=" + serviceName + "\n")) //nolint:errcheck
-	ctx.Write(pktFlush())                                 //nolint:errcheck
-	ctx.Write(stdout.Bytes())                             //nolint:errcheck
+	ctx.Write(pktLine("# service=" + serviceName + "\n")) //nolint:errcheck // fasthttp buffers these protocol bytes and exposes no recovery path.
+	ctx.Write(pktFlush())                                 //nolint:errcheck // fasthttp buffers these protocol bytes and exposes no recovery path.
+	ctx.Write(stdout.Bytes())                             //nolint:errcheck // fasthttp buffers these protocol bytes and exposes no recovery path.
 }
 
 // serveUploadPack handles POST /git-upload-pack by piping the request body
@@ -714,13 +714,13 @@ func exportToTempBareRepo(memStorage *memory.Storage) (string, error) {
 	fs := osfs.New(tempDir)
 	dot, err := fs.Chroot(".")
 	if err != nil {
-		os.RemoveAll(tempDir)
+		_ = os.RemoveAll(tempDir)
 		return "", fmt.Errorf("chroot: %w", err)
 	}
 	diskStorage := filesystem.NewStorage(dot, cache.NewObjectLRUDefault())
 
 	if err := diskStorage.Init(); err != nil {
-		os.RemoveAll(tempDir)
+		_ = os.RemoveAll(tempDir)
 		return "", fmt.Errorf("init bare repo: %w", err)
 	}
 
@@ -734,7 +734,7 @@ func exportToTempBareRepo(memStorage *memory.Storage) (string, error) {
 			_, err := diskStorage.SetEncodedObject(obj)
 			return err
 		}); err != nil {
-			os.RemoveAll(tempDir)
+			_ = os.RemoveAll(tempDir)
 			return "", fmt.Errorf("copy %s objects: %w", objType, err)
 		}
 	}
@@ -745,7 +745,7 @@ func exportToTempBareRepo(memStorage *memory.Storage) (string, error) {
 		if err := refIter.ForEach(func(ref *plumbing.Reference) error {
 			return diskStorage.SetReference(ref)
 		}); err != nil {
-			os.RemoveAll(tempDir)
+			_ = os.RemoveAll(tempDir)
 			return "", fmt.Errorf("copy references: %w", err)
 		}
 	}
@@ -754,7 +754,7 @@ func exportToTempBareRepo(memStorage *memory.Storage) (string, error) {
 	head, err := memStorage.Reference(plumbing.HEAD)
 	if err == nil {
 		if err := diskStorage.SetReference(head); err != nil {
-			os.RemoveAll(tempDir)
+			_ = os.RemoveAll(tempDir)
 			return "", fmt.Errorf("copy HEAD: %w", err)
 		}
 	}
@@ -775,7 +775,7 @@ func writeBillyFile(fs billy.Filesystem, filePath string, data []byte) error {
 	if err != nil {
 		return fmt.Errorf("create %s: %w", filePath, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	_, err = f.Write(data)
 	if err != nil {
 		return fmt.Errorf("write %s: %w", filePath, err)

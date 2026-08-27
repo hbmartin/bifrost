@@ -472,7 +472,7 @@ func TestBuildAnthropicResponsesRequestBody_TypedPath(t *testing.T) {
 	})
 
 	t.Run("typed_path_count_tokens_strips_fields", func(t *testing.T) {
-		ctx := schemas.NewBifrostContext(nil, time.Time{})
+		ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 
 		temp := 0.7
 		request := &schemas.BifrostResponsesRequest{
@@ -552,7 +552,7 @@ func TestBuildAnthropicResponsesRequestBody_TypedPath(t *testing.T) {
 // to 500.
 func TestBuildAnthropicResponsesRequestBody_ReasoningMaxTokensTooLow(t *testing.T) {
 	t.Run("adaptive_effort_on_non_adaptive_model", func(t *testing.T) {
-		ctx := schemas.NewBifrostContext(nil, time.Time{})
+		ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 
 		// claude-haiku-4-5 supports neither adaptive thinking nor native effort, so
 		// this falls to the budget_tokens-only branch, which 500'd on a too-low
@@ -585,7 +585,7 @@ func TestBuildAnthropicResponsesRequestBody_ReasoningMaxTokensTooLow(t *testing.
 	})
 
 	t.Run("explicit_reasoning_max_tokens_below_minimum", func(t *testing.T) {
-		ctx := schemas.NewBifrostContext(nil, time.Time{})
+		ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 
 		request := &schemas.BifrostResponsesRequest{
 			Provider: schemas.Anthropic,
@@ -617,7 +617,7 @@ func TestBuildAnthropicResponsesRequestBody_ReasoningMaxTokensTooLow(t *testing.
 
 func TestBuildAnthropicResponsesRequestBody_LargePayloadPassthrough(t *testing.T) {
 	t.Run("returns_nil_when_large_payload_enabled", func(t *testing.T) {
-		ctx := schemas.NewBifrostContext(nil, time.Time{})
+		ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 		ctx.SetValue(schemas.BifrostContextKeyLargePayloadMode, true)
 		ctx.SetValue(schemas.BifrostContextKeyLargePayloadReader, io.NopCloser(strings.NewReader(`{"model":"claude-sonnet-4-5"}`)))
 
@@ -813,7 +813,7 @@ func TestBuildAnthropicResponsesRequestBody_StripCacheControlScope(t *testing.T)
 
 func TestBuildAnthropicResponsesRequestBody_RemapToolVersions(t *testing.T) {
 	t.Run("raw_path_remaps_tool_versions_when_configured", func(t *testing.T) {
-		ctx := schemas.NewBifrostContext(nil, time.Time{})
+		ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 		ctx.SetValue(schemas.BifrostContextKeyUseRawRequestBody, true)
 
 		request := &schemas.BifrostResponsesRequest{

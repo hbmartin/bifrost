@@ -36,7 +36,10 @@ export const mcpPerUserHeadersApi = baseApi.injectEndpoints({
 		// credential lookup on OAuth miss — this typed endpoint exists for
 		// callers that already know they're acting on a header row.
 		revokeMCPPerUserHeaders: builder.mutation<void, string>({
-			query: (credentialID) => ({ url: `/mcp/per-user-headers/credential/${credentialID}`, method: "DELETE" }),
+			query: (credentialID) => ({
+				url: `/mcp/per-user-headers/credential/${credentialID}`,
+				method: "DELETE",
+			}),
 			invalidatesTags: ["MCPSessions"],
 		}),
 	}),

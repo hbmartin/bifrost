@@ -1,6 +1,7 @@
 package websocket
 
 import (
+	"errors"
 	"testing"
 
 	ws "github.com/fasthttp/websocket"
@@ -31,7 +32,7 @@ func TestSessionManagerConnectionLimit(t *testing.T) {
 	if _, err := manager.Create(newTestConn()); err != nil {
 		t.Fatalf("first Create() unexpected error: %v", err)
 	}
-	if _, err := manager.Create(newTestConn()); err != ErrConnectionLimitReached {
+	if _, err := manager.Create(newTestConn()); !errors.Is(err, ErrConnectionLimitReached) {
 		t.Fatalf("second Create() error = %v, want %v", err, ErrConnectionLimitReached)
 	}
 }

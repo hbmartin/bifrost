@@ -30,7 +30,6 @@ mock_provider "kubernetes" {}
 
 run "k8s_basic" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider = "kubernetes"
     service        = "deployment"
@@ -41,7 +40,6 @@ run "k8s_basic" {
 
 run "k8s_custom_namespace" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider       = "kubernetes"
     service              = "deployment"
@@ -53,7 +51,6 @@ run "k8s_custom_namespace" {
 
 run "k8s_custom_storage_class" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider     = "kubernetes"
     service            = "deployment"
@@ -65,7 +62,6 @@ run "k8s_custom_storage_class" {
 
 run "k8s_with_hpa" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider     = "kubernetes"
     service            = "deployment"
@@ -79,7 +75,6 @@ run "k8s_with_hpa" {
 
 run "k8s_with_ingress" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider       = "kubernetes"
     service              = "deployment"
@@ -92,7 +87,6 @@ run "k8s_with_ingress" {
 
 run "k8s_custom_ingress_class" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider       = "kubernetes"
     service              = "deployment"
@@ -106,7 +100,6 @@ run "k8s_custom_ingress_class" {
 
 run "k8s_ingress_annotations" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider       = "kubernetes"
     service              = "deployment"
@@ -120,7 +113,6 @@ run "k8s_ingress_annotations" {
 
 run "k8s_custom_compute" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider = "kubernetes"
     service        = "deployment"
@@ -134,7 +126,6 @@ run "k8s_custom_compute" {
 
 run "k8s_custom_volume" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider = "kubernetes"
     service        = "deployment"
@@ -146,7 +137,6 @@ run "k8s_custom_volume" {
 
 run "k8s_tags" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider = "kubernetes"
     service        = "deployment"

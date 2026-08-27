@@ -19,6 +19,7 @@ func containerDeadline() time.Time {
 
 // RunContainerCreateTest tests the container create functionality
 func RunContainerCreateTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.ContainerCreate {
 		t.Logf("[SKIPPED] Container Create: Not supported by provider %s", testConfig.Provider)
 		return
@@ -68,6 +69,7 @@ func RunContainerCreateTest(t *testing.T, client *bifrost.Bifrost, ctx context.C
 
 // RunContainerListTest tests the container list functionality
 func RunContainerListTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.ContainerList {
 		t.Logf("[SKIPPED] Container List: Not supported by provider %s", testConfig.Provider)
 		return
@@ -103,6 +105,7 @@ func RunContainerListTest(t *testing.T, client *bifrost.Bifrost, ctx context.Con
 
 // RunContainerRetrieveTest tests the container retrieve functionality
 func RunContainerRetrieveTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.ContainerRetrieve {
 		t.Logf("[SKIPPED] Container Retrieve: Not supported by provider %s", testConfig.Provider)
 		return
@@ -168,6 +171,7 @@ func RunContainerRetrieveTest(t *testing.T, client *bifrost.Bifrost, ctx context
 
 // RunContainerDeleteTest tests the container delete functionality
 func RunContainerDeleteTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.ContainerDelete {
 		t.Logf("[SKIPPED] Container Delete: Not supported by provider %s", testConfig.Provider)
 		return
@@ -225,6 +229,7 @@ func RunContainerDeleteTest(t *testing.T, client *bifrost.Bifrost, ctx context.C
 
 // RunContainerUnsupportedTest tests that providers correctly return unsupported operation errors
 func RunContainerUnsupportedTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	// Only run this test if none of the container operations are supported
 	if testConfig.Scenarios.ContainerCreate || testConfig.Scenarios.ContainerList ||
 		testConfig.Scenarios.ContainerRetrieve || testConfig.Scenarios.ContainerDelete {
@@ -262,6 +267,7 @@ func RunContainerUnsupportedTest(t *testing.T, client *bifrost.Bifrost, ctx cont
 
 // RunContainerFileCreateTest tests the container file create functionality
 func RunContainerFileCreateTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.ContainerFileCreate {
 		t.Logf("[SKIPPED] Container File Create: Not supported by provider %s", testConfig.Provider)
 		return
@@ -348,6 +354,7 @@ func RunContainerFileCreateTest(t *testing.T, client *bifrost.Bifrost, ctx conte
 
 // RunContainerFileListTest tests the container file list functionality
 func RunContainerFileListTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.ContainerFileList {
 		t.Logf("[SKIPPED] Container File List: Not supported by provider %s", testConfig.Provider)
 		return
@@ -398,31 +405,31 @@ func RunContainerFileListTest(t *testing.T, client *bifrost.Bifrost, ctx context
 			Path:        &filePath,
 		}
 
-	fileCreateResponse, fileCreateErr := client.ContainerFileCreateRequest(bfCtx, fileCreateRequest)
-	if fileCreateErr != nil {
-		if fileCreateErr.Error != nil && (fileCreateErr.Error.Code != nil && *fileCreateErr.Error.Code == "unsupported_operation") {
-			t.Logf("[EXPECTED] Provider %s returned unsupported operation error for file creation", testConfig.Provider)
-			return
+		fileCreateResponse, fileCreateErr := client.ContainerFileCreateRequest(bfCtx, fileCreateRequest)
+		if fileCreateErr != nil {
+			if fileCreateErr.Error != nil && (fileCreateErr.Error.Code != nil && *fileCreateErr.Error.Code == "unsupported_operation") {
+				t.Logf("[EXPECTED] Provider %s returned unsupported operation error for file creation", testConfig.Provider)
+				return
+			}
+			t.Fatalf("❌ ContainerFileCreate (setup) failed: %v", GetErrorMessage(fileCreateErr))
 		}
-		t.Fatalf("❌ ContainerFileCreate (setup) failed: %v", GetErrorMessage(fileCreateErr))
-	}
 
-	if fileCreateResponse == nil {
-		t.Fatal("❌ ContainerFileCreate (setup) returned nil response with no error")
-	}
-
-	fileID := fileCreateResponse.ID
-	defer func() {
-		// Clean up file
-		fileDeleteRequest := &schemas.BifrostContainerFileDeleteRequest{
-			Provider:    testConfig.Provider,
-			ContainerID: containerID,
-			FileID:      fileID,
+		if fileCreateResponse == nil {
+			t.Fatal("❌ ContainerFileCreate (setup) returned nil response with no error")
 		}
-		_, _ = client.ContainerFileDeleteRequest(bfCtx, fileDeleteRequest)
-	}()
 
-	// Now list files in the container
+		fileID := fileCreateResponse.ID
+		defer func() {
+			// Clean up file
+			fileDeleteRequest := &schemas.BifrostContainerFileDeleteRequest{
+				Provider:    testConfig.Provider,
+				ContainerID: containerID,
+				FileID:      fileID,
+			}
+			_, _ = client.ContainerFileDeleteRequest(bfCtx, fileDeleteRequest)
+		}()
+
+		// Now list files in the container
 		listRequest := &schemas.BifrostContainerFileListRequest{
 			Provider:    testConfig.Provider,
 			ContainerID: containerID,
@@ -453,6 +460,7 @@ func RunContainerFileListTest(t *testing.T, client *bifrost.Bifrost, ctx context
 
 // RunContainerFileRetrieveTest tests the container file retrieve functionality
 func RunContainerFileRetrieveTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.ContainerFileRetrieve {
 		t.Logf("[SKIPPED] Container File Retrieve: Not supported by provider %s", testConfig.Provider)
 		return
@@ -492,31 +500,31 @@ func RunContainerFileRetrieveTest(t *testing.T, client *bifrost.Bifrost, ctx con
 			_, _ = client.ContainerDeleteRequest(bfCtx, deleteRequest)
 		}()
 
-	// Create a file in the container
-	testContent := []byte("Test content for file retrieve")
-	filePath := "/test-file-retrieve.txt"
+		// Create a file in the container
+		testContent := []byte("Test content for file retrieve")
+		filePath := "/test-file-retrieve.txt"
 
-	fileCreateRequest := &schemas.BifrostContainerFileCreateRequest{
-		Provider:    testConfig.Provider,
-		ContainerID: containerID,
-		File:        testContent,
-		Path:        &filePath,
-	}
-
-	fileCreateResponse, fileCreateErr := client.ContainerFileCreateRequest(bfCtx, fileCreateRequest)
-	if fileCreateErr != nil {
-		if fileCreateErr.Error != nil && (fileCreateErr.Error.Code != nil && *fileCreateErr.Error.Code == "unsupported_operation") {
-			t.Logf("[EXPECTED] Provider %s returned unsupported operation error for file creation", testConfig.Provider)
-			return
+		fileCreateRequest := &schemas.BifrostContainerFileCreateRequest{
+			Provider:    testConfig.Provider,
+			ContainerID: containerID,
+			File:        testContent,
+			Path:        &filePath,
 		}
-		t.Fatalf("❌ ContainerFileCreate (setup) failed: %v", GetErrorMessage(fileCreateErr))
-	}
 
-	if fileCreateResponse == nil {
-		t.Fatal("❌ ContainerFileCreate (setup) returned nil response with no error")
-	}
+		fileCreateResponse, fileCreateErr := client.ContainerFileCreateRequest(bfCtx, fileCreateRequest)
+		if fileCreateErr != nil {
+			if fileCreateErr.Error != nil && (fileCreateErr.Error.Code != nil && *fileCreateErr.Error.Code == "unsupported_operation") {
+				t.Logf("[EXPECTED] Provider %s returned unsupported operation error for file creation", testConfig.Provider)
+				return
+			}
+			t.Fatalf("❌ ContainerFileCreate (setup) failed: %v", GetErrorMessage(fileCreateErr))
+		}
 
-	fileID := fileCreateResponse.ID
+		if fileCreateResponse == nil {
+			t.Fatal("❌ ContainerFileCreate (setup) returned nil response with no error")
+		}
+
+		fileID := fileCreateResponse.ID
 		defer func() {
 			// Clean up file
 			fileDeleteRequest := &schemas.BifrostContainerFileDeleteRequest{
@@ -562,6 +570,7 @@ func RunContainerFileRetrieveTest(t *testing.T, client *bifrost.Bifrost, ctx con
 
 // RunContainerFileContentTest tests the container file content functionality
 func RunContainerFileContentTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.ContainerFileContent {
 		t.Logf("[SKIPPED] Container File Content: Not supported by provider %s", testConfig.Provider)
 		return
@@ -601,31 +610,31 @@ func RunContainerFileContentTest(t *testing.T, client *bifrost.Bifrost, ctx cont
 			_, _ = client.ContainerDeleteRequest(bfCtx, deleteRequest)
 		}()
 
-	// Create a file in the container with known content
-	testContent := []byte("Hello, Bifrost! This is test content for file content retrieval.")
-	filePath := "/test-file-content.txt"
+		// Create a file in the container with known content
+		testContent := []byte("Hello, Bifrost! This is test content for file content retrieval.")
+		filePath := "/test-file-content.txt"
 
-	fileCreateRequest := &schemas.BifrostContainerFileCreateRequest{
-		Provider:    testConfig.Provider,
-		ContainerID: containerID,
-		File:        testContent,
-		Path:        &filePath,
-	}
-
-	fileCreateResponse, fileCreateErr := client.ContainerFileCreateRequest(bfCtx, fileCreateRequest)
-	if fileCreateErr != nil {
-		if fileCreateErr.Error != nil && (fileCreateErr.Error.Code != nil && *fileCreateErr.Error.Code == "unsupported_operation") {
-			t.Logf("[EXPECTED] Provider %s returned unsupported operation error for file creation", testConfig.Provider)
-			return
+		fileCreateRequest := &schemas.BifrostContainerFileCreateRequest{
+			Provider:    testConfig.Provider,
+			ContainerID: containerID,
+			File:        testContent,
+			Path:        &filePath,
 		}
-		t.Fatalf("❌ ContainerFileCreate (setup) failed: %v", GetErrorMessage(fileCreateErr))
-	}
 
-	if fileCreateResponse == nil {
-		t.Fatal("❌ ContainerFileCreate (setup) returned nil response with no error")
-	}
+		fileCreateResponse, fileCreateErr := client.ContainerFileCreateRequest(bfCtx, fileCreateRequest)
+		if fileCreateErr != nil {
+			if fileCreateErr.Error != nil && (fileCreateErr.Error.Code != nil && *fileCreateErr.Error.Code == "unsupported_operation") {
+				t.Logf("[EXPECTED] Provider %s returned unsupported operation error for file creation", testConfig.Provider)
+				return
+			}
+			t.Fatalf("❌ ContainerFileCreate (setup) failed: %v", GetErrorMessage(fileCreateErr))
+		}
 
-	fileID := fileCreateResponse.ID
+		if fileCreateResponse == nil {
+			t.Fatal("❌ ContainerFileCreate (setup) returned nil response with no error")
+		}
+
+		fileID := fileCreateResponse.ID
 		defer func() {
 			// Clean up file
 			fileDeleteRequest := &schemas.BifrostContainerFileDeleteRequest{
@@ -672,6 +681,7 @@ func RunContainerFileContentTest(t *testing.T, client *bifrost.Bifrost, ctx cont
 
 // RunContainerFileDeleteTest tests the container file delete functionality
 func RunContainerFileDeleteTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.ContainerFileDelete {
 		t.Logf("[SKIPPED] Container File Delete: Not supported by provider %s", testConfig.Provider)
 		return
@@ -711,33 +721,33 @@ func RunContainerFileDeleteTest(t *testing.T, client *bifrost.Bifrost, ctx conte
 			_, _ = client.ContainerDeleteRequest(bfCtx, deleteRequest)
 		}()
 
-	// Create a file in the container
-	testContent := []byte("Test content for file delete")
-	filePath := "/test-file-delete.txt"
+		// Create a file in the container
+		testContent := []byte("Test content for file delete")
+		filePath := "/test-file-delete.txt"
 
-	fileCreateRequest := &schemas.BifrostContainerFileCreateRequest{
-		Provider:    testConfig.Provider,
-		ContainerID: containerID,
-		File:        testContent,
-		Path:        &filePath,
-	}
-
-	fileCreateResponse, fileCreateErr := client.ContainerFileCreateRequest(bfCtx, fileCreateRequest)
-	if fileCreateErr != nil {
-		if fileCreateErr.Error != nil && (fileCreateErr.Error.Code != nil && *fileCreateErr.Error.Code == "unsupported_operation") {
-			t.Logf("[EXPECTED] Provider %s returned unsupported operation error for file creation", testConfig.Provider)
-			return
+		fileCreateRequest := &schemas.BifrostContainerFileCreateRequest{
+			Provider:    testConfig.Provider,
+			ContainerID: containerID,
+			File:        testContent,
+			Path:        &filePath,
 		}
-		t.Fatalf("❌ ContainerFileCreate (setup) failed: %v", GetErrorMessage(fileCreateErr))
-	}
 
-	if fileCreateResponse == nil {
-		t.Fatal("❌ ContainerFileCreate (setup) returned nil response with no error")
-	}
+		fileCreateResponse, fileCreateErr := client.ContainerFileCreateRequest(bfCtx, fileCreateRequest)
+		if fileCreateErr != nil {
+			if fileCreateErr.Error != nil && (fileCreateErr.Error.Code != nil && *fileCreateErr.Error.Code == "unsupported_operation") {
+				t.Logf("[EXPECTED] Provider %s returned unsupported operation error for file creation", testConfig.Provider)
+				return
+			}
+			t.Fatalf("❌ ContainerFileCreate (setup) failed: %v", GetErrorMessage(fileCreateErr))
+		}
 
-	fileID := fileCreateResponse.ID
+		if fileCreateResponse == nil {
+			t.Fatal("❌ ContainerFileCreate (setup) returned nil response with no error")
+		}
 
-	// Now delete the file
+		fileID := fileCreateResponse.ID
+
+		// Now delete the file
 		deleteRequest := &schemas.BifrostContainerFileDeleteRequest{
 			Provider:    testConfig.Provider,
 			ContainerID: containerID,
@@ -768,6 +778,7 @@ func RunContainerFileDeleteTest(t *testing.T, client *bifrost.Bifrost, ctx conte
 
 // RunContainerFileUnsupportedTest tests that providers correctly return unsupported operation errors for container file operations
 func RunContainerFileUnsupportedTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	// Only run this test if none of the container file operations are supported
 	if testConfig.Scenarios.ContainerFileCreate || testConfig.Scenarios.ContainerFileList ||
 		testConfig.Scenarios.ContainerFileRetrieve || testConfig.Scenarios.ContainerFileContent ||

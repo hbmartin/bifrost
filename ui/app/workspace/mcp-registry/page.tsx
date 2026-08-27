@@ -111,7 +111,9 @@ export default function MCPServersPage() {
 	// Snap offset back when total shrinks past current page (e.g. delete last item on last page)
 	useEffect(() => {
 		if (!mcpClientsData || urlState.offset < totalCount) return;
-		void setUrlState({ offset: totalCount === 0 ? 0 : Math.floor((totalCount - 1) / PAGE_SIZE) * PAGE_SIZE });
+		void setUrlState({
+			offset: totalCount === 0 ? 0 : Math.floor((totalCount - 1) / PAGE_SIZE) * PAGE_SIZE,
+		});
 	}, [totalCount, urlState.offset, mcpClientsData, setUrlState]);
 
 	const { toast } = useToast();

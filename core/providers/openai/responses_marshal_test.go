@@ -293,6 +293,7 @@ func TestOpenAIResponsesRequest_MarshalJSON_InputArrayForm(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, inputValue interface{}) {
+				t.Helper()
 				inputArray, ok := inputValue.([]interface{})
 				if !ok {
 					t.Fatalf("Expected input to be an array, got type %T", inputValue)
@@ -312,6 +313,7 @@ func TestOpenAIResponsesRequest_MarshalJSON_InputArrayForm(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, inputValue interface{}) {
+				t.Helper()
 				inputArray, ok := inputValue.([]interface{})
 				if !ok {
 					t.Fatalf("Expected input to be an array, got type %T", inputValue)
@@ -344,6 +346,7 @@ func TestOpenAIResponsesRequest_MarshalJSON_InputArrayForm(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, inputValue interface{}) {
+				t.Helper()
 				inputArray, ok := inputValue.([]interface{})
 				if !ok {
 					t.Fatalf("Expected input to be an array, got type %T", inputValue)
@@ -1053,6 +1056,7 @@ func TestOpenAICompactionRequest_MarshalJSON_Input(t *testing.T) {
 				PreviousResponseID: schemas.Ptr("resp_123"),
 			},
 			assert: func(t *testing.T, m map[string]interface{}) {
+				t.Helper()
 				if v, ok := m["input"]; ok {
 					t.Errorf("input should be omitted when empty, got: %#v", v)
 				}
@@ -1065,6 +1069,7 @@ func TestOpenAICompactionRequest_MarshalJSON_Input(t *testing.T) {
 				Input: OpenAIResponsesRequestInput{OpenAIResponsesRequestInputStr: schemas.Ptr("hello")},
 			},
 			assert: func(t *testing.T, m map[string]interface{}) {
+				t.Helper()
 				if s, ok := m["input"].(string); !ok || s != "hello" {
 					t.Errorf("input should be the string %q, got: %#v", "hello", m["input"])
 				}
@@ -1080,6 +1085,7 @@ func TestOpenAICompactionRequest_MarshalJSON_Input(t *testing.T) {
 				}}},
 			},
 			assert: func(t *testing.T, m map[string]interface{}) {
+				t.Helper()
 				if _, ok := m["input"].([]interface{}); !ok {
 					t.Errorf("input should be an array, got: %#v", m["input"])
 				}

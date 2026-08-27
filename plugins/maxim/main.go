@@ -333,7 +333,9 @@ func (plugin *Plugin) PreLLMHook(ctx *schemas.BifrostContext, req *schemas.Bifro
 			// Convert the struct to a map using reflection or JSON marshaling
 			jsonData, err := sonic.Marshal(req.TextCompletionRequest.Params)
 			if err == nil {
-				sonic.Unmarshal(jsonData, &modelParams)
+				if err := sonic.Unmarshal(jsonData, &modelParams); err != nil {
+					return req, nil, fmt.Errorf("decode text completion parameters: %w", err)
+				}
 			}
 		}
 	case schemas.ChatCompletionRequest, schemas.ChatCompletionStreamRequest:
@@ -367,7 +369,9 @@ func (plugin *Plugin) PreLLMHook(ctx *schemas.BifrostContext, req *schemas.Bifro
 			// Convert the struct to a map using reflection or JSON marshaling
 			jsonData, err := sonic.Marshal(req.ChatRequest.Params)
 			if err == nil {
-				sonic.Unmarshal(jsonData, &modelParams)
+				if err := sonic.Unmarshal(jsonData, &modelParams); err != nil {
+					return req, nil, fmt.Errorf("decode chat completion parameters: %w", err)
+				}
 			}
 		}
 	case schemas.ResponsesRequest, schemas.ResponsesStreamRequest, schemas.WebSocketResponsesRequest:
@@ -410,7 +414,9 @@ func (plugin *Plugin) PreLLMHook(ctx *schemas.BifrostContext, req *schemas.Bifro
 			// Convert the struct to a map using reflection or JSON marshaling
 			jsonData, err := sonic.Marshal(req.ResponsesRequest.Params)
 			if err == nil {
-				sonic.Unmarshal(jsonData, &modelParams)
+				if err := sonic.Unmarshal(jsonData, &modelParams); err != nil {
+					return req, nil, fmt.Errorf("decode Responses API parameters: %w", err)
+				}
 			}
 		}
 	case schemas.ImageGenerationRequest, schemas.ImageGenerationStreamRequest:
@@ -425,7 +431,9 @@ func (plugin *Plugin) PreLLMHook(ctx *schemas.BifrostContext, req *schemas.Bifro
 		if req.ImageGenerationRequest.Params != nil {
 			jsonData, err := sonic.Marshal(req.ImageGenerationRequest.Params)
 			if err == nil {
-				sonic.Unmarshal(jsonData, &modelParams)
+				if err := sonic.Unmarshal(jsonData, &modelParams); err != nil {
+					return req, nil, fmt.Errorf("decode image generation parameters: %w", err)
+				}
 			}
 		}
 	case schemas.ImageEditRequest, schemas.ImageEditStreamRequest:
@@ -440,7 +448,9 @@ func (plugin *Plugin) PreLLMHook(ctx *schemas.BifrostContext, req *schemas.Bifro
 		if req.ImageEditRequest.Params != nil {
 			jsonData, err := sonic.Marshal(req.ImageEditRequest.Params)
 			if err == nil {
-				sonic.Unmarshal(jsonData, &modelParams)
+				if err := sonic.Unmarshal(jsonData, &modelParams); err != nil {
+					return req, nil, fmt.Errorf("decode image edit parameters: %w", err)
+				}
 			}
 		}
 	}

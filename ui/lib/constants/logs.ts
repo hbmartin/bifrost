@@ -187,10 +187,22 @@ export interface ClientApp {
 // and meant to be extended as new clients appear.
 const userAgentAppMatchers: { identifiers: string[]; app: ClientApp }[] = [
 	{ identifiers: ["chatgpt-web"], app: { name: "ChatGPT Web", icon: "/images/openai.png" } },
-	{ identifiers: ["claude-chat-web", "claude-web"], app: { name: "Claude Chat Web", icon: "/images/claude-desktop.png" } },
-	{ identifiers: ["claude-desktop"], app: { name: "Claude Desktop", icon: "/images/claude-desktop.png" } },
-	{ identifiers: ["claude-code", "claude-cli", "claude-vscode"], app: { name: "Claude Code", icon: "/images/claude-code.png" } },
-	{ identifiers: ["codex-cli", "codex-tui"], app: { name: "Codex CLI", icon: "/images/codex.png" } },
+	{
+		identifiers: ["claude-chat-web", "claude-web"],
+		app: { name: "Claude Chat Web", icon: "/images/claude-desktop.png" },
+	},
+	{
+		identifiers: ["claude-desktop"],
+		app: { name: "Claude Desktop", icon: "/images/claude-desktop.png" },
+	},
+	{
+		identifiers: ["claude-code", "claude-cli", "claude-vscode"],
+		app: { name: "Claude Code", icon: "/images/claude-code.png" },
+	},
+	{
+		identifiers: ["codex-cli", "codex-tui"],
+		app: { name: "Codex CLI", icon: "/images/codex.png" },
+	},
 	{ identifiers: ["codex-desktop"], app: { name: "Codex Desktop", icon: "/images/codex.png" } },
 	{ identifiers: ["codex"], app: { name: "Codex Desktop", icon: "/images/codex.png" } },
 	{ identifiers: ["cursor"], app: { name: "Cursor", icon: "/images/cursor.png" } },
@@ -199,7 +211,10 @@ const userAgentAppMatchers: { identifiers: string[]; app: ClientApp }[] = [
 	{ identifiers: ["cline"], app: { name: "Cline", icon: "/images/cline.png" } },
 	{ identifiers: ["opencode"], app: { name: "OpenCode", icon: "/images/opencode.png" } },
 	{ identifiers: ["windsurf"], app: { name: "Windsurf", icon: "/images/windsurf.png" } },
-	{ identifiers: ["gemini", "geminicli"], app: { name: "Gemini CLI", icon: "/images/gemini-cli.png" } },
+	{
+		identifiers: ["gemini", "geminicli"],
+		app: { name: "Gemini CLI", icon: "/images/gemini-cli.png" },
+	},
 	{ identifiers: ["qwencode", "qwen"], app: { name: "Qwen Code" } },
 ];
 

@@ -180,7 +180,7 @@ func TestPool_WrongType_NoPanic(t *testing.T) {
 
 	t.Run("gzip", func(t *testing.T) {
 		drainPool(&gzipReaderPool)
-		gzipReaderPool.Put(wrongValue)
+		gzipReaderPool.Put(&wrongValue)
 		gz, err := AcquireGzipReader(bytes.NewReader(compressed))
 		if err != nil {
 			t.Fatalf("AcquireGzipReader should fall back, got error: %v", err)
@@ -194,7 +194,7 @@ func TestPool_WrongType_NoPanic(t *testing.T) {
 
 	t.Run("deflate", func(t *testing.T) {
 		drainPool(&deflateReaderPool)
-		deflateReaderPool.Put(wrongValue)
+		deflateReaderPool.Put(&wrongValue)
 		fr, err := AcquireFlateReader(bytes.NewReader(compressFlate(testPayload)))
 		if err != nil {
 			t.Fatalf("AcquireFlateReader should fall back, got error: %v", err)
@@ -208,7 +208,7 @@ func TestPool_WrongType_NoPanic(t *testing.T) {
 
 	t.Run("brotli", func(t *testing.T) {
 		drainPool(&brotliReaderPool)
-		brotliReaderPool.Put(wrongValue)
+		brotliReaderPool.Put(&wrongValue)
 		br := AcquireBrotliReader(bytes.NewReader(compressBrotli(testPayload)))
 		got, err := io.ReadAll(br)
 		if err != nil {
@@ -222,7 +222,7 @@ func TestPool_WrongType_NoPanic(t *testing.T) {
 
 	t.Run("zstd", func(t *testing.T) {
 		drainPool(&zstdDecoderPool)
-		zstdDecoderPool.Put(wrongValue)
+		zstdDecoderPool.Put(&wrongValue)
 		dec, err := AcquireZstdDecoder(bytes.NewReader(compressZstd(testPayload)))
 		if err != nil {
 			t.Fatalf("AcquireZstdDecoder should fall back, got error: %v", err)
@@ -363,10 +363,10 @@ func TestPool_RecoveryAndReuse(t *testing.T) {
 	drainPool(&deflateReaderPool)
 	drainPool(&brotliReaderPool)
 	drainPool(&zstdDecoderPool)
-	gzipReaderPool.Put("wrong")
-	deflateReaderPool.Put(42)
-	brotliReaderPool.Put(struct{}{})
-	zstdDecoderPool.Put(false)
+	gzipReaderPool.Put(new(string))
+	deflateReaderPool.Put(new(int))
+	brotliReaderPool.Put(new(struct{}))
+	zstdDecoderPool.Put(new(bool))
 
 	// Run a normal Acquire → ReadAll → Release cycle for each.
 	// This verifies the pool recovers: the wrong-typed value is discarded,

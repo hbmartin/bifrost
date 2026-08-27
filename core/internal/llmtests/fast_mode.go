@@ -19,6 +19,7 @@ import (
 //
 // Note: Fast mode is currently only supported on Anthropic (direct API) with Opus 4.6.
 func RunFastModeTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.FastMode {
 		t.Logf("Fast mode not supported for provider %s", testConfig.Provider)
 		return

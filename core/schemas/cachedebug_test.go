@@ -1,6 +1,7 @@
 package schemas
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -9,7 +10,7 @@ import (
 
 // TestCacheDebugContextReturnsOwnedSnapshot verifies semantic cache metadata survives without aliases.
 func TestCacheDebugContextReturnsOwnedSnapshot(t *testing.T) {
-	ctx := NewBifrostContext(nil, NoDeadline)
+	ctx := NewBifrostContext(context.Background(), NoDeadline)
 	provider := "openai"
 	model := "text-embedding-3-small"
 	inputTokens := 12

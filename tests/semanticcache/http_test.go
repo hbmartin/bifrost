@@ -208,7 +208,7 @@ func doJSON(t *testing.T, method, path string, body any, extra http.Header) (int
 	if err != nil {
 		return 0, nil, nil, fmt.Errorf("http do: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	respBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return resp.StatusCode, nil, resp.Header, fmt.Errorf("read body: %w", err)
@@ -584,7 +584,7 @@ func postChatStream(t *testing.T, lc logCtx, step int, req chatRequest, ch cache
 	if err != nil {
 		t.Fatalf("stream do: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	out := &streamResponse{statusCode: resp.StatusCode, headers: resp.Header}
 	if resp.StatusCode != http.StatusOK {
@@ -610,7 +610,6 @@ func postChatStream(t *testing.T, lc logCtx, step int, req chatRequest, ch cache
 		}
 		if bytes.Equal(payload, []byte("[DONE]")) {
 			out.Chunks = append(out.Chunks, streamChunk{Index: idx, Done: true})
-			idx++
 			break
 		}
 		ck := streamChunk{Index: idx, Raw: append([]byte(nil), payload...)}

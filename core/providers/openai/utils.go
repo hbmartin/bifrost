@@ -126,7 +126,6 @@ func bareModelLower(model string) string {
 	return strings.ToLower(model)
 }
 
-
 func ConvertOpenAIMessagesToBifrostMessages(messages []OpenAIMessage) []schemas.ChatMessage {
 	bifrostMessages := make([]schemas.ChatMessage, len(messages))
 	for i, message := range messages {

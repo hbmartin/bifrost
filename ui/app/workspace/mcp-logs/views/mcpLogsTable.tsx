@@ -186,7 +186,12 @@ export function MCPLogsDataTable({
 												<TableCell
 													onClick={() => onRowClick?.(row.original, cell.column.id)}
 													key={cell.id}
-													style={{ width: size, minWidth: size, maxWidth: size, ...buildPinStyle(cell.column, pinOffsets) }}
+													style={{
+														width: size,
+														minWidth: size,
+														maxWidth: size,
+														...buildPinStyle(cell.column, pinOffsets),
+													}}
 													className={cn(
 														!pinned && "overflow-hidden",
 														pinned && "bg-card",

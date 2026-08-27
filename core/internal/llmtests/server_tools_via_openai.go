@@ -27,6 +27,7 @@ import (
 // mcp_toolset, computer_use) require multi-turn tool loops or infra setup
 // and are covered by the schema / unit-level round-trip tests instead.
 func RunServerToolsViaOpenAIEndpointTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.ServerToolsViaOpenAIEndpoint {
 		t.Logf("ServerToolsViaOpenAIEndpoint not supported for provider %s", testConfig.Provider)
 		return

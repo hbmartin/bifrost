@@ -1197,14 +1197,14 @@ func initStores(ctx context.Context, config *Config, configData *ConfigData, con
 					}
 					config.LogsStore, err = logstore.NewLogStore(ctx, logStoreConfig, logger)
 					if err != nil {
-						return fmt.Errorf("failed to initialize logs store: %v", err)
+						return fmt.Errorf("failed to initialize logs store: %w", err)
 					}
 					config.LogsStoreConfig = logStoreConfig
 				} else {
-					return fmt.Errorf("failed to initialize logs store: %v", err)
+					return fmt.Errorf("failed to initialize logs store: %w", err)
 				}
 			} else {
-				return fmt.Errorf("failed to initialize logs store: %v", err)
+				return fmt.Errorf("failed to initialize logs store: %w", err)
 			}
 		}
 		if config.LogsStoreConfig == nil {
@@ -5057,22 +5057,22 @@ func ResolveFrameworkPricingConfig(
 	}
 
 	return &configstoreTables.TableFrameworkConfig{
-			ID:                     configID,
-			PricingURL:             resolvedPricingURL,
-			PricingSyncInterval:    resolvedSyncSeconds,
-			ModelParametersURL:     resolvedModelParametersURL,
-			MCPLibraryURL:          resolvedMCPLibraryURL,
-			MCPLibrarySyncInterval: resolvedMCPLibrarySyncInterval,
-			LiveModelsSyncInterval: resolvedLiveModelsSyncInterval,
-			ConfigHash:             persistedHash,
-		}, &modelcatalog.Config{
-			PricingURL:             resolvedPricingURL,
-			PricingSyncInterval:    resolvedSyncSeconds,
-			ModelParametersURL:     resolvedModelParametersURL,
-			MCPLibraryURL:          resolvedMCPLibraryURL,
-			MCPLibrarySyncInterval: resolvedMCPLibrarySyncInterval,
-			LiveModelsSyncInterval: resolvedLiveModelsSyncInterval,
-		}, needsDBUpdate
+		ID:                     configID,
+		PricingURL:             resolvedPricingURL,
+		PricingSyncInterval:    resolvedSyncSeconds,
+		ModelParametersURL:     resolvedModelParametersURL,
+		MCPLibraryURL:          resolvedMCPLibraryURL,
+		MCPLibrarySyncInterval: resolvedMCPLibrarySyncInterval,
+		LiveModelsSyncInterval: resolvedLiveModelsSyncInterval,
+		ConfigHash:             persistedHash,
+	}, &modelcatalog.Config{
+		PricingURL:             resolvedPricingURL,
+		PricingSyncInterval:    resolvedSyncSeconds,
+		ModelParametersURL:     resolvedModelParametersURL,
+		MCPLibraryURL:          resolvedMCPLibraryURL,
+		MCPLibrarySyncInterval: resolvedMCPLibrarySyncInterval,
+		LiveModelsSyncInterval: resolvedLiveModelsSyncInterval,
+	}, needsDBUpdate
 }
 
 // initFrameworkConfig initializes framework config and pricing manager from file
@@ -5609,7 +5609,9 @@ func (c *Config) GetKVStore() *kvstore.Store {
 // no longer needed to prevent goroutine leaks.
 func (c *Config) Close(ctx context.Context) {
 	if c.ModelCatalog != nil {
-		c.ModelCatalog.Cleanup()
+		if err := c.ModelCatalog.Cleanup(); err != nil {
+			logger.Warn("failed to clean up model catalog: %v", err)
+		}
 	}
 	if c.OAuthTokenRefreshWorker != nil {
 		c.OAuthTokenRefreshWorker.Stop()
@@ -5621,13 +5623,19 @@ func (c *Config) Close(ctx context.Context) {
 		c.MCPHeadersSweepWorker.Stop()
 	}
 	if c.KVStore != nil {
-		c.KVStore.Close()
+		if err := c.KVStore.Close(); err != nil {
+			logger.Warn("failed to close KV store: %v", err)
+		}
 	}
 	if c.ConfigStore != nil {
-		c.ConfigStore.Close(ctx)
+		if err := c.ConfigStore.Close(ctx); err != nil {
+			logger.Warn("failed to close config store: %v", err)
+		}
 	}
 	if c.LogsStore != nil {
-		c.LogsStore.Close(ctx)
+		if err := c.LogsStore.Close(ctx); err != nil {
+			logger.Warn("failed to close logs store: %v", err)
+		}
 	}
 	if c.ObjectStore != nil {
 		if err := c.ObjectStore.Close(); err != nil {
@@ -5635,7 +5643,9 @@ func (c *Config) Close(ctx context.Context) {
 		}
 	}
 	if c.VectorStore != nil {
-		c.VectorStore.Close(ctx, "")
+		if err := c.VectorStore.Close(ctx, ""); err != nil {
+			logger.Warn("failed to close vector store: %v", err)
+		}
 	}
 }
 

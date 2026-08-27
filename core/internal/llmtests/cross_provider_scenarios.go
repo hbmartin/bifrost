@@ -258,6 +258,7 @@ type ProviderRoundRobin struct {
 
 // NewProviderRoundRobin creates a new round-robin manager
 func NewProviderRoundRobin(providers []ProviderConfig, t *testing.T) *ProviderRoundRobin {
+	t.Helper()
 	availableProviders := filterAvailableProviders(providers, t)
 	return &ProviderRoundRobin{
 		providers:    availableProviders,
@@ -333,6 +334,7 @@ func (prr *ProviderRoundRobin) GetUsageStats() map[schemas.ModelProvider]int {
 
 // filterAvailableProviders checks which providers are actually available
 func filterAvailableProviders(providers []ProviderConfig, t *testing.T) []ProviderConfig {
+	t.Helper()
 	var available []ProviderConfig
 	for _, provider := range providers {
 		if provider.Available {
@@ -380,6 +382,7 @@ type EvaluationResult struct {
 
 // NewOpenAIJudge creates a new judge instance
 func NewOpenAIJudge(client *bifrost.Bifrost, judgeModel string, t *testing.T) *OpenAIJudge {
+	t.Helper()
 	return &OpenAIJudge{
 		client:     client,
 		judgeModel: judgeModel,
@@ -447,7 +450,7 @@ Respond with JSON:
 
 	if err := parseJudgeResponse(content, &result); err != nil {
 		judge.logger.Logf("⚠️ Failed to parse judge response, using fallback")
-		return judge.fallbackEvaluation(evaluation), nil
+		return judge.fallbackEvaluation(evaluation), nil //nolint:nilerr // Invalid judge JSON deliberately falls back to deterministic local evaluation.
 	}
 
 	judge.logger.Logf("🔍 Judge: %.2f | %s", result.Score,
@@ -523,6 +526,7 @@ type GeneratedFollowup struct {
 
 // NewOpenAIConversationDriver creates a new conversation driver
 func NewOpenAIConversationDriver(client *bifrost.Bifrost, driverModel string, t *testing.T) *OpenAIConversationDriver {
+	t.Helper()
 	return &OpenAIConversationDriver{
 		client:      client,
 		driverModel: driverModel,
@@ -583,7 +587,7 @@ JSON response:
 
 	if err := parseDriverResponse(content, &followup); err != nil {
 		driver.logger.Logf("⚠️ Driver parse failed, using fallback")
-		return driver.generateFallbackMessage(request), nil
+		return driver.generateFallbackMessage(request), nil //nolint:nilerr // Invalid driver JSON deliberately falls back to a deterministic local message.
 	}
 
 	driver.logger.Logf("💭 Generated: %s", truncateString(followup.UserMessage, 80))
@@ -646,6 +650,7 @@ func (driver *OpenAIConversationDriver) generateFallbackMessage(request NextMess
 
 // RunCrossProviderScenarioTest executes a complete scenario
 func RunCrossProviderScenarioTest(t *testing.T, client *bifrost.Bifrost, ctx *schemas.BifrostContext, config CrossProviderTestConfig, scenario CrossProviderScenario, useResponsesAPI bool) {
+	t.Helper()
 	apiType := "Chat Completions"
 	if useResponsesAPI {
 		apiType = "Responses API"
@@ -778,6 +783,7 @@ func RunCrossProviderScenarioTest(t *testing.T, client *bifrost.Bifrost, ctx *sc
 
 // RunCrossProviderConsistencyTest tests same prompt across providers
 func RunCrossProviderConsistencyTest(t *testing.T, client *bifrost.Bifrost, ctx *schemas.BifrostContext, config CrossProviderTestConfig, useResponsesAPI bool) {
+	t.Helper()
 	apiType := "Chat Completions"
 	if useResponsesAPI {
 		apiType = "Responses API"
@@ -873,6 +879,7 @@ type ConsistencyResult struct {
 
 func executeStepWithProvider(t *testing.T, client *bifrost.Bifrost, ctx *schemas.BifrostContext,
 	provider ProviderConfig, history []schemas.ChatMessage, step ScenarioStep, useResponsesAPI bool) (*schemas.BifrostResponse, *schemas.BifrostError) {
+	t.Helper()
 
 	// Prepare request parameters
 	var tools []schemas.ChatTool
@@ -990,6 +997,7 @@ func evaluateScenarioSuccess(results []EvaluationResult, criteria ScenarioSucces
 
 func printScenarioSummary(t *testing.T, scenario CrossProviderScenario, results []EvaluationResult,
 	usage map[schemas.ModelProvider]int, apiType string) {
+	t.Helper()
 
 	t.Logf("\n%s", strings.Repeat("=", 80))
 	t.Logf("SCENARIO SUMMARY: %s (%s)", scenario.Name, apiType)
@@ -1023,6 +1031,7 @@ func printScenarioSummary(t *testing.T, scenario CrossProviderScenario, results 
 }
 
 func analyzeConsistency(t *testing.T, results []ConsistencyResult, apiType string) {
+	t.Helper()
 	t.Logf("\n%s", strings.Repeat("=", 80))
 	t.Logf("CONSISTENCY ANALYSIS (%s)", apiType)
 	t.Logf("%s", strings.Repeat("=", 80))

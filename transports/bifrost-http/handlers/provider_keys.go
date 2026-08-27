@@ -591,7 +591,7 @@ func getKeyIDFromCtx(ctx *fasthttp.RequestCtx) (string, error) {
 
 	decoded, err := url.PathUnescape(keyID)
 	if err != nil {
-		return "", fmt.Errorf("invalid key_id parameter encoding: %v", err)
+		return "", fmt.Errorf("invalid key_id parameter encoding: %w", err)
 	}
 
 	return decoded, nil

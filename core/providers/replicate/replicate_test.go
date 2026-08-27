@@ -20,13 +20,13 @@ import (
 
 type testLogger struct{}
 
-func (l *testLogger) Debug(string, ...any)                     {}
-func (l *testLogger) Info(string, ...any)                      {}
-func (l *testLogger) Warn(string, ...any)                      {}
-func (l *testLogger) Error(string, ...any)                     {}
-func (l *testLogger) Fatal(string, ...any)                     {}
-func (l *testLogger) SetLevel(schemas.LogLevel)               {}
-func (l *testLogger) SetOutputType(schemas.LoggerOutputType)  {}
+func (l *testLogger) Debug(string, ...any)                   {}
+func (l *testLogger) Info(string, ...any)                    {}
+func (l *testLogger) Warn(string, ...any)                    {}
+func (l *testLogger) Error(string, ...any)                   {}
+func (l *testLogger) Fatal(string, ...any)                   {}
+func (l *testLogger) SetLevel(schemas.LogLevel)              {}
+func (l *testLogger) SetOutputType(schemas.LoggerOutputType) {}
 func (l *testLogger) LogHTTPRequest(schemas.LogLevel, string) schemas.LogEventBuilder {
 	return schemas.NoopLogEvent
 }
@@ -59,7 +59,7 @@ func multipartFieldOrderFromRequest(r *http.Request) ([]string, error) {
 
 func TestFileUpload_OrdersMetadataBeforeFile(t *testing.T) {
 	var (
-		order       []string
+		order      []string
 		handlerErr error
 	)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -194,6 +194,7 @@ func TestBifrostToReplicateChatRequestConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *replicate.ReplicatePredictionRequest) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.NotNil(t, result.Input)
 				// OpenAI models should use Messages field
@@ -220,6 +221,7 @@ func TestBifrostToReplicateChatRequestConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *replicate.ReplicatePredictionRequest) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.NotNil(t, result.Input)
 				// OpenAI models should use MaxCompletionTokens field
@@ -248,6 +250,7 @@ func TestBifrostToReplicateChatRequestConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *replicate.ReplicatePredictionRequest) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.NotNil(t, result.Input)
 				// Deepseek models don't support system_prompt, it should be prepended to prompt
@@ -278,6 +281,7 @@ func TestBifrostToReplicateChatRequestConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *replicate.ReplicatePredictionRequest) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.NotNil(t, result.Input)
 				// Meta llama models don't support system_prompt
@@ -307,6 +311,7 @@ func TestBifrostToReplicateChatRequestConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *replicate.ReplicatePredictionRequest) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.NotNil(t, result.Input)
 				// Regular models support system_prompt
@@ -333,6 +338,7 @@ func TestBifrostToReplicateChatRequestConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *replicate.ReplicatePredictionRequest) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.NotNil(t, result.Input)
 				// Non-OpenAI models should use MaxTokens field
@@ -355,6 +361,7 @@ func TestBifrostToReplicateChatRequestConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *replicate.ReplicatePredictionRequest) {
+				t.Helper()
 				require.NotNil(t, result)
 				// Version ID should be set in Version field
 				assert.NotNil(t, result.Version)
@@ -383,6 +390,7 @@ func TestBifrostToReplicateChatRequestConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *replicate.ReplicatePredictionRequest) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.NotNil(t, result.Input)
 				assert.Equal(t, maxTokens, *result.Input.MaxTokens)
@@ -416,6 +424,7 @@ func TestBifrostToReplicateChatRequestConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *replicate.ReplicatePredictionRequest) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.NotNil(t, result.Input)
 				// Image URL should be added to ImageInput
@@ -450,6 +459,7 @@ func TestBifrostToReplicateChatRequestConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *replicate.ReplicatePredictionRequest) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.NotNil(t, result.Input)
 				assert.NotNil(t, result.Input.ImageInput)
@@ -474,6 +484,7 @@ func TestBifrostToReplicateChatRequestConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *replicate.ReplicatePredictionRequest) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.NotNil(t, result.Input)
 				assert.NotNil(t, result.Input.ReasoningEffort)
@@ -558,6 +569,7 @@ func TestBifrostToReplicateImageGenerationConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *replicate.ReplicatePredictionRequest) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.NotNil(t, result.Input)
 				assert.Equal(t, prompt, *result.Input.Prompt)
@@ -580,6 +592,7 @@ func TestBifrostToReplicateImageGenerationConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *replicate.ReplicatePredictionRequest) {
+				t.Helper()
 				require.NotNil(t, result)
 				// Version ID should be set in Version field
 				assert.NotNil(t, result.Version)
@@ -600,6 +613,7 @@ func TestBifrostToReplicateImageGenerationConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *replicate.ReplicatePredictionRequest) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.NotNil(t, result.Input)
 				assert.NotNil(t, result.Input.ExtraParams)
@@ -611,6 +625,7 @@ func TestBifrostToReplicateImageGenerationConversion(t *testing.T) {
 			input:   nil,
 			wantErr: false, // Function returns nil, not error
 			validate: func(t *testing.T, result *replicate.ReplicatePredictionRequest) {
+				t.Helper()
 				assert.Nil(t, result)
 			},
 		},
@@ -622,6 +637,7 @@ func TestBifrostToReplicateImageGenerationConversion(t *testing.T) {
 			},
 			wantErr: false,
 			validate: func(t *testing.T, result *replicate.ReplicatePredictionRequest) {
+				t.Helper()
 				assert.Nil(t, result)
 			},
 		},
@@ -843,6 +859,7 @@ func TestBifrostToReplicateResponsesRequestConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *replicate.ReplicatePredictionRequest) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.NotNil(t, result.Input)
 				// GPT-5 structured models should use InputItemList
@@ -889,6 +906,7 @@ func TestBifrostToReplicateResponsesRequestConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *replicate.ReplicatePredictionRequest) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.NotNil(t, result.Input)
 				assert.NotNil(t, result.Input.Tools)
@@ -919,6 +937,7 @@ func TestBifrostToReplicateResponsesRequestConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *replicate.ReplicatePredictionRequest) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.NotNil(t, result.Input)
 				// OpenAI family (non-gpt5-structured) should use Messages
@@ -951,6 +970,7 @@ func TestBifrostToReplicateResponsesRequestConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *replicate.ReplicatePredictionRequest) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.NotNil(t, result.Input)
 				// Non-OpenAI models that support system_prompt
@@ -982,6 +1002,7 @@ func TestBifrostToReplicateResponsesRequestConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *replicate.ReplicatePredictionRequest) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.NotNil(t, result.Input)
 				// Deepseek models don't support system_prompt, should be prepended to prompt
@@ -1013,6 +1034,7 @@ func TestBifrostToReplicateResponsesRequestConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *replicate.ReplicatePredictionRequest) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.NotNil(t, result.Input)
 				assert.NotNil(t, result.Input.Prompt)
@@ -1044,6 +1066,7 @@ func TestBifrostToReplicateResponsesRequestConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *replicate.ReplicatePredictionRequest) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.NotNil(t, result.Input)
 				// Non-base64 image URLs should be added to ImageInput
@@ -1078,6 +1101,7 @@ func TestBifrostToReplicateResponsesRequestConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *replicate.ReplicatePredictionRequest) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.NotNil(t, result.Input)
 				assert.NotNil(t, result.Input.ImageInput)
@@ -1112,6 +1136,7 @@ func TestBifrostToReplicateResponsesRequestConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *replicate.ReplicatePredictionRequest) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.NotNil(t, result.Input)
 				assert.NotNil(t, result.Input.Prompt)
@@ -1141,6 +1166,7 @@ func TestBifrostToReplicateResponsesRequestConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *replicate.ReplicatePredictionRequest) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.NotNil(t, result.Input)
 				// OpenAI models should use MaxCompletionTokens
@@ -1172,6 +1198,7 @@ func TestBifrostToReplicateResponsesRequestConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *replicate.ReplicatePredictionRequest) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.NotNil(t, result.Input)
 				// Non-OpenAI models should use MaxTokens
@@ -1200,6 +1227,7 @@ func TestBifrostToReplicateResponsesRequestConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *replicate.ReplicatePredictionRequest) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.NotNil(t, result.Input)
 				assert.NotNil(t, result.Input.ReasoningEffort)
@@ -1224,6 +1252,7 @@ func TestBifrostToReplicateResponsesRequestConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *replicate.ReplicatePredictionRequest) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.NotNil(t, result.Input)
 				// Models that support system_prompt should use it for instructions
@@ -1249,6 +1278,7 @@ func TestBifrostToReplicateResponsesRequestConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *replicate.ReplicatePredictionRequest) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.NotNil(t, result.Input)
 				// Models that don't support system_prompt should prepend instructions to prompt
@@ -1276,6 +1306,7 @@ func TestBifrostToReplicateResponsesRequestConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *replicate.ReplicatePredictionRequest) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.NotNil(t, result.Input)
 				assert.NotNil(t, result.Input.Prompt)
@@ -1301,6 +1332,7 @@ func TestBifrostToReplicateResponsesRequestConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *replicate.ReplicatePredictionRequest) {
+				t.Helper()
 				require.NotNil(t, result)
 				// Version ID should be set in Version field
 				assert.NotNil(t, result.Version)
@@ -1329,6 +1361,7 @@ func TestBifrostToReplicateResponsesRequestConversion(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *replicate.ReplicatePredictionRequest) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.NotNil(t, result.Input)
 				assert.NotNil(t, result.Input.Prompt)
@@ -1386,6 +1419,7 @@ func TestReplicateToBifrostResponsesResponse(t *testing.T) {
 				Logs: schemas.Ptr("Input token count: 10\nOutput token count: 20\nTotal token count: 30"),
 			},
 			validate: func(t *testing.T, result *schemas.BifrostResponsesResponse) {
+				t.Helper()
 				require.NotNil(t, result)
 				assert.Equal(t, predictionID, *result.ID)
 				assert.Equal(t, model, result.Model)
@@ -1416,6 +1450,7 @@ func TestReplicateToBifrostResponsesResponse(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *schemas.BifrostResponsesResponse) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.NotNil(t, result.Output)
 				require.Len(t, result.Output, 1)
@@ -1437,6 +1472,7 @@ func TestReplicateToBifrostResponsesResponse(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *schemas.BifrostResponsesResponse) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.NotNil(t, result.Output)
 				require.Len(t, result.Output, 1)
@@ -1453,6 +1489,7 @@ func TestReplicateToBifrostResponsesResponse(t *testing.T) {
 				Error:     &errorMsg,
 			},
 			validate: func(t *testing.T, result *schemas.BifrostResponsesResponse) {
+				t.Helper()
 				require.NotNil(t, result)
 				assert.NotNil(t, result.Status)
 				assert.Equal(t, "failed", *result.Status)
@@ -1471,6 +1508,7 @@ func TestReplicateToBifrostResponsesResponse(t *testing.T) {
 				Status:    replicate.ReplicatePredictionStatusCanceled,
 			},
 			validate: func(t *testing.T, result *schemas.BifrostResponsesResponse) {
+				t.Helper()
 				require.NotNil(t, result)
 				assert.NotNil(t, result.Status)
 				assert.Equal(t, "cancelled", *result.Status)
@@ -1485,6 +1523,7 @@ func TestReplicateToBifrostResponsesResponse(t *testing.T) {
 				Status:    replicate.ReplicatePredictionStatusProcessing,
 			},
 			validate: func(t *testing.T, result *schemas.BifrostResponsesResponse) {
+				t.Helper()
 				require.NotNil(t, result)
 				assert.NotNil(t, result.Status)
 				assert.Equal(t, "in_progress", *result.Status)
@@ -1499,6 +1538,7 @@ func TestReplicateToBifrostResponsesResponse(t *testing.T) {
 				Status:    replicate.ReplicatePredictionStatusStarting,
 			},
 			validate: func(t *testing.T, result *schemas.BifrostResponsesResponse) {
+				t.Helper()
 				require.NotNil(t, result)
 				assert.NotNil(t, result.Status)
 				assert.Equal(t, "queued", *result.Status)
@@ -1517,6 +1557,7 @@ func TestReplicateToBifrostResponsesResponse(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *schemas.BifrostResponsesResponse) {
+				t.Helper()
 				require.NotNil(t, result)
 				assert.NotZero(t, result.CreatedAt)
 				assert.NotNil(t, result.CompletedAt)
@@ -1536,6 +1577,7 @@ func TestReplicateToBifrostResponsesResponse(t *testing.T) {
 				Logs: schemas.Ptr("Input token count: 15\nOutput token count: 0"),
 			},
 			validate: func(t *testing.T, result *schemas.BifrostResponsesResponse) {
+				t.Helper()
 				require.NotNil(t, result)
 				require.NotNil(t, result.Usage)
 				assert.Equal(t, 15, result.Usage.InputTokens)
@@ -1555,6 +1597,7 @@ func TestReplicateToBifrostResponsesResponse(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *schemas.BifrostResponsesResponse) {
+				t.Helper()
 				require.NotNil(t, result)
 				// Empty content should not create output messages
 				assert.Empty(t, result.Output)
@@ -1570,6 +1613,7 @@ func TestReplicateToBifrostResponsesResponse(t *testing.T) {
 				Output:    nil,
 			},
 			validate: func(t *testing.T, result *schemas.BifrostResponsesResponse) {
+				t.Helper()
 				require.NotNil(t, result)
 				assert.Empty(t, result.Output)
 			},
@@ -1584,6 +1628,7 @@ func TestReplicateToBifrostResponsesResponse(t *testing.T) {
 				Error:     schemas.Ptr(""),
 			},
 			validate: func(t *testing.T, result *schemas.BifrostResponsesResponse) {
+				t.Helper()
 				require.NotNil(t, result)
 				// Empty error string should not set error field
 				assert.Nil(t, result.Error)
@@ -1593,6 +1638,7 @@ func TestReplicateToBifrostResponsesResponse(t *testing.T) {
 			name:  "Nil_Response",
 			input: nil,
 			validate: func(t *testing.T, result *schemas.BifrostResponsesResponse) {
+				t.Helper()
 				assert.Nil(t, result)
 			},
 		},
@@ -1607,7 +1653,6 @@ func TestReplicateToBifrostResponsesResponse(t *testing.T) {
 		})
 	}
 }
-
 
 // TestReplicateSystemPromptReadsDatasheet covers the datasheet side of the
 // system_prompt gate. The hardcoded model list is covered by the

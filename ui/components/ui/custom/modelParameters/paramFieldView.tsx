@@ -73,6 +73,16 @@ export default function ParameterFieldView(props: Props) {
 						onClear={onClear}
 						className={props.className}
 						forceHideFields={props.forceHideFields}
+						renderSubField={(subField, onChange) => (
+							<ParameterFieldView
+								field={subField}
+								parentField={field}
+								config={config}
+								onChange={onChange}
+								disabled={props.disabled}
+								forceHideFields={props.forceHideFields}
+							/>
+						)}
 					/>
 				);
 			case ParameterType.SELECT:

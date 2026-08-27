@@ -54,23 +54,23 @@ export const clearUserInfo = () => {
 };
 
 // Fallback secure storage functions - no-op
-export const setSecureItem = async (key: string, value: string): Promise<void> => {
+export const setSecureItem = async (_key: string, _value: string): Promise<void> => {
 	// No-op in non-enterprise builds
 };
 
-export const getSecureItem = async (key: string): Promise<string | null> => Promise.resolve(null);
+export const getSecureItem = async (_key: string): Promise<string | null> => Promise.resolve(null);
 
-export const removeSecureItem = (key: string): void => {
+export const removeSecureItem = (_key: string): void => {
 	// No-op in non-enterprise builds
 };
 
-export const setSecureLocalItem = async (key: string, value: string): Promise<void> => {
+export const setSecureLocalItem = async (_key: string, _value: string): Promise<void> => {
 	// No-op in non-enterprise builds
 };
 
-export const getSecureLocalItem = async (key: string): Promise<string | null> => Promise.resolve(null);
+export const getSecureLocalItem = async (_key: string): Promise<string | null> => Promise.resolve(null);
 
-export const removeSecureLocalItem = (key: string): void => {
+export const removeSecureLocalItem = (_key: string): void => {
 	// No-op in non-enterprise builds
 };
 

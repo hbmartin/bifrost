@@ -15,6 +15,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useForm, type Resolver } from "react-hook-form";
 import { toast } from "sonner";
 
+const EMPTY_OVERRIDES: Record<string, boolean> = {};
+
 // Known beta headers with their prefixes, descriptions, and default support per provider.
 // This mirrors the Go ProviderFeatures map in core/providers/anthropic/types.go.
 const KNOWN_BETA_HEADERS = [
@@ -34,19 +36,37 @@ const KNOWN_BETA_HEADERS = [
 		prefix: "advanced-tool-use-",
 		label: "Advanced Tool Use",
 		description: "defer_loading, input_examples, allowed_callers",
-		defaults: { anthropic: true, vertex: false, bedrock: false, bedrock_mantle: false, azure: true },
+		defaults: {
+			anthropic: true,
+			vertex: false,
+			bedrock: false,
+			bedrock_mantle: false,
+			azure: true,
+		},
 	},
 	{
 		prefix: "mcp-client-",
 		label: "MCP Client",
 		description: "MCP connector support",
-		defaults: { anthropic: true, vertex: false, bedrock: false, bedrock_mantle: false, azure: true },
+		defaults: {
+			anthropic: true,
+			vertex: false,
+			bedrock: false,
+			bedrock_mantle: false,
+			azure: true,
+		},
 	},
 	{
 		prefix: "prompt-caching-scope-",
 		label: "Prompt Caching Scope",
 		description: "Prompt caching scope control",
-		defaults: { anthropic: true, vertex: false, bedrock: false, bedrock_mantle: false, azure: true },
+		defaults: {
+			anthropic: true,
+			vertex: false,
+			bedrock: false,
+			bedrock_mantle: false,
+			azure: true,
+		},
 	},
 	{
 		prefix: "compact-",
@@ -64,7 +84,13 @@ const KNOWN_BETA_HEADERS = [
 		prefix: "files-api-",
 		label: "Files API",
 		description: "Files API support",
-		defaults: { anthropic: true, vertex: false, bedrock: false, bedrock_mantle: false, azure: true },
+		defaults: {
+			anthropic: true,
+			vertex: false,
+			bedrock: false,
+			bedrock_mantle: false,
+			azure: true,
+		},
 	},
 	{
 		prefix: "interleaved-thinking-",
@@ -76,7 +102,13 @@ const KNOWN_BETA_HEADERS = [
 		prefix: "skills-",
 		label: "Skills",
 		description: "Agent Skills",
-		defaults: { anthropic: true, vertex: false, bedrock: false, bedrock_mantle: false, azure: true },
+		defaults: {
+			anthropic: true,
+			vertex: false,
+			bedrock: false,
+			bedrock_mantle: false,
+			azure: true,
+		},
 	},
 	{
 		prefix: "context-1m-",
@@ -88,13 +120,25 @@ const KNOWN_BETA_HEADERS = [
 		prefix: "fast-mode-",
 		label: "Fast Mode",
 		description: "Fast mode (Opus 4.6 research preview)",
-		defaults: { anthropic: true, vertex: false, bedrock: false, bedrock_mantle: false, azure: false },
+		defaults: {
+			anthropic: true,
+			vertex: false,
+			bedrock: false,
+			bedrock_mantle: false,
+			azure: false,
+		},
 	},
 	{
 		prefix: "redact-thinking-",
 		label: "Redact Thinking",
 		description: "Redact thinking blocks in responses",
-		defaults: { anthropic: true, vertex: false, bedrock: false, bedrock_mantle: false, azure: true },
+		defaults: {
+			anthropic: true,
+			vertex: false,
+			bedrock: false,
+			bedrock_mantle: false,
+			azure: true,
+		},
 	},
 ] as const;
 
@@ -139,10 +183,10 @@ export function BetaHeadersFormFragment({ provider }: BetaHeadersFormFragmentPro
 		});
 	}, [form, provider.name, provider.network_config?.beta_header_overrides]);
 
-	const overrides = form.watch("beta_header_overrides") ?? {};
+	const overrides = form.watch("beta_header_overrides") ?? EMPTY_OVERRIDES;
 
 	// Manual dirty tracking — RHF's deep equality on records is unreliable with setValue
-	const savedOverrides = provider.network_config?.beta_header_overrides ?? {};
+	const savedOverrides = provider.network_config?.beta_header_overrides ?? EMPTY_OVERRIDES;
 	const isManuallyDirty = useMemo(() => {
 		const currentKeys = Object.keys(overrides);
 		const savedKeys = Object.keys(savedOverrides);
@@ -170,12 +214,6 @@ export function BetaHeadersFormFragment({ provider }: BetaHeadersFormFragmentPro
 
 	const onSubmit = (data: BetaHeadersFormSchema) => {
 		const cleanedOverrides: Record<string, boolean> = {};
-		if (data.beta_header_overrides) {
-			for (const [prefix, value] of Object.entries(data.beta_header_overrides)) {
-				cleanedOverrides[prefix] = value;
-			}
-		}
-
 		updateProvider(
 			buildProviderUpdatePayload(provider, {
 				network_config: {

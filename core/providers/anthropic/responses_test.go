@@ -1,6 +1,7 @@
 package anthropic
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -51,7 +52,7 @@ func TestToAnthropicResponsesRequest_StructuredOutput_ToolConversion(t *testing.
 				},
 			}
 
-			ctx := schemas.NewBifrostContext(nil, time.Time{})
+			ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 			result, err := ToAnthropicResponsesRequest(ctx, req)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
@@ -100,7 +101,7 @@ func TestToAnthropicResponsesRequest_StructuredOutput_NativeOutputConfig_Anthrop
 		},
 	}
 
-	ctx := schemas.NewBifrostContext(nil, time.Time{})
+	ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 	result, err := ToAnthropicResponsesRequest(ctx, req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -144,7 +145,7 @@ func TestToAnthropicResponsesRequest_ContextManagement_NeutralField(t *testing.T
 		ContextManagement: []byte(`{"edits":[{"type":"` + string(ContextManagementEditTypeCompact) + `"}]}`),
 	})
 
-	ctx := schemas.NewBifrostContext(nil, time.Time{})
+	ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 	result, err := ToAnthropicResponsesRequest(ctx, req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -172,7 +173,7 @@ func TestToAnthropicResponsesRequest_ContextManagement_ExtraParamsFallback(t *te
 	}
 	req := makeContextManagementReq(params)
 
-	ctx := schemas.NewBifrostContext(nil, time.Time{})
+	ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 	result, err := ToAnthropicResponsesRequest(ctx, req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -200,7 +201,7 @@ func TestToAnthropicResponsesRequest_ContextManagement_OpenAIShapeIsDroppedNotEr
 		ContextManagement: []byte(`[{"type":"compaction","compact_threshold":2000}]`),
 	})
 
-	ctx := schemas.NewBifrostContext(nil, time.Time{})
+	ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 	result, err := ToAnthropicResponsesRequest(ctx, req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -217,7 +218,7 @@ func TestToAnthropicResponsesRequest_ContextManagement_MalformedJSONIsDroppedNot
 		ContextManagement: []byte(`{"edits":`),
 	})
 
-	ctx := schemas.NewBifrostContext(nil, time.Time{})
+	ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 	result, err := ToAnthropicResponsesRequest(ctx, req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -257,7 +258,7 @@ func TestToAnthropicResponsesRequest_ContextManagement_FallsBackAfterFailedNeutr
 				},
 			})
 
-			ctx := schemas.NewBifrostContext(nil, time.Time{})
+			ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 			result, err := ToAnthropicResponsesRequest(ctx, req)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
@@ -291,7 +292,7 @@ func TestToAnthropicResponsesRequest_ContextManagement_SkippedWhenUnsupportedByP
 	})
 	req.Provider = noContextManagementProvider
 
-	ctx := schemas.NewBifrostContext(nil, time.Time{})
+	ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 	result, err := ToAnthropicResponsesRequest(ctx, req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -316,7 +317,7 @@ func TestToAnthropicResponsesRequest_ContextManagement_UnknownProviderFailsOpen(
 	})
 	req.Provider = unknownProvider
 
-	ctx := schemas.NewBifrostContext(nil, time.Time{})
+	ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 	result, err := ToAnthropicResponsesRequest(ctx, req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -342,7 +343,7 @@ func TestToAnthropicResponsesRequest_ContextManagement_BothInputSources(t *testi
 		},
 	})
 
-	ctx := schemas.NewBifrostContext(nil, time.Time{})
+	ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 	result, err := ToAnthropicResponsesRequest(ctx, req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -380,7 +381,7 @@ func TestToAnthropicResponsesRequest_ContextManagement_UnsupportedProviderExtraP
 	})
 	req.Provider = noContextManagementProvider
 
-	ctx := schemas.NewBifrostContext(nil, time.Time{})
+	ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 	result, err := ToAnthropicResponsesRequest(ctx, req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

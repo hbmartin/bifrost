@@ -81,43 +81,6 @@ func IsModelCheckedWhenPresent(requestType schemas.RequestType) bool {
 	}
 }
 
-// parseVirtualKeyFromHTTPRequest parses the virtual key from HTTP request headers.
-// It checks multiple headers in order: x-bf-vk, Authorization (Bearer token), x-api-key, and x-goog-api-key.
-// Parameters:
-//   - req: The HTTP request containing headers to parse
-//
-// Returns:
-//   - *string: The virtual key if found, nil otherwise
-func parseVirtualKeyFromHTTPRequest(req *schemas.HTTPRequest) *string {
-	var virtualKeyValue string
-	vkHeader := req.CaseInsensitiveHeaderLookup("x-bf-vk")
-	if vkHeader != "" && strings.HasPrefix(strings.ToLower(vkHeader), VirtualKeyPrefix) {
-		return new(vkHeader)
-	}
-	authHeader := req.CaseInsensitiveHeaderLookup("Authorization")
-	if authHeader != "" {
-		if strings.HasPrefix(strings.ToLower(authHeader), "bearer ") {
-			authHeaderValue := strings.TrimSpace(authHeader[7:]) // Remove "Bearer " prefix
-			if authHeaderValue != "" && strings.HasPrefix(strings.ToLower(authHeaderValue), VirtualKeyPrefix) {
-				virtualKeyValue = authHeaderValue
-			}
-		}
-	}
-	if virtualKeyValue != "" {
-		return new(virtualKeyValue)
-	}
-	xAPIKey := req.CaseInsensitiveHeaderLookup("x-api-key")
-	if xAPIKey != "" && strings.HasPrefix(strings.ToLower(xAPIKey), VirtualKeyPrefix) {
-		return new(xAPIKey)
-	}
-	// Checking x-goog-api-key header
-	xGoogleAPIKey := req.CaseInsensitiveHeaderLookup("x-goog-api-key")
-	if xGoogleAPIKey != "" && strings.HasPrefix(strings.ToLower(xGoogleAPIKey), VirtualKeyPrefix) {
-		return new(xGoogleAPIKey)
-	}
-	return nil
-}
-
 // selectWeightedProviderConfigAt selects a primary provider from finite,
 // strictly positive weights. Nil and zero weights do not participate in primary
 // selection; zero weights remain eligible for the generated fallback chain.

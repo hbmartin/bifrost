@@ -507,10 +507,8 @@ export function ReadOnlySkillBody({
 	files?: SkillFileEntry[];
 	onSelectFile?: (path: string) => void;
 }) {
-	const [activeTab, setActiveTab] = useState("preview");
-
 	return (
-		<Tabs defaultValue="preview" onValueChange={setActiveTab} className="flex min-h-0 w-full flex-1 flex-col gap-2">
+		<Tabs defaultValue="preview" className="flex min-h-0 w-full flex-1 flex-col gap-2">
 			<div className="flex items-center justify-between gap-2">
 				<h2 className="text-foreground text-base leading-[normal] font-semibold">SKILL.md Body</h2>
 				<TabsList className="bg-muted h-8">

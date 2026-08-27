@@ -1,6 +1,7 @@
 package anthropic
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -57,7 +58,7 @@ func marshalEvent(t *testing.T, event *AnthropicStreamEvent) string {
 // TestResponsesMessageStartAlwaysCarriesUsage covers the Responses converter, the
 // path a /v1/messages request against a Bedrock Converse model takes.
 func TestResponsesMessageStartAlwaysCarriesUsage(t *testing.T) {
-	ctx := schemas.NewBifrostContext(nil, time.Time{})
+	ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 
 	t.Run("response payload without usage", func(t *testing.T) {
 		events := ToAnthropicResponsesStreamResponse(ctx, &schemas.BifrostResponsesStreamResponse{

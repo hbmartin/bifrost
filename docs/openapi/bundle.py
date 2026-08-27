@@ -29,7 +29,7 @@ import os
 import sys
 import warnings
 from pathlib import Path
-from typing import Any, Dict, Optional, Set, Tuple
+from typing import Any
 from urllib.parse import urldefrag
 
 try:
@@ -65,14 +65,14 @@ class OpenAPIBundler:
 
     def __init__(self, base_path: Path):
         self.base_path = base_path
-        self.file_cache: Dict[str, Any] = {}
+        self.file_cache: dict[str, Any] = {}
         # Registry: (abs_file_str, frag_key) -> (component_type, canonical_name)
         # e.g. ('/path/chat.yaml', 'ChatMessage') -> ('schemas', 'ChatMessage')
-        self.registry: Dict[Tuple[str, str], Tuple[str, str]] = {}
+        self.registry: dict[tuple[str, str], tuple[str, str]] = {}
         # Resolved components: {component_type: {name: resolved_content}}
-        self.resolved_components: Dict[str, Dict[str, Any]] = {}
+        self.resolved_components: dict[str, dict[str, Any]] = {}
         # Set of (abs_file_str, frag_key) currently being resolved (circular detection)
-        self.resolving: Set[Tuple[str, str]] = set()
+        self.resolving: set[tuple[str, str]] = set()
 
     # -------------------------------------------------------------------------
     # File loading
@@ -83,7 +83,7 @@ class OpenAPIBundler:
         if key not in self.file_cache:
             if not path.exists():
                 raise FileNotFoundError(f"File not found: {path}")
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 self.file_cache[key] = yaml.safe_load(f)
         return self.file_cache[key]
 
@@ -91,7 +91,7 @@ class OpenAPIBundler:
     # Ref parsing helpers
     # -------------------------------------------------------------------------
 
-    def _split_ref(self, ref: str, current_file: Path) -> Tuple[Path, str]:
+    def _split_ref(self, ref: str, current_file: Path) -> tuple[Path, str]:
         """
         Split a $ref into (absolute_file_path, normalized_fragment_key).
 
@@ -110,9 +110,7 @@ class OpenAPIBundler:
             part = part.replace("~1", "/").replace("~0", "~")
             if isinstance(content, dict):
                 if part not in content:
-                    raise KeyError(
-                        f"Key '{part}' not found. Available: {list(content.keys())}"
-                    )
+                    raise KeyError(f"Key '{part}' not found. Available: {list(content.keys())}")
                 content = content[part]
             elif isinstance(content, list):
                 content = content[int(part)]
@@ -176,7 +174,7 @@ class OpenAPIBundler:
                 match = self.registry.get((str(abs_file), frag_key))
                 if match is not None:
                     comp_type, name = match
-                    result: Dict[str, Any] = {"$ref": f"#/components/{comp_type}/{name}"}
+                    result: dict[str, Any] = {"$ref": f"#/components/{comp_type}/{name}"}
                     if len(obj) > 1:
                         for k, v in obj.items():
                             if k != "$ref":
@@ -201,7 +199,8 @@ class OpenAPIBundler:
                 if resolve_key in self.resolving:
                     warnings.warn(
                         f"Circular $ref not in registry, left unresolved: '{ref}' "
-                        f"(from {current_file}). Register it in openapi.yaml components/."
+                        f"(from {current_file}). Register it in openapi.yaml components/.",
+                        stacklevel=2,
                     )
                     return obj
 
@@ -210,7 +209,9 @@ class OpenAPIBundler:
                     content = self._load(abs_file)
                     value = self._navigate(content, frag_key)
                 except (FileNotFoundError, KeyError) as e:
-                    warnings.warn(f"Cannot resolve $ref '{ref}' from {current_file}: {e}")
+                    warnings.warn(
+                        f"Cannot resolve $ref '{ref}' from {current_file}: {e}", stacklevel=2
+                    )
                     return obj
 
                 self.resolving.add(resolve_key)
@@ -240,9 +241,7 @@ class OpenAPIBundler:
     # Phase 2: Resolve all registered components (generic)
     # -------------------------------------------------------------------------
 
-    def _ensure_component(
-        self, comp_type: str, name: str, ref_str: str, entry_path: Path
-    ) -> None:
+    def _ensure_component(self, comp_type: str, name: str, ref_str: str, entry_path: Path) -> None:
         """
         Resolve a registered component and store it in resolved_components.
         Idempotent; handles circular refs via the resolving set.
@@ -262,7 +261,7 @@ class OpenAPIBundler:
             value = self._navigate(content, frag_key)
             resolved = self._resolve_value(copy.deepcopy(value), abs_file)
         except (FileNotFoundError, KeyError) as e:
-            warnings.warn(f"Cannot resolve {comp_type} '{name}' ({ref_str}): {e}")
+            warnings.warn(f"Cannot resolve {comp_type} '{name}' ({ref_str}): {e}", stacklevel=2)
             resolved = {"description": f"[unresolvable: {e}]"}
         finally:
             self.resolving.discard(resolve_key)
@@ -273,7 +272,7 @@ class OpenAPIBundler:
     # Main bundle entry point
     # -------------------------------------------------------------------------
 
-    def bundle(self, entry_file: str = "openapi.yaml") -> Dict[str, Any]:
+    def bundle(self, entry_file: str = "openapi.yaml") -> dict[str, Any]:
         """Bundle the OpenAPI spec starting from the entry file."""
         entry_path = (self.base_path / entry_file).resolve()
         if not entry_path.exists():
@@ -293,12 +292,12 @@ class OpenAPIBundler:
                 if isinstance(comp_def, dict) and "$ref" in comp_def:
                     self._ensure_component(comp_type, name, comp_def["$ref"], entry_path)
                 else:
-                    self.resolved_components.setdefault(comp_type, {})[name] = (
-                        self._resolve_value(copy.deepcopy(comp_def), entry_path)
+                    self.resolved_components.setdefault(comp_type, {})[name] = self._resolve_value(
+                        copy.deepcopy(comp_def), entry_path
                     )
 
         # Phase 3 + 4: Build output spec
-        output: Dict[str, Any] = {}
+        output: dict[str, Any] = {}
         for key, value in spec.items():
             if key == "paths":
                 output["paths"] = self._resolve_paths(value, entry_path)
@@ -316,20 +315,18 @@ class OpenAPIBundler:
 
         return output
 
-    def _resolve_paths(self, paths: Dict[str, Any], entry_path: Path) -> Dict[str, Any]:
+    def _resolve_paths(self, paths: dict[str, Any], entry_path: Path) -> dict[str, Any]:
         """Resolve all path items."""
-        resolved: Dict[str, Any] = {}
+        resolved: dict[str, Any] = {}
         for path_name, path_ref in paths.items():
             if isinstance(path_ref, dict) and "$ref" in path_ref:
                 abs_file, frag_key = self._split_ref(path_ref["$ref"], entry_path)
                 try:
                     content = self._load(abs_file)
                     value = self._navigate(content, frag_key)
-                    resolved[path_name] = self._resolve_value(
-                        copy.deepcopy(value), abs_file
-                    )
+                    resolved[path_name] = self._resolve_value(copy.deepcopy(value), abs_file)
                 except (FileNotFoundError, KeyError) as e:
-                    warnings.warn(f"Cannot resolve path '{path_name}': {e}")
+                    warnings.warn(f"Cannot resolve path '{path_name}': {e}", stacklevel=2)
                     resolved[path_name] = path_ref
             else:
                 resolved[path_name] = self._resolve_value(path_ref, entry_path)
@@ -350,7 +347,7 @@ DEPRECATION_TAG = "Removing soon"
 DEPRECATED_SUMMARY_SUFFIX = " (deprecated path)"
 
 
-def annotate_deprecated_operations(spec: Dict[str, Any]) -> int:
+def annotate_deprecated_operations(spec: dict[str, Any]) -> int:
     """
     Mark every operation carrying `x-bifrost-successor` as deprecating soon.
 
@@ -413,19 +410,28 @@ def main() -> None:
         description="Bundle OpenAPI YAML files into a single specification"
     )
     parser.add_argument(
-        "--input", "-i", default="openapi.yaml",
+        "--input",
+        "-i",
+        default="openapi.yaml",
         help="Entry point YAML file (default: openapi.yaml)",
     )
     parser.add_argument(
-        "--output", "-o", default="openapi.json",
+        "--output",
+        "-o",
+        default="openapi.json",
         help="Output file path (default: openapi.json)",
     )
     parser.add_argument(
-        "--format", "-f", choices=["json", "yaml"], default="json",
+        "--format",
+        "-f",
+        choices=["json", "yaml"],
+        default="json",
         help="Output format (default: json)",
     )
     parser.add_argument(
-        "--indent", type=int, default=2,
+        "--indent",
+        type=int,
+        default=2,
         help="Indentation level for output (default: 2)",
     )
 
@@ -460,6 +466,7 @@ def main() -> None:
     except Exception as e:
         print(f"Error bundling spec: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 

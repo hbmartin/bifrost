@@ -42,6 +42,7 @@ func basePassthroughChatRequest(model string) *schemas.BifrostChatRequest {
 // Streaming is requested when stream is true.
 // Returns (req, true) for supported providers, (zero, false) to signal skip.
 func buildPassthroughChatReq(t *testing.T, provider schemas.ModelProvider, model string, stream bool) (passthroughChatReq, bool) {
+	t.Helper()
 	bfReq := basePassthroughChatRequest(model)
 	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 
@@ -135,6 +136,7 @@ func resolvePassthroughModel(cfg ComprehensiveTestConfig) string {
 // The test is skipped when Scenarios.PassthroughAPI is false or the provider's
 // native request format is not yet covered by buildPassthroughChatReq.
 func RunPassthroughAPITest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.PassthroughAPI {
 		t.Logf("PassthroughAPI not enabled for provider %s, skipping", testConfig.Provider)
 		return

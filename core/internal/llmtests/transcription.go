@@ -17,6 +17,7 @@ import (
 
 // RunTranscriptionTest executes the transcription test scenario
 func RunTranscriptionTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.Transcription {
 		t.Logf("Transcription not supported for provider %s", testConfig.Provider)
 		return
@@ -156,7 +157,7 @@ func RunTranscriptionTest(t *testing.T, client *bifrost.Bifrost, ctx context.Con
 
 					// Register cleanup
 					t.Cleanup(func() {
-						os.Remove(audioFileName)
+						_ = os.Remove(audioFileName)
 					})
 
 					t.Logf("Generated TTS audio for round-trip: %s (%d bytes)", audioFileName, len(ttsResponse.Audio))
@@ -343,6 +344,7 @@ func RunTranscriptionTest(t *testing.T, client *bifrost.Bifrost, ctx context.Con
 
 // RunTranscriptionAdvancedTest executes advanced transcription test scenarios
 func RunTranscriptionAdvancedTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.Transcription {
 		t.Logf("Transcription not supported for provider %s", testConfig.Provider)
 		return
@@ -647,6 +649,7 @@ func RunTranscriptionAdvancedTest(t *testing.T, client *bifrost.Bifrost, ctx con
 // validateTranscriptionRoundTrip performs round-trip validation for transcription responses
 // This is complementary to the main validation framework and focuses on transcription accuracy
 func validateTranscriptionRoundTrip(t *testing.T, response *schemas.BifrostTranscriptionResponse, originalText string, testName string, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if response == nil || response.Text == "" {
 		t.Fatal("Transcription response missing transcribed text")
 	}

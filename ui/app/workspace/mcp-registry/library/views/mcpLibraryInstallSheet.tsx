@@ -173,7 +173,11 @@ export function MCPLibraryInstallSheet({ server, open, onClose, onInstalled }: M
 		// The headers table renders its own inline error, but a caller can still
 		// reach here with it non-empty; a toast keeps the button from looking inert.
 		if (headersValidationError) {
-			toast({ title: "Headers incomplete", description: headersValidationError, variant: "destructive" });
+			toast({
+				title: "Headers incomplete",
+				description: headersValidationError,
+				variant: "destructive",
+			});
 			return;
 		}
 
@@ -347,7 +351,10 @@ export function MCPLibraryInstallSheet({ server, open, onClose, onInstalled }: M
 					open={!!oauthFlow}
 					onClose={() => setOauthFlow(null)}
 					onSuccess={() => {
-						toast({ title: "Installed", description: `${server.name} MCP server connected with OAuth.` });
+						toast({
+							title: "Installed",
+							description: `${server.name} MCP server connected with OAuth.`,
+						});
 						setOauthFlow(null);
 						onInstalled();
 						onClose();
@@ -372,7 +379,10 @@ export function MCPLibraryInstallSheet({ server, open, onClose, onInstalled }: M
 					onClose={() => setHeadersFlow(null)}
 					onSuccess={() => {
 						setHeadersFlow(null);
-						toast({ title: "Installed", description: `${server.name} MCP server connected with per-user headers.` });
+						toast({
+							title: "Installed",
+							description: `${server.name} MCP server connected with per-user headers.`,
+						});
 						onInstalled();
 						onClose();
 					}}

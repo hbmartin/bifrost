@@ -21,7 +21,11 @@ const scriptOf = (item) =>
 
 const itemNamed = (fragment) => {
   const found = ITEMS.filter((i) => i.name.includes(fragment));
-  assert.strictEqual(found.length, 1, `expected exactly one item matching ${fragment}, got ${found.length}`);
+  assert.strictEqual(
+    found.length,
+    1,
+    `expected exactly one item matching ${fragment}, got ${found.length}`,
+  );
   return found[0];
 };
 
@@ -56,7 +60,7 @@ test("the round 1 reset runs before the error guard", () => {
   assert.notStrictEqual(guard, -1, "the error guard is missing entirely");
   assert.ok(
     reset < guard,
-    `the reset must precede the error guard, or an errored write round skips it (reset at ${reset}, guard at ${guard})`
+    `the reset must precede the error guard, or an errored write round skips it (reset at ${reset}, guard at ${guard})`,
   );
 });
 
@@ -81,17 +85,17 @@ test("an errored write round fails its own row", () => {
 
     assert.ok(
       block.includes("pm.test("),
-      `round ${round} returns on an error without asserting, so the failure is silent:\n${block}`
+      `round ${round} returns on an error without asserting, so the failure is silent:\n${block}`,
     );
     // The assertion must actually fail the row, not just run: it has to expect the
     // status code to be below 400.
     assert.ok(
       block.includes("to.be.below(400)"),
-      `round ${round}'s error-path pm.test does not assert the response succeeded:\n${block}`
+      `round ${round}'s error-path pm.test does not assert the response succeeded:\n${block}`,
     );
     assert.ok(
       block.includes(`round ${round} responded`),
-      `round ${round}'s failure assertion must name its own round:\n${block}`
+      `round ${round}'s failure assertion must name its own round:\n${block}`,
     );
     assert.ok(block.includes("return;"), `round ${round}'s guard must still bail out:\n${block}`);
   }
@@ -114,7 +118,10 @@ test("the reset still precedes the error assertion on round 1", () => {
 test("the read round reports its real round number", () => {
   const read = itemNamed("gemini/gemini-2.5-flash bifrost round 6");
   const script = scriptOf(read);
-  assert.ok(script.includes("round 6 responded"), `read-round assertion is mislabelled:\n${script}`);
+  assert.ok(
+    script.includes("round 6 responded"),
+    `read-round assertion is mislabelled:\n${script}`,
+  );
   assert.ok(!script.includes("round 2 responded"), "the hardcoded round 2 label must be gone");
 });
 

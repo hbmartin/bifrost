@@ -12,6 +12,7 @@ import (
 
 // RunImageBase64Test executes the image base64 test scenario using dual API testing framework
 func RunImageBase64Test(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.ImageBase64 {
 		t.Logf("Image base64 not supported for provider %s", testConfig.Provider)
 		return
@@ -142,6 +143,7 @@ func RunImageBase64Test(t *testing.T, client *bifrost.Bifrost, ctx context.Conte
 }
 
 func validateBase64ImageContent(t *testing.T, content string, apiName string) {
+	t.Helper()
 	lowerContent := strings.ToLower(content)
 	foundAnimal := strings.Contains(lowerContent, "lion") || strings.Contains(lowerContent, "animal") ||
 		strings.Contains(lowerContent, "cat") || strings.Contains(lowerContent, "feline")

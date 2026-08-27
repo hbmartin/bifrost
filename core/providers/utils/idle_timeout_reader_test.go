@@ -181,7 +181,7 @@ func (r *zeroThenBlockReader) Read(p []byte) (int, error) {
 func TestIdleTimeoutReader_NormalRead(t *testing.T) {
 	t.Parallel()
 	pr, pw := io.Pipe()
-	defer pr.Close()
+	defer func() { _ = pr.Close() }()
 
 	// Use pr as bodyStream — closing pr unblocks reads.
 	wrapped, cleanup := NewIdleTimeoutReader(pr, pr, 500*time.Millisecond, nil)
@@ -191,9 +191,9 @@ func TestIdleTimeoutReader_NormalRead(t *testing.T) {
 	go func() {
 		for i := 0; i < 5; i++ {
 			time.Sleep(10 * time.Millisecond)
-			pw.Write([]byte("chunk"))
+			_, _ = pw.Write([]byte("chunk"))
 		}
-		pw.Close()
+		_ = pw.Close()
 	}()
 
 	buf := make([]byte, 64)
@@ -217,7 +217,7 @@ func TestIdleTimeoutReader_NormalRead(t *testing.T) {
 func TestIdleTimeoutReader_TimeoutClosesStream(t *testing.T) {
 	t.Parallel()
 	pr, pw := io.Pipe()
-	defer pw.Close()
+	defer func() { _ = pw.Close() }()
 
 	// 100ms timeout, write nothing — should timeout and close the pipe reader.
 	wrapped, cleanup := NewIdleTimeoutReader(pr, pr, 100*time.Millisecond, nil)
@@ -250,7 +250,7 @@ func TestIdleTimeoutReader_TimeoutAfterPartialData(t *testing.T) {
 	go func() {
 		for i := 0; i < 3; i++ {
 			time.Sleep(20 * time.Millisecond)
-			pw.Write([]byte("data"))
+			_, _ = pw.Write([]byte("data"))
 		}
 		// stop writing — idle timeout should fire after 200ms and close pr
 	}()
@@ -271,7 +271,7 @@ func TestIdleTimeoutReader_TimeoutAfterPartialData(t *testing.T) {
 		t.Fatalf("expected 3 chunks before timeout, got %d", chunksRead)
 	}
 
-	pw.Close()
+	_ = pw.Close()
 }
 
 func TestIdleTimeoutReader_ResetOnData(t *testing.T) {
@@ -285,9 +285,9 @@ func TestIdleTimeoutReader_ResetOnData(t *testing.T) {
 	go func() {
 		for i := 0; i < 5; i++ {
 			time.Sleep(150 * time.Millisecond)
-			pw.Write([]byte("ok"))
+			_, _ = pw.Write([]byte("ok"))
 		}
-		pw.Close()
+		_ = pw.Close()
 	}()
 
 	buf := make([]byte, 64)
@@ -313,8 +313,8 @@ func TestIdleTimeoutReader_ResetOnData(t *testing.T) {
 func TestIdleTimeoutReader_CleanupStopsTimer(t *testing.T) {
 	t.Parallel()
 	pr, pw := io.Pipe()
-	defer pr.Close()
-	defer pw.Close()
+	defer func() { _ = pr.Close() }()
+	defer func() { _ = pw.Close() }()
 
 	spy := &readCloserSpy{}
 
@@ -343,7 +343,7 @@ func TestIdleTimeoutReader_DoubleCloseIsSafe(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Manually close again — should not panic.
-	spy.Close()
+	_ = spy.Close()
 
 	// sync.Once ensures the idle timer's close ran exactly once.
 	// The manual close above adds another, so total should be 2
@@ -357,7 +357,7 @@ func TestIdleTimeoutReader_DoubleCloseIsSafe(t *testing.T) {
 func TestIdleTimeoutReader_ZeroBytesDoNotResetTimer(t *testing.T) {
 	t.Parallel()
 	pr, pw := io.Pipe()
-	defer pw.Close()
+	defer func() { _ = pw.Close() }()
 
 	// Use pr as bodyStream — when idle timeout fires, it closes pr,
 	// which causes reads on pr to return io.ErrClosedPipe.
@@ -389,7 +389,7 @@ func TestIdleTimeoutReader_ZeroBytesDoNotResetTimer(t *testing.T) {
 func TestIdleTimeoutReader_ErrorFromClosedPipe(t *testing.T) {
 	t.Parallel()
 	pr, pw := io.Pipe()
-	defer pw.Close()
+	defer func() { _ = pw.Close() }()
 
 	// Use pr as bodyStream — when idle timeout fires, it closes pr,
 	// which makes Read return io.ErrClosedPipe.

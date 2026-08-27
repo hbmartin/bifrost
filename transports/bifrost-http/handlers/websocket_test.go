@@ -33,14 +33,14 @@ func TestBroadcastNotificationTargetsMatchingRole(t *testing.T) {
 	defer stop()
 
 	matching := dialWebSocket(t, addr)
-	defer matching.Close()
+	defer func() { _ = matching.Close() }()
 	waitForClientCount(t, h, 1)
 	matchingServerClient := snapshotClients(h)[0]
 	matchingServerClient.roleID = 7
 	matchingServerClient.hasRole = true
 
 	nonMatching := dialWebSocket(t, addr)
-	defer nonMatching.Close()
+	defer func() { _ = nonMatching.Close() }()
 	waitForClientCount(t, h, 2)
 	for _, client := range snapshotClients(h) {
 		if client != matchingServerClient {
@@ -286,7 +286,7 @@ func TestWebSocketStopClosesClients(t *testing.T) {
 	defer stop()
 
 	client := dialWebSocket(t, addr)
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 	waitForClientCount(t, h, 1)
 
 	stale := snapshotClients(h)

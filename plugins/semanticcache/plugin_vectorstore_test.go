@@ -25,6 +25,7 @@ func requiresVectors(storeType vectorstore.VectorStoreType) bool {
 
 // skipIfNoAPIKey skips the test if OPENAI_API_KEY is not set and the store requires vectors.
 func skipIfNoAPIKey(t *testing.T, storeType vectorstore.VectorStoreType) {
+	t.Helper()
 	if requiresVectors(storeType) && os.Getenv("OPENAI_API_KEY") == "" {
 		t.Skipf("Skipping %s test: OPENAI_API_KEY not set (required for embedding generation)", storeType)
 	}

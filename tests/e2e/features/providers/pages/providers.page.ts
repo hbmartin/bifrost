@@ -1,136 +1,140 @@
-import { Locator, Page, expect } from '@playwright/test'
-import { CustomProviderConfig, ProviderKeyConfig } from '../../../core/fixtures/test-data.fixture'
-import { BasePage } from '../../../core/pages/base.page'
-import { Selectors } from '../../../core/utils/selectors'
-import { fillSelect, waitForNetworkIdle } from '../../../core/utils/test-helpers'
+import { Locator, Page, expect } from "@playwright/test";
+import { CustomProviderConfig, ProviderKeyConfig } from "../../../core/fixtures/test-data.fixture";
+import { BasePage } from "../../../core/pages/base.page";
+import { Selectors } from "../../../core/utils/selectors";
+import { fillSelect, waitForNetworkIdle } from "../../../core/utils/test-helpers";
 
 const resetPeriodLabels: Record<string, string> = {
-  '1m': 'Every Minute',
-  '5m': 'Every 5 Minutes',
-  '15m': 'Every 15 Minutes',
-  '30m': 'Every 30 Minutes',
-  '1h': 'Hourly',
-  '6h': 'Every 6 Hours',
-  '1d': 'Daily',
-  '1w': 'Weekly',
-  '1M': 'Monthly',
-}
+  "1m": "Every Minute",
+  "5m": "Every 5 Minutes",
+  "15m": "Every 15 Minutes",
+  "30m": "Every 30 Minutes",
+  "1h": "Hourly",
+  "6h": "Every 6 Hours",
+  "1d": "Daily",
+  "1w": "Weekly",
+  "1M": "Monthly",
+};
 
-export type { CustomProviderConfig, ProviderKeyConfig }
+export type { CustomProviderConfig, ProviderKeyConfig };
 
 /**
  * Page object for the Providers page
  */
 export class ProvidersPage extends BasePage {
   // Locators
-  readonly providerList: Locator
-  readonly addProviderBtn: Locator
+  readonly providerList: Locator;
+  readonly addProviderBtn: Locator;
   /** Add New Provider dropdown > "Custom provider..." menu item */
-  readonly addProviderOptionCustom: Locator
-  readonly addKeyBtn: Locator
-  readonly keysTable: Locator
+  readonly addProviderOptionCustom: Locator;
+  readonly addKeyBtn: Locator;
+  readonly keysTable: Locator;
   /** Provider-level "Refresh model list" button in the keys table header */
-  readonly refreshProviderModelsBtn: Locator
+  readonly refreshProviderModelsBtn: Locator;
 
   // Custom provider sheet
-  readonly customProviderSheet: Locator
-  readonly customProviderNameInput: Locator
-  readonly baseProviderSelect: Locator
-  readonly baseUrlInput: Locator
-  readonly customProviderSaveBtn: Locator
-  readonly customProviderCancelBtn: Locator
+  readonly customProviderSheet: Locator;
+  readonly customProviderNameInput: Locator;
+  readonly baseProviderSelect: Locator;
+  readonly baseUrlInput: Locator;
+  readonly customProviderSaveBtn: Locator;
+  readonly customProviderCancelBtn: Locator;
 
   // Keys table empty state (when provider has no keys)
-  readonly keysTableEmptyState: Locator
+  readonly keysTableEmptyState: Locator;
 
   // Key form
-  readonly keyForm: Locator
-  readonly keySaveBtn: Locator
-  readonly keyCancelBtn: Locator
+  readonly keyForm: Locator;
+  readonly keySaveBtn: Locator;
+  readonly keyCancelBtn: Locator;
 
   constructor(page: Page) {
-    super(page)
+    super(page);
 
     // Provider list
-    this.providerList = page.locator(Selectors.providers.providerList)
-    this.addProviderBtn = page.getByTestId('add-provider-btn')
-    this.addProviderOptionCustom = page.getByTestId('add-provider-option-custom')
+    this.providerList = page.locator(Selectors.providers.providerList);
+    this.addProviderBtn = page.getByTestId("add-provider-btn");
+    this.addProviderOptionCustom = page.getByTestId("add-provider-option-custom");
 
     // Keys table
-    this.addKeyBtn = page.getByTestId('add-key-btn')
-    this.keysTable = page.getByTestId('keys-table')
-    this.refreshProviderModelsBtn = page.getByTestId('provider-refresh-models')
+    this.addKeyBtn = page.getByTestId("add-key-btn");
+    this.keysTable = page.getByTestId("keys-table");
+    this.refreshProviderModelsBtn = page.getByTestId("provider-refresh-models");
 
     // Custom provider sheet
-    this.customProviderSheet = page.getByTestId('custom-provider-sheet')
-    this.customProviderNameInput = page.getByTestId('custom-provider-name')
-    this.baseProviderSelect = page.getByTestId('base-provider-select')
-    this.baseUrlInput = page.getByTestId('base-url-input')
-    this.customProviderSaveBtn = page.getByTestId('custom-provider-save-btn')
-    this.customProviderCancelBtn = page.getByTestId('custom-provider-cancel-btn')
+    this.customProviderSheet = page.getByTestId("custom-provider-sheet");
+    this.customProviderNameInput = page.getByTestId("custom-provider-name");
+    this.baseProviderSelect = page.getByTestId("base-provider-select");
+    this.baseUrlInput = page.getByTestId("base-url-input");
+    this.customProviderSaveBtn = page.getByTestId("custom-provider-save-btn");
+    this.customProviderCancelBtn = page.getByTestId("custom-provider-cancel-btn");
 
     // Keys table empty state
-    this.keysTableEmptyState = page.getByTestId('keys-table-empty-state')
+    this.keysTableEmptyState = page.getByTestId("keys-table-empty-state");
 
     // Key form
-    this.keyForm = page.getByTestId('key-form')
-    this.keySaveBtn = page.getByTestId('key-save-btn')
-    this.keyCancelBtn = page.getByTestId('key-cancel-btn')
+    this.keyForm = page.getByTestId("key-form");
+    this.keySaveBtn = page.getByTestId("key-save-btn");
+    this.keyCancelBtn = page.getByTestId("key-cancel-btn");
   }
 
   /**
    * Navigate to the providers page
    */
   async goto(): Promise<void> {
-    await this.page.goto('/workspace/providers')
-    await waitForNetworkIdle(this.page)
+    await this.page.goto("/workspace/providers");
+    await waitForNetworkIdle(this.page);
   }
 
   /**
    * Select a provider from the sidebar list
    */
   async selectProvider(name: string): Promise<void> {
-    const providerItem = this.page.getByTestId(`provider-item-${name.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`)
-    await providerItem.click()
-    await waitForNetworkIdle(this.page)
+    const providerItem = this.page.getByTestId(
+      `provider-item-${name.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`,
+    );
+    await providerItem.click();
+    await waitForNetworkIdle(this.page);
   }
 
   /**
    * Get provider item locator
    */
   getProviderItem(name: string): Locator {
-    return this.page.getByTestId(`provider-item-${name.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`)
+    return this.page.getByTestId(
+      `provider-item-${name.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`,
+    );
   }
 
   /**
    * Check if a provider exists in the list
    */
   async providerExists(name: string): Promise<boolean> {
-    const providerItem = this.getProviderItem(name)
-    return await providerItem.isVisible()
+    const providerItem = this.getProviderItem(name);
+    return await providerItem.isVisible();
   }
 
   /**
    * Add a new key to the currently selected provider
    */
   async addKey(config: ProviderKeyConfig): Promise<void> {
-    await this.dismissToasts()
+    await this.dismissToasts();
 
     // Click add key button
-    await this.addKeyBtn.click()
+    await this.addKeyBtn.click();
 
     // Wait for key form to appear
-    await expect(this.keyForm).toBeVisible()
+    await expect(this.keyForm).toBeVisible();
 
     // Fill in key details
-    await this.page.getByLabel('Name').fill(config.name)
-    await this.page.getByLabel('API Key').fill(config.value)
+    await this.page.getByLabel("Name").fill(config.name);
+    await this.page.getByLabel("API Key").fill(config.value);
 
     // Fill weight if provided
     if (config.weight !== undefined) {
-      const weightInput = this.page.getByLabel('Weight')
+      const weightInput = this.page.getByLabel("Weight");
       if (await weightInput.isVisible()) {
-        await weightInput.fill(String(config.weight))
+        await weightInput.fill(String(config.weight));
       }
     }
 
@@ -138,14 +142,14 @@ export class ProvidersPage extends BasePage {
     // that may vary based on the provider type
 
     // Save the key
-    await this.keySaveBtn.click()
+    await this.keySaveBtn.click();
 
     // Wait for success toast
-    await this.waitForSuccessToast()
+    await this.waitForSuccessToast();
 
     // Wait for form to close and table to refresh
-    await expect(this.keyForm).not.toBeVisible({ timeout: 5000 })
-    await waitForNetworkIdle(this.page)
+    await expect(this.keyForm).not.toBeVisible({ timeout: 5000 });
+    await waitForNetworkIdle(this.page);
   }
 
   /**
@@ -153,52 +157,52 @@ export class ProvidersPage extends BasePage {
    * Opens the dropdown and clicks the option with data-testid add-provider-option-{name}.
    */
   async addKnownProviderFromDropdown(providerName: string): Promise<void> {
-    await this.addProviderBtn.click()
-    const option = this.page.getByTestId(`add-provider-option-${providerName}`)
-    await option.waitFor({ state: 'visible', timeout: 5000 })
-    await option.click()
-    await waitForNetworkIdle(this.page)
+    await this.addProviderBtn.click();
+    const option = this.page.getByTestId(`add-provider-option-${providerName}`);
+    await option.waitFor({ state: "visible", timeout: 5000 });
+    await option.click();
+    await waitForNetworkIdle(this.page);
   }
 
   /**
    * Open the custom provider sheet via Add New Provider > Custom provider...
    */
   async openCustomProviderSheet(): Promise<void> {
-    await this.addProviderBtn.click()
-    await this.addProviderOptionCustom.waitFor({ state: 'visible', timeout: 5000 })
-    await this.addProviderOptionCustom.click()
-    await expect(this.customProviderSheet).toBeVisible({ timeout: 5000 })
+    await this.addProviderBtn.click();
+    await this.addProviderOptionCustom.waitFor({ state: "visible", timeout: 5000 });
+    await this.addProviderOptionCustom.click();
+    await expect(this.customProviderSheet).toBeVisible({ timeout: 5000 });
   }
 
   /**
    * Create a custom provider
    */
   async createProvider(config: CustomProviderConfig): Promise<void> {
-    await this.openCustomProviderSheet()
+    await this.openCustomProviderSheet();
 
     // Fill in provider name
-    await this.customProviderNameInput.fill(config.name)
+    await this.customProviderNameInput.fill(config.name);
 
     // Select base provider type
     await fillSelect(
       this.page,
       '[data-testid="base-provider-select"]',
-      this.getBaseProviderLabel(config.baseProviderType)
-    )
+      this.getBaseProviderLabel(config.baseProviderType),
+    );
 
     // Fill in base URL
     if (config.baseUrl) {
-      await this.baseUrlInput.fill(config.baseUrl)
+      await this.baseUrlInput.fill(config.baseUrl);
     }
 
     // Save the provider
-    await this.customProviderSaveBtn.click()
+    await this.customProviderSaveBtn.click();
 
     // Wait for sheet to close (indicates success)
-    await expect(this.customProviderSheet).not.toBeVisible({ timeout: 10000 })
+    await expect(this.customProviderSheet).not.toBeVisible({ timeout: 10000 });
 
     // Wait for network to settle
-    await waitForNetworkIdle(this.page)
+    await waitForNetworkIdle(this.page);
   }
 
   /**
@@ -207,24 +211,27 @@ export class ProvidersPage extends BasePage {
    */
   async deleteProvider(name: string, options?: { skipToastWait?: boolean }): Promise<void> {
     // First select the provider (config panel shows with delete button)
-    await this.selectProvider(name)
+    await this.selectProvider(name);
 
     // Click the delete button in the config panel
-    const deleteBtn = this.page.getByTestId('provider-delete-btn')
-    await deleteBtn.waitFor({ state: 'visible', timeout: 5000 })
-    await deleteBtn.click()
+    const deleteBtn = this.page.getByTestId("provider-delete-btn");
+    await deleteBtn.waitFor({ state: "visible", timeout: 5000 });
+    await deleteBtn.click();
 
     // Confirm deletion in dialog
-    await this.page.getByRole('button', { name: 'Delete' }).click()
+    await this.page.getByRole("button", { name: "Delete" }).click();
 
     if (options?.skipToastWait) {
       // Wait for dialog to close; do not require toast so cleanup does not fail
-      await this.page.locator('[role="alertdialog"]').waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {})
-      await waitForNetworkIdle(this.page)
-      return
+      await this.page
+        .locator('[role="alertdialog"]')
+        .waitFor({ state: "hidden", timeout: 5000 })
+        .catch(() => {});
+      await waitForNetworkIdle(this.page);
+      return;
     }
     // Wait for success toast
-    await this.waitForSuccessToast('deleted')
+    await this.waitForSuccessToast("deleted");
   }
 
   /**
@@ -232,27 +239,27 @@ export class ProvidersPage extends BasePage {
    */
   getKeyRow(name: string): Locator {
     // Try data-testid first, fall back to finding row by text content
-    return this.page.getByTestId(`key-row-${name}`).or(
-      this.page.locator('tr, [role="row"]').filter({ hasText: name })
-    )
+    return this.page
+      .getByTestId(`key-row-${name}`)
+      .or(this.page.locator('tr, [role="row"]').filter({ hasText: name }));
   }
 
   /**
    * Get the displayed weight for a key
    */
   async getKeyWeight(name: string): Promise<string> {
-    const keyRow = this.getKeyRow(name)
-    return (await keyRow.getByTestId('key-weight-value').textContent()) ?? ''
+    const keyRow = this.getKeyRow(name);
+    return (await keyRow.getByTestId("key-weight-value").textContent()) ?? "";
   }
 
   /**
    * Get the enabled state of a key (switch checked or not)
    */
   async getKeyEnabledState(name: string): Promise<boolean> {
-    const keyRow = this.getKeyRow(name)
-    const switchEl = keyRow.getByTestId('key-enabled-switch')
-    const checked = await switchEl.getAttribute('data-state')
-    return checked === 'checked'
+    const keyRow = this.getKeyRow(name);
+    const switchEl = keyRow.getByTestId("key-enabled-switch");
+    const checked = await switchEl.getAttribute("data-state");
+    return checked === "checked";
   }
 
   /**
@@ -260,15 +267,15 @@ export class ProvidersPage extends BasePage {
    */
   async keyExists(name: string, timeout: number = 5000): Promise<boolean> {
     // Wait for network to settle first
-    await waitForNetworkIdle(this.page)
+    await waitForNetworkIdle(this.page);
 
     // Try to find the key with waiting
-    const keyRow = this.getKeyRow(name)
+    const keyRow = this.getKeyRow(name);
     try {
-      await keyRow.waitFor({ state: 'visible', timeout })
-      return true
+      await keyRow.waitFor({ state: "visible", timeout });
+      return true;
     } catch {
-      return false
+      return false;
     }
   }
 
@@ -277,126 +284,134 @@ export class ProvidersPage extends BasePage {
    */
   async editKey(keyName: string, updates: Partial<ProviderKeyConfig>): Promise<void> {
     // Find the key row and open the dropdown menu
-    const keyRow = this.getKeyRow(keyName)
-    await keyRow.scrollIntoViewIfNeeded()
+    const keyRow = this.getKeyRow(keyName);
+    await keyRow.scrollIntoViewIfNeeded();
 
     // The dropdown trigger - look for ellipsis/more button
-    const menuBtn = keyRow.locator('button').filter({ has: this.page.locator('svg') }).last()
-    await menuBtn.waitFor({ state: 'visible', timeout: 5000 })
-    await menuBtn.click()
+    const menuBtn = keyRow
+      .locator("button")
+      .filter({ has: this.page.locator("svg") })
+      .last();
+    await menuBtn.waitFor({ state: "visible", timeout: 5000 });
+    await menuBtn.click();
 
     // Wait for dropdown to appear and click Edit
-    await this.page.getByRole('menuitem', { name: /Edit/i }).click()
+    await this.page.getByRole("menuitem", { name: /Edit/i }).click();
 
     // Wait for form
-    await expect(this.keyForm).toBeVisible()
+    await expect(this.keyForm).toBeVisible();
 
     // Update fields
     if (updates.name) {
-      await this.page.getByLabel('Name').clear()
-      await this.page.getByLabel('Name').fill(updates.name)
+      await this.page.getByLabel("Name").clear();
+      await this.page.getByLabel("Name").fill(updates.name);
     }
 
     if (updates.value) {
-      await this.page.getByLabel('API Key').clear()
-      await this.page.getByLabel('API Key').fill(updates.value)
+      await this.page.getByLabel("API Key").clear();
+      await this.page.getByLabel("API Key").fill(updates.value);
     }
 
     if (updates.weight !== undefined) {
-      const weightInput = this.page.getByLabel('Weight')
+      const weightInput = this.page.getByLabel("Weight");
       if (await weightInput.isVisible()) {
-        await weightInput.clear()
-        await weightInput.fill(String(updates.weight))
+        await weightInput.clear();
+        await weightInput.fill(String(updates.weight));
       }
     }
 
     // Save
-    await this.keySaveBtn.click()
-    await this.waitForSuccessToast()
+    await this.keySaveBtn.click();
+    await this.waitForSuccessToast();
   }
 
   /**
    * Delete a key
    */
   async deleteKey(keyName: string): Promise<void> {
-    await this.dismissToasts()
+    await this.dismissToasts();
 
     // Find the key row
-    const keyRow = this.getKeyRow(keyName)
-    await keyRow.scrollIntoViewIfNeeded()
+    const keyRow = this.getKeyRow(keyName);
+    await keyRow.scrollIntoViewIfNeeded();
 
     // The dropdown trigger - look for ellipsis/more button (last button with svg icon)
-    const menuBtn = keyRow.locator('button').filter({ has: this.page.locator('svg') }).last()
-    await menuBtn.waitFor({ state: 'visible', timeout: 5000 })
-    await menuBtn.click()
+    const menuBtn = keyRow
+      .locator("button")
+      .filter({ has: this.page.locator("svg") })
+      .last();
+    await menuBtn.waitFor({ state: "visible", timeout: 5000 });
+    await menuBtn.click();
 
     // Click Delete in the dropdown
-    await this.page.getByRole('menuitem', { name: /Delete/i }).click()
+    await this.page.getByRole("menuitem", { name: /Delete/i }).click();
 
     // Confirm deletion in the alert dialog
-    const confirmBtn = this.page.locator('[role="alertdialog"]').getByRole('button', { name: /Delete/i })
-    await confirmBtn.waitFor({ state: 'visible', timeout: 5000 })
-    await confirmBtn.click()
+    const confirmBtn = this.page
+      .locator('[role="alertdialog"]')
+      .getByRole("button", { name: /Delete/i });
+    await confirmBtn.waitFor({ state: "visible", timeout: 5000 });
+    await confirmBtn.click();
 
     // Wait for success toast
-    await this.waitForSuccessToast('deleted')
+    await this.waitForSuccessToast("deleted");
   }
 
   /**
    * Toggle key enabled/disabled
    */
   async toggleKeyEnabled(keyName: string): Promise<void> {
-    const keyRow = this.getKeyRow(keyName)
-    const switchEl = keyRow.getByTestId('key-enabled-switch')
-    await switchEl.click()
-    await this.waitForSuccessToast()
+    const keyRow = this.getKeyRow(keyName);
+    const switchEl = keyRow.getByTestId("key-enabled-switch");
+    await switchEl.click();
+    await this.waitForSuccessToast();
   }
 
   /**
    * Get the per-key "Refresh model list" button for a key row.
    */
   getKeyRefreshModelsBtn(keyName: string): Locator {
-    return this.getKeyRow(keyName).getByTestId(`key-refresh-models-${keyName}`)
+    return this.getKeyRow(keyName).getByTestId(`key-refresh-models-${keyName}`);
   }
 
   /**
    * Trigger model discovery for every enabled key of the selected provider.
    */
   async refreshProviderModels(): Promise<void> {
-    await this.dismissToasts()
-    await this.refreshProviderModelsBtn.click()
-    await this.waitForSuccessToast('refreshed')
+    await this.dismissToasts();
+    await this.refreshProviderModelsBtn.click();
+    await this.waitForSuccessToast("refreshed");
   }
 
   /**
    * Trigger model discovery for a single key.
    */
   async refreshKeyModels(keyName: string): Promise<void> {
-    await this.dismissToasts()
-    const refreshBtn = this.getKeyRefreshModelsBtn(keyName)
-    await refreshBtn.scrollIntoViewIfNeeded()
-    await refreshBtn.click()
-    await this.waitForSuccessToast('refreshed')
+    await this.dismissToasts();
+    const refreshBtn = this.getKeyRefreshModelsBtn(keyName);
+    await refreshBtn.scrollIntoViewIfNeeded();
+    await refreshBtn.click();
+    await this.waitForSuccessToast("refreshed");
   }
 
   /**
    * Get the count of keys in the table
    */
   async getKeyCount(): Promise<number> {
-    const rows = this.keysTable.locator('tbody tr')
-    const count = await rows.count()
+    const rows = this.keysTable.locator("tbody tr");
+    const count = await rows.count();
 
     if (count === 0) {
-      return 0
+      return 0;
     }
 
     // Check if it's the "No keys found" row
-    const firstRowText = await rows.first().textContent()
-    if (firstRowText?.includes('No keys found')) {
-      return 0
+    const firstRowText = await rows.first().textContent();
+    if (firstRowText?.includes("No keys found")) {
+      return 0;
     }
 
-    return count
+    return count;
   }
 
   /**
@@ -404,13 +419,13 @@ export class ProvidersPage extends BasePage {
    */
   private getBaseProviderLabel(type: string): string {
     const labels: Record<string, string> = {
-      openai: 'OpenAI',
-      anthropic: 'Anthropic',
-      gemini: 'Gemini',
-      cohere: 'Cohere',
-      bedrock: 'AWS Bedrock',
-    }
-    return labels[type] || type
+      openai: "OpenAI",
+      anthropic: "Anthropic",
+      gemini: "Gemini",
+      cohere: "Cohere",
+      bedrock: "AWS Bedrock",
+    };
+    return labels[type] || type;
   }
 
   // ============================================
@@ -422,41 +437,45 @@ export class ProvidersPage extends BasePage {
    */
   async openConfigSheet(): Promise<void> {
     // If the config sheet is already open, just return
-    const dialog = this.page.locator('[role="dialog"]')
+    const dialog = this.page.locator('[role="dialog"]');
     if (await dialog.isVisible().catch(() => false)) {
-      return
+      return;
     }
-    const editConfigBtn = this.page.getByRole('button', { name: /Edit Provider Config/i })
-    await editConfigBtn.waitFor({ state: 'visible', timeout: 10000 })
-    await editConfigBtn.click()
+    const editConfigBtn = this.page.getByRole("button", { name: /Edit Provider Config/i });
+    await editConfigBtn.waitFor({ state: "visible", timeout: 10000 });
+    await editConfigBtn.click();
     // Wait for the sheet to appear (SheetContent renders with role="dialog")
-    await dialog.waitFor({ state: 'visible' })
-    await this.waitForSheetAnimation()
+    await dialog.waitFor({ state: "visible" });
+    await this.waitForSheetAnimation();
   }
 
   /**
    * Select a configuration tab
    */
-  async selectConfigTab(tabName: 'network' | 'proxy' | 'performance' | 'governance' | 'debugging'): Promise<void> {
-    await this.openConfigSheet()
+  async selectConfigTab(
+    tabName: "network" | "proxy" | "performance" | "governance" | "debugging",
+  ): Promise<void> {
+    await this.openConfigSheet();
 
-    const tab = this.page.getByTestId(`provider-tab-${tabName}`)
-    await tab.click()
-    await this.page.waitForTimeout(300)
+    const tab = this.page.getByTestId(`provider-tab-${tabName}`);
+    await tab.click();
+    await this.page.waitForTimeout(300);
   }
 
   /**
    * Get the save button for the current config tab
    */
-  getConfigSaveBtn(configType: 'network' | 'proxy' | 'performance' | 'governance' | 'debugging'): Locator {
+  getConfigSaveBtn(
+    configType: "network" | "proxy" | "performance" | "governance" | "debugging",
+  ): Locator {
     const buttonNames: Record<string, string> = {
-      network: 'Save Network Configuration',
-      proxy: 'Save Proxy Configuration',
-      performance: 'Save Performance Configuration',
-      governance: 'Save Governance Configuration',
-      debugging: 'Save Debugging Configuration',
-    }
-    return this.page.getByRole('button', { name: buttonNames[configType] })
+      network: "Save Network Configuration",
+      proxy: "Save Proxy Configuration",
+      performance: "Save Performance Configuration",
+      governance: "Save Governance Configuration",
+      debugging: "Save Debugging Configuration",
+    };
+    return this.page.getByRole("button", { name: buttonNames[configType] });
   }
 
   // ============================================
@@ -467,28 +486,34 @@ export class ProvidersPage extends BasePage {
    * Get concurrency input
    */
   getConcurrencyInput(): Locator {
-    return this.page.getByLabel('Concurrency')
+    return this.page.getByLabel("Concurrency");
   }
 
   /**
    * Get buffer size input
    */
   getBufferSizeInput(): Locator {
-    return this.page.getByLabel('Buffer Size')
+    return this.page.getByLabel("Buffer Size");
   }
 
   /**
    * Get raw request switch (Debugging tab: "Send Back Raw Request")
    */
   getRawRequestSwitch(): Locator {
-    return this.page.getByLabel('Send Back Raw Request').locator('..').locator('button[role="switch"]')
+    return this.page
+      .getByLabel("Send Back Raw Request")
+      .locator("..")
+      .locator('button[role="switch"]');
   }
 
   /**
    * Get raw response switch (Debugging tab: "Send Back Raw Response")
    */
   getRawResponseSwitch(): Locator {
-    return this.page.getByLabel('Send Back Raw Response').locator('..').locator('button[role="switch"]')
+    return this.page
+      .getByLabel("Send Back Raw Response")
+      .locator("..")
+      .locator('button[role="switch"]');
   }
 
   /**
@@ -497,58 +522,54 @@ export class ProvidersPage extends BasePage {
    * to reliably update controlled input components.
    */
   async fillNumberInput(input: Locator, value: string): Promise<void> {
-    await input.click()
-    await input.press('ControlOrMeta+a')
-    await input.pressSequentially(value)
-    await input.blur()
+    await input.click();
+    await input.press("ControlOrMeta+a");
+    await input.pressSequentially(value);
+    await input.blur();
   }
 
   /**
    * Save performance configuration and wait for success toast
    */
   async savePerformanceConfig(): Promise<void> {
-    const saveBtn = this.getConfigSaveBtn('performance')
-    await saveBtn.click()
-    await this.waitForSuccessToast()
+    const saveBtn = this.getConfigSaveBtn("performance");
+    await saveBtn.click();
+    await this.waitForSuccessToast();
   }
-
 
   /**
    * Save network configuration and wait for success toast
    */
   async saveNetworkConfig(): Promise<void> {
-    const saveBtn = this.getConfigSaveBtn('network')
-    await saveBtn.click()
-    await this.waitForSuccessToast()
+    const saveBtn = this.getConfigSaveBtn("network");
+    await saveBtn.click();
+    await this.waitForSuccessToast();
   }
 
   /**
    * Save debugging configuration and wait for success toast
    */
   async saveDebuggingConfig(): Promise<void> {
-    const saveBtn = this.getConfigSaveBtn('debugging')
-    await saveBtn.click()
-    await this.waitForSuccessToast()
+    const saveBtn = this.getConfigSaveBtn("debugging");
+    await saveBtn.click();
+    await this.waitForSuccessToast();
   }
 
   /**
    * Set performance configuration (concurrency, buffer size only).
    * For raw request/response toggles use setDebuggingConfig.
    */
-  async setPerformanceConfig(config: {
-    concurrency?: number
-    bufferSize?: number
-  }): Promise<void> {
-    await this.selectConfigTab('performance')
+  async setPerformanceConfig(config: { concurrency?: number; bufferSize?: number }): Promise<void> {
+    await this.selectConfigTab("performance");
 
     if (config.concurrency !== undefined) {
-      const input = this.getConcurrencyInput()
-      await this.fillNumberInput(input, String(config.concurrency))
+      const input = this.getConcurrencyInput();
+      await this.fillNumberInput(input, String(config.concurrency));
     }
 
     if (config.bufferSize !== undefined) {
-      const input = this.getBufferSizeInput()
-      await this.fillNumberInput(input, String(config.bufferSize))
+      const input = this.getBufferSizeInput();
+      await this.fillNumberInput(input, String(config.bufferSize));
     }
   }
 
@@ -556,21 +577,21 @@ export class ProvidersPage extends BasePage {
    * Set debugging configuration (raw request/response toggles).
    */
   async setDebuggingConfig(config: { rawRequest?: boolean; rawResponse?: boolean }): Promise<void> {
-    await this.selectConfigTab('debugging')
+    await this.selectConfigTab("debugging");
 
     if (config.rawRequest !== undefined) {
-      const switchEl = this.getRawRequestSwitch()
-      const isChecked = (await switchEl.getAttribute('data-state')) === 'checked'
+      const switchEl = this.getRawRequestSwitch();
+      const isChecked = (await switchEl.getAttribute("data-state")) === "checked";
       if (isChecked !== config.rawRequest) {
-        await switchEl.click()
+        await switchEl.click();
       }
     }
 
     if (config.rawResponse !== undefined) {
-      const switchEl = this.getRawResponseSwitch()
-      const isChecked = (await switchEl.getAttribute('data-state')) === 'checked'
+      const switchEl = this.getRawResponseSwitch();
+      const isChecked = (await switchEl.getAttribute("data-state")) === "checked";
       if (isChecked !== config.rawResponse) {
-        await switchEl.click()
+        await switchEl.click();
       }
     }
   }
@@ -583,35 +604,35 @@ export class ProvidersPage extends BasePage {
    * Get proxy type select
    */
   getProxyTypeSelect(): Locator {
-    return this.page.getByLabel('Proxy Type').locator('..').locator('button[role="combobox"]')
+    return this.page.getByLabel("Proxy Type").locator("..").locator('button[role="combobox"]');
   }
 
   /**
    * Set proxy configuration
    */
   async setProxyConfig(config: {
-    type: 'http' | 'socks5' | 'environment' | 'none'
-    url?: string
-    username?: string
-    password?: string
+    type: "http" | "socks5" | "environment" | "none";
+    url?: string;
+    username?: string;
+    password?: string;
   }): Promise<void> {
-    await this.selectConfigTab('proxy')
+    await this.selectConfigTab("proxy");
 
     // Select proxy type
-    const proxySelect = this.getProxyTypeSelect()
-    await proxySelect.click()
-    await this.page.getByRole('option', { name: new RegExp(config.type, 'i') }).click()
+    const proxySelect = this.getProxyTypeSelect();
+    await proxySelect.click();
+    await this.page.getByRole("option", { name: new RegExp(config.type, "i") }).click();
 
     // Fill additional fields if not 'none' or 'environment'
-    if (config.type === 'http' || config.type === 'socks5') {
+    if (config.type === "http" || config.type === "socks5") {
       if (config.url) {
-        await this.page.getByLabel('Proxy URL').fill(config.url)
+        await this.page.getByLabel("Proxy URL").fill(config.url);
       }
       if (config.username) {
-        await this.page.getByLabel('Username').fill(config.username)
+        await this.page.getByLabel("Username").fill(config.username);
       }
       if (config.password) {
-        await this.page.getByLabel('Password').fill(config.password)
+        await this.page.getByLabel("Password").fill(config.password);
       }
     }
   }
@@ -624,42 +645,42 @@ export class ProvidersPage extends BasePage {
    * Set network configuration
    */
   async setNetworkConfig(config: {
-    baseUrl?: string
-    timeout?: number
-    maxRetries?: number
-    initialBackoff?: number
-    maxBackoff?: number
+    baseUrl?: string;
+    timeout?: number;
+    maxRetries?: number;
+    initialBackoff?: number;
+    maxBackoff?: number;
   }): Promise<void> {
-    await this.selectConfigTab('network')
+    await this.selectConfigTab("network");
 
     if (config.baseUrl !== undefined) {
-      const input = this.page.getByLabel(/Base URL/i)
-      await input.clear()
-      await input.fill(config.baseUrl)
+      const input = this.page.getByLabel(/Base URL/i);
+      await input.clear();
+      await input.fill(config.baseUrl);
     }
 
     if (config.timeout !== undefined) {
-      const input = this.page.getByLabel(/Timeout/i)
-      await input.clear()
-      await input.fill(String(config.timeout))
+      const input = this.page.getByLabel(/Timeout/i);
+      await input.clear();
+      await input.fill(String(config.timeout));
     }
 
     if (config.maxRetries !== undefined) {
-      const input = this.page.getByLabel(/Max Retries/i)
-      await input.clear()
-      await input.fill(String(config.maxRetries))
+      const input = this.page.getByLabel(/Max Retries/i);
+      await input.clear();
+      await input.fill(String(config.maxRetries));
     }
 
     if (config.initialBackoff !== undefined) {
-      const input = this.page.getByLabel(/Initial Backoff/i)
-      await input.clear()
-      await input.fill(String(config.initialBackoff))
+      const input = this.page.getByLabel(/Initial Backoff/i);
+      await input.clear();
+      await input.fill(String(config.initialBackoff));
     }
 
     if (config.maxBackoff !== undefined) {
-      const input = this.page.getByLabel(/Max Backoff/i)
-      await input.clear()
-      await input.fill(String(config.maxBackoff))
+      const input = this.page.getByLabel(/Max Backoff/i);
+      await input.clear();
+      await input.fill(String(config.maxBackoff));
     }
   }
 
@@ -671,65 +692,65 @@ export class ProvidersPage extends BasePage {
    * Set governance configuration (budget and rate limits)
    */
   async setGovernanceConfig(config: {
-    aligned?: boolean
+    aligned?: boolean;
     budgets?: Array<{
-      amount?: number
-      resetPeriod?: string
-    }>
-    tokenLimit?: number
-    requestLimit?: number
+      amount?: number;
+      resetPeriod?: string;
+    }>;
+    tokenLimit?: number;
+    requestLimit?: number;
   }): Promise<void> {
-    await this.selectConfigTab('governance')
+    await this.selectConfigTab("governance");
 
     if (config.budgets) {
-      const budgetLines = this.page.locator('[data-testid^="provider-governance-budgets-line-"]')
-      let existingCount = await budgetLines.count()
+      const budgetLines = this.page.locator('[data-testid^="provider-governance-budgets-line-"]');
+      let existingCount = await budgetLines.count();
 
       while (existingCount < config.budgets.length) {
-        await this.page.getByTestId('provider-governance-budgets-add-btn').click()
-        existingCount += 1
+        await this.page.getByTestId("provider-governance-budgets-add-btn").click();
+        existingCount += 1;
       }
 
       while (existingCount > config.budgets.length) {
-        existingCount -= 1
-        await this.page.getByTestId(`provider-governance-budgets-remove-${existingCount}`).click()
+        existingCount -= 1;
+        await this.page.getByTestId(`provider-governance-budgets-remove-${existingCount}`).click();
       }
 
       for (const [index, budget] of config.budgets.entries()) {
-        const amountInput = this.page.getByTestId(`provider-governance-budgets-amount-${index}`)
-        await amountInput.click()
-        await amountInput.fill('')
+        const amountInput = this.page.getByTestId(`provider-governance-budgets-amount-${index}`);
+        await amountInput.click();
+        await amountInput.fill("");
         if (budget.amount !== undefined) {
-          await amountInput.pressSequentially(String(budget.amount))
+          await amountInput.pressSequentially(String(budget.amount));
         }
 
         if (budget.resetPeriod) {
-          const budgetLine = this.page.getByTestId(`provider-governance-budgets-line-${index}`)
-          const resetPeriodLabel = resetPeriodLabels[budget.resetPeriod] ?? budget.resetPeriod
-          await budgetLine.getByRole('combobox').click()
-          await this.page.getByRole('option', { name: resetPeriodLabel }).click()
+          const budgetLine = this.page.getByTestId(`provider-governance-budgets-line-${index}`);
+          const resetPeriodLabel = resetPeriodLabels[budget.resetPeriod] ?? budget.resetPeriod;
+          await budgetLine.getByRole("combobox").click();
+          await this.page.getByRole("option", { name: resetPeriodLabel }).click();
         }
       }
 
       if (config.aligned !== undefined && config.budgets.length > 0) {
-        const switchEl = this.page.getByTestId('provider-governance-calendar-aligned-switch')
-        const isChecked = (await switchEl.getAttribute('data-state')) === 'checked'
+        const switchEl = this.page.getByTestId("provider-governance-calendar-aligned-switch");
+        const isChecked = (await switchEl.getAttribute("data-state")) === "checked";
         if (isChecked !== config.aligned) {
-          await switchEl.click()
+          await switchEl.click();
         }
       }
     }
 
     if (config.tokenLimit !== undefined) {
-      const input = this.page.locator('#providerTokenMaxLimit')
-      await input.clear()
-      await input.fill(String(config.tokenLimit))
+      const input = this.page.locator("#providerTokenMaxLimit");
+      await input.clear();
+      await input.fill(String(config.tokenLimit));
     }
 
     if (config.requestLimit !== undefined) {
-      const input = this.page.locator('#providerRequestMaxLimit')
-      await input.clear()
-      await input.fill(String(config.requestLimit))
+      const input = this.page.locator("#providerRequestMaxLimit");
+      await input.clear();
+      await input.fill(String(config.requestLimit));
     }
   }
 
@@ -737,9 +758,8 @@ export class ProvidersPage extends BasePage {
    * Check if governance tab is visible (depends on permissions)
    */
   async isGovernanceTabVisible(): Promise<boolean> {
-    await this.openConfigSheet()
-    const tab = this.page.getByTestId('provider-tab-governance')
-    return await tab.isVisible().catch(() => false)
+    await this.openConfigSheet();
+    const tab = this.page.getByTestId("provider-tab-governance");
+    return await tab.isVisible().catch(() => false);
   }
-
 }

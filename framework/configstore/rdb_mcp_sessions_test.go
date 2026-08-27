@@ -14,6 +14,7 @@ import (
 // per-user-headers tables. The shared setup intentionally leaves these
 // off to keep unrelated tests fast.
 func setupMCPSessionsTestStore(t *testing.T) *RDBConfigStore {
+	t.Helper()
 	store := setupRDBTestStore(t)
 	require.NoError(t, store.DB().AutoMigrate(
 		&tables.TableMCPPerUserHeaderCredential{},

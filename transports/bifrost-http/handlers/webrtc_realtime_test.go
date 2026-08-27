@@ -308,7 +308,7 @@ func TestLookupRealtimeEphemeralKeyMappingKeepsEntryUntilTTLExpiry(t *testing.T)
 	if err != nil {
 		t.Fatalf("kvstore.New() error = %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	payload, err := json.Marshal(realtimeEphemeralKeyMapping{Version: realtimeEphemeralKeyMappingVersion, KeyID: "key_123", VirtualKey: "sk-bf-test"})
 	if err != nil {
@@ -345,7 +345,7 @@ func TestLookupRealtimeEphemeralKeyMappingRejectsUnversionedStringValue(t *testi
 	if err != nil {
 		t.Fatalf("kvstore.New() error = %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	if err := store.SetWithTTL(buildRealtimeEphemeralKeyMappingKey("ek_test_legacy"), "key_legacy", time.Minute); err != nil {
 		t.Fatalf("store.SetWithTTL() error = %v", err)
@@ -363,7 +363,7 @@ func TestLookupRealtimeEphemeralKeyMappingAcceptsLegacyStructuredValue(t *testin
 	if err != nil {
 		t.Fatalf("kvstore.New() error = %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	payload := []byte(`{"key_id":"key_legacy","virtual_key":"sk-bf-legacy"}`)
 	if err := store.SetWithTTL(buildRealtimeEphemeralKeyMappingKey("ek_test_legacy_structured"), payload, time.Minute); err != nil {
@@ -434,7 +434,7 @@ func TestResolveRealtimeWebRTCKeys_UnmappedEphemeralTokenIsRejected(t *testing.T
 	if err != nil {
 		t.Fatalf("kvstore.New() error = %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	handler := &WebRTCRealtimeHandler{
 		handlerStore: testHandlerStore{kv: store},
@@ -450,7 +450,7 @@ func TestResolveRealtimeWebRTCKeys_UnmappedEphemeralTokenIsRejected(t *testing.T
 	bifrostCtx.SetValue(schemas.BifrostContextKeyAPIKeyName, "mapped-name")
 
 	authKey, selectedKey, mapped, err := handler.resolveRealtimeWebRTCKeys(&ctx, bifrostCtx, schemas.OpenAI, "gpt-realtime")
-	if err != errRealtimeEphemeralKeyUnknown {
+	if !errors.Is(err, errRealtimeEphemeralKeyUnknown) {
 		t.Fatalf("resolveRealtimeWebRTCKeys() error = %v, want %v", err, errRealtimeEphemeralKeyUnknown)
 	}
 	if got := authKey.Value.GetValue(); got != "" {
@@ -471,7 +471,7 @@ func TestResolveRealtimeWebRTCKeysClassifiesStaleMappedKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("kvstore.New() error = %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 	payload, err := json.Marshal(realtimeEphemeralKeyMapping{
 		Version:    realtimeEphemeralKeyMappingVersion,
 		KeyID:      "missing-key",
@@ -537,7 +537,7 @@ func TestRunWebRTCRelayRejectsUnmappedEphemeralTokenAsUnauthorized(t *testing.T)
 	if err != nil {
 		t.Fatalf("kvstore.New() error = %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	handler := &WebRTCRealtimeHandler{handlerStore: testHandlerStore{kv: store}}
 	var ctx fasthttp.RequestCtx

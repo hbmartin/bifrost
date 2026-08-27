@@ -3,6 +3,7 @@ package utils
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"time"
 
@@ -66,9 +67,9 @@ func StreamPassthrough(
 	go func() {
 		defer EnsureStreamFinalizerCalled(ctx, postHookSpanFinalizer)
 		defer func() {
-			if ctx.Err() == context.Canceled {
+			if errors.Is(ctx.Err(), context.Canceled) {
 				HandleStreamCancellation(ctx, postHookRunner, ch, params.Logger, postHookSpanFinalizer, params.CancellationBody)
-			} else if ctx.Err() == context.DeadlineExceeded {
+			} else if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 				HandleStreamTimeout(ctx, postHookRunner, ch, params.Logger, postHookSpanFinalizer, params.CancellationBody)
 			}
 			close(ch)

@@ -167,7 +167,7 @@ func TestConcurrent_AddRemoveClients(t *testing.T) {
 				// InProcess connections without a server instance will fail
 				// This is expected - we're just testing that the operations are concurrent and don't deadlock
 				if !strings.Contains(err.Error(), "server instance") {
-					errors <- fmt.Errorf("failed to add client %d: %v", id, err)
+					errors <- fmt.Errorf("failed to add client %d: %w", id, err)
 				}
 			} else {
 				addCount.Add(1)
@@ -183,7 +183,7 @@ func TestConcurrent_AddRemoveClients(t *testing.T) {
 			if err != nil {
 				// It's OK if client doesn't exist (race condition)
 				if err.Error() != "client not found" && !strings.Contains(err.Error(), "not found") {
-					errors <- fmt.Errorf("failed to remove client %d: %v", id, err)
+					errors <- fmt.Errorf("failed to remove client %d: %w", id, err)
 				}
 			} else {
 				removeCount.Add(1)
@@ -264,7 +264,7 @@ func TestConcurrent_EditClientDuringExecution_Advanced(t *testing.T) {
 					}
 					err := manager.UpdateClient(newConfig.ID, newConfig)
 					if err != nil {
-						errors <- fmt.Errorf("edit %d failed: %v", id, err)
+						errors <- fmt.Errorf("edit %d failed: %w", id, err)
 					}
 					break
 				}
@@ -396,7 +396,7 @@ func TestConcurrent_ToolRegistration(t *testing.T) {
 			)
 
 			if err != nil {
-				errors <- fmt.Errorf("failed to register tool %d: %v", id, err)
+				errors <- fmt.Errorf("failed to register tool %d: %w", id, err)
 			} else {
 				successCount.Add(1)
 			}

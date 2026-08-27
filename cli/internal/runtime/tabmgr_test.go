@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -106,7 +105,9 @@ func TestHandleCommandKeyKeepsHomeCommandModeWithoutTabs(t *testing.T) {
 		commandMode: true,
 	}
 
-	tm.handleCommandKey(nil, nil, nil, prefix)
+	if err := tm.handleCommandKey(context.Background(), nil, nil, prefix); err != nil {
+		t.Fatalf("handleCommandKey() error = %v", err)
+	}
 
 	if !tm.commandMode {
 		t.Fatal("expected command mode to stay active when there are no tabs to resume")
@@ -418,7 +419,9 @@ func TestHandleCommandKeySpaceClearsNoticeAndResumes(t *testing.T) {
 		tabs:        []*Tab{{id: 1, label: "Codex"}},
 	}
 
-	tm.handleCommandKey(nil, nil, nil, ' ')
+	if err := tm.handleCommandKey(context.Background(), nil, nil, ' '); err != nil {
+		t.Fatalf("handleCommandKey() error = %v", err)
+	}
 
 	if tm.commandMode {
 		t.Fatal("expected command mode to exit after space resume")
@@ -442,7 +445,9 @@ func TestHandleCommandKeyEscapeClearsStickyErrorAndStaysInCommandMode(t *testing
 		tabs:         []*Tab{{id: 1, label: "Codex"}},
 	}
 
-	tm.handleCommandKey(nil, nil, nil, 0x1b)
+	if err := tm.handleCommandKey(context.Background(), nil, nil, 0x1b); err != nil {
+		t.Fatalf("handleCommandKey() error = %v", err)
+	}
 
 	if !tm.commandMode {
 		t.Fatal("expected command mode to stay enabled after clearing sticky error")
@@ -467,7 +472,9 @@ func TestHandleCommandKeyEscapeClearsStickyErrorBeforeQuitConfirm(t *testing.T) 
 		tabs:         []*Tab{{id: 1, label: "Codex"}},
 	}
 
-	tm.handleCommandKey(nil, nil, nil, 0x1b)
+	if err := tm.handleCommandKey(context.Background(), nil, nil, 0x1b); err != nil {
+		t.Fatalf("handleCommandKey() error = %v", err)
+	}
 
 	if tm.noticeText != "" {
 		t.Fatalf("expected sticky error notice to clear before quit confirm, got %q", tm.noticeText)
@@ -520,7 +527,9 @@ func TestHandleCommandKeyEnterDoesNotResumeWhileStickyErrorIsShown(t *testing.T)
 		tabs:         []*Tab{{id: 1, label: "Codex"}},
 	}
 
-	tm.handleCommandKey(nil, nil, nil, '\r')
+	if err := tm.handleCommandKey(context.Background(), nil, nil, '\r'); err != nil {
+		t.Fatalf("handleCommandKey() error = %v", err)
+	}
 
 	if !tm.commandMode {
 		t.Fatal("expected sticky error to keep tab manager in command mode")
@@ -735,21 +744,12 @@ func TestDecodeCSIuPreservesShiftTab(t *testing.T) {
 }
 
 func TestPrefersFullscreenChooserAppleTerminal(t *testing.T) {
-	old := os.Getenv("TERM_PROGRAM")
-	t.Cleanup(func() {
-		if old == "" {
-			os.Unsetenv("TERM_PROGRAM")
-			return
-		}
-		os.Setenv("TERM_PROGRAM", old)
-	})
-
-	os.Setenv("TERM_PROGRAM", "Apple_Terminal")
+	t.Setenv("TERM_PROGRAM", "Apple_Terminal")
 	if !prefersFullscreenChooser() {
 		t.Fatal("expected Apple Terminal to use fullscreen chooser fallback")
 	}
 
-	os.Setenv("TERM_PROGRAM", "iTerm.app")
+	t.Setenv("TERM_PROGRAM", "iTerm.app")
 	if prefersFullscreenChooser() {
 		t.Fatal("did not expect iTerm to use fullscreen chooser fallback")
 	}

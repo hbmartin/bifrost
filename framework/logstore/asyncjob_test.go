@@ -48,7 +48,7 @@ func newTestAsyncExecutor(t *testing.T) *AsyncJobExecutor {
 		Path: filepath.Join(t.TempDir(), "asyncjob.db"),
 	}, asyncTestLogger{})
 	require.NoError(t, err)
-	t.Cleanup(func() { store.Close(ctx) })
+	t.Cleanup(func() { _ = store.Close(ctx) })
 
 	govStore := &testGovernanceStore{
 		virtualKeys: map[string]*configstoreTables.TableVirtualKey{
@@ -282,7 +282,7 @@ func newWebhookTestExecutor(t *testing.T, dispatcher WebhookDispatcher) *AsyncJo
 		Path: filepath.Join(t.TempDir(), "asyncwebhooks.db"),
 	}, asyncTestLogger{})
 	require.NoError(t, err)
-	t.Cleanup(func() { store.Close(ctx) })
+	t.Cleanup(func() { _ = store.Close(ctx) })
 	return NewAsyncJobExecutor(store, &testGovernanceStore{}, dispatcher, testWebhookManager{}, asyncTestLogger{})
 }
 
@@ -430,7 +430,7 @@ func TestAsyncJobCleaner_ReapsExpiredWebhookDeliveries(t *testing.T) {
 	ctx := context.Background()
 	store, err := newSqliteLogStore(ctx, &SQLiteConfig{Path: ":memory:"}, asyncTestLogger{})
 	require.NoError(t, err)
-	t.Cleanup(func() { store.Close(ctx) })
+	t.Cleanup(func() { _ = store.Close(ctx) })
 
 	expiredAt := time.Now().UTC().Add(-time.Hour)
 	require.NoError(t, store.CreateWebhookDelivery(ctx, &WebhookDelivery{

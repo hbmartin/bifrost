@@ -3740,7 +3740,7 @@ func (h *GovernanceHandler) createModelConfig(ctx *fasthttp.RequestCtx) {
 	}
 	// Check if a model config with the same identity (scope, scope_id, model_name, provider) already exists
 	existing, err := h.configStore.GetModelConfig(ctx, req.Scope, req.ScopeID, req.ModelName, req.Provider)
-	if err != nil && err != configstore.ErrNotFound {
+	if err != nil && !errors.Is(err, configstore.ErrNotFound) {
 		logger.Error("failed to check existing model config: %v", err)
 		SendError(ctx, 500, fmt.Sprintf("Failed to check existing model config: %v", err))
 		return
@@ -4122,7 +4122,7 @@ func (h *GovernanceHandler) updateProviderGovernance(ctx *fasthttp.RequestCtx) {
 	}
 
 	existing, err := h.configStore.GetModelConfig(ctx, configstoreTables.ModelConfigScopeGlobal, nil, configstoreTables.ModelConfigAllModels, &providerName)
-	if err != nil && err != configstore.ErrNotFound {
+	if err != nil && !errors.Is(err, configstore.ErrNotFound) {
 		logger.Error("failed to load provider governance: %v", err)
 		SendError(ctx, 500, fmt.Sprintf("Failed to load provider governance: %v", err))
 		return
@@ -4326,7 +4326,7 @@ func (h *GovernanceHandler) deleteProviderGovernance(ctx *fasthttp.RequestCtx) {
 	}
 	mc, err := h.configStore.GetModelConfig(ctx, configstoreTables.ModelConfigScopeGlobal, nil, configstoreTables.ModelConfigAllModels, &providerName)
 	if err != nil {
-		if err == configstore.ErrNotFound {
+		if errors.Is(err, configstore.ErrNotFound) {
 			// No provider-level governance to remove — treat as success (idempotent).
 			SendJSON(ctx, map[string]interface{}{"message": "Provider governance deleted successfully"})
 			return

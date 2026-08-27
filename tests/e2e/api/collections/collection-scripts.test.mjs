@@ -88,7 +88,6 @@ function sandbox({ responseBody = "", variables = {} } = {}) {
 
 function run(src, options) {
   const ctx = sandbox(options);
-  // eslint-disable-next-line no-new-func
   new Function("pm", src)(ctx.pm);
   return ctx;
 }
@@ -323,7 +322,6 @@ function runGate({ requestName, code, body = "", variables = {} }) {
       }
     },
   };
-  // eslint-disable-next-line no-new-func
   new Function("pm", gateSource)(pm);
   assert.notStrictEqual(accepted, null, "gate never ran its status assertion");
   return accepted;
@@ -376,12 +374,13 @@ test("MCP client requests are allowed a 404", () => {
 
 test("plugin requests are allowed a 404 only with a plugin-load message", () => {
   const loadFailure = JSON.stringify({ error: { message: "plugin not found on disk" } });
+  assert.strictEqual(runGate({ requestName: "Create Plugin", code: 404, body: loadFailure }), true);
   assert.strictEqual(
-    runGate({ requestName: "Create Plugin", code: 404, body: loadFailure }),
-    true,
-  );
-  assert.strictEqual(
-    runGate({ requestName: "Create Plugin", code: 404, body: JSON.stringify({ error: { message: "nope" } }) }),
+    runGate({
+      requestName: "Create Plugin",
+      code: 404,
+      body: JSON.stringify({ error: { message: "nope" } }),
+    }),
     false,
     "an unrelated 404 must still fail",
   );
@@ -391,10 +390,7 @@ test("plugin requests are allowed a 403 only in the unauthenticated pass", () =>
   const authError = JSON.stringify({
     error: { message: "this route requires genuine admin authentication" },
   });
-  assert.strictEqual(
-    runGate({ requestName: "Update Plugin", code: 403, body: authError }),
-    true,
-  );
+  assert.strictEqual(runGate({ requestName: "Update Plugin", code: 403, body: authError }), true);
   assert.strictEqual(
     runGate({
       requestName: "Update Plugin",

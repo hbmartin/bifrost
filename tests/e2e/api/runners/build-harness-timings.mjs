@@ -23,7 +23,7 @@ const args = Object.fromEntries(
       acc.push([cur.slice(2), next && !next.startsWith("--") ? next : "true"]);
     }
     return acc;
-  }, [])
+  }, []),
 );
 
 const DIR = args.dir || "tmp";
@@ -75,7 +75,11 @@ if (!measured) die("no usable executions found - leaving the existing table alon
 const fresh = measured - Object.keys(prior).length;
 try {
   // Sorted keys so a committed baseline produces a reviewable diff rather than a reshuffle.
-  const sorted = Object.fromEntries(Object.keys(table).sort().map((k) => [k, table[k]]));
+  const sorted = Object.fromEntries(
+    Object.keys(table)
+      .sort()
+      .map((k) => [k, table[k]]),
+  );
   writeFileSync(OUT, `${JSON.stringify(sorted, null, 2)}\n`);
 } catch (e) {
   die(`could not write ${OUT}: ${e.message}`);
@@ -83,5 +87,5 @@ try {
 
 const totalSec = Math.round(Object.values(table).reduce((s, ms) => s + ms, 0) / 1000);
 console.error(
-  `[build-harness-timings] wrote ${OUT}: ${measured} request(s), ${fresh > 0 ? `+${fresh} new, ` : ""}${totalSec}s of measured request time, from ${reports.length} report(s)${unreadable ? ` (${unreadable} unreadable)` : ""}`
+  `[build-harness-timings] wrote ${OUT}: ${measured} request(s), ${fresh > 0 ? `+${fresh} new, ` : ""}${totalSec}s of measured request time, from ${reports.length} report(s)${unreadable ? ` (${unreadable} unreadable)` : ""}`,
 );

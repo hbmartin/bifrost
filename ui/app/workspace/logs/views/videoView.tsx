@@ -207,7 +207,11 @@ export default function VideoView({ videoInput, videoOutput, videoListOutput, re
 						code={JSON.stringify(videoListOutput.data, null, 2)}
 						lang="json"
 						readonly={true}
-						options={{ scrollBeyondLastLine: false, lineNumbers: "off", alwaysConsumeMouseWheel: false }}
+						options={{
+							scrollBeyondLastLine: false,
+							lineNumbers: "off",
+							alwaysConsumeMouseWheel: false,
+						}}
 					/>
 				</CollapsibleBox>
 			)}

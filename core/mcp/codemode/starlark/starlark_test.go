@@ -118,8 +118,8 @@ func TestStarlarkToGo(t *testing.T) {
 
 	t.Run("Convert Dict", func(t *testing.T) {
 		dict := starlark.NewDict(2)
-		dict.SetKey(starlark.String("key1"), starlark.String("value1"))
-		dict.SetKey(starlark.String("key2"), starlark.MakeInt(42))
+		_ = dict.SetKey(starlark.String("key1"), starlark.String("value1"))
+		_ = dict.SetKey(starlark.String("key2"), starlark.MakeInt(42))
 
 		result := starlarkToGo(dict)
 		m, ok := result.(map[string]interface{})

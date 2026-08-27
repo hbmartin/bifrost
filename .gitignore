@@ -58,6 +58,7 @@ settings.local.json
 .cursor/
 .claude/*
 !.claude/skills/
+/.cache/
 
 # Python specific
 **/__pycache__/**
@@ -115,6 +116,7 @@ playwright/.cache/
 # Terraform
 .terraform/
 .terraform.lock.hcl
+!terraform/modules/bifrost/.terraform.lock.hcl
 terraform.tfstate
 terraform.tfstate.backup
 *.tfvars

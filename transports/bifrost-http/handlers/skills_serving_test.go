@@ -42,9 +42,9 @@ func TestSkillsServingGenericFileDownloadDecodesEncodedPathParams(t *testing.T) 
 
 	server := &fasthttp.Server{Handler: r.Handler}
 	ln := fasthttputil.NewInmemoryListener()
-	go server.Serve(ln) //nolint:errcheck
-	defer ln.Close()
-	defer server.Shutdown()
+	go server.Serve(ln) //nolint:errcheck // The test shuts the server down and asserts behavior through the client.
+	defer func() { _ = ln.Close() }()
+	defer func() { _ = server.Shutdown() }()
 
 	client := &fasthttp.Client{
 		Dial: func(addr string) (net.Conn, error) {

@@ -11,6 +11,7 @@ import (
 
 // RunResponsesReasoningTest executes the reasoning test scenario to test thinking capabilities via Responses API only
 func RunResponsesReasoningTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.Reasoning {
 		t.Logf("⏭️ Reasoning not supported for provider %s", testConfig.Provider)
 		return
@@ -124,6 +125,7 @@ func RunResponsesReasoningTest(t *testing.T, client *bifrost.Bifrost, ctx contex
 // validateResponsesAPIReasoning performs additional validation specific to Responses API reasoning features
 // Returns true if reasoning indicators are found
 func validateResponsesAPIReasoning(t *testing.T, response *schemas.BifrostResponsesResponse) bool {
+	t.Helper()
 	if response == nil || response.Output == nil {
 		return false
 	}
@@ -205,6 +207,7 @@ func validateResponsesAPIReasoning(t *testing.T, response *schemas.BifrostRespon
 
 // RunChatCompletionReasoningTest executes the reasoning test scenario to test thinking capabilities via Chat Completions API
 func RunChatCompletionReasoningTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.Reasoning {
 		t.Logf("⏭️ Reasoning not supported for provider %s", testConfig.Provider)
 		return
@@ -318,6 +321,7 @@ func RunChatCompletionReasoningTest(t *testing.T, client *bifrost.Bifrost, ctx c
 // validateChatCompletionReasoning performs additional validation specific to Chat Completions API reasoning features
 // Returns true if reasoning indicators are found
 func validateChatCompletionReasoning(t *testing.T, response *schemas.BifrostChatResponse) bool {
+	t.Helper()
 	if response == nil || len(response.Choices) == 0 {
 		return false
 	}
@@ -420,6 +424,7 @@ func validateChatCompletionReasoning(t *testing.T, response *schemas.BifrostChat
 // It verifies that reasoning details (text + signature) from assistant messages are correctly
 // passed back to the model in follow-up turns via the Chat Completions API.
 func RunMultiTurnReasoningTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.Reasoning {
 		t.Logf("⏭️ Reasoning not supported for provider %s", testConfig.Provider)
 		return

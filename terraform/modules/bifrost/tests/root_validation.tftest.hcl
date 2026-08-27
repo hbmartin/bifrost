@@ -36,7 +36,6 @@ mock_provider "kubernetes" {}
 
 run "valid_aws_ecs" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider = "aws"
     service        = "ecs"
@@ -47,7 +46,6 @@ run "valid_aws_ecs" {
 
 run "valid_aws_eks" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider = "aws"
     service        = "eks"
@@ -58,7 +56,6 @@ run "valid_aws_eks" {
 
 run "valid_gcp_gke" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider = "gcp"
     service        = "gke"
@@ -70,7 +67,6 @@ run "valid_gcp_gke" {
 
 run "valid_gcp_cloud_run" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider = "gcp"
     service        = "cloud-run"
@@ -82,7 +78,6 @@ run "valid_gcp_cloud_run" {
 
 run "valid_azure_aks" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider = "azure"
     service        = "aks"
@@ -93,7 +88,6 @@ run "valid_azure_aks" {
 
 run "valid_azure_aci" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider = "azure"
     service        = "aci"
@@ -104,7 +98,6 @@ run "valid_azure_aci" {
 
 run "valid_kubernetes_deployment" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider = "kubernetes"
     service        = "deployment"
@@ -117,7 +110,6 @@ run "valid_kubernetes_deployment" {
 
 run "invalid_cloud_provider_rejected" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider = "digitalocean"
     service        = "ecs"
@@ -129,7 +121,6 @@ run "invalid_cloud_provider_rejected" {
 
 run "invalid_service_rejected" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider = "aws"
     service        = "lambda"

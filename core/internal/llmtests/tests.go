@@ -14,6 +14,7 @@ type TestScenarioFunc func(*testing.T, *bifrost.Bifrost, context.Context, Compre
 
 // RunAllComprehensiveTests executes all comprehensive test scenarios for a given configuration
 func RunAllComprehensiveTests(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if testConfig.SkipReason != "" {
 		t.Skipf("Skipping %s: %s", testConfig.Provider, testConfig.SkipReason)
 		return
@@ -149,6 +150,7 @@ func RunAllComprehensiveTests(t *testing.T, client *bifrost.Bifrost, ctx context
 
 // printTestSummary prints a detailed summary of all test scenarios
 func printTestSummary(t *testing.T, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	testScenarios := []struct {
 		name      string
 		supported bool
