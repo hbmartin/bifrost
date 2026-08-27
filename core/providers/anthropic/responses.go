@@ -4089,6 +4089,9 @@ func ToAnthropicResponsesRequest(ctx *schemas.BifrostContext, bifrostReq *schema
 	if bifrostReq == nil {
 		return nil, fmt.Errorf("bifrost request is nil")
 	}
+	if err := validateAnthropicResponsesRequestImages(bifrostReq); err != nil {
+		return nil, err
+	}
 
 	// capModel is the canonical model string used only for capability/version
 	// lookups; the wire Model below stays exactly as the caller sent it.
