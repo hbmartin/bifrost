@@ -930,12 +930,15 @@ func ToAnthropicChatRequest(ctx *schemas.BifrostContext, bifrostReq *schemas.Bif
 										Text: block.Text,
 									})
 								} else if block.ImageURLStruct != nil {
-									imageBlock := ConvertToAnthropicImageBlock(block)
+									imageBlock := convertToAnthropicImageBlock(block)
+									if imageBlock == nil {
+										continue
+									}
 									// ConvertToAnthropicImageBlock copies CacheControl onto the
 									// returned block unconditionally (correct for a top-level image
 									// block, but not here -- it's already hoisted above).
 									imageBlock.CacheControl = nil
-									blocks = append(blocks, imageBlock)
+									blocks = append(blocks, *imageBlock)
 								}
 							}
 							if len(blocks) > 0 {
@@ -1004,7 +1007,9 @@ func ToAnthropicChatRequest(ctx *schemas.BifrostContext, bifrostReq *schemas.Bif
 								CacheControl: block.CacheControl,
 							})
 						} else if block.ImageURLStruct != nil {
-							content = append(content, ConvertToAnthropicImageBlock(block))
+							if imageBlock := convertToAnthropicImageBlock(block); imageBlock != nil {
+								content = append(content, *imageBlock)
+							}
 						} else if block.File != nil {
 							content = append(content, ConvertToAnthropicDocumentBlock(block))
 						}
