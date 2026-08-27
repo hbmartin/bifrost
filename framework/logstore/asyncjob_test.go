@@ -96,7 +96,7 @@ func TestSubmitJob_PropagatesContextValues(t *testing.T) {
 	capturedCtx := schemas.NewBifrostContext(context.Background(), time.Now().Add(1*time.Minute))
 	capturedCtx.SetValue(schemas.BifrostContextKeyVirtualKey, "sk-bf-test")
 	capturedCtx.SetValue(schemas.BifrostContextKey("x-bf-eh-custom"), "custom-value")
-	capturedCtx.SetValue(schemas.BifrostContextKey("x-bf-prom-env"), "production")
+	capturedCtx.SetValue(schemas.BifrostContextKeyDimensions, map[string]string{"env": "production"})
 	var done atomic.Bool
 
 	operation := func(bgCtx *schemas.BifrostContext) (interface{}, *schemas.BifrostError) {
@@ -112,7 +112,7 @@ func TestSubmitJob_PropagatesContextValues(t *testing.T) {
 	waitForJobCompletion(t, &done)
 
 	assert.Equal(t, "sk-bf-test", capturedCtx.Value(schemas.BifrostContextKeyVirtualKey))
-	assert.Equal(t, "production", capturedCtx.Value(schemas.BifrostContextKey("x-bf-prom-env")))
+	assert.Equal(t, map[string]string{"env": "production"}, capturedCtx.Value(schemas.BifrostContextKeyDimensions))
 	assert.Equal(t, "custom-value", capturedCtx.Value(schemas.BifrostContextKey("x-bf-eh-custom")))
 	assert.Equal(t, true, capturedCtx.Value(schemas.BifrostIsAsyncRequest))
 }

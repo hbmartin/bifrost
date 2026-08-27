@@ -40,6 +40,23 @@ func newFakeBatchStore() *fakeBatchStore {
 	return &fakeBatchStore{jobs: make(map[string]*cstables.TableBatchJob)}
 }
 
+func TestInitRetainsBatchAccountingStore(t *testing.T) {
+	store := newTestStore(t)
+	batchStore := newFakeBatchStore()
+	plugin, err := Init(context.Background(), &Config{}, testLogger{}, store, batchStore, nil, nil)
+	if err != nil {
+		t.Fatalf("Init returned error: %v", err)
+	}
+	t.Cleanup(func() {
+		if cleanupErr := plugin.Cleanup(); cleanupErr != nil {
+			t.Errorf("Cleanup returned error: %v", cleanupErr)
+		}
+	})
+	if plugin.batchStore != batchStore {
+		t.Fatal("Init did not retain the supplied batch-accounting store")
+	}
+}
+
 func (s *fakeBatchStore) UpsertBatchJob(ctx context.Context, job *cstables.TableBatchJob) error {
 	if job.ID == "" {
 		job.ID = cstables.BatchJobID(job.Provider, job.BatchID)

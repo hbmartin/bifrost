@@ -160,7 +160,7 @@ import (
     "context"
     bifrost "github.com/maximhq/bifrost/core"
     "github.com/maximhq/bifrost/core/schemas"
-    "github.com/maximhq/bifrost/framework/pricing"
+    "github.com/maximhq/bifrost/framework/modelcatalog"
     otel "github.com/maximhq/bifrost/plugins/otel"
 )
 
@@ -168,19 +168,28 @@ func main() {
     ctx := context.Background()
     logger := schemas.NewLogger()
     
-    // Initialize pricing manager (required for cost calculation)
-    pricingManager := pricing.NewPricingManager(logger)
+    // Initialize the model catalog used for cost calculation.
+    modelCatalog, err := modelcatalog.Init(ctx, nil, nil, logger)
+    if err != nil {
+        panic(err)
+    }
+    defer modelCatalog.Cleanup()
     
     // Initialize OTel plugin
     otelPlugin, err := otel.Init(ctx, &otel.Config{
-        ServiceName:  "bifrost",
-        CollectorURL: "http://localhost:4318/v1/traces",
-        TraceType:    otel.TraceTypeGenAIExtension,
-        Protocol:     otel.ProtocolHTTP,
-        Headers: map[string]string{
-            "Authorization": "env.OTEL_API_KEY",
-        },
-    }, logger, pricingManager)
+        Profiles: []*otel.Profile{{
+            Enabled:       true,
+            TracesEnabled: true,
+            ServiceName:   "bifrost",
+            CollectorURL:  schemas.NewSecretVar("http://localhost:4318/v1/traces"),
+            TraceType:     otel.TraceTypeGenAIExtension,
+            Protocol:      otel.ProtocolHTTP,
+            Insecure:      true,
+            Headers: map[string]string{
+                "Authorization": "env.OTEL_API_KEY",
+            },
+        }},
+    }, logger, modelCatalog, "2.0.1")
     if err != nil {
         panic(err)
     }
@@ -831,8 +840,8 @@ For example, sending `x-bf-eh-session-id: sess-abc-123` produces the span attrib
     "gen_ai.request.model": "gpt-4",
     "gen_ai.request.temperature": 0.7,
     "gen_ai.request.max_tokens": 1000,
-    "gen_ai.usage.prompt_tokens": 45,
-    "gen_ai.usage.completion_tokens": 128,
+    "gen_ai.usage.input_tokens": 45,
+    "gen_ai.usage.output_tokens": 128,
     "gen_ai.usage.total_tokens": 173,
     "gen_ai.usage.cost": 0.0052
   }
@@ -1065,6 +1074,7 @@ These are the same **Prometheus-style metrics** from the telemetry plugin, pushe
 | `bifrost_cache_write_input_tokens_1h_total` | Counter | Cache-write input tokens with a 1-hour TTL (Anthropic only). Subset of `bifrost_cache_write_input_tokens_total` — do not sum with it |
 | `bifrost_cost_total` | Counter | Total cost in USD |
 | `bifrost_upstream_latency_seconds` | Histogram | Upstream request latency |
+| `bifrost_overhead_latency_microseconds` | Histogram | Bifrost processing overhead, excluding upstream latency |
 | `bifrost_stream_first_token_latency_seconds` | Histogram | Time to first token |
 | `bifrost_stream_inter_token_latency_seconds` | Histogram | Inter-token latency |
 | `bifrost_request_retries` | Histogram | Retries used per request (observed once per request) |
