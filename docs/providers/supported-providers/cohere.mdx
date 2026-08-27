@@ -187,7 +187,7 @@ resp, err := client.ChatCompletionRequest(schemas.NewBifrostContext(ctx, schemas
 - **String content**: Messages can have simple string content
 - **Content blocks**: Messages can have arrays of content blocks (text, images, thinking)
 - **Image conversion**: `image_url` blocks support public HTTP(S) URLs and base64 data URLs on vision-capable models such as `command-a-vision-07-2025`
-- **Raw base64 normalization**: Recognized JPEG, PNG, GIF, WebP, BMP, and SVG payloads are converted to data URLs; unknown payloads are rejected instead of being mislabeled as JPEG
+- **Raw base64 normalization**: Recognized JPEG, PNG, GIF, and WebP payloads are converted to data URLs; unknown or Cohere-unsupported image formats are rejected instead of being mislabeled as JPEG
 - **Image detail**: Per-image `detail` values (`low`, `high`, or `auto`) are preserved
 - **Tool calls**: Converted from message assistant tool calls to Cohere format
 - **Tool messages**: Tool call results are passed with `tool_call_id`

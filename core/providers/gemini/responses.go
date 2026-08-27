@@ -4744,13 +4744,13 @@ func convertContentBlockToGeminiPart(block schemas.ResponsesMessageContentBlock,
 			// Use existing utility functions to handle URL parsing
 			sanitizedURL, err := schemas.SanitizeImageURLWithAllowedSchemes(imageURL, allowedImageURLSchemes...)
 			if err != nil {
-				return nil, fmt.Errorf("failed to sanitize image URL: %w", err)
+				return nil, providerUtils.InvalidRequestErrorf("failed to sanitize Gemini image URL: %v", err)
 			}
 
 			urlInfo := schemas.ExtractURLTypeInfo(sanitizedURL)
-			mimeType := "image/jpeg" // default
-			if urlInfo.MediaType != nil {
-				mimeType = *urlInfo.MediaType
+			mimeType, err := requireGeminiImageMIMEType(urlInfo, imageURL)
+			if err != nil {
+				return nil, err
 			}
 
 			if urlInfo.Type == schemas.ImageContentTypeBase64 {
