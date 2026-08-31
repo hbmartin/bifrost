@@ -56,7 +56,7 @@ export function PromoCardStack({ cards, className = "", onCardsEmpty, onDismiss 
 			onCardsEmpty?.();
 		}
 		prevLenRef.current = items.length;
-	}, [items.length]);
+	}, [items.length, onCardsEmpty]);
 
 	const handleDismiss = (cardId: string) => {
 		if (isAnimating) return;

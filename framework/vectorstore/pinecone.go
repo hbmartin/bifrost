@@ -2,6 +2,7 @@ package vectorstore
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -407,7 +408,9 @@ func (s *PineconeStore) Close(ctx context.Context, namespace string) error {
 	// If a specific namespace is provided, close only that connection
 	if namespace != "" {
 		if conn, exists := s.namespaces[namespace]; exists && conn != nil {
-			conn.Close()
+			if err := conn.Close(); err != nil {
+				return fmt.Errorf("close Pinecone namespace %q: %w", namespace, err)
+			}
 			delete(s.namespaces, namespace)
 		}
 		return nil
@@ -416,19 +419,23 @@ func (s *PineconeStore) Close(ctx context.Context, namespace string) error {
 	var errs []error
 	// Close the main index connection
 	if s.indexConn != nil {
-		s.indexConn.Close()
+		if err := s.indexConn.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("close Pinecone index connection: %w", err))
+		}
 		s.indexConn = nil
 	}
 	// Close and remove all namespace connections
 	for ns, conn := range s.namespaces {
 		if conn != nil {
-			conn.Close()
+			if err := conn.Close(); err != nil {
+				errs = append(errs, fmt.Errorf("close Pinecone namespace %q: %w", ns, err))
+			}
 		}
 		delete(s.namespaces, ns)
 	}
 	// Return aggregated errors if any occurred
 	if len(errs) > 0 {
-		return fmt.Errorf("errors closing connections: %v", errs)
+		return fmt.Errorf("errors closing Pinecone connections: %w", errors.Join(errs...))
 	}
 	return nil
 }

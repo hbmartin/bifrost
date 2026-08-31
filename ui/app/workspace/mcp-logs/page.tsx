@@ -193,7 +193,7 @@ export default function MCPLogsPage() {
 	}, [urlState.start_time, urlState.end_time, urlState.period]);
 
 	// Derive data directly from RTK
-	const logs = logsData?.logs ?? [];
+	const logs = useMemo(() => logsData?.logs ?? [], [logsData?.logs]);
 	const totalItems = logsData?.pagination?.total_count ?? 0;
 
 	const selectedLog = useMemo(() => (selectedLogId ? (logs.find((l) => l.id === selectedLogId) ?? null) : null), [selectedLogId, logs]);

@@ -121,7 +121,9 @@ export default function OverviewTab({ hasAccess }: OverviewTabProps) {
 		Promise.all(
 			providers.map(async (p): Promise<[string, string[]]> => {
 				const [models, keys] = await Promise.all([
-					triggerModelHistogram({ filters: { providers: [p.name], start_time: monthAgo, end_time: now } })
+					triggerModelHistogram({
+						filters: { providers: [p.name], start_time: monthAgo, end_time: now },
+					})
 						.unwrap()
 						.then((data) => data.models ?? [])
 						.catch(() => []),

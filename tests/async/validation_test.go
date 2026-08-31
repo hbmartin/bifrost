@@ -299,7 +299,7 @@ func TestHTTP_WrongMethod_Rejected(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /v1/async/chat/completions/{id} failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusNotFound && resp.StatusCode != http.StatusMethodNotAllowed {
 		t.Errorf("POST on poll path returned %d, expected 404 or 405", resp.StatusCode)
 	}

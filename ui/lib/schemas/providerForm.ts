@@ -16,7 +16,11 @@ const ProxyConfigSchema = z
 	.superRefine((v, ctx) => {
 		const needsUrl = v.type === "http" || v.type === "socks5";
 		if (needsUrl && !(v.url && v.url.trim())) {
-			ctx.addIssue({ code: "custom", path: ["url"], message: "Proxy URL is required for http/socks5" });
+			ctx.addIssue({
+				code: "custom",
+				path: ["url"],
+				message: "Proxy URL is required for http/socks5",
+			});
 		}
 		const user = v.username?.trim();
 		const pass = v.password?.trim();
@@ -207,7 +211,9 @@ const KeySchema = z.object({
 	aliases: z
 		.record(z.string(), aliasConfigSchema)
 		.optional()
-		.refine((value) => !value || isValidAliases(value), { message: "Deployments must have a Model ID set on every row" }),
+		.refine((value) => !value || isValidAliases(value), {
+			message: "Deployments must have a Model ID set on every row",
+		}),
 	azure_key_config: AzureKeyConfigSchema.optional(),
 	vertex_key_config: VertexKeyConfigSchema.optional(),
 	bedrock_key_config: BedrockKeyConfigSchema.optional(),

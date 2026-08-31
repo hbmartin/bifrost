@@ -52,13 +52,28 @@ const names = (items) => items.map((i) => i.name);
 // block whole into a single slice.
 test("with no timings the slice is exactly the old round-robin", () => {
   const items = rows(20);
-  assert.deepEqual(names(sliceByCost(items, 4, 1, null)), ["row-1", "row-5", "row-9", "row-13", "row-17"]);
-  assert.deepEqual(names(sliceByCost(items, 4, 2, null)), ["row-2", "row-6", "row-10", "row-14", "row-18"]);
+  assert.deepEqual(names(sliceByCost(items, 4, 1, null)), [
+    "row-1",
+    "row-5",
+    "row-9",
+    "row-13",
+    "row-17",
+  ]);
+  assert.deepEqual(names(sliceByCost(items, 4, 2, null)), [
+    "row-2",
+    "row-6",
+    "row-10",
+    "row-14",
+    "row-18",
+  ]);
 });
 
 test("an empty timing table is treated as no timings rather than as all-zero costs", () => {
   const items = rows(8);
-  assert.deepEqual(names(sliceByCost(items, 2, 1, new Map())), names(sliceByCost(items, 2, 1, null)));
+  assert.deepEqual(
+    names(sliceByCost(items, 2, 1, new Map())),
+    names(sliceByCost(items, 2, 1, null)),
+  );
 });
 
 test("a shard count of 1 returns everything, timings or not", () => {
@@ -77,7 +92,11 @@ test("the union of every cost-aware slice is the input, with no row twice", () =
   const timings = new Map(items.map((it, i) => [it.name, (i % 7) * 1000 + 250]));
   const seen = [];
   for (let k = 1; k <= 5; k++) seen.push(...names(sliceByCost(items, 5, k, timings)));
-  assert.equal(seen.length, items.length, `slices lost or gained rows: ${seen.length} vs ${items.length}`);
+  assert.equal(
+    seen.length,
+    items.length,
+    `slices lost or gained rows: ${seen.length} vs ${items.length}`,
+  );
   assert.deepEqual([...seen].sort(), names(items).sort());
 });
 
@@ -90,7 +109,10 @@ test("the assignment is deterministic across independent calls", () => {
   // Deliberately heavy on ties: equal costs are where a non-total ordering would show up.
   const timings = new Map(items.map((it, i) => [it.name, i % 3 === 0 ? 5000 : 1000]));
   for (let k = 1; k <= 4; k++) {
-    assert.deepEqual(names(sliceByCost(items, 4, k, timings)), names(sliceByCost(items, 4, k, timings)));
+    assert.deepEqual(
+      names(sliceByCost(items, 4, k, timings)),
+      names(sliceByCost(items, 4, k, timings)),
+    );
   }
 });
 
@@ -104,8 +126,12 @@ test("slices are balanced by cost where round-robin is not", () => {
   const timings = new Map(items.map((it, i) => [it.name, i === 0 || i === 2 ? 60000 : 2000]));
   const load = (slice) => slice.reduce((s, it) => s + timings.get(it.name), 0);
 
-  const rrSpread = Math.abs(load(items.filter((_, i) => i % 2 === 0)) - load(items.filter((_, i) => i % 2 === 1)));
-  const costSpread = Math.abs(load(sliceByCost(items, 2, 1, timings)) - load(sliceByCost(items, 2, 2, timings)));
+  const rrSpread = Math.abs(
+    load(items.filter((_, i) => i % 2 === 0)) - load(items.filter((_, i) => i % 2 === 1)),
+  );
+  const costSpread = Math.abs(
+    load(sliceByCost(items, 2, 1, timings)) - load(sliceByCost(items, 2, 2, timings)),
+  );
 
   assert.ok(rrSpread > 100000, `fixture is not adversarial for round-robin: ${rrSpread}ms`);
   assert.ok(costSpread <= 2000, `cost-aware slices differ by ${costSpread}ms`);
@@ -139,7 +165,11 @@ test("the largest rows are spread across slices, not packed into one", () => {
     ["row-4", 3000],
   ]);
   const first = names(sliceByCost(items, 2, 1, timings));
-  assert.equal(first.filter((n) => n === "row-1" || n === "row-2").length, 1, `both heavy rows in one slice: ${first}`);
+  assert.equal(
+    first.filter((n) => n === "row-1" || n === "row-2").length,
+    1,
+    `both heavy rows in one slice: ${first}`,
+  );
 });
 
 // A row added to the collection since the last measured run has no entry. Charging it 0 would make
@@ -156,7 +186,10 @@ test("a row with no measurement is charged the median rather than zero", () => {
   assert.ok(slices.flat().includes("fresh"), "an unmeasured row was dropped from every slice");
   // The 10s row alone outweighs 1s + 4s, so "fresh" only joins it if it was charged ~0.
   const withHeavy = slices.find((s) => s.includes("known-3"));
-  assert.ok(!withHeavy.includes("fresh"), "the unmeasured row was charged as free and packed onto the heaviest slice");
+  assert.ok(
+    !withHeavy.includes("fresh"),
+    "the unmeasured row was charged as free and packed onto the heaviest slice",
+  );
 });
 
 // ----- sizing ------------------------------------------------------------------------------------
@@ -203,14 +236,20 @@ test("an unmeasured row is priced from its own cell, not from the whole table", 
 });
 
 test("a set with no measured row at all falls back to the table-wide median", () => {
-  const timings = new Map([["elsewhere-1", 2000], ["elsewhere-2", 4000]]);
+  const timings = new Map([
+    ["elsewhere-1", 2000],
+    ["elsewhere-2", 4000],
+  ]);
   assert.equal(cellCost([row("a"), row("b")], timings), 8000);
 });
 
 // ----- coverage ------------------------------------------------------------------------------------
 
 test("coverage is the measured fraction of a set", () => {
-  const timings = new Map([["a", 1], ["b", 2]]);
+  const timings = new Map([
+    ["a", 1],
+    ["b", 2],
+  ]);
   assert.equal(coverage([row("a"), row("b")], timings), 1);
   assert.equal(coverage([row("a"), row("b"), row("c"), row("d")], timings), 0.5);
   assert.equal(coverage([row("x")], timings), 0);
@@ -263,7 +302,9 @@ test("aggregateTimings takes the median across repeats of the same request name"
 // to refine the table rather than replace it.
 test("aggregateTimings merges onto a prior table instead of replacing it", () => {
   const prior = { "old-row": 4321, "row-a": 1000 };
-  const report = { run: { executions: [{ item: { name: "row-a" }, response: { responseTime: 2000 } }] } };
+  const report = {
+    run: { executions: [{ item: { name: "row-a" }, response: { responseTime: 2000 } }] },
+  };
   const t = aggregateTimings([report], prior);
   assert.equal(t["old-row"], 4321, "an unmeasured row from the prior table was dropped");
   assert.equal(t["row-a"], 2000, "a freshly measured row did not supersede its prior value");
@@ -287,14 +328,24 @@ test("aggregateTimings ignores refused rows rather than recording them as fast r
         ],
       },
     };
-    assert.equal(aggregateTimings([report]).throttled, 12000, `a ${code} was sampled as a fast row`);
+    assert.equal(
+      aggregateTimings([report]).throttled,
+      12000,
+      `a ${code} was sampled as a fast row`,
+    );
   }
 });
 
 test("a row that was only ever refused contributes no measurement at all", () => {
   for (const code of [429, 503, 529]) {
-    const report = { run: { executions: [{ item: { name: "refused" }, response: { responseTime: 30, code } }] } };
-    assert.equal("refused" in aggregateTimings([report]), false, `a ${code}-only row produced a measurement`);
+    const report = {
+      run: { executions: [{ item: { name: "refused" }, response: { responseTime: 30, code } }] },
+    };
+    assert.equal(
+      "refused" in aggregateTimings([report]),
+      false,
+      `a ${code}-only row produced a measurement`,
+    );
   }
 });
 
@@ -302,10 +353,16 @@ test("a row that was only ever refused contributes no measurement at all", () =>
 // set rather than restating it. Asserting on the shared set catches a future code added to one side
 // only, which the per-code cases above cannot see.
 test("the skipped set is exactly the retry pass's set", () => {
-  assert.deepEqual([...RETRYABLE_CODES].sort((a, b) => a - b), [429, 503, 529]);
+  assert.deepEqual(
+    [...RETRYABLE_CODES].sort((a, b) => a - b),
+    [429, 503, 529],
+  );
   const report = {
     run: {
-      executions: [...RETRYABLE_CODES].map((code) => ({ item: { name: `row-${code}` }, response: { responseTime: 30, code } })),
+      executions: [...RETRYABLE_CODES].map((code) => ({
+        item: { name: `row-${code}` },
+        response: { responseTime: 30, code },
+      })),
     },
   };
   assert.deepEqual(aggregateTimings([report]), {}, "a retryable code was still sampled");
@@ -350,7 +407,10 @@ test("a missing, empty or corrupt timing file degrades to no timings", () => {
 
 test("loadTimings drops entries that are not positive numbers", () => {
   const p = join(WORK, "mixed.json");
-  writeFileSync(p, JSON.stringify({ good: 100, zero: 0, negative: -5, text: "fast", nothing: null }));
+  writeFileSync(
+    p,
+    JSON.stringify({ good: 100, zero: 0, negative: -5, text: "fast", nothing: null }),
+  );
   const t = loadTimings(p);
   assert.deepEqual([...t.keys()], ["good"]);
 });

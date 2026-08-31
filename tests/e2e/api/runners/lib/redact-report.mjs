@@ -67,7 +67,7 @@ const BODY_SECRET_PATTERNS = [
 
 const redactHeaders = (headers) =>
   (headers || []).map((h) =>
-    SECRET_HEADERS.has(String(h.key || "").toLowerCase()) ? { ...h, value: REDACTED } : h
+    SECRET_HEADERS.has(String(h.key || "").toLowerCase()) ? { ...h, value: REDACTED } : h,
   );
 
 // redactUrl blanks credential-bearing query parameters while leaving the path

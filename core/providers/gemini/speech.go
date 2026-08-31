@@ -144,7 +144,7 @@ func (response *GenerateContentResponse) ToBifrostSpeechResponse(ctx context.Con
 					if strings.HasPrefix(part.InlineData.MIMEType, "audio/") {
 						decodedData, err := decodeBase64StringToBytes(part.InlineData.Data)
 						if err != nil {
-							return nil, fmt.Errorf("failed to decode base64 audio data: %v", err)
+							return nil, fmt.Errorf("failed to decode base64 audio data: %w", err)
 						}
 						audioData = append(audioData, decodedData...)
 					}
@@ -157,7 +157,7 @@ func (response *GenerateContentResponse) ToBifrostSpeechResponse(ctx context.Con
 				if responseFormat == "wav" {
 					wavData, err := utils.ConvertPCMToWAV(audioData, utils.DefaultGeminiPCMConfig())
 					if err != nil {
-						return nil, fmt.Errorf("failed to convert PCM to WAV: %v", err)
+						return nil, fmt.Errorf("failed to convert PCM to WAV: %w", err)
 					}
 					bifrostResp.Audio = wavData
 				} else {

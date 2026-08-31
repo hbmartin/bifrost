@@ -152,7 +152,7 @@ func parseS3ListResponse(body []byte, resp *S3ListObjectsResponse) error {
 			sizeStart += len("<Size>")
 			if sizeEnd := strings.Index(contentBlock[sizeStart:], "</Size>"); sizeEnd >= 0 {
 				sizeStr := contentBlock[sizeStart : sizeStart+sizeEnd]
-				fmt.Sscanf(sizeStr, "%d", &obj.Size)
+				_, _ = fmt.Sscanf(sizeStr, "%d", &obj.Size) // Invalid or absent provider size metadata falls back to zero.
 			}
 		}
 

@@ -92,7 +92,7 @@ export function DateTimePickerWithRange(props: DateTimePickerWithRangeProps) {
 	const [isOpen, setIsOpen] = React.useState<boolean>(false);
 	const [predefinedPeriod, setPredefinedPeriod] = React.useState<string | undefined>(props.predefinedPeriod);
 
-	const timezoneOptions = useMemo(() => (props.showTimezone ? buildTimezoneOptions(new Date()) : []), [props.showTimezone, activeTimezone]);
+	const timezoneOptions = useMemo(() => (props.showTimezone ? buildTimezoneOptions(new Date()) : []), [props.showTimezone]);
 
 	const disabledDateRange = useMemo(() => {
 		if (!props.disabledBefore && !props.disabledAfter) return undefined;
@@ -170,7 +170,7 @@ export function DateTimePickerWithRange(props: DateTimePickerWithRangeProps) {
 				open={props.open !== undefined ? props.open : isOpen}
 				onOpenChange={(open) => {
 					setIsOpen(open);
-					props.onOpenChange && props.onOpenChange(open);
+					props.onOpenChange?.(open);
 				}}
 			>
 				<PopoverTrigger asChild>
@@ -234,13 +234,12 @@ export function DateTimePickerWithRange(props: DateTimePickerWithRangeProps) {
 										range.from?.toISOString() !== props.dateTime?.from?.toISOString() ||
 										range.to?.toISOString() !== props.dateTime?.to?.toISOString()
 									) {
-										props.onPredefinedPeriodChange && props.onPredefinedPeriodChange(undefined);
+										props.onPredefinedPeriodChange?.(undefined);
 										// Checking if range is valid
-										props.onDateTimeUpdate &&
-											props.onDateTimeUpdate({
-												from: getDateTime(range.from, timeValue?.from),
-												to: getDateTime(range.to, timeValue?.to),
-											});
+										props.onDateTimeUpdate?.({
+											from: getDateTime(range.from, timeValue?.from),
+											to: getDateTime(range.to, timeValue?.to),
+										});
 									}
 								}}
 								numberOfMonths={isMobile ? 1 : 2}
@@ -258,11 +257,10 @@ export function DateTimePickerWithRange(props: DateTimePickerWithRangeProps) {
 											const nextFrom = getDateTime(date.from, v);
 											if (nextFrom?.toISOString() !== props.dateTime?.from?.toISOString()) {
 												// Checking if range is valid
-												props.onDateTimeUpdate &&
-													props.onDateTimeUpdate({
-														from: nextFrom,
-														to: getDateTime(date.to, timeValue?.to),
-													});
+												props.onDateTimeUpdate?.({
+													from: nextFrom,
+													to: getDateTime(date.to, timeValue?.to),
+												});
 											}
 										}}
 									/>
@@ -278,11 +276,10 @@ export function DateTimePickerWithRange(props: DateTimePickerWithRangeProps) {
 											setTimeValue({ ...timeValue, to: v });
 											const nextTo = getDateTime(date.to, v);
 											if (nextTo?.toISOString() !== props.dateTime?.to?.toISOString()) {
-												props.onDateTimeUpdate &&
-													props.onDateTimeUpdate({
-														from: getDateTime(date.from, timeValue?.from),
-														to: nextTo,
-													});
+												props.onDateTimeUpdate?.({
+													from: getDateTime(date.from, timeValue?.from),
+													to: nextTo,
+												});
 											}
 										}}
 									/>
@@ -300,7 +297,7 @@ export function DateTimePickerWithRange(props: DateTimePickerWithRangeProps) {
 											e.preventDefault();
 											e.stopPropagation();
 											setPredefinedPeriod(period.value);
-											props.onPredefinedPeriodChange && props.onPredefinedPeriodChange(period.value);
+											props.onPredefinedPeriodChange?.(period.value);
 										}}
 									>
 										{period.label}
@@ -394,7 +391,10 @@ export function DateTimePicker(props: DateTimePickerProps) {
 
 	const initialDate = dateTime ? new Date(dateTime) : new Date();
 	const [date, setDate] = React.useState<Date | undefined>(initialDate);
-	const [timeValue, setTimeValue] = React.useState<TimeValue>({ hour: initialDate.getHours(), minute: initialDate.getMinutes() });
+	const [timeValue, setTimeValue] = React.useState<TimeValue>({
+		hour: initialDate.getHours(),
+		minute: initialDate.getMinutes(),
+	});
 	const [isOpen, setIsOpen] = React.useState<boolean>(false);
 
 	const disabledDateRange = useMemo(() => {
@@ -477,7 +477,7 @@ export function DateTimePicker(props: DateTimePickerProps) {
 								const newDateTime = getDateTime(selectedDate, timeValue);
 
 								if (newDateTime?.toISOString() !== props.dateTime?.toISOString()) {
-									props.onDateTimeUpdate && newDateTime && props.onDateTimeUpdate(newDateTime);
+									if (newDateTime) props.onDateTimeUpdate?.(newDateTime);
 								}
 							}}
 						/>
@@ -493,7 +493,7 @@ export function DateTimePicker(props: DateTimePickerProps) {
 									const newDateTime = getDateTime(date, v);
 
 									if (newDateTime?.toISOString() !== props.dateTime?.toISOString()) {
-										props.onDateTimeUpdate && newDateTime && props.onDateTimeUpdate(newDateTime);
+										if (newDateTime) props.onDateTimeUpdate?.(newDateTime);
 									}
 								}}
 							/>

@@ -2,7 +2,11 @@
 
 import http from "node:http";
 
-const baseURL = (process.env.BIFROST_E2E_BASE_URL || process.env.BIFROST_BASE_URL || "http://localhost:8080").replace(/\/+$/, "");
+const baseURL = (
+  process.env.BIFROST_E2E_BASE_URL ||
+  process.env.BIFROST_BASE_URL ||
+  "http://localhost:8080"
+).replace(/\/+$/, "");
 const adminAuthHeader = process.env.BIFROST_E2E_AUTH_HEADER || "";
 const providerName = `otel-e2e-${process.pid}-${Date.now()}`;
 const modelName = "hello-world";
@@ -83,38 +87,42 @@ function createOpenAIMock() {
       // or not — this is the pre-first-chunk failure path.
       if (body.toString("utf8").includes(ERROR_TRIGGER)) {
         res.writeHead(404, { "content-type": "application/json" });
-        res.end(JSON.stringify({
-          error: {
-            message: "The model does not exist",
-            type: "invalid_request_error",
-            code: "model_not_found",
-          },
-        }));
+        res.end(
+          JSON.stringify({
+            error: {
+              message: "The model does not exist",
+              type: "invalid_request_error",
+              code: "model_not_found",
+            },
+          }),
+        );
         return;
       }
       const now = Math.floor(Date.now() / 1000);
       res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify({
-        id: `chatcmpl-${now}`,
-        object: "chat.completion",
-        created: now,
-        model: modelName,
-        choices: [
-          {
-            index: 0,
-            message: {
-              role: "assistant",
-              content: "hello world",
+      res.end(
+        JSON.stringify({
+          id: `chatcmpl-${now}`,
+          object: "chat.completion",
+          created: now,
+          model: modelName,
+          choices: [
+            {
+              index: 0,
+              message: {
+                role: "assistant",
+                content: "hello world",
+              },
+              finish_reason: "stop",
             },
-            finish_reason: "stop",
+          ],
+          usage: {
+            prompt_tokens: 2,
+            completion_tokens: 2,
+            total_tokens: 4,
           },
-        ],
-        usage: {
-          prompt_tokens: 2,
-          completion_tokens: 2,
-          total_tokens: 4,
-        },
-      }));
+        }),
+      );
       return;
     }
     res.writeHead(404);
@@ -123,8 +131,14 @@ function createOpenAIMock() {
 }
 
 async function request(method, path, body, headers = {}) {
-  const requestHeaders = adminAuthHeader ? { Authorization: adminAuthHeader, ...headers } : { ...headers };
-  if (body !== undefined && requestHeaders["content-type"] === undefined && requestHeaders["Content-Type"] === undefined) {
+  const requestHeaders = adminAuthHeader
+    ? { Authorization: adminAuthHeader, ...headers }
+    : { ...headers };
+  if (
+    body !== undefined &&
+    requestHeaders["content-type"] === undefined &&
+    requestHeaders["Content-Type"] === undefined
+  ) {
     requestHeaders["content-type"] = "application/json";
   }
   const res = await fetch(`${baseURL}${path}`, {
@@ -209,14 +223,17 @@ async function addLocalProvider(mockPort) {
 }
 
 async function chatHelloWorld() {
-  const res = await mustRequest("POST", "/v1/chat/completions", {
-    model: requestedModel,
-    messages: [
-      { role: "user", content: "hello world" },
-    ],
-  }, {
-    "x-request-id": requestID,
-  });
+  const res = await mustRequest(
+    "POST",
+    "/v1/chat/completions",
+    {
+      model: requestedModel,
+      messages: [{ role: "user", content: "hello world" }],
+    },
+    {
+      "x-request-id": requestID,
+    },
+  );
   const content = res.json?.choices?.[0]?.message?.content;
   if (content !== "hello world") {
     throw new Error(`unexpected chat response content: ${JSON.stringify(content)}`);
@@ -226,13 +243,18 @@ async function chatHelloWorld() {
 // chatError fires a request the mock fails with a 404 error body; stream: true
 // exercises the pre-first-chunk stream failure path.
 async function chatError(id, stream) {
-  const res = await request("POST", "/v1/chat/completions", {
-    model: requestedModel,
-    messages: [{ role: "user", content: ERROR_TRIGGER }],
-    ...(stream ? { stream: true } : {}),
-  }, {
-    "x-request-id": id,
-  });
+  const res = await request(
+    "POST",
+    "/v1/chat/completions",
+    {
+      model: requestedModel,
+      messages: [{ role: "user", content: ERROR_TRIGGER }],
+      ...(stream ? { stream: true } : {}),
+    },
+    {
+      "x-request-id": id,
+    },
+  );
   if (res.ok) {
     throw new Error(`error request (stream=${stream}) unexpectedly succeeded: ${res.text}`);
   }
@@ -262,7 +284,9 @@ async function poll(name, timeoutMs, fn) {
 }
 
 async function assertOtelReceived() {
-  const entry = await poll("OTEL trace receiver", 20000, () => state.otelTraceRequests.find((item) => item.bytes > 0));
+  const entry = await poll("OTEL trace receiver", 20000, () =>
+    state.otelTraceRequests.find((item) => item.bytes > 0),
+  );
   assertBufferContainsAll("OTEL trace export", entry.body, [
     "bifrost-e2e",
     providerName,
@@ -289,7 +313,9 @@ async function assertOtelReceived() {
 }
 
 async function assertOtelMetricsReceived() {
-  const entry = await poll("OTEL metrics receiver", 30000, () => state.otelMetricRequests.find((item) => item.bytes > 0));
+  const entry = await poll("OTEL metrics receiver", 30000, () =>
+    state.otelMetricRequests.find((item) => item.bytes > 0),
+  );
   assertBufferContainsAll("OTEL metrics export", entry.body, [
     "bifrost-e2e",
     "bifrost_upstream_requests_total",
@@ -312,8 +338,9 @@ async function assertOtelMetricsReceived() {
 // regressed silently before (spans exported with no gen_ai.error.* when a
 // stream failed before its first chunk).
 async function assertOtelErrorTrace(id, label) {
-  const entry = await poll(`OTEL ${label} trace receiver`, 20000,
-    () => state.otelTraceRequests.find((item) => item.body.includes(Buffer.from(id))));
+  const entry = await poll(`OTEL ${label} trace receiver`, 20000, () =>
+    state.otelTraceRequests.find((item) => item.body.includes(Buffer.from(id))),
+  );
   assertBufferContainsAll(`OTEL ${label} trace export`, entry.body, [
     id,
     "error.type",
@@ -334,14 +361,19 @@ async function assertPrometheusErrorScrape() {
     }
     const failures = [];
     for (const method of ["chat_completion", "chat_completion_stream"]) {
-      const line = findPrometheusSample(res.text, "bifrost_error_requests_total",
-        { provider: providerName, method, status_code: "404" });
+      const line = findPrometheusSample(res.text, "bifrost_error_requests_total", {
+        provider: providerName,
+        method,
+        status_code: "404",
+      });
       if (!line || parsePrometheusValue(line) < 1) {
         failures.push(method);
       }
     }
     if (failures.length > 0) {
-      throw new Error(`bifrost_error_requests_total{status_code="404"} missing for: ${failures.join(", ")}`);
+      throw new Error(
+        `bifrost_error_requests_total{status_code="404"} missing for: ${failures.join(", ")}`,
+      );
     }
     return true;
   });
@@ -358,7 +390,9 @@ function assertBufferContainsAll(name, body, values) {
 function assertBufferContainsNone(name, body, values) {
   for (const value of values) {
     if (body.includes(Buffer.from(value))) {
-      throw new Error(`${name} unexpectedly contains ${JSON.stringify(value)} (content logging should be disabled)`);
+      throw new Error(
+        `${name} unexpectedly contains ${JSON.stringify(value)} (content logging should be disabled)`,
+      );
     }
   }
 }
@@ -367,8 +401,11 @@ function findPrometheusSample(metrics, metricName, labels) {
   const prefix = `${metricName}{`;
   return metrics
     .split("\n")
-    .find((line) => line.startsWith(prefix) &&
-      Object.entries(labels).every(([key, value]) => line.includes(`${key}="${value}"`)));
+    .find(
+      (line) =>
+        line.startsWith(prefix) &&
+        Object.entries(labels).every(([key, value]) => line.includes(`${key}="${value}"`)),
+    );
 }
 
 function parsePrometheusValue(line) {
@@ -388,9 +425,12 @@ async function assertPrometheusScrape() {
     }
     const hasLLMSuccessMetric = res.text
       .split("\n")
-      .some((line) => line.startsWith("bifrost_success_requests_total{") &&
-        line.includes(`provider="${providerName}"`) &&
-        (line.includes(`model="${modelName}"`) || line.includes(`model="${requestedModel}"`)));
+      .some(
+        (line) =>
+          line.startsWith("bifrost_success_requests_total{") &&
+          line.includes(`provider="${providerName}"`) &&
+          (line.includes(`model="${modelName}"`) || line.includes(`model="${requestedModel}"`)),
+      );
     if (hasLLMSuccessMetric) {
       return res.text;
     }
@@ -407,7 +447,9 @@ async function assertPrometheusScrape() {
     throw new Error("Prometheus scrape is missing bifrost_success_requests_total for the LLM call");
   }
   if (!upstreamLine || parsePrometheusValue(upstreamLine) < 1) {
-    throw new Error("Prometheus scrape is missing bifrost_upstream_requests_total for the LLM call");
+    throw new Error(
+      "Prometheus scrape is missing bifrost_upstream_requests_total for the LLM call",
+    );
   }
   if (!inputLine || parsePrometheusValue(inputLine) < 2) {
     throw new Error("Prometheus scrape is missing input token count for the LLM call");
@@ -438,7 +480,9 @@ async function assertLoggingTrace() {
     throw new Error(`logging trace API returned unexpected status: ${JSON.stringify(log.status)}`);
   }
   if (log.provider !== providerName) {
-    throw new Error(`logging trace API returned unexpected provider: ${JSON.stringify(log.provider)}`);
+    throw new Error(
+      `logging trace API returned unexpected provider: ${JSON.stringify(log.provider)}`,
+    );
   }
   if (log.model !== modelName && log.model !== requestedModel) {
     throw new Error(`logging trace API returned unexpected model: ${JSON.stringify(log.model)}`);
@@ -446,14 +490,34 @@ async function assertLoggingTrace() {
   if (log.object !== "chat_completion" && log.object !== "chat.completion") {
     throw new Error(`logging trace API returned unexpected object: ${JSON.stringify(log.object)}`);
   }
-  if (!log.token_usage || log.token_usage.prompt_tokens !== 2 || log.token_usage.completion_tokens !== 2 || log.token_usage.total_tokens !== 4) {
-    throw new Error(`logging trace API returned incomplete token usage: ${JSON.stringify(log.token_usage)}`);
+  if (
+    !log.token_usage ||
+    log.token_usage.prompt_tokens !== 2 ||
+    log.token_usage.completion_tokens !== 2 ||
+    log.token_usage.total_tokens !== 4
+  ) {
+    throw new Error(
+      `logging trace API returned incomplete token usage: ${JSON.stringify(log.token_usage)}`,
+    );
   }
-  if (!Array.isArray(log.input_history) || log.input_history.length !== 1 || log.input_history[0]?.role !== "user" || log.input_history[0]?.content !== "hello world") {
-    throw new Error(`logging trace API returned incomplete input history: ${JSON.stringify(log.input_history)}`);
+  if (
+    !Array.isArray(log.input_history) ||
+    log.input_history.length !== 1 ||
+    log.input_history[0]?.role !== "user" ||
+    log.input_history[0]?.content !== "hello world"
+  ) {
+    throw new Error(
+      `logging trace API returned incomplete input history: ${JSON.stringify(log.input_history)}`,
+    );
   }
-  if (!log.output_message || log.output_message.role !== "assistant" || log.output_message.content !== "hello world") {
-    throw new Error(`logging trace API returned incomplete output message: ${JSON.stringify(log.output_message)}`);
+  if (
+    !log.output_message ||
+    log.output_message.role !== "assistant" ||
+    log.output_message.content !== "hello world"
+  ) {
+    throw new Error(
+      `logging trace API returned incomplete output message: ${JSON.stringify(log.output_message)}`,
+    );
   }
   if (typeof log.latency !== "number" || log.latency < 0) {
     throw new Error(`logging trace API returned invalid latency: ${JSON.stringify(log.latency)}`);
@@ -475,7 +539,9 @@ function assertMetricsMatchLogs(metrics, log) {
   const inputLine = findPrometheusSample(metrics, "bifrost_input_tokens_total", labels);
   const outputLine = findPrometheusSample(metrics, "bifrost_output_tokens_total", labels);
   if (!inputLine || !outputLine) {
-    throw new Error("metrics/logs reconciliation: /metrics is missing token counters for the LLM call");
+    throw new Error(
+      "metrics/logs reconciliation: /metrics is missing token counters for the LLM call",
+    );
   }
   const metricInput = parsePrometheusValue(inputLine);
   const metricOutput = parsePrometheusValue(outputLine);
@@ -484,16 +550,22 @@ function assertMetricsMatchLogs(metrics, log) {
   const logOutput = log?.token_usage?.completion_tokens;
 
   if (metricInput !== logInput) {
-    throw new Error(`metrics/logs input-token mismatch: /metrics bifrost_input_tokens_total=${metricInput} but logs prompt_tokens=${logInput}`);
+    throw new Error(
+      `metrics/logs input-token mismatch: /metrics bifrost_input_tokens_total=${metricInput} but logs prompt_tokens=${logInput}`,
+    );
   }
   if (metricOutput !== logOutput) {
-    throw new Error(`metrics/logs output-token mismatch: /metrics bifrost_output_tokens_total=${metricOutput} but logs completion_tokens=${logOutput}`);
+    throw new Error(
+      `metrics/logs output-token mismatch: /metrics bifrost_output_tokens_total=${metricOutput} but logs completion_tokens=${logOutput}`,
+    );
   }
 }
 
 function assertMockProviderRequest(wantCount = 1) {
   if (state.mockRequests.length !== wantCount) {
-    throw new Error(`expected ${wantCount} mock provider request(s), got ${state.mockRequests.length}`);
+    throw new Error(
+      `expected ${wantCount} mock provider request(s), got ${state.mockRequests.length}`,
+    );
   }
   let body;
   try {
@@ -504,7 +576,12 @@ function assertMockProviderRequest(wantCount = 1) {
   if (body.model !== requestedModel && body.model !== modelName) {
     throw new Error(`mock provider received unexpected model: ${JSON.stringify(body.model)}`);
   }
-  if (!Array.isArray(body.messages) || body.messages.length !== 1 || body.messages[0]?.role !== "user" || body.messages[0]?.content !== "hello world") {
+  if (
+    !Array.isArray(body.messages) ||
+    body.messages.length !== 1 ||
+    body.messages[0]?.role !== "user" ||
+    body.messages[0]?.content !== "hello world"
+  ) {
     throw new Error(`mock provider received incomplete messages: ${JSON.stringify(body.messages)}`);
   }
 }
@@ -571,10 +648,14 @@ async function main() {
 
     console.log(`  OTEL trace exports received: ${state.otelTraceRequests.length}`);
     console.log(`  OTEL metric exports received: ${state.otelMetricRequests.length}`);
-    console.log(`  Prometheus scrape includes provider="${providerName}" model="${requestedModel}"`);
+    console.log(
+      `  Prometheus scrape includes provider="${providerName}" model="${requestedModel}"`,
+    );
     console.log(`  Metrics/logs token usage reconciled (scrape == logs)`);
     console.log(`  Logging trace API returned id="${requestID}"`);
-    console.log(`  Error spans carry gen_ai.error.* and error counter has status_code (non-stream and stream).`);
+    console.log(
+      `  Error spans carry gen_ai.error.* and error counter has status_code (non-stream and stream).`,
+    );
     console.log("Local observability API check passed.");
   } finally {
     try {

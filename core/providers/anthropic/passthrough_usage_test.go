@@ -19,6 +19,7 @@ func TestExtractAnthropicPassthroughUsage(t *testing.T) {
 			path: "/v1/messages",
 			body: `{"usage":{"input_tokens":66,"output_tokens":26,"cache_read_input_tokens":0,"cache_creation_input_tokens":0,"service_tier":"standard"}}`,
 			check: func(t *testing.T, u *schemas.BifrostPassthroughUsage) {
+				t.Helper()
 				anthropicMustLLM(t, u, 66, 26, 92)
 				// Anthropic "standard" normalizes to the neutral "default".
 				if u.ServiceTier == nil || *u.ServiceTier != schemas.BifrostServiceTierDefault {
@@ -31,6 +32,7 @@ func TestExtractAnthropicPassthroughUsage(t *testing.T) {
 			path: "/v1/messages",
 			body: `{"usage":{"input_tokens":10,"output_tokens":5,"cache_read_input_tokens":3,"cache_creation_input_tokens":7,"cache_creation":{"ephemeral_5m_input_tokens":4,"ephemeral_1h_input_tokens":3}}}`,
 			check: func(t *testing.T, u *schemas.BifrostPassthroughUsage) {
+				t.Helper()
 				// PromptTokens = input + cache_read + cache_creation = 10 + 3 + 7 = 20
 				anthropicMustLLM(t, u, 20, 5, 25)
 				d := u.LLMUsage.PromptTokensDetails
@@ -48,6 +50,7 @@ func TestExtractAnthropicPassthroughUsage(t *testing.T) {
 			path: "/v1/messages",
 			body: `{"usage":{"input_tokens":10,"output_tokens":5,"server_tool_use":{"web_search_requests":2}}}`,
 			check: func(t *testing.T, u *schemas.BifrostPassthroughUsage) {
+				t.Helper()
 				if u == nil || u.LLMUsage == nil || u.LLMUsage.CompletionTokensDetails == nil ||
 					u.LLMUsage.CompletionTokensDetails.NumSearchQueries == nil ||
 					*u.LLMUsage.CompletionTokensDetails.NumSearchQueries != 2 {
@@ -60,6 +63,7 @@ func TestExtractAnthropicPassthroughUsage(t *testing.T) {
 			path: "/v1/messages",
 			body: `{"usage":{"input_tokens":1,"output_tokens":1,"service_tier":"priority"}}`,
 			check: func(t *testing.T, u *schemas.BifrostPassthroughUsage) {
+				t.Helper()
 				if u == nil || u.ServiceTier == nil || *u.ServiceTier != schemas.BifrostServiceTierPriority {
 					t.Fatalf("service tier = %v, want priority", u.ServiceTier)
 				}
@@ -70,6 +74,7 @@ func TestExtractAnthropicPassthroughUsage(t *testing.T) {
 			path: "/v1/complete",
 			body: `{"completion":"hi","usage":{"input_tokens":8,"output_tokens":4}}`,
 			check: func(t *testing.T, u *schemas.BifrostPassthroughUsage) {
+				t.Helper()
 				anthropicMustLLM(t, u, 8, 4, 12)
 			},
 		},
@@ -78,6 +83,7 @@ func TestExtractAnthropicPassthroughUsage(t *testing.T) {
 			path: "/v1/messages",
 			body: `{"usage":{"input_tokens":0,"output_tokens":0}}`,
 			check: func(t *testing.T, u *schemas.BifrostPassthroughUsage) {
+				t.Helper()
 				if u != nil {
 					t.Fatalf("expected nil, got %+v", u)
 				}

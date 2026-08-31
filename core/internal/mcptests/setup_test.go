@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"os/exec"
 	"sync"
 	"testing"
@@ -13,7 +12,6 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/maximhq/bifrost/core/schemas"
-	"github.com/stretchr/testify/require"
 )
 
 // =============================================================================
@@ -24,8 +22,6 @@ import (
 type STDIOServerManager struct {
 	server     *server.MCPServer
 	cmd        *exec.Cmd
-	stdinPipe  *os.File
-	stdoutPipe *os.File
 	isRunning  bool
 	mu         sync.RWMutex
 	serverPath string // Path to the compiled server executable
@@ -306,16 +302,4 @@ func createTestContext() *schemas.BifrostContext {
 func createTestContextWithTimeout(timeout time.Duration) (*schemas.BifrostContext, context.CancelFunc) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	return schemas.NewBifrostContext(ctx, schemas.NoDeadline), cancel
-}
-
-// assertNoError asserts that error is nil
-func assertNoError(t *testing.T, err error, msgAndArgs ...interface{}) {
-	t.Helper()
-	require.NoError(t, err, msgAndArgs...)
-}
-
-// assertError asserts that error is not nil
-func assertError(t *testing.T, err error, msgAndArgs ...interface{}) {
-	t.Helper()
-	require.Error(t, err, msgAndArgs...)
 }

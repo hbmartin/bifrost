@@ -128,7 +128,10 @@ export const baseRoutingFields: CELFieldDefinition[] = [
 		valueEditorType: "select",
 		operators: ["=", "!=", "in", "notIn"],
 		defaultOperator: "=",
-		values: COMPLEXITY_TIER_VALUES.map((tier) => ({ name: tier, label: tier.charAt(0) + tier.slice(1).toLowerCase() })),
+		values: COMPLEXITY_TIER_VALUES.map((tier) => ({
+			name: tier,
+			label: tier.charAt(0) + tier.slice(1).toLowerCase(),
+		})),
 	},
 	{
 		name: "params",

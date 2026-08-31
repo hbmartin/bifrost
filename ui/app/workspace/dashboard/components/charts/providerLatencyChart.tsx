@@ -131,7 +131,11 @@ function ProviderLatencyChartImpl({ data, chartType, startTime, endTime, selecte
 			return item;
 		});
 
-		return { chartData: processed, mode: isSingleProvider ? ("single" as const) : ("all" as const), displayProviders: providers };
+		return {
+			chartData: processed,
+			mode: isSingleProvider ? ("single" as const) : ("all" as const),
+			displayProviders: providers,
+		};
 	}, [data, selectedProvider]);
 
 	if (!data?.buckets || chartData.length === 0) {

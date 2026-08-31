@@ -18,7 +18,7 @@ const args = Object.fromEntries(
   process.argv.slice(2).reduce((acc, cur, i, arr) => {
     if (cur.startsWith("--")) acc.push([cur.slice(2), arr[i + 1]]);
     return acc;
-  }, [])
+  }, []),
 );
 const REPORT = args.report || "tmp/newman-report.json";
 const FAILURES_MD = args["failures-md"] || "tmp/harness-failures.md";
@@ -61,9 +61,14 @@ const reconstructUrl = (urlObj) => {
   const host = Array.isArray(urlObj.host) ? urlObj.host.join(".") : urlObj.host || "";
   const port = urlObj.port ? `:${urlObj.port}` : "";
   const path = Array.isArray(urlObj.path) ? "/" + urlObj.path.join("/") : urlObj.path || "";
-  const query = Array.isArray(urlObj.query) && urlObj.query.length
-    ? "?" + urlObj.query.filter((q) => !q.disabled).map((q) => `${q.key}=${q.value}`).join("&")
-    : "";
+  const query =
+    Array.isArray(urlObj.query) && urlObj.query.length
+      ? "?" +
+        urlObj.query
+          .filter((q) => !q.disabled)
+          .map((q) => `${q.key}=${q.value}`)
+          .join("&")
+      : "";
   return `${protocol}://${host}${port}${path}${query}`;
 };
 
@@ -72,7 +77,11 @@ const summarize = () => {
   const execs = raw.run?.executions || [];
   return execs.map((e, idx) => {
     const folderPath = (e.item?.path || []).join(" / ");
-    const headers = (e.request?.header || []).map((h) => ({ key: h.key, value: h.value, disabled: !!h.disabled }));
+    const headers = (e.request?.header || []).map((h) => ({
+      key: h.key,
+      value: h.value,
+      disabled: !!h.disabled,
+    }));
     const reqBody = e.request?.body?.raw || bufToString(e.request?.body) || "";
     const respBody = bufToString(e.response?.stream);
     const respHeaders = (e.response?.header || []).map((h) => ({ key: h.key, value: h.value }));
@@ -81,7 +90,8 @@ const summarize = () => {
       passed: !a.error,
       error: a.error?.message || null,
     }));
-    const failed = assertions.some((a) => !a.passed) || (e.response?.code ?? 0) >= 400 || !e.response;
+    const failed =
+      assertions.some((a) => !a.passed) || (e.response?.code ?? 0) >= 400 || !e.response;
     return {
       idx,
       name: e.item?.name || `request-${idx}`,
@@ -118,23 +128,31 @@ const readCoverageMarkdown = () => {
 // code spans, inline emphasis, line breaks) to HTML — just enough to render
 // the coverage section the analyzer emits. Not a general-purpose converter.
 const mdToHtml = (md, emptyMessage) => {
-  if (!md) return emptyMessage || "<p><em>No coverage data found. Run <code>make run-provider-harness-test</code> first to generate <code>tmp/harness-failures.md</code>.</em></p>";
+  if (!md)
+    return (
+      emptyMessage ||
+      "<p><em>No coverage data found. Run <code>make run-provider-harness-test</code> first to generate <code>tmp/harness-failures.md</code>.</em></p>"
+    );
   const escapeHtml = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  const inline = (s) => escapeHtml(s)
-    .replace(/`([^`]+)`/g, "<code>$1</code>")
-    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-    .replace(/~~([^~]+)~~/g, "<del>$1</del>");
+  const inline = (s) =>
+    escapeHtml(s)
+      .replace(/`([^`]+)`/g, "<code>$1</code>")
+      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+      .replace(/~~([^~]+)~~/g, "<del>$1</del>");
   const lines = md.split(/\r?\n/);
   const out = [];
   let inTable = false;
   let tableRows = [];
   const flushTable = () => {
     if (!inTable) return;
-    out.push("<table class=\"cov\">");
+    out.push('<table class="cov">');
     tableRows.forEach((row, idx) => {
       // skip the header-separator row (---|---|...)
       if (/^\s*\|?[-:\s|]+\|?\s*$/.test(row)) return;
-      const cells = row.split("|").slice(1, -1).map((c) => c.trim());
+      const cells = row
+        .split("|")
+        .slice(1, -1)
+        .map((c) => c.trim());
       const tag = idx === 0 ? "th" : "td";
       out.push("<tr>" + cells.map((c) => `<${tag}>${inline(c)}</${tag}>`).join("") + "</tr>");
     });
@@ -166,10 +184,11 @@ const COVERAGE_HTML = mdToHtml(readCoverageMarkdown());
 // Direct-Provider vs Bifrost Token Parity Matrix report (tests/e2e/api/runners/
 // render-token-parity-report.mjs writes this whole-file, no section-extraction needed).
 const TOKEN_PARITY_MD = args["token-parity-md"] || "tmp/harness-token-parity.md";
-const readTokenParityMarkdown = () => (existsSync(TOKEN_PARITY_MD) ? readFileSync(TOKEN_PARITY_MD, "utf8") : "");
+const readTokenParityMarkdown = () =>
+  existsSync(TOKEN_PARITY_MD) ? readFileSync(TOKEN_PARITY_MD, "utf8") : "";
 const TOKEN_PARITY_HTML = mdToHtml(
   readTokenParityMarkdown(),
-  '<p><em>No token parity data found. Run FOLDER="Cross-Cut Round 33: Direct-Provider vs Bifrost Token Parity Matrix (generated)" first to generate <code>tmp/harness-token-parity.md</code>.</em></p>'
+  '<p><em>No token parity data found. Run FOLDER="Cross-Cut Round 33: Direct-Provider vs Bifrost Token Parity Matrix (generated)" first to generate <code>tmp/harness-token-parity.md</code>.</em></p>',
 );
 
 const VIEWER_HTML = `<!doctype html>
@@ -465,18 +484,17 @@ if (args.static) {
   // uploaded to R2 and linked from the public changelog, so every byte inlined
   // into it is world-readable - and provider requests carry Authorization and
   // API-key headers, signed URLs, and error bodies that quote keys back.
-  const inlined =
-    `<script>window.__STATIC_REPORT__ = ${JSON.stringify(redactItemsForPublic(items)).replace(/</g, "\\u003c")};</script>`;
+  const inlined = `<script>window.__STATIC_REPORT__ = ${JSON.stringify(redactItemsForPublic(items)).replace(/</g, "\\u003c")};</script>`;
   // Injected before the page's own script so load() sees it, and with < escaped
   // so a response body containing "</script>" cannot break out of the tag.
-  const html = VIEWER_HTML.replace("<main id=\"list\"></main>", `<main id="list"></main>${inlined}`);
+  const html = VIEWER_HTML.replace('<main id="list"></main>', `<main id="list"></main>${inlined}`);
   writeFileSync(args.static, html);
   console.log(`Static provider harness report: ${args.static} (${items.length} requests)`);
   process.exit(0);
 }
 
 const allowedTargets = new Set(
-  items.map((i) => `${String(i.method || "GET").toUpperCase()} ${i.url}`)
+  items.map((i) => `${String(i.method || "GET").toUpperCase()} ${i.url}`),
 );
 
 const server = createServer(async (req, res) => {
@@ -552,7 +570,9 @@ server.on("error", (err) => {
   if (err.code === "EADDRINUSE") {
     console.error(`[harness-viewer] port ${PORT} is already in use.`);
     console.error(`[harness-viewer] free it with: lsof -ti tcp:${PORT} | xargs kill`);
-    console.error(`[harness-viewer] or rerun with: make run-provider-harness-test VIEWER_PORT=<other>`);
+    console.error(
+      `[harness-viewer] or rerun with: make run-provider-harness-test VIEWER_PORT=<other>`,
+    );
   } else {
     console.error(`[harness-viewer] server error:`, err.message);
   }
@@ -560,7 +580,9 @@ server.on("error", (err) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`[harness-viewer] open  http://localhost:${PORT}  to inspect ${items.length} requests`);
+  console.log(
+    `[harness-viewer] open  http://localhost:${PORT}  to inspect ${items.length} requests`,
+  );
   console.log(`[harness-viewer] click "Close" in the UI (or Ctrl-C) when done.`);
 });
 

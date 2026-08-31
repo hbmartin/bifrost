@@ -2,7 +2,13 @@
 // No test framework needed (the tests/e2e/api dir has no test runner configured), same shape as
 // ci-interval.test.mjs next door.
 import assert from "node:assert";
-import { walkRequests, buildProducerIndex, chainedDependencies, injectChainedVarGuards, varsSetBy } from "./chained-vars.mjs";
+import {
+  walkRequests,
+  buildProducerIndex,
+  chainedDependencies,
+  injectChainedVarGuards,
+  varsSetBy,
+} from "./chained-vars.mjs";
 
 let passed = 0;
 function test(name, fn) {
@@ -13,7 +19,9 @@ function test(name, fn) {
 
 const req = (name, raw, testScript) => ({
   name,
-  ...(testScript ? { event: [{ listen: "test", script: { type: "text/javascript", exec: [testScript] } }] } : {}),
+  ...(testScript
+    ? { event: [{ listen: "test", script: { type: "text/javascript", exec: [testScript] } }] }
+    : {}),
   request: { method: "POST", body: { mode: "raw", raw }, url: { raw: "http://x/y" } },
 });
 
@@ -25,8 +33,16 @@ const chain = () => ({
     {
       name: "folder",
       item: [
-        req("r1", '{"turns": [1]}', 'if (pm.response.code < 400) { pm.collectionVariables.set("r2body", "[]"); }'),
-        req("r2", '{"turns": {{r2body}}}', 'if (pm.response.code < 400) { pm.collectionVariables.set("r3body", "[]"); }'),
+        req(
+          "r1",
+          '{"turns": [1]}',
+          'if (pm.response.code < 400) { pm.collectionVariables.set("r2body", "[]"); }',
+        ),
+        req(
+          "r2",
+          '{"turns": {{r2body}}}',
+          'if (pm.response.code < 400) { pm.collectionVariables.set("r3body", "[]"); }',
+        ),
         req("r3", '{"turns": {{r3body}}}'),
         req("unrelated", '{"turns": [{{baseUrl}}]}'),
       ],
@@ -50,7 +66,7 @@ const guardOf = (item) =>
 test("walkRequests flattens folders and keeps collection order", () => {
   assert.deepStrictEqual(
     walkRequests(chain().item).map(({ item }) => item.name),
-    ["r1", "r2", "r3", "unrelated"]
+    ["r1", "r2", "r3", "unrelated"],
   );
 });
 
@@ -60,7 +76,9 @@ test("walkRequests flattens folders and keeps collection order", () => {
 // exploded host/path/query, and hand-written rows in the collection carry either or both.
 const urlReq = (name, url, testScript) => ({
   name,
-  ...(testScript ? { event: [{ listen: "test", script: { type: "text/javascript", exec: [testScript] } }] } : {}),
+  ...(testScript
+    ? { event: [{ listen: "test", script: { type: "text/javascript", exec: [testScript] } }] }
+    : {}),
   request: { method: "GET", url },
 });
 
@@ -71,7 +89,11 @@ const lifecycle = () => ({
     {
       name: "lifecycle",
       item: [
-        req("create", '{"model": "gpt-4o-mini"}', 'pm.collectionVariables.set("lcRespId", "resp_1");'),
+        req(
+          "create",
+          '{"model": "gpt-4o-mini"}',
+          'pm.collectionVariables.set("lcRespId", "resp_1");',
+        ),
         // Object URL with both raw and exploded path, as the collection writes it.
         urlReq("retrieve", {
           raw: "{{baseUrl}}/openai/v1/responses/{{lcRespId}}",
@@ -102,7 +124,7 @@ test("a {{var}} in an object URL links to its producer even with no request body
   const deps = chainedDependencies(byName.retrieve, index);
   assert.deepStrictEqual(
     deps.map(({ variable, producer }) => ({ variable, producer })),
-    [{ variable: "lcRespId", producer: "create" }]
+    [{ variable: "lcRespId", producer: "create" }],
   );
   assert.strictEqual(deps[0].producerItem, byName.create);
 });
@@ -112,7 +134,7 @@ test("a {{var}} in a string URL links to its producer", () => {
   const byName = Object.fromEntries(entries.map(({ item }) => [item.name, item]));
   assert.deepStrictEqual(
     chainedDependencies(byName.delete, buildProducerIndex(entries)).map((d) => d.variable),
-    ["lcRespId"]
+    ["lcRespId"],
   );
 });
 
@@ -123,7 +145,11 @@ test("a {{var}} in an exploded path or query is found without url.raw", () => {
     item: [
       req("create", "{}", 'pm.collectionVariables.set("fileId", "f_1");'),
       urlReq("in path", { host: ["{{baseUrl}}"], path: ["v1", "files", "{{fileId}}"] }),
-      urlReq("in query", { host: ["{{baseUrl}}"], path: ["v1", "files"], query: [{ key: "id", value: "{{fileId}}" }] }),
+      urlReq("in query", {
+        host: ["{{baseUrl}}"],
+        path: ["v1", "files"],
+        query: [{ key: "id", value: "{{fileId}}" }],
+      }),
     ],
   };
   const entries = walkRequests(noRaw.item);
@@ -132,7 +158,7 @@ test("a {{var}} in an exploded path or query is found without url.raw", () => {
     assert.deepStrictEqual(
       chainedDependencies(item, index).map((d) => d.variable),
       ["fileId"],
-      `${item.name} lost its URL dependency`
+      `${item.name} lost its URL dependency`,
     );
   }
 });
@@ -152,7 +178,8 @@ test("bodyDependencies links a {{var}} body to the request whose script sets it"
   const entries = walkRequests(chain().item);
   const index = buildProducerIndex(entries);
   const byName = Object.fromEntries(entries.map(({ item }) => [item.name, item]));
-  const named = (item) => chainedDependencies(item, index).map(({ variable, producer }) => ({ variable, producer }));
+  const named = (item) =>
+    chainedDependencies(item, index).map(({ variable, producer }) => ({ variable, producer }));
   assert.deepStrictEqual(named(byName.r2), [{ variable: "r2body", producer: "r1" }]);
   assert.deepStrictEqual(named(byName.r3), [{ variable: "r3body", producer: "r2" }]);
   // The name is for the log line; producerItem is what callers act on, so it
@@ -198,7 +225,7 @@ test("a duplicated request name resolves to the request that actually sets the v
   const resolved = resolveProducer(dep, entries);
   assert.ok(
     varsSetBy(resolved).has("nextBody"),
-    `resolved producer ${JSON.stringify(resolved.request.body.raw)} does not set nextBody`
+    `resolved producer ${JSON.stringify(resolved.request.body.raw)} does not set nextBody`,
   );
   assert.strictEqual(resolved, entries[1].item);
 });
@@ -226,7 +253,10 @@ test("re-injecting replaces the guard instead of stacking a second copy", () => 
 test("an existing pre-request script is kept, with the guard ahead of it", () => {
   const c = chain();
   const r2 = c.item[0].item[1];
-  r2.event.unshift({ listen: "prerequest", script: { type: "text/javascript", exec: ["var setup = 1;"] } });
+  r2.event.unshift({
+    listen: "prerequest",
+    script: { type: "text/javascript", exec: ["var setup = 1;"] },
+  });
   injectChainedVarGuards(c);
   const exec = r2.event.find((e) => e.listen === "prerequest").script.exec;
   assert.ok(exec.indexOf("// [chained-var-guard]") < exec.indexOf("var setup = 1;"));

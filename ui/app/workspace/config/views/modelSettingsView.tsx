@@ -72,6 +72,7 @@ export default function ModelSettingsView() {
 			live_models_sync_interval_minutes: toSyncMinutes(frameworkConfig?.live_models_sync_interval),
 		});
 	}, [
+		bifrostConfig,
 		frameworkConfig?.pricing_url,
 		frameworkConfig?.pricing_sync_interval,
 		frameworkConfig?.model_parameters_url,

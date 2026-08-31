@@ -1,6 +1,7 @@
 package elevenlabs
 
 import (
+	"context"
 	"testing"
 
 	schemas "github.com/maximhq/bifrost/core/schemas"
@@ -129,7 +130,7 @@ func TestToElevenlabsSoundGenerationRequest_Clamping(t *testing.T) {
 }
 
 func TestToElevenlabsSoundGenerationRequest_ResolvesAliasModelName(t *testing.T) {
-	ctx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	ctx.SetValue(schemas.BifrostContextKeyResolvedAlias, &schemas.ResolvedAlias{
 		Key: "best-sfx",
 		Config: &schemas.AliasConfig{

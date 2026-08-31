@@ -12,7 +12,9 @@ function test(name, fn) {
 }
 
 // The providers a sequential run tracks.
-const match = makeMatchProvider((p) => ["openai", "anthropic", "bedrock", "gemini", "vertex", "azure"].includes(p));
+const match = makeMatchProvider((p) =>
+  ["openai", "anthropic", "bedrock", "gemini", "vertex", "azure"].includes(p),
+);
 
 // A direct Vertex row, exactly as provider-harness.json carries it: the model
 // is a collection variable, and 46 rows look like this.
@@ -24,7 +26,8 @@ const VERTEX_FOLDER = "7. Vertex (via /genai)";
 
 // What newman prints for that same row once the variables are substituted. The
 // literal "vertex" the raw URL matched on is simply gone from this string.
-const vertexLogLine = "post http://localhost:8080/genai/v1beta/models/gemini-2.5-pro:generatecontent [200 ok, 1.2kb, 340ms]";
+const vertexLogLine =
+  "post http://localhost:8080/genai/v1beta/models/gemini-2.5-pro:generatecontent [200 ok, 1.2kb, 340ms]";
 
 // The bug this file exists for: totals counted under one provider, results
 // recorded under another, so vertex can never reach its own total and gemini
@@ -33,7 +36,11 @@ test("a vertex row is attributed the same before and after variable substitution
   const denominator = providerOfItem(vertexRow, [VERTEX_FOLDER], match);
   const numerator = providerOfLogLine(vertexLogLine, VERTEX_FOLDER, match);
   assert.strictEqual(denominator, "vertex", "denominator should own the row");
-  assert.strictEqual(numerator, denominator, "numerator and denominator disagree, so the row is double-booked");
+  assert.strictEqual(
+    numerator,
+    denominator,
+    "numerator and denominator disagree, so the row is double-booked",
+  );
 });
 
 // Gemini's own rows travel the same /genai path, so the fix must not simply
@@ -48,7 +55,7 @@ test("a genuine gemini row is still gemini", () => {
   const numerator = providerOfLogLine(
     "post http://localhost:8080/genai/v1beta/models/gemini-2.5-flash:generatecontent [200 ok, 1.2kb, 12ms]",
     "GenAI Features",
-    match
+    match,
   );
   assert.strictEqual(denominator, "gemini");
   assert.strictEqual(numerator, "gemini");
@@ -65,8 +72,12 @@ test("an unattributable folder falls back to the row's own signals", () => {
   const folder = "8.1 Text Chat (non-streaming)";
   assert.strictEqual(providerOfItem(row, [folder], match), "openai");
   assert.strictEqual(
-    providerOfLogLine("post http://localhost:8080/openai/v1/chat/completions [200 ok, 1kb, 9ms]", folder, match),
-    "openai"
+    providerOfLogLine(
+      "post http://localhost:8080/openai/v1/chat/completions [200 ok, 1kb, 9ms]",
+      folder,
+      match,
+    ),
+    "openai",
   );
 });
 
@@ -74,8 +85,12 @@ test("an unattributable folder falls back to the row's own signals", () => {
 // one when both keywords are present in a single heading.
 test("a Vertex heading that also mentions Gemini stays with vertex", () => {
   assert.strictEqual(
-    providerOfLogLine("post http://x/y [200 ok, 1kb, 9ms]", "Vertex Backlog Round 2 (Gemini-on-Vertex variants)", match),
-    "vertex"
+    providerOfLogLine(
+      "post http://x/y [200 ok, 1kb, 9ms]",
+      "Vertex Backlog Round 2 (Gemini-on-Vertex variants)",
+      match,
+    ),
+    "vertex",
   );
 });
 

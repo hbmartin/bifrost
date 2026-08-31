@@ -97,17 +97,3 @@ func (m *MockGovernanceStore) GetBudgetAndRateLimitStatus(ctx context.Context, m
 func newTestRuleStore() (*LocalStore, error) {
 	return NewLocalStore(context.Background(), NewMockLogger(), nil)
 }
-
-// newTestEngine builds a rule store and an engine over it, returning both so tests can add
-// rules and then evaluate them.
-func newTestEngine(chainMaxDepth int) (*LocalStore, *Engine, error) {
-	rules, err := newTestRuleStore()
-	if err != nil {
-		return nil, nil, err
-	}
-	engine, err := NewEngine(rules, NewMockGovernanceStore(), NewMockLogger(), &chainMaxDepth)
-	if err != nil {
-		return nil, nil, err
-	}
-	return rules, engine, nil
-}

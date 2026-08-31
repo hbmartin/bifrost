@@ -13,13 +13,25 @@ describe("extractResponsesItemPayload", () => {
 	const payloadCarryingItems: [string, Record<string, unknown>, Record<string, unknown>][] = [
 		[
 			"web_search_call",
-			{ id: "ws_1", type: "web_search_call", status: "completed", action: { type: "search", query: "bifrost" } },
+			{
+				id: "ws_1",
+				type: "web_search_call",
+				status: "completed",
+				action: { type: "search", query: "bifrost" },
+			},
 			{ action: { type: "search", query: "bifrost" } },
 		],
 		[
 			"web_fetch_call",
-			{ type: "web_fetch_call", action: { type: "fetch", url: "https://example.com" }, web_fetch_result_url: "https://example.com" },
-			{ action: { type: "fetch", url: "https://example.com" }, web_fetch_result_url: "https://example.com" },
+			{
+				type: "web_fetch_call",
+				action: { type: "fetch", url: "https://example.com" },
+				web_fetch_result_url: "https://example.com",
+			},
+			{
+				action: { type: "fetch", url: "https://example.com" },
+				web_fetch_result_url: "https://example.com",
+			},
 		],
 		["computer_call", { type: "computer_call", action: { type: "click", x: 12, y: 8 } }, { action: { type: "click", x: 12, y: 8 } }],
 		[
@@ -41,13 +53,21 @@ describe("extractResponsesItemPayload", () => {
 		],
 		[
 			"tool_search_call",
-			{ type: "tool_search_call", call_id: "c_1", execution: "client", arguments: { query: "web search", limit: 8 } },
+			{
+				type: "tool_search_call",
+				call_id: "c_1",
+				execution: "client",
+				arguments: { query: "web search", limit: 8 },
+			},
 			{ execution: "client", arguments: { query: "web search", limit: 8 } },
 		],
 		["mcp_call", { type: "mcp_call", name: "ask", server_label: "deepwiki", arguments: '{"q":1}' }, { server_label: "deepwiki" }],
 		[
 			"mcp_approval_request",
-			{ type: "mcp_approval_request", action: { type: "mcp_approval_request", name: "ask", server_label: "deepwiki" } },
+			{
+				type: "mcp_approval_request",
+				action: { type: "mcp_approval_request", name: "ask", server_label: "deepwiki" },
+			},
 			{ action: { type: "mcp_approval_request", name: "ask", server_label: "deepwiki" } },
 		],
 		[
@@ -94,7 +114,13 @@ describe("summarizeResponsesToolCall", () => {
 	it("names the first query and counts the rest", () => {
 		expect(
 			summarizeResponsesToolCall(
-				item({ type: "web_search_call", action: { type: "search", queries: ["bifrost routing rules", "bifrost CEL", "bifrost MCP"] } }),
+				item({
+					type: "web_search_call",
+					action: {
+						type: "search",
+						queries: ["bifrost routing rules", "bifrost CEL", "bifrost MCP"],
+					},
+				}),
 			),
 		).toBe("search · bifrost routing rules +2 more");
 	});
@@ -128,7 +154,10 @@ describe("summarizeResponsesToolCall", () => {
 	});
 
 	it("reveals redacted values so the meta line agrees with the payload below it", () => {
-		const msg = item({ type: "web_search_call", action: { type: "search", queries: ["contact [EMAIL-1]", "second query"] } });
+		const msg = item({
+			type: "web_search_call",
+			action: { type: "search", queries: ["contact [EMAIL-1]", "second query"] },
+		});
 
 		expect(summarizeResponsesToolCall(msg, { "EMAIL-1": "someone@example.com" })).toBe("search · contact someone@example.com +1 more");
 		expect(summarizeResponsesToolCall(msg)).toBe("search · contact [EMAIL-1] +1 more");

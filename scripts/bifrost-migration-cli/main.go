@@ -349,7 +349,7 @@ func runVKs(ctx context.Context, cfg MigrationRunConfig) error {
 	if err != nil {
 		return err
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 	deployments, err := store.Deployments(ctx)
 	if err != nil {
 		return err
@@ -554,7 +554,7 @@ func runModels(ctx context.Context, cfg MigrationRunConfig) error {
 	if err != nil {
 		return err
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 	deployments, err := store.Deployments(ctx)
 	if err != nil {
 		return err

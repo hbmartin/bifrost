@@ -78,7 +78,12 @@ describe("pricingFieldUnit", () => {
 	// Guards future additions: every catalogued field must resolve to a unit,
 	// and only the one known multiplier may be non-currency/non-token.
 	it("resolves a unit for every catalogued pricing field", () => {
-		const byUnit: Record<string, string[]> = { token: [], currency: [], multiplier: [], character: [] };
+		const byUnit: Record<string, string[]> = {
+			token: [],
+			currency: [],
+			multiplier: [],
+			character: [],
+		};
 		for (const field of PRICING_FIELDS) {
 			const unit = pricingFieldUnit(field.key);
 			expect(byUnit[unit], `${field.key} resolved to unexpected unit ${unit}`).toBeDefined();

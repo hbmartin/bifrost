@@ -35,7 +35,7 @@ Tests LangChain standard interface compliance and Bifrost integration:
 import asyncio
 import logging
 import os
-from typing import Any, Dict, List, Type
+from typing import Any
 from unittest.mock import patch
 
 import boto3
@@ -48,15 +48,11 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 
 # Google Gemini specific imports
-from langchain_google_genai import ChatGoogleGenerativeAI
+# Google Gemini specific imports
+from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 
 # LangChain provider imports
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-from langchain_anthropic import ChatAnthropic
-from langchain_google_vertexai import ChatVertexAI, VertexAIEmbeddings
-
-# Google Gemini specific imports
-from langchain_google_genai import ChatGoogleGenerativeAI, Modality, GoogleGenerativeAIEmbeddings
 from pydantic import BaseModel
 
 try:
@@ -96,7 +92,10 @@ except ImportError:
 
 # LangChain standard tests (if available)
 try:
-    from langchain_tests.integration_tests import ChatModelIntegrationTests, EmbeddingsIntegrationTests
+    from langchain_tests.integration_tests import (
+        ChatModelIntegrationTests,
+        EmbeddingsIntegrationTests,
+    )
 
     LANGCHAIN_TESTS_AVAILABLE = True
 except ImportError:
@@ -111,21 +110,20 @@ except ImportError:
 
 
 from .utils.common import (
-    RERANK_DOCUMENTS,
-    RERANK_QUERY,
-    assert_valid_rerank_results,
     CALCULATOR_TOOL,
     EMBEDDINGS_MULTIPLE_TEXTS,
     EMBEDDINGS_SIMILAR_TEXTS,
     EMBEDDINGS_SINGLE_TEXT,
+    INPUT_TOKENS_LONG_TEXT,
     INPUT_TOKENS_SIMPLE_TEXT,
     INPUT_TOKENS_WITH_SYSTEM,
-    INPUT_TOKENS_WITH_TOOLS,
-    INPUT_TOKENS_LONG_TEXT,
     LOCATION_KEYWORDS,
+    RERANK_DOCUMENTS,
+    RERANK_QUERY,
     WEATHER_KEYWORDS,
     WEATHER_TOOL,
     Config,
+    assert_valid_rerank_results,
     calculate_cosine_similarity,
     get_content_string,
     get_content_string_with_summary,
@@ -153,9 +151,6 @@ def setup_langchain():
 
     # Get Bifrost URL for LangChain
     base_url = get_integration_url("langchain")
-    config = get_config()
-    integration_settings = config.get_integration_settings("langchain")
-
     # Store original base URLs and set Bifrost URLs
     original_openai_base = os.environ.get("OPENAI_BASE_URL")
     original_anthropic_base = os.environ.get("ANTHROPIC_BASE_URL")
@@ -179,7 +174,7 @@ def setup_langchain():
         os.environ.pop("ANTHROPIC_BASE_URL", None)
 
 
-def create_langchain_tool_from_dict(tool_dict: Dict[str, Any]):
+def create_langchain_tool_from_dict(tool_dict: dict[str, Any]):
     """Convert common tool format to LangChain Tool"""
     if not LEGACY_LANGCHAIN_AVAILABLE:
         return None
@@ -197,6 +192,7 @@ def create_langchain_tool_from_dict(tool_dict: Dict[str, Any]):
 # Common Pydantic models for structured output tests
 class CityInfo(BaseModel):
     """Information about a city including its name, country, population, and capital status."""
+
     city_name: str
     country: str
     population_millions: float
@@ -215,46 +211,36 @@ def validate_city_info_response(result: CityInfo, provider: str) -> None:
         AssertionError: If any validation fails
     """
     # Validate the response structure
-    assert isinstance(
-        result, CityInfo
-    ), f"{provider}: Response should be a CityInfo instance"
+    assert isinstance(result, CityInfo), f"{provider}: Response should be a CityInfo instance"
 
     # Validate city_name field
     assert hasattr(result, "city_name"), f"{provider}: Result should have 'city_name' field"
-    assert isinstance(
-        result.city_name, str
-    ), f"{provider}: city_name should be a string"
+    assert isinstance(result.city_name, str), f"{provider}: city_name should be a string"
     assert len(result.city_name) > 0, f"{provider}: city_name should not be empty"
-    assert any(
-        word in result.city_name.lower() for word in ["paris"]
-    ), f"{provider}: city_name should contain 'Paris'"
+    assert any(word in result.city_name.lower() for word in ["paris"]), (
+        f"{provider}: city_name should contain 'Paris'"
+    )
 
     # Validate country field
     assert hasattr(result, "country"), f"{provider}: Result should have 'country' field"
     assert isinstance(result.country, str), f"{provider}: country should be a string"
     assert len(result.country) > 0, f"{provider}: country should not be empty"
-    assert any(
-        word in result.country.lower() for word in ["france"]
-    ), f"{provider}: country should contain 'France'"
+    assert any(word in result.country.lower() for word in ["france"]), (
+        f"{provider}: country should contain 'France'"
+    )
 
     # Validate population_millions field
-    assert hasattr(
-        result, "population_millions"
-    ), f"{provider}: Result should have 'population_millions' field"
-    assert isinstance(
-        result.population_millions, (int, float)
-    ), f"{provider}: population_millions should be a number"
-    assert (
-        result.population_millions > 0
-    ), f"{provider}: population_millions should be positive"
+    assert hasattr(result, "population_millions"), (
+        f"{provider}: Result should have 'population_millions' field"
+    )
+    assert isinstance(result.population_millions, (int, float)), (
+        f"{provider}: population_millions should be a number"
+    )
+    assert result.population_millions > 0, f"{provider}: population_millions should be positive"
 
     # Validate is_capital field
-    assert hasattr(
-        result, "is_capital"
-    ), f"{provider}: Result should have 'is_capital' field"
-    assert isinstance(
-        result.is_capital, bool
-    ), f"{provider}: is_capital should be a boolean"
+    assert hasattr(result, "is_capital"), f"{provider}: Result should have 'is_capital' field"
+    assert isinstance(result.is_capital, bool), f"{provider}: is_capital should be a boolean"
     assert result.is_capital is True, f"{provider}: Paris should be marked as a capital"
 
 
@@ -262,7 +248,7 @@ class TestLangChainChatOpenAI(ChatModelIntegrationTests):
     """Standard LangChain tests for ChatOpenAI through Bifrost"""
 
     @property
-    def chat_model_class(self) -> Type[ChatOpenAI]:
+    def chat_model_class(self) -> type[ChatOpenAI]:
         return ChatOpenAI
 
     @property
@@ -281,7 +267,7 @@ class TestLangChainOpenAIEmbeddings(EmbeddingsIntegrationTests):
     """Standard LangChain tests for OpenAI Embeddings through Bifrost"""
 
     @property
-    def embeddings_class(self) -> Type[OpenAIEmbeddings]:
+    def embeddings_class(self) -> type[OpenAIEmbeddings]:
         return OpenAIEmbeddings
 
     @property
@@ -371,7 +357,6 @@ class TestLangChainIntegration:
         except Exception as e:
             pytest.skip(f"OpenAI embeddings through LangChain not available: {e}")
 
-
     @pytest.mark.parametrize("provider,model", get_cross_provider_params_for_scenario("embeddings"))
     def test_04_gemini_embeddings_basic(self, provider, model):
         """Test Case 4: Basic Gemini embeddings functionality"""
@@ -400,7 +385,6 @@ class TestLangChainIntegration:
 
         except Exception as e:
             pytest.skip(f"Embeddings test failed for {provider} {model}: {e}")
-
 
     @pytest.mark.skipif(
         not LEGACY_LANGCHAIN_AVAILABLE, reason="Legacy LangChain package not available"
@@ -436,9 +420,9 @@ class TestLangChainIntegration:
                 word in response.content.lower() for word in LOCATION_KEYWORDS + WEATHER_KEYWORDS
             )
 
-            assert (
-                has_tool_calls or mentions_location
-            ), "Should use tools or mention weather/location"
+            assert has_tool_calls or mentions_location, (
+                "Should use tools or mention weather/location"
+            )
 
         except Exception as e:
             pytest.skip(f"Function calling through LangChain not available: {e}")
@@ -597,12 +581,12 @@ class TestLangChainIntegration:
             )
 
             # Similar texts should have high similarity
-            assert (
-                similarity_1_2 > 0.7
-            ), f"Similar texts should have high similarity, got {similarity_1_2:.4f}"
-            assert (
-                similarity_1_3 > 0.7
-            ), f"Similar texts should have high similarity, got {similarity_1_3:.4f}"
+            assert similarity_1_2 > 0.7, (
+                f"Similar texts should have high similarity, got {similarity_1_2:.4f}"
+            )
+            assert similarity_1_3 > 0.7, (
+                f"Similar texts should have high similarity, got {similarity_1_3:.4f}"
+            )
 
         except Exception as e:
             pytest.skip(f"Embeddings similarity through LangChain not available: {e}")
@@ -698,7 +682,7 @@ class TestLangChainIntegration:
                 google_api_key="dummy-google-api-key-bifrost-handles-auth",
                 temperature=0.7,
                 max_output_tokens=200,
-                base_url=get_integration_url("langchain")
+                base_url=get_integration_url("langchain"),
             )
             logger = logging.getLogger(__name__)
             messages = [HumanMessage(content="Write a haiku about technology.")]
@@ -820,7 +804,7 @@ class TestLangChainIntegration:
                 temperature=0.7,
                 max_tokens=100,
                 streaming=True,
-                base_url=get_integration_url("langchain")
+                base_url=get_integration_url("langchain"),
             )
 
             messages = [HumanMessage(content="Tell me about artificial intelligence.")]
@@ -836,8 +820,7 @@ class TestLangChainIntegration:
             full_content = "".join(chunk.content for chunk in chunks if chunk.content)
             assert len(full_content) > 0, "Should have content from streaming"
             assert any(
-                word in full_content.lower()
-                for word in ["artificial", "intelligence", "ai"]
+                word in full_content.lower() for word in ["artificial", "intelligence", "ai"]
             )
 
         except Exception as e:
@@ -960,9 +943,9 @@ class TestLangChainIntegration:
                 pass
 
         # Verify we tested at least 2 providers
-        assert (
-            len(providers_tested) >= 2
-        ), f"Should test at least 2 providers, got: {providers_tested}"
+        assert len(providers_tested) >= 2, (
+            f"Should test at least 2 providers, got: {providers_tested}"
+        )
 
         # Verify all responses are valid
         for provider, response in responses.items():
@@ -975,7 +958,9 @@ class TestLangChainIntegration:
         unique_responses = set(response_contents)
         assert len(unique_responses) > 1, "Different providers should give different responses"
 
-    @pytest.mark.parametrize("provider,model", get_cross_provider_params_for_scenario("langchain_structured_output"))
+    @pytest.mark.parametrize(
+        "provider,model", get_cross_provider_params_for_scenario("langchain_structured_output")
+    )
     def test_19_structured_outputs(self, test_config, provider, model):
         """Test Case 19: Structured outputs with Pydantic models"""
 
@@ -984,9 +969,7 @@ class TestLangChainIntegration:
             llm = ChatOpenAI(
                 model=format_provider_model(provider, model),
                 base_url=(
-                    get_integration_url("langchain")
-                    if get_integration_url("langchain")
-                    else None
+                    get_integration_url("langchain") if get_integration_url("langchain") else None
                 ),
                 api_key="dummy-key",  # Keys managed by Bifrost
             )
@@ -1010,7 +993,9 @@ class TestLangChainIntegration:
             # Log the error but don't fail the entire test
             logging.warning(f"Structured output test failed for {provider} ({model}): {e}")
 
-    @pytest.mark.parametrize("provider,model", get_cross_provider_params_for_scenario("langchain_structured_output"))
+    @pytest.mark.parametrize(
+        "provider,model", get_cross_provider_params_for_scenario("langchain_structured_output")
+    )
     def test_20_structured_outputs_anthropic(self, test_config, provider, model):
         """Test Case 20: Structured outputs with Anthropic ChatAnthropic for Bedrock"""
 
@@ -1070,7 +1055,12 @@ class TestLangChainIntegration:
 
             # Stream with proper inputs format
             inputs = {
-                "messages": [{"role": "user", "content": "What is the current date and time in Asia/Kolkata timezone?"}]
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "What is the current date and time in Asia/Kolkata timezone?",
+                    }
+                ]
             }
 
             # Collect streaming chunks and extract tool calls
@@ -1107,23 +1097,30 @@ class TestLangChainIntegration:
 
             if isinstance(args, str):
                 import json
+
                 args = json.loads(args)
 
             assert "timezone" in args, f"Expected 'timezone' in args, got {args}"
             timezone_value = args["timezone"]
-            assert timezone_value != "", f"Timezone value should not be empty, got '{timezone_value}'"
+            assert timezone_value != "", (
+                f"Timezone value should not be empty, got '{timezone_value}'"
+            )
             assert "kolkata" in timezone_value.lower() or "asia" in timezone_value.lower(), (
                 f"Expected timezone to contain 'Asia' or 'Kolkata', got: {timezone_value}"
             )
 
-            logging.info(f"✓ Agent streaming tool-call passed for {provider}/{model}: tool={tool_name}, args={args}")
+            logging.info(
+                f"✓ Agent streaming tool-call passed for {provider}/{model}: tool={tool_name}, args={args}"
+            )
 
         except ImportError as e:
             pytest.skip(f"Required LangChain components not available: {e}")
         except Exception as e:
             pytest.skip(f"Streaming tool calls not available for {provider}/{model}: {e}")
 
-    def _validate_thinking_response(self, response, provider: str, keywords: List[str], min_keyword_matches: int = 3):
+    def _validate_thinking_response(
+        self, response, provider: str, keywords: list[str], min_keyword_matches: int = 3
+    ):
         """
         Helper function to validate thinking/reasoning responses.
 
@@ -1137,7 +1134,7 @@ class TestLangChainIntegration:
         assert response.content is not None, "Response should have content"
 
         # Extract content with summary handling
-        content, has_reasoning_content = get_content_string_with_summary(response)
+        content, _has_reasoning_content = get_content_string_with_summary(response)
         content_lower = content.lower()
 
         # Validate keyword matches
@@ -1149,7 +1146,16 @@ class TestLangChainIntegration:
         )
 
         # Check for step-by-step reasoning indicators
-        step_indicators = ["step", "first", "then", "next", "calculate", "therefore", "because", "since"]
+        step_indicators = [
+            "step",
+            "first",
+            "then",
+            "next",
+            "calculate",
+            "therefore",
+            "because",
+            "since",
+        ]
         has_steps = any(indicator in content_lower for indicator in step_indicators)
         assert has_steps, (
             f"Response should show step-by-step reasoning. Content: {get_content_string(response.content)[:200]}..."
@@ -1165,13 +1171,15 @@ class TestLangChainIntegration:
             # Use ChatOpenAI with reasoning parameters
             llm = ChatOpenAI(
                 model=format_provider_model(provider, model),
-                base_url=get_integration_url("langchain") if get_integration_url("langchain") else None,
+                base_url=get_integration_url("langchain")
+                if get_integration_url("langchain")
+                else None,
                 api_key="dummy-key",
                 max_tokens=1500,
                 reasoning={
                     "effort": "high",
                     "summary": "detailed",
-                }
+                },
             )
 
             # Use reasoning-heavy prompt from common utils
@@ -1183,13 +1191,26 @@ class TestLangChainIntegration:
             response = llm.invoke(messages)
 
             # Validate response
-            reasoning_keywords = ["train", "meet", "time", "hour", "pm", "distance", "speed", "mile"]
-            self._validate_thinking_response(response, provider, reasoning_keywords, min_keyword_matches=3)
+            reasoning_keywords = [
+                "train",
+                "meet",
+                "time",
+                "hour",
+                "pm",
+                "distance",
+                "speed",
+                "mile",
+            ]
+            self._validate_thinking_response(
+                response, provider, reasoning_keywords, min_keyword_matches=3
+            )
 
         except Exception as e:
             error_str = str(e).lower()
             if "reasoning" in error_str or "not supported" in error_str:
-                logging.info(f"Info: Model {format_provider_model(provider, model)} may not fully support reasoning parameters")
+                logging.info(
+                    f"Info: Model {format_provider_model(provider, model)} may not fully support reasoning parameters"
+                )
                 pytest.skip(f"Reasoning not supported for {provider}/{model}: {e}")
             else:
                 raise
@@ -1201,7 +1222,9 @@ class TestLangChainIntegration:
             # Use ChatAnthropic with thinking parameters
             llm = ChatAnthropic(
                 model=format_provider_model(provider, model),
-                base_url=get_integration_url("langchain") if get_integration_url("langchain") else None,
+                base_url=get_integration_url("langchain")
+                if get_integration_url("langchain")
+                else None,
                 api_key="dummy-key",
                 max_tokens=4000,
                 thinking={"type": "enabled", "budget_tokens": 2500},
@@ -1225,8 +1248,19 @@ class TestLangChainIntegration:
             assert len(response.content) > 0, "Response content should not be empty"
 
             # Validate response
-            reasoning_keywords = ["batch", "oven", "cookie", "minute", "calculate", "total", "time", "step"]
-            self._validate_thinking_response(response, provider, reasoning_keywords, min_keyword_matches=2)
+            reasoning_keywords = [
+                "batch",
+                "oven",
+                "cookie",
+                "minute",
+                "calculate",
+                "total",
+                "time",
+                "step",
+            ]
+            self._validate_thinking_response(
+                response, provider, reasoning_keywords, min_keyword_matches=2
+            )
 
         except Exception as e:
             error_str = str(e).lower()
@@ -1251,7 +1285,9 @@ class TestLangChainIntegration:
             # Use ChatOpenAI with reasoning parameters
             llm = ChatOpenAI(
                 model="azure/claude-opus-4-5",
-                base_url=get_integration_url("langchain") if get_integration_url("langchain") else None,
+                base_url=get_integration_url("langchain")
+                if get_integration_url("langchain")
+                else None,
                 api_key="dummy-key",
                 max_tokens=1500,
                 reasoning={
@@ -1270,8 +1306,19 @@ class TestLangChainIntegration:
             response = llm.invoke(messages)
 
             # Validate response
-            reasoning_keywords = ["train", "meet", "time", "hour", "pm", "distance", "speed", "mile"]
-            self._validate_thinking_response(response, "Azure", reasoning_keywords, min_keyword_matches=3)
+            reasoning_keywords = [
+                "train",
+                "meet",
+                "time",
+                "hour",
+                "pm",
+                "distance",
+                "speed",
+                "mile",
+            ]
+            self._validate_thinking_response(
+                response, "Azure", reasoning_keywords, min_keyword_matches=3
+            )
 
         except Exception as e:
             error_str = str(e).lower()
@@ -1289,7 +1336,9 @@ class TestLangChainIntegration:
             # Use ChatGoogleGenerativeAI with thinking_budget parameter
             llm = ChatGoogleGenerativeAI(
                 model=format_provider_model(provider, model),
-                base_url=get_integration_url("langchain") if get_integration_url("langchain") else None,
+                base_url=get_integration_url("langchain")
+                if get_integration_url("langchain")
+                else None,
                 api_key="dummy-key",
                 max_tokens=4000,
                 temperature=1.0,
@@ -1306,20 +1355,39 @@ class TestLangChainIntegration:
             response = llm.invoke(messages)
 
             # Check if usage metadata is available (Gemini-specific)
-            if hasattr(response, 'usage_metadata') and response.usage_metadata:
+            if hasattr(response, "usage_metadata") and response.usage_metadata:  # noqa: SIM102
                 if "output_token_details" in response.usage_metadata:
-                    reasoning_tokens = response.usage_metadata["output_token_details"].get("reasoning", 0)
+                    reasoning_tokens = response.usage_metadata["output_token_details"].get(
+                        "reasoning", 0
+                    )
                     if reasoning_tokens > 0:
                         logging.info(f"✓ Model used {reasoning_tokens} reasoning tokens")
 
             # Validate response
-            reasoning_keywords = ["train", "meet", "time", "hour", "pm", "distance", "speed", "mile"]
-            self._validate_thinking_response(response, f"{provider} Gemini", reasoning_keywords, min_keyword_matches=3)
+            reasoning_keywords = [
+                "train",
+                "meet",
+                "time",
+                "hour",
+                "pm",
+                "distance",
+                "speed",
+                "mile",
+            ]
+            self._validate_thinking_response(
+                response, f"{provider} Gemini", reasoning_keywords, min_keyword_matches=3
+            )
 
         except Exception as e:
             error_str = str(e).lower()
-            if "thinking" in error_str or "not supported" in error_str or "thinking_budget" in error_str:
-                logging.info(f"Info: Model {format_provider_model(provider, model)} may not fully support thinking_budget parameters")
+            if (
+                "thinking" in error_str
+                or "not supported" in error_str
+                or "thinking_budget" in error_str
+            ):
+                logging.info(
+                    f"Info: Model {format_provider_model(provider, model)} may not fully support thinking_budget parameters"
+                )
                 pytest.skip(f"Thinking not supported for {provider}/{model}: {e}")
             else:
                 raise
@@ -1328,7 +1396,6 @@ class TestLangChainIntegration:
     def test_26_thinking_bedrock(self, test_config, provider, model):
         """Test Case 26: Thinking/reasoning with Bedrock models via LangChain (non-streaming)"""
         try:
-
             base_url = get_integration_url("bedrock")
 
             config = get_config()
@@ -1347,7 +1414,7 @@ class TestLangChainIntegration:
                 model=format_provider_model(provider, model),
                 client=bedrock_client,
                 max_tokens=2000,
-                additional_model_request_fields={ # for anthropic models
+                additional_model_request_fields={  # for anthropic models
                     "reasoning_config": {
                         "type": "enabled",
                         "budget_tokens": 1500,
@@ -1375,8 +1442,19 @@ class TestLangChainIntegration:
             assert len(response.content) > 0, "Response content should not be empty"
 
             # Validate response
-            reasoning_keywords = ["batch", "oven", "cookie", "minute", "calculate", "total", "time", "step"]
-            self._validate_thinking_response(response, provider, reasoning_keywords, min_keyword_matches=2)
+            reasoning_keywords = [
+                "batch",
+                "oven",
+                "cookie",
+                "minute",
+                "calculate",
+                "total",
+                "time",
+                "step",
+            ]
+            self._validate_thinking_response(
+                response, provider, reasoning_keywords, min_keyword_matches=2
+            )
 
         except Exception as e:
             error_str = str(e).lower()
@@ -1389,7 +1467,9 @@ class TestLangChainIntegration:
     # TOKEN COUNTING TEST CASES - get_num_tokens_from_messages
     # =========================================================================
 
-    @pytest.mark.parametrize("provider,model", get_cross_provider_params_for_scenario("count_tokens"))
+    @pytest.mark.parametrize(
+        "provider,model", get_cross_provider_params_for_scenario("count_tokens")
+    )
     def test_27_get_num_tokens_simple_text(self, test_config, provider, model):
         """Test Case 27: Get number of tokens from messages with simple text"""
         if provider == "_no_providers_" or model == "_no_model_":
@@ -1398,7 +1478,9 @@ class TestLangChainIntegration:
         try:
             llm = ChatAnthropic(
                 model=format_provider_model(provider, model),
-                base_url=get_integration_url("langchain") if get_integration_url("langchain") else None,
+                base_url=get_integration_url("langchain")
+                if get_integration_url("langchain")
+                else None,
                 api_key="dummy-key",
             )
 
@@ -1412,14 +1494,14 @@ class TestLangChainIntegration:
             assert isinstance(token_count, int), "Token count should be an integer"
             assert token_count > 0, "Token count should be positive"
             # Simple text should have a reasonable token count (between 3-20 tokens)
-            assert 3 <= token_count <= 20, (
-                f"Simple text should have 3-20 tokens, got {token_count}"
-            )
+            assert 3 <= token_count <= 20, f"Simple text should have 3-20 tokens, got {token_count}"
 
         except Exception as e:
             pytest.skip(f"Token counting not available for {provider}/{model}: {e}")
 
-    @pytest.mark.parametrize("provider,model", get_cross_provider_params_for_scenario("count_tokens"))
+    @pytest.mark.parametrize(
+        "provider,model", get_cross_provider_params_for_scenario("count_tokens")
+    )
     def test_28_get_num_tokens_with_system_message(self, test_config, provider, model):
         """Test Case 28: Get number of tokens from messages with system message"""
         if provider == "_no_providers_" or model == "_no_model_":
@@ -1429,14 +1511,16 @@ class TestLangChainIntegration:
             # Create ChatAnthropic instance
             llm = ChatAnthropic(
                 model=format_provider_model(provider, model),
-                base_url=get_integration_url("langchain") if get_integration_url("langchain") else None,
+                base_url=get_integration_url("langchain")
+                if get_integration_url("langchain")
+                else None,
                 api_key="dummy-key",
             )
 
             # Create messages with system message
             messages = [
                 SystemMessage(content=INPUT_TOKENS_WITH_SYSTEM[0]["content"]),
-                HumanMessage(content=INPUT_TOKENS_WITH_SYSTEM[1]["content"])
+                HumanMessage(content=INPUT_TOKENS_WITH_SYSTEM[1]["content"]),
             ]
 
             # Get token count
@@ -1446,15 +1530,14 @@ class TestLangChainIntegration:
             assert isinstance(token_count, int), "Token count should be an integer"
             assert token_count > 0, "Token count should be positive"
             # With system message should have more tokens than simple text
-            assert token_count > 2, (
-                f"With system message should have >2 tokens, got {token_count}"
-            )
-
+            assert token_count > 2, f"With system message should have >2 tokens, got {token_count}"
 
         except Exception as e:
             pytest.skip(f"Token counting not available for {provider}/{model}: {e}")
 
-    @pytest.mark.parametrize("provider,model", get_cross_provider_params_for_scenario("count_tokens"))
+    @pytest.mark.parametrize(
+        "provider,model", get_cross_provider_params_for_scenario("count_tokens")
+    )
     def test_29_input_tokens_long_text(self, test_config, provider, model):
         """Test Case 29: Input tokens count with long text via LangChain"""
         if provider == "_no_providers_" or model == "_no_model_":
@@ -1464,7 +1547,9 @@ class TestLangChainIntegration:
             # Create ChatAnthropic instance
             llm = ChatAnthropic(
                 model=format_provider_model(provider, model),
-                base_url=get_integration_url("langchain") if get_integration_url("langchain") else None,
+                base_url=get_integration_url("langchain")
+                if get_integration_url("langchain")
+                else None,
                 api_key="dummy-key",
             )
 
@@ -1476,9 +1561,7 @@ class TestLangChainIntegration:
 
             # Validate token count
             assert isinstance(token_count, int), "Token count should be an integer"
-            assert token_count > 100, (
-                f"Long text should have >100 tokens, got {token_count}"
-            )
+            assert token_count > 100, f"Long text should have >100 tokens, got {token_count}"
 
         except Exception as e:
             pytest.skip(f"Token counting not available for {provider}/{model}: {e}")
@@ -1500,9 +1583,7 @@ class TestLangChainIntegration:
         identifier = os.environ.get("BEDROCK_GUARDRAIL_IDENTIFIER")
         version = os.environ.get("BEDROCK_GUARDRAIL_VERSION", "DRAFT")
         if not identifier:
-            pytest.skip(
-                "Guardrail not configured — set BEDROCK_GUARDRAIL_IDENTIFIER env var"
-            )
+            pytest.skip("Guardrail not configured — set BEDROCK_GUARDRAIL_IDENTIFIER env var")
 
         base_url = get_integration_url("bedrock")
         config = get_config()
@@ -1558,9 +1639,7 @@ class TestLangChainIntegration:
         identifier = os.environ.get("BEDROCK_GUARDRAIL_IDENTIFIER")
         version = os.environ.get("BEDROCK_GUARDRAIL_VERSION", "DRAFT")
         if not identifier:
-            pytest.skip(
-                "Guardrail not configured — set BEDROCK_GUARDRAIL_IDENTIFIER env var"
-            )
+            pytest.skip("Guardrail not configured — set BEDROCK_GUARDRAIL_IDENTIFIER env var")
 
         base_url = get_integration_url("bedrock")
         config = get_config()
@@ -1591,9 +1670,7 @@ class TestLangChainIntegration:
 
             # Must not raise InternalServerError (the pre-fix failure mode)
             metadata = getattr(response, "response_metadata", {}) or {}
-            assert "stopReason" in metadata, (
-                "response_metadata must contain stopReason"
-            )
+            assert "stopReason" in metadata, "response_metadata must contain stopReason"
 
             # If the raw trace is surfaced in additional_kwargs, verify the shape
             raw_trace = metadata.get("trace") or {}
@@ -1626,9 +1703,7 @@ class TestLangChainIntegration:
         identifier = os.environ.get("BEDROCK_GUARDRAIL_IDENTIFIER")
         version = os.environ.get("BEDROCK_GUARDRAIL_VERSION", "DRAFT")
         if not identifier:
-            pytest.skip(
-                "Guardrail not configured — set BEDROCK_GUARDRAIL_IDENTIFIER env var"
-            )
+            pytest.skip("Guardrail not configured — set BEDROCK_GUARDRAIL_IDENTIFIER env var")
 
         base_url = get_integration_url("bedrock")
         config = get_config()
@@ -1776,9 +1851,7 @@ class TestLangChainRerank:
 
     # ---------------------------------------------------------------- core compressor path
 
-    @pytest.mark.parametrize(
-        "provider,model", get_cross_provider_params_for_scenario("rerank")
-    )
+    @pytest.mark.parametrize("provider,model", get_cross_provider_params_for_scenario("rerank"))
     def test_20_cohere_rerank_compressor(self, provider, model):
         """compress_documents - the method ContextualCompressionRetriever calls."""
         compressor = self._compressor(provider, model, top_n=2)
@@ -1805,9 +1878,7 @@ class TestLangChainRerank:
 
     # ---------------------------------------------------------------- rerank() directly
 
-    @pytest.mark.parametrize(
-        "provider,model", get_cross_provider_params_for_scenario("rerank")
-    )
+    @pytest.mark.parametrize("provider,model", get_cross_provider_params_for_scenario("rerank"))
     def test_22_rerank_returns_index_and_score(self, provider, model):
         """rerank() returns raw {index, relevance_score} dicts keyed to the input order."""
         compressor = self._compressor(provider, model, top_n=3)
@@ -1819,9 +1890,7 @@ class TestLangChainRerank:
             assert set(result) >= {"index", "relevance_score"}, f"unexpected keys: {list(result)}"
         assert_valid_rerank_results([(r["index"], r["relevance_score"]) for r in results])
 
-    @pytest.mark.parametrize(
-        "provider,model", get_cross_provider_params_for_scenario("rerank")
-    )
+    @pytest.mark.parametrize("provider,model", get_cross_provider_params_for_scenario("rerank"))
     def test_23_metadata_is_preserved_and_scored(self, provider, model):
         """Caller metadata survives the round trip and relevance_score is added to it."""
         compressor = self._compressor(provider, model, top_n=3)
@@ -1842,9 +1911,7 @@ class TestLangChainRerank:
 
     # ---------------------------------------------------------------- top_n behaviour
 
-    @pytest.mark.parametrize(
-        "provider,model", get_cross_provider_params_for_scenario("rerank")
-    )
+    @pytest.mark.parametrize("provider,model", get_cross_provider_params_for_scenario("rerank"))
     def test_24_top_n_from_constructor(self, provider, model):
         """top_n set on the compressor truncates the ranking."""
         compressor = self._compressor(provider, model, top_n=1)
@@ -1936,17 +2003,13 @@ class TestLangChainRerank:
         """
         compressor = self._compressor(provider, model, top_n=3)
 
-        results = compressor.rerank(
-            self._documents(), RERANK_QUERY, max_tokens_per_doc=512
-        )
+        results = compressor.rerank(self._documents(), RERANK_QUERY, max_tokens_per_doc=512)
 
         assert_valid_rerank_results([(r["index"], r["relevance_score"]) for r in results])
 
     # ---------------------------------------------------------------- retriever wiring
 
-    @pytest.mark.parametrize(
-        "provider,model", get_cross_provider_params_for_scenario("rerank")
-    )
+    @pytest.mark.parametrize("provider,model", get_cross_provider_params_for_scenario("rerank"))
     def test_31_contextual_compression_retriever(self, provider, model):
         """The documented RAG pattern: a reranker wrapped around a base retriever.
 
@@ -1971,16 +2034,12 @@ class TestLangChainRerank:
 
         assert_valid_rerank_results(self._pairs(compressed), expected_count=2)
 
-    @pytest.mark.parametrize(
-        "provider,model", get_cross_provider_params_for_scenario("rerank")
-    )
+    @pytest.mark.parametrize("provider,model", get_cross_provider_params_for_scenario("rerank"))
     def test_32_async_compress_documents(self, provider, model):
         """acompress_documents - the path async LangChain apps take."""
         compressor = self._compressor(provider, model, top_n=2)
 
-        compressed = asyncio.run(
-            compressor.acompress_documents(self._documents(), RERANK_QUERY)
-        )
+        compressed = asyncio.run(compressor.acompress_documents(self._documents(), RERANK_QUERY))
 
         assert_valid_rerank_results(self._pairs(compressed), expected_count=2)
 
@@ -2099,9 +2158,7 @@ class TestLangChainRerank:
         """acompress_documents - BedrockRerank inherits the executor-backed default."""
         compressor = self._bedrock_compressor(provider, model, top_n=2)
 
-        compressed = asyncio.run(
-            compressor.acompress_documents(self._documents(), RERANK_QUERY)
-        )
+        compressed = asyncio.run(compressor.acompress_documents(self._documents(), RERANK_QUERY))
 
         assert_valid_rerank_results(self._pairs(compressed), expected_count=2)
 

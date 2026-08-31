@@ -21,6 +21,8 @@
   WORKDIR /app
 
   # Install dependencies including gcc for CGO and sqlite (with latest security patches)
+  # Alpine packages intentionally follow the pinned base image's latest security repository.
+  # hadolint ignore=DL3018
   RUN apk upgrade --no-cache && \
     apk add --no-cache gcc musl-dev sqlite-dev binutils binutils-gold
 
@@ -28,8 +30,6 @@
   ENV CGO_ENABLED=1 GOOS=linux
 
   COPY transports/go.mod transports/go.sum ./
-  RUN ls
-  RUN cat go.mod
   RUN go mod download
 
   # Copy source code and dependencies
@@ -59,6 +59,8 @@
   # libgcc: GCC runtime library
   # ca-certificates: For HTTPS connections
   # su-exec: Drop privileges after repairing root-owned platform volumes
+  # Alpine packages intentionally follow the pinned base image's latest security repository.
+  # hadolint ignore=DL3018
   RUN apk upgrade --no-cache && \
     apk add --no-cache musl libgcc ca-certificates zlib su-exec
 
@@ -114,6 +116,8 @@
   # Health check for container status monitoring
   # Uses busybox wget (built into alpine) instead of the standalone wget package
   # to avoid CVE-2025-69194; busybox wget supports -q/-O but not --no-verbose/--tries.
+  # Shell form is required for APP_PORT expansion and the explicit failure fallback.
+  # hadolint ignore=DL3025
   HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD wget -q -O /dev/null http://127.0.0.1:${APP_PORT}/health || exit 1
 

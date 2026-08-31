@@ -30,7 +30,6 @@ mock_provider "kubernetes" {}
 
 run "ecs_basic" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider = "aws"
     service        = "ecs"
@@ -41,7 +40,6 @@ run "ecs_basic" {
 
 run "ecs_no_alb_by_default" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider       = "aws"
     service              = "ecs"
@@ -53,7 +51,6 @@ run "ecs_no_alb_by_default" {
 
 run "ecs_with_alb" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider       = "aws"
     service              = "ecs"
@@ -65,7 +62,6 @@ run "ecs_with_alb" {
 
 run "ecs_no_autoscaling_by_default" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider = "aws"
     service        = "ecs"
@@ -76,7 +72,6 @@ run "ecs_no_autoscaling_by_default" {
 
 run "ecs_with_autoscaling" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider     = "aws"
     service            = "ecs"
@@ -90,7 +85,6 @@ run "ecs_with_autoscaling" {
 
 run "ecs_custom_compute" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider = "aws"
     service        = "ecs"
@@ -104,7 +98,6 @@ run "ecs_custom_compute" {
 
 run "ecs_existing_vpc" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider      = "aws"
     service             = "ecs"
@@ -117,7 +110,6 @@ run "ecs_existing_vpc" {
 
 run "ecs_private_subnet" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider   = "aws"
     service          = "ecs"

@@ -44,6 +44,6 @@ const identityOf = (item) => ({
 
 export function buildHaystack(item, ancestorNames) {
   return stripBase64Blobs(
-    JSON.stringify(identityOf(item)) + " " + (ancestorNames || []).join(" ")
+    JSON.stringify(identityOf(item)) + " " + (ancestorNames || []).join(" "),
   ).toLowerCase();
 }

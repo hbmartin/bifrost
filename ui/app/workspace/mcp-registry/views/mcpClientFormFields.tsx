@@ -131,7 +131,10 @@ export function buildTLSConfigPayload(tls: MCPTLSConfig | undefined): MCPTLSConf
 	const hasSkipVerify = tls.insecure_skip_verify === true;
 	const hasCACert = tls.ca_cert_pem?.value || tls.ca_cert_pem?.type === "env" || tls.ca_cert_pem?.type === "vault";
 	if (!hasSkipVerify && !hasCACert) return undefined;
-	return { insecure_skip_verify: tls.insecure_skip_verify, ca_cert_pem: hasCACert ? tls.ca_cert_pem : undefined };
+	return {
+		insecure_skip_verify: tls.insecure_skip_verify,
+		ca_cert_pem: hasCACert ? tls.ca_cert_pem : undefined,
+	};
 }
 
 export function isValidOAuthResourceURI(value: string): boolean {
@@ -195,7 +198,9 @@ export function validateMCPClientForm({
 			setError("connection_string", { message: "Connection URL is required" });
 			hasErrors = true;
 		} else if (!isSecret && connVal && !/^https?:\/\/.+/.test(connVal)) {
-			setError("connection_string", { message: "Connection URL must start with http:// or https://" });
+			setError("connection_string", {
+				message: "Connection URL must start with http:// or https://",
+			});
 			hasErrors = true;
 		}
 	}
@@ -206,22 +211,30 @@ export function validateMCPClientForm({
 			setError("stdio_config.command", { message: "Command is required for STDIO connections" });
 			hasErrors = true;
 		} else if (/[<>|&;]/.test(cmd)) {
-			setError("stdio_config.command", { message: "Command cannot contain special shell characters" });
+			setError("stdio_config.command", {
+				message: "Command cannot contain special shell characters",
+			});
 			hasErrors = true;
 		}
 	}
 
 	if (authType === "oauth" || authType === "per_user_oauth") {
 		if (data.oauth_config?.authorize_url && !/^https?:\/\/.+$/.test(data.oauth_config.authorize_url)) {
-			setError("oauth_config.authorize_url", { message: "Authorize URL must start with http:// or https://" });
+			setError("oauth_config.authorize_url", {
+				message: "Authorize URL must start with http:// or https://",
+			});
 			hasErrors = true;
 		}
 		if (data.oauth_config?.token_url && !/^https?:\/\/.+$/.test(data.oauth_config.token_url)) {
-			setError("oauth_config.token_url", { message: "Token URL must start with http:// or https://" });
+			setError("oauth_config.token_url", {
+				message: "Token URL must start with http:// or https://",
+			});
 			hasErrors = true;
 		}
 		if (data.oauth_config?.registration_url && !/^https?:\/\/.+$/.test(data.oauth_config.registration_url)) {
-			setError("oauth_config.registration_url", { message: "Registration URL must start with http:// or https://" });
+			setError("oauth_config.registration_url", {
+				message: "Registration URL must start with http:// or https://",
+			});
 			hasErrors = true;
 		}
 		if (satellites.resourceText.trim() && !isValidOAuthResourceURI(satellites.resourceText.trim())) {
@@ -238,7 +251,9 @@ export function validateMCPClientForm({
 		if (!data.token_exchange?.use_idp_credentials) {
 			const exchangeClientId = data.token_exchange?.client_id;
 			if (!exchangeClientId?.value && !exchangeClientId?.ref) {
-				setError("token_exchange.client_id", { message: "Exchange client ID is required for token exchange" });
+				setError("token_exchange.client_id", {
+					message: "Exchange client ID is required for token exchange",
+				});
 				hasErrors = true;
 			}
 		}
@@ -884,7 +899,11 @@ export function MCPClientFormFields({ form, satellites, headersValidationError, 
 										onScopesRawChange={satellites.setScopesText}
 										scopesLabel="Scopes (optional, comma-separated)"
 										scopesTestId="mcp-oauth-scopes-input"
-										resource={{ mode: "raw", value: satellites.resourceText, onChange: satellites.setResourceText }}
+										resource={{
+											mode: "raw",
+											value: satellites.resourceText,
+											onChange: satellites.setResourceText,
+										}}
 										resourceLabel="Resource"
 										resourceTestId="mcp-oauth-resource-input"
 										clientIdLabel="OAuth Client ID (optional)"

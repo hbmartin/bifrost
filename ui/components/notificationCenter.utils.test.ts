@@ -3,7 +3,12 @@ import { isNotificationsUnavailable, shouldHideNotificationTrigger } from "./not
 
 describe("isNotificationsUnavailable", () => {
 	it("treats 503 as the feature being switched off", () => {
-		expect(isNotificationsUnavailable({ status: 503, data: { error: "notification storage is unavailable" } })).toBe(true);
+		expect(
+			isNotificationsUnavailable({
+				status: 503,
+				data: { error: "notification storage is unavailable" },
+			}),
+		).toBe(true);
 	});
 
 	it("leaves every other failure retryable", () => {

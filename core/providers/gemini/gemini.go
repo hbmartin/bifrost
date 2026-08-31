@@ -477,9 +477,9 @@ func HandleGeminiChatCompletionStream(
 	go func() {
 		defer providerUtils.EnsureStreamFinalizerCalled(ctx, postHookSpanFinalizer)
 		defer func() {
-			if ctx.Err() == context.Canceled {
+			if errors.Is(ctx.Err(), context.Canceled) {
 				providerUtils.HandleStreamCancellation(ctx, postHookRunner, responseChan, logger, postHookSpanFinalizer, jsonBody)
-			} else if ctx.Err() == context.DeadlineExceeded {
+			} else if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 				providerUtils.HandleStreamTimeout(ctx, postHookRunner, responseChan, logger, postHookSpanFinalizer, jsonBody)
 			}
 			providerUtils.CloseStream(ctx, responseChan)
@@ -546,7 +546,7 @@ func HandleGeminiChatCompletionStream(
 			} else {
 				eventData, readErr = sseReader.ReadDataLine()
 			}
-			if readErr == io.EOF {
+			if errors.Is(readErr, io.EOF) {
 				break
 			}
 			if readErr != nil {
@@ -822,7 +822,7 @@ func (provider *GeminiProvider) responsesWithLargeResponseDetection(
 	}
 	if providerUtils.ShouldSendBackRawResponse(ctx, provider.sendBackRawResponse) {
 		var rawResponse interface{}
-		sonic.Unmarshal(responseBody, &rawResponse) //nolint:errcheck
+		sonic.Unmarshal(responseBody, &rawResponse) //nolint:errcheck // The typed response already parsed successfully; raw diagnostics are best-effort only.
 		bifrostResponse.ExtraFields.RawResponse = rawResponse
 	}
 	return bifrostResponse, nil
@@ -985,9 +985,9 @@ func HandleGeminiResponsesStream(
 	go func() {
 		defer providerUtils.EnsureStreamFinalizerCalled(ctx, postHookSpanFinalizer)
 		defer func() {
-			if ctx.Err() == context.Canceled {
+			if errors.Is(ctx.Err(), context.Canceled) {
 				providerUtils.HandleStreamCancellation(ctx, postHookRunner, responseChan, logger, postHookSpanFinalizer, jsonBody)
-			} else if ctx.Err() == context.DeadlineExceeded {
+			} else if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 				providerUtils.HandleStreamTimeout(ctx, postHookRunner, responseChan, logger, postHookSpanFinalizer, jsonBody)
 			}
 			providerUtils.CloseStream(ctx, responseChan)
@@ -1063,7 +1063,7 @@ func HandleGeminiResponsesStream(
 			} else {
 				eventData, readErr = sseReader.ReadDataLine()
 			}
-			if readErr == io.EOF {
+			if errors.Is(readErr, io.EOF) {
 				break
 			}
 			if readErr != nil {
@@ -1501,9 +1501,9 @@ func (provider *GeminiProvider) SpeechStream(ctx *schemas.BifrostContext, postHo
 	go func() {
 		defer providerUtils.EnsureStreamFinalizerCalled(ctx, postHookSpanFinalizer)
 		defer func() {
-			if ctx.Err() == context.Canceled {
+			if errors.Is(ctx.Err(), context.Canceled) {
 				providerUtils.HandleStreamCancellation(ctx, postHookRunner, responseChan, provider.logger, postHookSpanFinalizer, jsonBody)
-			} else if ctx.Err() == context.DeadlineExceeded {
+			} else if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 				providerUtils.HandleStreamTimeout(ctx, postHookRunner, responseChan, provider.logger, postHookSpanFinalizer, jsonBody)
 			}
 			providerUtils.CloseStream(ctx, responseChan)
@@ -1541,7 +1541,7 @@ func (provider *GeminiProvider) SpeechStream(ctx *schemas.BifrostContext, postHo
 				if ctx.Err() != nil {
 					return
 				}
-				if readErr != io.EOF {
+				if !errors.Is(readErr, io.EOF) {
 					ctx.SetValue(schemas.BifrostContextKeyStreamEndIndicator, true)
 					provider.logger.Warn("Error reading stream: %v", readErr)
 					providerUtils.ProcessAndSendError(ctx, postHookRunner, readErr, responseChan, provider.logger, postHookSpanFinalizer)
@@ -1792,9 +1792,9 @@ func (provider *GeminiProvider) TranscriptionStream(ctx *schemas.BifrostContext,
 	go func() {
 		defer providerUtils.EnsureStreamFinalizerCalled(ctx, postHookSpanFinalizer)
 		defer func() {
-			if ctx.Err() == context.Canceled {
+			if errors.Is(ctx.Err(), context.Canceled) {
 				providerUtils.HandleStreamCancellation(ctx, postHookRunner, responseChan, provider.logger, postHookSpanFinalizer, jsonBody)
-			} else if ctx.Err() == context.DeadlineExceeded {
+			} else if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 				providerUtils.HandleStreamTimeout(ctx, postHookRunner, responseChan, provider.logger, postHookSpanFinalizer, jsonBody)
 			}
 			providerUtils.CloseStream(ctx, responseChan)
@@ -1832,7 +1832,7 @@ func (provider *GeminiProvider) TranscriptionStream(ctx *schemas.BifrostContext,
 				if ctx.Err() != nil {
 					return
 				}
-				if readErr != io.EOF {
+				if !errors.Is(readErr, io.EOF) {
 					ctx.SetValue(schemas.BifrostContextKeyStreamEndIndicator, true)
 					provider.logger.Warn("Error reading stream: %v", readErr)
 					providerUtils.ProcessAndSendError(ctx, postHookRunner, readErr, responseChan, provider.logger, postHookSpanFinalizer)
@@ -2413,7 +2413,7 @@ func (provider *GeminiProvider) VideoDownload(ctx *schemas.BifrostContext, key s
 		return nil, providerUtils.NewBifrostOperationError("video URL not available", nil)
 	}
 	var content []byte
-	contentType := "video/mp4"
+	var contentType string
 	var latency time.Duration
 	// Check if it's a data URL (base64-encoded video)
 	if videoResp.Videos[0].Type == schemas.VideoOutputTypeBase64 && videoResp.Videos[0].Base64Data != nil {
@@ -3160,7 +3160,7 @@ func processGeminiStreamChunk(jsonData []byte) (*GenerateContentResponse, error)
 
 	var geminiResponse GenerateContentResponse
 	if err := sonic.Unmarshal(jsonData, &geminiResponse); err != nil {
-		return nil, fmt.Errorf("failed to parse Gemini stream response: %v", err)
+		return nil, fmt.Errorf("failed to parse Gemini stream response: %w", err)
 	}
 
 	return &geminiResponse, nil
@@ -3177,23 +3177,6 @@ func shouldSkipInlineDataForStreamingContext(ctx *schemas.BifrostContext) bool {
 		return true
 	}
 	return false
-}
-
-// extractSSEJSONData returns the JSON payload for SSE "data:" lines.
-// It skips comments, control fields (event/id/retry), empty lines, and [DONE].
-func extractSSEJSONData(line []byte) ([]byte, bool) {
-	line = bytes.TrimSpace(line)
-	if len(line) == 0 || line[0] == ':' {
-		return nil, false
-	}
-	if !bytes.HasPrefix(line, []byte("data:")) {
-		return nil, false
-	}
-	data := bytes.TrimSpace(line[len("data:"):])
-	if len(data) == 0 || bytes.Equal(data, []byte("[DONE]")) {
-		return nil, false
-	}
-	return data, true
 }
 
 // readNextSSEDataLine reads the next SSE `data:` line from a streaming response.
@@ -3528,7 +3511,7 @@ func (provider *GeminiProvider) FileUpload(ctx *schemas.BifrostContext, key sche
 
 	// Parse size
 	var sizeBytes int64
-	fmt.Sscanf(geminiResp.SizeBytes, "%d", &sizeBytes)
+	_, _ = fmt.Sscanf(geminiResp.SizeBytes, "%d", &sizeBytes) // Invalid or absent provider size metadata falls back to zero.
 
 	// Parse creation time
 	var createdAt int64
@@ -3629,7 +3612,7 @@ func (provider *GeminiProvider) fileListByKey(ctx *schemas.BifrostContext, key s
 
 	for i, file := range geminiResp.Files {
 		var sizeBytes int64
-		fmt.Sscanf(file.SizeBytes, "%d", &sizeBytes)
+		_, _ = fmt.Sscanf(file.SizeBytes, "%d", &sizeBytes) // Invalid or absent provider size metadata falls back to zero.
 
 		var createdAt int64
 		if t, err := time.Parse(time.RFC3339, file.CreateTime); err == nil {
@@ -3777,7 +3760,7 @@ func (provider *GeminiProvider) fileRetrieveByKey(ctx *schemas.BifrostContext, k
 	}
 
 	var sizeBytes int64
-	fmt.Sscanf(geminiResp.SizeBytes, "%d", &sizeBytes)
+	_, _ = fmt.Sscanf(geminiResp.SizeBytes, "%d", &sizeBytes) // Invalid or absent provider size metadata falls back to zero.
 
 	var createdAt int64
 	if t, err := time.Parse(time.RFC3339, geminiResp.CreateTime); err == nil {

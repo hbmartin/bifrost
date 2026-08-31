@@ -147,7 +147,7 @@ func TestToAnthropicChatRequest_OpenAICompatibleFileIDUsesFileSource(t *testing.
 		t.Fatalf("unmarshal OpenAI-compatible request: %v", err)
 	}
 
-	ctx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	bifrostReq := openAIReq.ToBifrostChatRequest(ctx)
 	result, err := ToAnthropicChatRequest(ctx, bifrostReq)
 	if err != nil {
@@ -204,7 +204,7 @@ func TestToAnthropicChatRequest_DocumentOnlyMessageGetsPlaceholderTextBlock(t *t
 		t.Fatalf("unmarshal OpenAI-compatible request: %v", err)
 	}
 
-	ctx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	bifrostReq := openAIReq.ToBifrostChatRequest(ctx)
 	result, err := ToAnthropicChatRequest(ctx, bifrostReq)
 	if err != nil {
@@ -250,7 +250,7 @@ func TestToAnthropicChatRequest_DocumentWithTextDoesNotGetPlaceholder(t *testing
 		t.Fatalf("unmarshal OpenAI-compatible request: %v", err)
 	}
 
-	ctx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	bifrostReq := openAIReq.ToBifrostChatRequest(ctx)
 	result, err := ToAnthropicChatRequest(ctx, bifrostReq)
 	if err != nil {
@@ -298,7 +298,7 @@ func TestToAnthropicChatRequest_UserDocumentWithWhitespaceTextGetsPlaceholder(t 
 		},
 	}
 
-	ctx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	result, err := ToAnthropicChatRequest(ctx, req)
 	if err != nil {
 		t.Fatalf("convert to Anthropic request: %v", err)
@@ -376,7 +376,7 @@ func lastMessageTextBlock(t *testing.T, result *AnthropicMessageRequest) string 
 // erased the injected placeholder, leaving an empty text block that Anthropic
 // rejects ("text content blocks must contain non-whitespace text").
 func TestToAnthropicChatRequest_AssistantPrefillDocumentOnlyKeepsPlaceholder(t *testing.T) {
-	ctx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	result, err := ToAnthropicChatRequest(ctx, documentPrefillRequest(nil))
 	if err != nil {
 		t.Fatalf("convert to Anthropic request: %v", err)
@@ -394,7 +394,7 @@ func TestToAnthropicChatRequest_AssistantPrefillDocumentOnlyKeepsPlaceholder(t *
 // A caller-supplied whitespace-only prefill text block alongside a document is
 // removed during normalization, so the document placeholder must replace it.
 func TestToAnthropicChatRequest_AssistantPrefillWhitespaceTextWithDocumentRestoresPlaceholder(t *testing.T) {
-	ctx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	result, err := ToAnthropicChatRequest(ctx, documentPrefillRequest(new("   ")))
 	if err != nil {
 		t.Fatalf("convert to Anthropic request: %v", err)
@@ -427,7 +427,7 @@ func TestToAnthropicChatRequest_AssistantPrefillDocumentKeepsReasoningBlocksFirs
 		},
 	}
 
-	ctx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	result, err := ToAnthropicChatRequest(ctx, req)
 	if err != nil {
 		t.Fatalf("convert to Anthropic request: %v", err)
@@ -474,7 +474,7 @@ func TestToAnthropicChatRequest_AssistantPrefillDropsTrailingWhitespaceWhenUsabl
 		},
 	}
 
-	ctx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	result, err := ToAnthropicChatRequest(ctx, req)
 	if err != nil {
 		t.Fatalf("convert to Anthropic request: %v", err)
@@ -1225,7 +1225,7 @@ func TestToAnthropicChatRequest_Opus47_ReasoningEffort_AdaptiveWithEffort(t *tes
 		},
 	}
 
-	ctx, cancel := schemas.NewBifrostContextWithCancel(nil)
+	ctx, cancel := schemas.NewBifrostContextWithCancel(context.Background())
 	defer cancel()
 	result, err := ToAnthropicChatRequest(ctx, bifrostReq)
 	if err != nil {

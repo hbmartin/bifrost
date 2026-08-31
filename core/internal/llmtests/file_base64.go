@@ -66,6 +66,7 @@ func CreateDocumentResponsesMessage(text, documentBase64 string) schemas.Respons
 
 // RunFileBase64Test executes the PDF file input test scenario with separate subtests for each API
 func RunFileBase64Test(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.FileBase64 {
 		t.Logf("File base64 not supported for provider %s", testConfig.Provider)
 		return
@@ -80,6 +81,7 @@ func RunFileBase64Test(t *testing.T, client *bifrost.Bifrost, ctx context.Contex
 
 // RunFileBase64ChatCompletionsTest executes the file base64 test using Chat Completions API
 func RunFileBase64ChatCompletionsTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.FileBase64 {
 		t.Logf("File base64 not supported for provider %s", testConfig.Provider)
 		return
@@ -161,6 +163,7 @@ func RunFileBase64ChatCompletionsTest(t *testing.T, client *bifrost.Bifrost, ctx
 
 // RunFileBase64ResponsesTest executes the file base64 test using Responses API
 func RunFileBase64ResponsesTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.FileBase64 {
 		t.Logf("File base64 not supported for provider %s", testConfig.Provider)
 		return

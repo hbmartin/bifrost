@@ -30,7 +30,6 @@ mock_provider "kubernetes" {}
 
 run "cloudrun_basic" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider = "gcp"
     service        = "cloud-run"
@@ -42,7 +41,6 @@ run "cloudrun_basic" {
 
 run "cloudrun_with_public_access" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider       = "gcp"
     service              = "cloud-run"
@@ -55,7 +53,6 @@ run "cloudrun_with_public_access" {
 
 run "cloudrun_with_domain" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider = "gcp"
     service        = "cloud-run"
@@ -68,7 +65,6 @@ run "cloudrun_with_domain" {
 
 run "cloudrun_scaling" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider = "gcp"
     service        = "cloud-run"
@@ -82,7 +78,6 @@ run "cloudrun_scaling" {
 
 run "cloudrun_custom_compute" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider = "gcp"
     service        = "cloud-run"

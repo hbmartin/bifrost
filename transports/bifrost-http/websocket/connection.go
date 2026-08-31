@@ -259,6 +259,9 @@ func DialUpstream(url string, headers http.Header, provider schemas.ModelProvide
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial upstream websocket %s: %w", url, wrapHandshakeError(resp, err))
 	}
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
 	return newUpstreamConn(wsConn, provider, keyID, url), nil
 }
 

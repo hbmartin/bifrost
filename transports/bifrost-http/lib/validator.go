@@ -5,6 +5,7 @@ package lib
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -36,7 +37,7 @@ func loadSchemaFromLocation(location string) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 			return nil, fmt.Errorf("unexpected HTTP status %d fetching schema", resp.StatusCode)
 		}
@@ -159,7 +160,8 @@ func ValidateConfigSchema(data []byte, schemaOverride ...[]byte) error {
 
 // formatValidationError converts jsonschema validation errors into user-friendly messages
 func formatValidationError(err error) error {
-	validationErr, ok := err.(*jsonschema.ValidationError)
+	validationErr := &jsonschema.ValidationError{}
+	ok := errors.As(err, &validationErr)
 	if !ok {
 		return err
 	}

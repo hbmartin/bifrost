@@ -56,6 +56,9 @@ func extractFromChatMessages(messages []schemas.ChatMessage) (ComplexityInput, b
 				return ComplexityInput{}, false
 			}
 			userTexts = append(userTexts, text)
+		case schemas.ChatMessageRoleAssistant, schemas.ChatMessageRoleTool:
+			// Prior model output and tool results do not describe the new user task.
+			continue
 		}
 	}
 
@@ -109,6 +112,9 @@ func extractFromResponsesRequest(req *schemas.BifrostResponsesRequest) (Complexi
 				return ComplexityInput{}, false
 			}
 			userTexts = append(userTexts, text)
+		case schemas.ResponsesInputMessageRoleAssistant:
+			// Prior model output does not describe the new user task.
+			continue
 		}
 	}
 

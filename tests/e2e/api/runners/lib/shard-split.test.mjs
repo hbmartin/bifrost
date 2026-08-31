@@ -40,7 +40,10 @@ const row = (n) => ({
   request: {
     method: "POST",
     url: "http://localhost:8080/v1/chat/completions",
-    body: { mode: "raw", raw: JSON.stringify({ model: "anthropic/claude-opus-4-7", messages: [] }) },
+    body: {
+      mode: "raw",
+      raw: JSON.stringify({ model: "anthropic/claude-opus-4-7", messages: [] }),
+    },
   },
 });
 
@@ -51,7 +54,10 @@ const producer = {
   request: {
     method: "POST",
     url: "http://localhost:8080/v1/chat/completions",
-    body: { mode: "raw", raw: JSON.stringify({ model: "anthropic/claude-opus-4-7", messages: [] }) },
+    body: {
+      mode: "raw",
+      raw: JSON.stringify({ model: "anthropic/claude-opus-4-7", messages: [] }),
+    },
   },
   event: [
     {
@@ -65,14 +71,23 @@ const consumer = {
   request: {
     method: "POST",
     url: "http://localhost:8080/v1/chat/completions",
-    body: { mode: "raw", raw: '{"model":"anthropic/claude-opus-4-7","messages":[],"id":"{{chainedId}}"}' },
+    body: {
+      mode: "raw",
+      raw: '{"model":"anthropic/claude-opus-4-7","messages":[],"id":"{{chainedId}}"}',
+    },
   },
 };
 
 const COLLECTION = {
-  info: { name: "shard-split fixture", schema: "https://schema.getpostman.com/json/collection/v2.1.0/collection.json" },
+  info: {
+    name: "shard-split fixture",
+    schema: "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+  },
   item: [
-    { name: "Chat folder", item: [producer, ...Array.from({ length: 20 }, (_, i) => row(i + 1)), consumer] },
+    {
+      name: "Chat folder",
+      item: [producer, ...Array.from({ length: 20 }, (_, i) => row(i + 1)), consumer],
+    },
   ],
 };
 const SOURCE = join(WORK, "source.json");
@@ -87,7 +102,7 @@ writeFileSync(
   JSON.stringify({
     ...COLLECTION,
     item: [{ name: "Chat folder", item: Array.from({ length: 20 }, (_, i) => row(i + 1)) }],
-  })
+  }),
 );
 
 // ----- helpers ---------------------------------------------------------------------------------
@@ -103,7 +118,11 @@ function runFilter(extraArgs, { expectExit = 0, source = SOURCE } = {}) {
     });
   } catch (e) {
     if (expectExit !== 0) {
-      assert.equal(e.status, expectExit, `expected exit ${expectExit}, got ${e.status}: ${e.stderr}`);
+      assert.equal(
+        e.status,
+        expectExit,
+        `expected exit ${expectExit}, got ${e.status}: ${e.stderr}`,
+      );
       return null;
     }
     throw new Error(`filter-collection failed: ${e.stderr || e.message}`);
@@ -141,9 +160,14 @@ test("the union of every --shard slice is exactly the unsharded set", () => {
 
 test("slices are balanced to within one row", () => {
   const sizes = [1, 2, 3, 4].map(
-    (k) => runFilter(["--provider", "anthropic", "--shard", `${k}/4`], { source: PLAIN_SOURCE }).length
+    (k) =>
+      runFilter(["--provider", "anthropic", "--shard", `${k}/4`], { source: PLAIN_SOURCE }).length,
   );
-  assert.equal(sizes.reduce((a, b) => a + b, 0), 20, `slices lost or gained rows: ${sizes.join(", ")}`);
+  assert.equal(
+    sizes.reduce((a, b) => a + b, 0),
+    20,
+    `slices lost or gained rows: ${sizes.join(", ")}`,
+  );
   assert.ok(Math.max(...sizes) - Math.min(...sizes) <= 1, `unbalanced slices: ${sizes.join(", ")}`);
 });
 
@@ -175,14 +199,29 @@ test("only chained producers may appear in more than one slice", () => {
     }
   }
   const duplicated = [...seen.entries()].filter(([, c]) => c > 1).map(([n]) => n);
-  assert.deepEqual(duplicated.filter((n) => n !== "producer"), [], "a non-producer row runs in two slices");
+  assert.deepEqual(
+    duplicated.filter((n) => n !== "producer"),
+    [],
+    "a non-producer row runs in two slices",
+  );
 });
 
 test("--shard composes with the other predicates instead of replacing them", () => {
-  const sliced = runFilter(["--provider", "anthropic", "--folder", "chat folder", "--shard", "1/2"]);
+  const sliced = runFilter([
+    "--provider",
+    "anthropic",
+    "--folder",
+    "chat folder",
+    "--shard",
+    "1/2",
+  ]);
   const whole = runFilter(["--provider", "anthropic", "--folder", "chat folder"]);
-  assert.ok(sliced.length > 0 && sliced.length < whole.length, `slice ${sliced.length} of ${whole.length}`);
-  for (const n of sliced) assert.ok(whole.includes(n), `${n} passed the slice but not the folder filter`);
+  assert.ok(
+    sliced.length > 0 && sliced.length < whole.length,
+    `slice ${sliced.length} of ${whole.length}`,
+  );
+  for (const n of sliced)
+    assert.ok(whole.includes(n), `${n} passed the slice but not the folder filter`);
 });
 
 // ----- rejected forms ----------------------------------------------------------------------------
@@ -207,25 +246,47 @@ writeFileSync(
   TIMINGS,
   // Adversarial for round-robin on purpose: the expensive rows all sit at the same parity, so a
   // positional split lands every one of them in the same slice.
-  JSON.stringify(Object.fromEntries(Array.from({ length: 20 }, (_, i) => [`row-${i + 1}`, i % 4 === 0 ? 40000 : 800])))
+  JSON.stringify(
+    Object.fromEntries(
+      Array.from({ length: 20 }, (_, i) => [`row-${i + 1}`, i % 4 === 0 ? 40000 : 800]),
+    ),
+  ),
 );
 
 test("cost-aware slices are still a partition of the unsharded set", () => {
   const whole = runFilter(["--provider", "anthropic"], { source: PLAIN_SOURCE });
   const seen = new Map();
   for (const k of [1, 2, 3, 4]) {
-    for (const n of runFilter(["--provider", "anthropic", "--shard", `${k}/4`, "--timings", TIMINGS], { source: PLAIN_SOURCE })) {
+    for (const n of runFilter(
+      ["--provider", "anthropic", "--shard", `${k}/4`, "--timings", TIMINGS],
+      { source: PLAIN_SOURCE },
+    )) {
       seen.set(n, (seen.get(n) || 0) + 1);
     }
   }
-  assert.deepEqual([...seen.keys()].sort(), [...whole].sort(), "the cost-aware slices are not the unsharded set");
-  assert.deepEqual([...seen.entries()].filter(([, c]) => c > 1), [], "a row landed in more than one slice");
+  assert.deepEqual(
+    [...seen.keys()].sort(),
+    [...whole].sort(),
+    "the cost-aware slices are not the unsharded set",
+  );
+  assert.deepEqual(
+    [...seen.entries()].filter(([, c]) => c > 1),
+    [],
+    "a row landed in more than one slice",
+  );
 });
 
 test("--timings balances slice cost where the positional split does not", () => {
   const cost = JSON.parse(readFileSync(TIMINGS, "utf8"));
   const load = (slice) => slice.reduce((s, n) => s + (cost[n] || 0), 0);
-  const of = (flags) => [1, 2, 3, 4].map((k) => load(runFilter(["--provider", "anthropic", "--shard", `${k}/4`, ...flags], { source: PLAIN_SOURCE })));
+  const of = (flags) =>
+    [1, 2, 3, 4].map((k) =>
+      load(
+        runFilter(["--provider", "anthropic", "--shard", `${k}/4`, ...flags], {
+          source: PLAIN_SOURCE,
+        }),
+      ),
+    );
 
   const positional = of([]);
   const balanced = of(["--timings", TIMINGS]);
@@ -234,7 +295,7 @@ test("--timings balances slice cost where the positional split does not", () => 
   assert.ok(spread(positional) > 100000, `fixture is not adversarial: ${positional.join(", ")}`);
   assert.ok(
     spread(balanced) < spread(positional) / 4,
-    `--timings did not flatten the slices: ${balanced.join(", ")} vs ${positional.join(", ")}`
+    `--timings did not flatten the slices: ${balanced.join(", ")} vs ${positional.join(", ")}`,
   );
 });
 
@@ -244,11 +305,15 @@ test("--timings balances slice cost where the positional split does not", () => 
 test("a corrupt or missing timings file falls back to round-robin instead of failing", () => {
   const corrupt = join(WORK, "corrupt-timings.json");
   writeFileSync(corrupt, "{not json");
-  const expected = runFilter(["--provider", "anthropic", "--shard", "1/4"], { source: PLAIN_SOURCE });
+  const expected = runFilter(["--provider", "anthropic", "--shard", "1/4"], {
+    source: PLAIN_SOURCE,
+  });
   for (const path of [corrupt, join(WORK, "absent.json")]) {
     assert.deepEqual(
-      runFilter(["--provider", "anthropic", "--shard", "1/4", "--timings", path], { source: PLAIN_SOURCE }),
-      expected
+      runFilter(["--provider", "anthropic", "--shard", "1/4", "--timings", path], {
+        source: PLAIN_SOURCE,
+      }),
+      expected,
     );
   }
 });
@@ -256,7 +321,9 @@ test("a corrupt or missing timings file falls back to round-robin instead of fai
 // A chained consumer must keep its producer whichever way the slice was chosen. Cost-aware slicing
 // reorders which rows land together, so the producer expansion has to still run after it.
 test("a cost-sliced consumer keeps its producer in the same slice", () => {
-  const slices = [1, 2, 3].map((k) => runFilter(["--provider", "anthropic", "--shard", `${k}/3`, "--timings", TIMINGS]));
+  const slices = [1, 2, 3].map((k) =>
+    runFilter(["--provider", "anthropic", "--shard", `${k}/3`, "--timings", TIMINGS]),
+  );
   const holder = slices.find((s) => s.includes("consumer"));
   assert.ok(holder, "no slice contains the consumer");
   assert.ok(holder.includes("producer"), "the consumer's slice is missing its producer");
@@ -273,16 +340,35 @@ test("--shard alone is a sufficient filter", () => {
 function runPlan(extraArgs, { source = PLAIN_SOURCE } = {}) {
   const out = execFileSync(
     "node",
-    [FILTER, "--source", source, "--plan", "--providers", "anthropic", "--classes", "chat", ...extraArgs],
-    { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }
+    [
+      FILTER,
+      "--source",
+      source,
+      "--plan",
+      "--providers",
+      "anthropic",
+      "--classes",
+      "chat",
+      ...extraArgs,
+    ],
+    { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
   );
-  return out.trim().split("\n").filter(Boolean).map((l) => l.split(" "));
+  return out
+    .trim()
+    .split("\n")
+    .filter(Boolean)
+    .map((l) => l.split(" "));
 }
 
 test("--plan sizes a cell from its measured cost", () => {
   const p = join(WORK, "plan-timings.json");
   // 20 rows at 30s each = 600s of work, which is 4 shards against a 150s target.
-  writeFileSync(p, JSON.stringify(Object.fromEntries(Array.from({ length: 20 }, (_, i) => [`row-${i + 1}`, 30000]))));
+  writeFileSync(
+    p,
+    JSON.stringify(
+      Object.fromEntries(Array.from({ length: 20 }, (_, i) => [`row-${i + 1}`, 30000])),
+    ),
+  );
   const [cell] = runPlan(["--timings", p, "--target", "150"]);
   assert.deepEqual(cell.slice(0, 4), ["anthropic", "chat", "4", "20"]);
 });
@@ -320,7 +406,10 @@ const lines = makefile.split("\n");
 function recipeBlock(startsWith, endsWith) {
   const s = lines.findIndex((l) => l.includes(startsWith));
   const e = lines.findIndex((l, i) => i > s && l.includes(endsWith));
-  assert.ok(s !== -1 && e !== -1, `could not locate the block ${startsWith} .. ${endsWith} in the Makefile`);
+  assert.ok(
+    s !== -1 && e !== -1,
+    `could not locate the block ${startsWith} .. ${endsWith} in the Makefile`,
+  );
   return lines
     .slice(s, e + 1)
     .map((l) => l.replace(/\\$/, ""))
@@ -336,16 +425,23 @@ const SUBSHARDS_FN = recipeBlock("subshards_for() {", "printf '%s' \"$$SS_N\"; \
 function subshardsFor(provider, cls, { SUBSHARDS = "", plan = null } = {}) {
   const roster = (makefile.match(/^HARNESS_SUBSHARDS := (.*)$/m) || [])[1];
   assert.ok(roster, "HARNESS_SUBSHARDS is not defined in the Makefile");
-  const body = SUBSHARDS_FN.replace(/\$\(SUBSHARDS\)/g, SUBSHARDS).replace(/\$\(HARNESS_SUBSHARDS\)/g, roster);
+  const body = SUBSHARDS_FN.replace(/\$\(SUBSHARDS\)/g, SUBSHARDS).replace(
+    /\$\(HARNESS_SUBSHARDS\)/g,
+    roster,
+  );
   let prelude = "";
   if (plan !== null) {
     const p = join(WORK, `plan-${Math.abs(hash(plan))}.txt`);
     writeFileSync(p, plan);
     prelude = `SHARD_PLAN=${JSON.stringify(p)}\n`;
   }
-  return execFileSync("bash", ["-c", `set -u\n${prelude}${body}\nsubshards_for "${provider}" "${cls}"`], {
-    encoding: "utf8",
-  }).trim();
+  return execFileSync(
+    "bash",
+    ["-c", `set -u\n${prelude}${body}\nsubshards_for "${provider}" "${cls}"`],
+    {
+      encoding: "utf8",
+    },
+  ).trim();
 }
 
 test("the slow classes carry a sub-shard count and the cheap ones do not", () => {
@@ -357,7 +453,11 @@ test("the slow classes carry a sub-shard count and the cheap ones do not", () =>
 
 test("SUBSHARDS=0 collapses the axis for every class", () => {
   for (const c of ["reasoning", "tools", "chat", "audio"]) {
-    assert.equal(subshardsFor("openai", c, { SUBSHARDS: "0" }), "1", `${c} still split under SUBSHARDS=0`);
+    assert.equal(
+      subshardsFor("openai", c, { SUBSHARDS: "0" }),
+      "1",
+      `${c} still split under SUBSHARDS=0`,
+    );
   }
 });
 
@@ -416,7 +516,10 @@ test("every sub-sharded class is a real class", () => {
   const roster = (makefile.match(/^HARNESS_SUBSHARDS := (.*)$/m) || [])[1].trim().split(/\s+/);
   for (const kv of roster) {
     const [name, n] = kv.split("=");
-    assert.ok(classes.includes(name), `HARNESS_SUBSHARDS names "${name}", which is not in HARNESS_CLASSES`);
+    assert.ok(
+      classes.includes(name),
+      `HARNESS_SUBSHARDS names "${name}", which is not in HARNESS_CLASSES`,
+    );
     assert.ok(Number(n) >= 1, `HARNESS_SUBSHARDS gives "${name}" a count of ${n}`);
   }
 });
@@ -426,7 +529,10 @@ test("every sub-sharded class is a real class", () => {
 test("HARNESS_CLASSES is ordered slowest-first", () => {
   const classes = (makefile.match(/^HARNESS_CLASSES := (.*)$/m) || [])[1].trim().split(/\s+/);
   const roster = Object.fromEntries(
-    (makefile.match(/^HARNESS_SUBSHARDS := (.*)$/m) || [])[1].trim().split(/\s+/).map((kv) => kv.split("="))
+    (makefile.match(/^HARNESS_SUBSHARDS := (.*)$/m) || [])[1]
+      .trim()
+      .split(/\s+/)
+      .map((kv) => kv.split("=")),
   );
   const counts = classes.map((c) => Number(roster[c] || 1));
   const sorted = [...counts].sort((a, b) => b - a);

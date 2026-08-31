@@ -374,7 +374,12 @@ export function MCPLogDetailSheet({
 									code={typeof displayedArguments === "string" ? displayedArguments : JSON.stringify(displayedArguments, null, 2)}
 									lang="json"
 									readonly={true}
-									options={{ scrollBeyondLastLine: false, collapsibleBlocks: true, lineNumbers: "off", alwaysConsumeMouseWheel: false }}
+									options={{
+										scrollBeyondLastLine: false,
+										collapsibleBlocks: true,
+										lineNumbers: "off",
+										alwaysConsumeMouseWheel: false,
+									}}
 								/>
 							</div>
 						)}
@@ -391,7 +396,12 @@ export function MCPLogDetailSheet({
 									code={typeof displayedResult === "string" ? displayedResult : JSON.stringify(displayedResult, null, 2)}
 									lang="json"
 									readonly={true}
-									options={{ scrollBeyondLastLine: false, collapsibleBlocks: true, lineNumbers: "off", alwaysConsumeMouseWheel: false }}
+									options={{
+										scrollBeyondLastLine: false,
+										collapsibleBlocks: true,
+										lineNumbers: "off",
+										alwaysConsumeMouseWheel: false,
+									}}
 								/>
 							</div>
 						)}
@@ -420,7 +430,12 @@ export function MCPLogDetailSheet({
 									code={JSON.stringify(displayedErrorDetails, null, 2)}
 									lang="json"
 									readonly={true}
-									options={{ scrollBeyondLastLine: false, collapsibleBlocks: true, lineNumbers: "off", alwaysConsumeMouseWheel: false }}
+									options={{
+										scrollBeyondLastLine: false,
+										collapsibleBlocks: true,
+										lineNumbers: "off",
+										alwaysConsumeMouseWheel: false,
+									}}
 								/>
 							</div>
 						)}

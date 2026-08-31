@@ -49,7 +49,7 @@ func RunSelfUpdate(currentVersion string) error {
 		return fmt.Errorf("create temp file: %w", err)
 	}
 	tmpPath := tmpFile.Name()
-	defer os.Remove(tmpPath)
+	defer func() { _ = os.Remove(tmpPath) }()
 	fmt.Printf("Temporary download path: %s\n", tmpPath)
 
 	// Download binary (use a generous timeout for large binaries)
@@ -57,13 +57,13 @@ func RunSelfUpdate(currentVersion string) error {
 	fmt.Printf("Downloading update from %s\n", downloadURL)
 	resp, err := downloadClient.Get(downloadURL)
 	if err != nil {
-		tmpFile.Close()
+		_ = tmpFile.Close()
 		return fmt.Errorf("download binary: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		tmpFile.Close()
+		_ = tmpFile.Close()
 		return fmt.Errorf("download binary: status %d", resp.StatusCode)
 	}
 
@@ -73,15 +73,17 @@ func RunSelfUpdate(currentVersion string) error {
 	writer := io.MultiWriter(tmpFile, hasher, progress)
 
 	if _, err := io.Copy(writer, resp.Body); err != nil {
-		tmpFile.Close()
+		_ = tmpFile.Close()
 		return fmt.Errorf("write binary: %w", err)
 	}
 	progress.Finish()
 	if err := tmpFile.Sync(); err != nil {
-		tmpFile.Close()
+		_ = tmpFile.Close()
 		return fmt.Errorf("sync binary: %w", err)
 	}
-	tmpFile.Close()
+	if err := tmpFile.Close(); err != nil {
+		return fmt.Errorf("close binary: %w", err)
+	}
 
 	actualHash := hex.EncodeToString(hasher.Sum(nil))
 
@@ -106,7 +108,7 @@ func RunSelfUpdate(currentVersion string) error {
 	if err != nil {
 		return fmt.Errorf("stage binary: %w", err)
 	}
-	defer os.Remove(stagePath)
+	defer func() { _ = os.Remove(stagePath) }()
 	if err := os.Chmod(stagePath, info.Mode()); err != nil {
 		return fmt.Errorf("set permissions: %w", err)
 	}
@@ -280,28 +282,28 @@ func stageUpdateBinary(downloadPath, targetPath string, mode os.FileMode) (strin
 
 	src, err := os.Open(downloadPath)
 	if err != nil {
-		stageFile.Close()
-		os.Remove(stagePath)
+		_ = stageFile.Close()
+		_ = os.Remove(stagePath)
 		return "", err
 	}
-	defer src.Close()
+	defer func() { _ = src.Close() }()
 
 	if _, err := io.Copy(stageFile, src); err != nil {
-		stageFile.Close()
-		os.Remove(stagePath)
+		_ = stageFile.Close()
+		_ = os.Remove(stagePath)
 		return "", err
 	}
 	if err := stageFile.Sync(); err != nil {
-		stageFile.Close()
-		os.Remove(stagePath)
+		_ = stageFile.Close()
+		_ = os.Remove(stagePath)
 		return "", err
 	}
 	if err := stageFile.Close(); err != nil {
-		os.Remove(stagePath)
+		_ = os.Remove(stagePath)
 		return "", err
 	}
 	if err := os.Chmod(stagePath, mode); err != nil {
-		os.Remove(stagePath)
+		_ = os.Remove(stagePath)
 		return "", err
 	}
 	return stagePath, nil
@@ -313,7 +315,7 @@ func fetchChecksum(url string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("status %d", resp.StatusCode)

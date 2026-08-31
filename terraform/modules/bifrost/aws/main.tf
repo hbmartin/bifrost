@@ -166,7 +166,7 @@ resource "aws_secretsmanager_secret_version" "bifrost_config" {
 resource "aws_iam_role" "ecs_execution" {
   count = local.is_ecs ? 1 : 0
 
-  name               = "${var.name_prefix}-ecs-execution"
+  name = "${var.name_prefix}-ecs-execution"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -193,21 +193,21 @@ resource "aws_iam_role_policy_attachment" "ecs_execution_policy" {
 resource "aws_iam_role_policy" "bifrost_secrets" {
   count = local.is_ecs ? 1 : 0
 
-  name   = "${var.name_prefix}-secrets-access"
-  role   = aws_iam_role.ecs_execution[0].id
+  name = "${var.name_prefix}-secrets-access"
+  role = aws_iam_role.ecs_execution[0].id
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "AllowGetBifrostSecret"
-        Effect = "Allow"
-        Action = ["secretsmanager:GetSecretValue"]
+        Sid      = "AllowGetBifrostSecret"
+        Effect   = "Allow"
+        Action   = ["secretsmanager:GetSecretValue"]
         Resource = [aws_secretsmanager_secret.bifrost_config[0].arn]
       },
       {
-        Sid    = "AllowCloudWatchLogs"
-        Effect = "Allow"
-        Action = ["logs:CreateLogStream", "logs:PutLogEvents"]
+        Sid      = "AllowCloudWatchLogs"
+        Effect   = "Allow"
+        Action   = ["logs:CreateLogStream", "logs:PutLogEvents"]
         Resource = ["${aws_cloudwatch_log_group.bifrost[0].arn}:*"]
       }
     ]

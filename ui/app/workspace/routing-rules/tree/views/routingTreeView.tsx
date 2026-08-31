@@ -44,7 +44,7 @@ export function RoutingTreeView() {
 	const isMobile = useIsMobile();
 	const navigate = useNavigate();
 	const { data, isLoading, isError } = useGetRoutingRulesQuery({ limit: 500 });
-	const rules = data?.rules ?? [];
+	const rules = useMemo(() => data?.rules ?? [], [data?.rules]);
 
 	// ── Position persistence ───────────────────────────────────────────────
 	const [cookies, setCookie, removeCookie] = useCookies([POSITIONS_COOKIE]);
@@ -99,12 +99,18 @@ export function RoutingTreeView() {
 	nodesRef.current = nodes;
 
 	// Tracks the last data written so position-save and viewport-save don't clobber each other.
-	const cookieDataRef = useRef<Omit<PositionCookie, "fingerprint">>({ positions: {}, viewport: undefined });
+	const cookieDataRef = useRef<Omit<PositionCookie, "fingerprint">>({
+		positions: {},
+		viewport: undefined,
+	});
 
 	// Once positions are known to be restored, seed the ref so viewport-only saves keep positions.
 	useEffect(() => {
 		if (positionsRestored && initialCookie) {
-			cookieDataRef.current = { positions: initialCookie.positions, viewport: initialCookie.viewport };
+			cookieDataRef.current = {
+				positions: initialCookie.positions,
+				viewport: initialCookie.viewport,
+			};
 		}
 	}, [positionsRestored, initialCookie]);
 

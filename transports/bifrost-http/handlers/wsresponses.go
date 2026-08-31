@@ -87,7 +87,7 @@ func (h *WSResponsesHandler) RegisterRoutes(r *router.Router, middlewares ...sch
 // handleUpgrade upgrades the HTTP connection to WebSocket and starts the event loop.
 func (h *WSResponsesHandler) handleUpgrade(ctx *fasthttp.RequestCtx) {
 	err := h.upgrader.Upgrade(ctx, func(conn *ws.Conn) {
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 
 		session, sessionErr := h.sessions.Create(conn)
 		if sessionErr != nil {
@@ -318,7 +318,7 @@ func (h *WSResponsesHandler) tryNativeWSUpstream(
 			return false
 		}
 		upstreamFromPool = false
-		defer upstream.Close()
+		defer func() { _ = upstream.Close() }()
 	} else if upstream == nil || upstream.IsClosed() {
 		poolKey := bfws.PoolKey{
 			Provider: req.Provider,
@@ -340,7 +340,7 @@ func (h *WSResponsesHandler) tryNativeWSUpstream(
 		if upstreamFromPool {
 			h.pool.Discard(upstream)
 		} else if upstream != nil {
-			upstream.Close()
+			_ = upstream.Close()
 		}
 		session.SetUpstream(nil)
 	}
@@ -535,7 +535,9 @@ func writeWSShortCircuitResponse(session *bfws.Session, resp *schemas.BifrostRes
 		if err != nil {
 			return
 		}
-		session.WriteMessage(ws.TextMessage, data)
+		if err := session.WriteMessage(ws.TextMessage, data); err != nil {
+			return
+		}
 	}
 }
 
@@ -817,7 +819,7 @@ func writeWSError(w wsWriter, status int, code, message string) {
 	if err != nil {
 		return
 	}
-	w.WriteMessage(ws.TextMessage, data)
+	_ = w.WriteMessage(ws.TextMessage, data)
 }
 
 // writeWSBifrostError converts a BifrostError to a WS error event.

@@ -40,6 +40,7 @@ func TestExtractOpenAIPassthroughUsage(t *testing.T) {
 			path: "/v1/chat/completions",
 			body: `{"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15},"service_tier":"default"}`,
 			check: func(t *testing.T, u *schemas.BifrostPassthroughUsage) {
+				t.Helper()
 				mustLLM(t, u, 10, 5, 15)
 				if u.ServiceTier == nil || *u.ServiceTier != schemas.BifrostServiceTierDefault {
 					t.Fatalf("service tier = %v, want default", u.ServiceTier)
@@ -63,6 +64,7 @@ func TestExtractOpenAIPassthroughUsage(t *testing.T) {
 			path: "/v1/responses",
 			body: `{"usage":{"input_tokens":20,"output_tokens":8,"total_tokens":28,"output_tokens_details":{"reasoning_tokens":3,"num_search_queries":2}}}`,
 			check: func(t *testing.T, u *schemas.BifrostPassthroughUsage) {
+				t.Helper()
 				mustLLM(t, u, 20, 8, 28)
 				d := u.LLMUsage.CompletionTokensDetails
 				if d == nil || d.ReasoningTokens != 3 {
@@ -78,6 +80,7 @@ func TestExtractOpenAIPassthroughUsage(t *testing.T) {
 			path: "/v1/responses",
 			body: `{"response":{"usage":{"input_tokens":20,"output_tokens":8,"total_tokens":28}}}`,
 			check: func(t *testing.T, u *schemas.BifrostPassthroughUsage) {
+				t.Helper()
 				mustLLM(t, u, 20, 8, 28)
 			},
 		},
@@ -86,6 +89,7 @@ func TestExtractOpenAIPassthroughUsage(t *testing.T) {
 			path: "/v1/embeddings",
 			body: `{"usage":{"prompt_tokens":12,"total_tokens":12}}`,
 			check: func(t *testing.T, u *schemas.BifrostPassthroughUsage) {
+				t.Helper()
 				if u == nil || u.LLMUsage == nil || u.LLMUsage.PromptTokens != 12 || u.LLMUsage.TotalTokens != 12 {
 					t.Fatalf("embeddings usage = %+v", u)
 				}
@@ -97,6 +101,7 @@ func TestExtractOpenAIPassthroughUsage(t *testing.T) {
 			reqBody: `{"input":"héllo"}`, // 5 runes
 			body:    "",
 			check: func(t *testing.T, u *schemas.BifrostPassthroughUsage) {
+				t.Helper()
 				if u == nil || u.AudioInputChars != 5 {
 					t.Fatalf("audio input chars = %+v, want 5", u)
 				}
@@ -107,6 +112,7 @@ func TestExtractOpenAIPassthroughUsage(t *testing.T) {
 			path: "/v1/audio/transcriptions",
 			body: `{"usage":{"type":"tokens","input_tokens":4,"total_tokens":10,"input_token_details":{"audio_tokens":3,"text_tokens":1},"seconds":2}}`,
 			check: func(t *testing.T, u *schemas.BifrostPassthroughUsage) {
+				t.Helper()
 				if u == nil || u.LLMUsage == nil || u.LLMUsage.PromptTokens != 4 || u.LLMUsage.TotalTokens != 10 {
 					t.Fatalf("transcription usage = %+v", u)
 				}
@@ -123,6 +129,7 @@ func TestExtractOpenAIPassthroughUsage(t *testing.T) {
 			path: "/v1/audio/transcriptions",
 			body: `{"duration":3}`,
 			check: func(t *testing.T, u *schemas.BifrostPassthroughUsage) {
+				t.Helper()
 				if u == nil || u.AudioSeconds == nil || *u.AudioSeconds != 3 {
 					t.Fatalf("audio seconds = %+v, want 3", u)
 				}
@@ -133,6 +140,7 @@ func TestExtractOpenAIPassthroughUsage(t *testing.T) {
 			path: "/v1/images/generations",
 			body: `{"usage":{"input_tokens":5,"output_tokens":100,"total_tokens":105}}`,
 			check: func(t *testing.T, u *schemas.BifrostPassthroughUsage) {
+				t.Helper()
 				if u == nil || u.ImageUsage == nil || u.ImageUsage.TotalTokens != 105 {
 					t.Fatalf("image usage = %+v", u)
 				}
@@ -147,6 +155,7 @@ func TestExtractOpenAIPassthroughUsage(t *testing.T) {
 			reqBody: `{"n":2}`,
 			body:    `{"data":[{"b64_json":"x"},{"b64_json":"y"}]}`,
 			check: func(t *testing.T, u *schemas.BifrostPassthroughUsage) {
+				t.Helper()
 				if u == nil || u.ImageUsage == nil || u.ImageUsage.OutputTokensDetails == nil ||
 					u.ImageUsage.OutputTokensDetails.NImages != 2 {
 					t.Fatalf("image NImages = %+v", u)
@@ -157,6 +166,7 @@ func TestExtractOpenAIPassthroughUsage(t *testing.T) {
 			name: "video seconds default (no body)",
 			path: "/v1/videos",
 			check: func(t *testing.T, u *schemas.BifrostPassthroughUsage) {
+				t.Helper()
 				if u == nil || u.VideoSeconds == nil || *u.VideoSeconds != 4 {
 					t.Fatalf("video seconds = %+v, want default 4", u)
 				}
@@ -167,6 +177,7 @@ func TestExtractOpenAIPassthroughUsage(t *testing.T) {
 			path: "/v1/containers",
 			body: `{"object":"container","id":"cntr_1","memory_limit":"1g"}`,
 			check: func(t *testing.T, u *schemas.BifrostPassthroughUsage) {
+				t.Helper()
 				if u == nil || u.ContainerIdentifier != "container-1g" {
 					t.Fatalf("container id = %+v, want container-1g", u)
 				}
@@ -177,6 +188,7 @@ func TestExtractOpenAIPassthroughUsage(t *testing.T) {
 			path: "/v1/containers",
 			body: `{"object":"container","id":"cntr_1"}`,
 			check: func(t *testing.T, u *schemas.BifrostPassthroughUsage) {
+				t.Helper()
 				if u == nil || u.ContainerIdentifier != "container" {
 					t.Fatalf("container id = %+v, want container", u)
 				}

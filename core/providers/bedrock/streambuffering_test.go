@@ -57,7 +57,9 @@ func TestChatCompletionStream_StreamsIncrementally_NotBuffered(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		acceptEncoding := r.Header.Get("Accept-Encoding")
 		flusher, ok := w.(http.Flusher)
-		require.True(t, ok, "test server ResponseWriter must support Flush")
+		if !assert.True(t, ok, "test server ResponseWriter must support Flush") {
+			return
+		}
 
 		w.Header().Set("Content-Type", "application/vnd.amazon.eventstream")
 		if strings.Contains(acceptEncoding, "gzip") {

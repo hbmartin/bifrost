@@ -11,7 +11,9 @@ import { cn } from "@/lib/utils";
  * stay on screen and can still switch tabs from the overflow dropdown. Radix
  * keeps this in a private context, so we mirror it on the way through.
  */
-const TabsValueContext = React.createContext<{ value?: string; setValue: (next: string) => void }>({ setValue: () => {} });
+const TabsValueContext = React.createContext<{ value?: string; setValue: (next: string) => void }>({
+	setValue: () => {},
+});
 
 /** Room reserved for the overflow dropdown trigger once it is shown. */
 const MORE_BUTTON_WIDTH = 40;
@@ -69,7 +71,10 @@ function TabsList({ className, children, ...props }: React.ComponentProps<typeof
 	// Widths are captured on the first pass, while every trigger is still inline;
 	// a trigger moved into the dropdown reports 0 and could not be re-measured.
 	// `count` invalidates the cache when the set of tabs changes.
-	const [metrics, setMetrics] = React.useState<{ count: number; widths: number[] }>({ count: -1, widths: [] });
+	const [metrics, setMetrics] = React.useState<{ count: number; widths: number[] }>({
+		count: -1,
+		widths: [],
+	});
 	const measured = metrics.count === items.length;
 
 	React.useLayoutEffect(() => {
@@ -111,7 +116,12 @@ function TabsList({ className, children, ...props }: React.ComponentProps<typeof
 	}, []);
 
 	const { visible, overflow } = measured
-		? partitionTabs({ itemWidths: metrics.widths, containerWidth, moreButtonWidth: MORE_BUTTON_WIDTH, activeIndex })
+		? partitionTabs({
+				itemWidths: metrics.widths,
+				containerWidth,
+				moreButtonWidth: MORE_BUTTON_WIDTH,
+				activeIndex,
+			})
 		: { visible: items.map((_, index) => index), overflow: [] as number[] };
 
 	return (

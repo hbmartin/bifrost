@@ -58,6 +58,7 @@ func BasicRerankExpectations(t *testing.T, rerankResponse *schemas.BifrostRerank
 
 // RunRerankTest executes the rerank test scenario
 func RunRerankTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.Rerank {
 		t.Logf("Rerank not supported for provider %s", testConfig.Provider)
 		return

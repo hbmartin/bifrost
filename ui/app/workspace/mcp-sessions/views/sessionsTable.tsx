@@ -80,7 +80,11 @@ export default function SessionsTable({
 			window.location.href = res.authorize_url;
 		} catch (err) {
 			setPendingActionRowId(null);
-			toast({ title: "Re-authentication failed", description: getErrorMessage(err), variant: "destructive" });
+			toast({
+				title: "Re-authentication failed",
+				description: getErrorMessage(err),
+				variant: "destructive",
+			});
 		}
 	};
 

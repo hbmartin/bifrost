@@ -128,7 +128,7 @@ func AcquireBrotliReader(r io.Reader) *brotli.Reader {
 		if br, ok := v.(*brotli.Reader); ok {
 			// brotli.Reset is void (no error), but wrap in safeReset for
 			// consistency: a corrupt pooled reader could panic on Reset.
-			if safeReset(func() error { br.Reset(r); return nil }) {
+			if safeReset(func() error { return br.Reset(r) }) {
 				return br
 			}
 		}
@@ -144,7 +144,7 @@ func ReleaseBrotliReader(br *brotli.Reader) {
 	if br == nil {
 		return
 	}
-	br.Reset(nil)
+	_ = br.Reset(nil)
 	brotliReaderPool.Put(br)
 }
 

@@ -71,7 +71,7 @@ func waitForOffload(t *testing.T, inner LogStore, id string) {
 
 func TestHybridScopedDBDelegatesToInnerRDBStore(t *testing.T) {
 	hybrid, _, _ := newTestHybrid(t)
-	defer hybrid.Close(context.Background())
+	defer func() { _ = hybrid.Close(context.Background()) }()
 
 	scoped, ok := interface{}(hybrid).(scopedDBLogStore)
 	require.True(t, ok, "hybrid logstore should preserve the RDB ScopedDB surface")
@@ -92,7 +92,7 @@ func TestHybridScopedDBDelegatesToInnerRDBStore(t *testing.T) {
 
 func TestHybrid_CreateAndFindByID(t *testing.T) {
 	hybrid, _, objStore := newTestHybrid(t)
-	defer hybrid.Close(context.Background())
+	defer func() { _ = hybrid.Close(context.Background()) }()
 	ctx := context.Background()
 
 	inputContent := "Hello, how are you?"
@@ -136,7 +136,7 @@ func TestHybrid_CreateAndFindByID(t *testing.T) {
 
 func TestHybrid_EmptyPayloadSkipsUpload(t *testing.T) {
 	hybrid, _, objStore := newTestHybrid(t)
-	defer hybrid.Close(context.Background())
+	defer func() { _ = hybrid.Close(context.Background()) }()
 	ctx := context.Background()
 
 	entry := &Log{
@@ -159,7 +159,7 @@ func TestHybrid_EmptyPayloadSkipsUpload(t *testing.T) {
 
 func TestHybrid_BatchCreateIfNotExists(t *testing.T) {
 	hybrid, _, objStore := newTestHybrid(t)
-	defer hybrid.Close(context.Background())
+	defer func() { _ = hybrid.Close(context.Background()) }()
 	ctx := context.Background()
 
 	entries := make([]*Log, 3)
@@ -188,7 +188,7 @@ func TestHybrid_BatchCreateIfNotExists(t *testing.T) {
 
 func TestHybrid_FindByID_NoObject(t *testing.T) {
 	hybrid, inner, _ := newTestHybrid(t)
-	defer hybrid.Close(context.Background())
+	defer func() { _ = hybrid.Close(context.Background()) }()
 	ctx := context.Background()
 
 	// Insert directly into inner store (simulating legacy data without object).
@@ -213,7 +213,7 @@ func TestHybrid_FindByID_NoObject(t *testing.T) {
 
 func TestHybrid_FindByID_GracefulDegradation(t *testing.T) {
 	hybrid, _, objStore := newTestHybrid(t)
-	defer hybrid.Close(context.Background())
+	defer func() { _ = hybrid.Close(context.Background()) }()
 	ctx := context.Background()
 
 	content := "test input"
@@ -247,7 +247,7 @@ func TestHybrid_FindByID_GracefulDegradation(t *testing.T) {
 
 func TestHybrid_CreateAndFindMCPToolLog(t *testing.T) {
 	hybrid, inner, objStore := newTestHybrid(t)
-	defer hybrid.Close(context.Background())
+	defer func() { _ = hybrid.Close(context.Background()) }()
 	ctx := context.Background()
 
 	longInput := ""
@@ -293,7 +293,7 @@ func TestHybrid_CreateAndFindMCPToolLog(t *testing.T) {
 
 func TestHybrid_BatchCreateMCPToolLogsIfNotExists(t *testing.T) {
 	hybrid, inner, objStore := newTestHybrid(t)
-	defer hybrid.Close(context.Background())
+	defer func() { _ = hybrid.Close(context.Background()) }()
 	ctx := context.Background()
 
 	longInput := ""
@@ -364,7 +364,7 @@ func TestHybrid_BatchCreateMCPToolLogsIfNotExists(t *testing.T) {
 
 func TestHybrid_UpdateMCPToolLogOffloadsFullLog(t *testing.T) {
 	hybrid, inner, objStore := newTestHybrid(t)
-	defer hybrid.Close(context.Background())
+	defer func() { _ = hybrid.Close(context.Background()) }()
 	ctx := context.Background()
 
 	entry := &MCPToolLog{
@@ -415,7 +415,7 @@ func TestHybrid_UpdateMCPToolLogOffloadsFullLog(t *testing.T) {
 
 func TestHybrid_UpdateMCPToolLogRequiresObjectHydration(t *testing.T) {
 	hybrid, inner, objStore := newTestHybrid(t)
-	defer hybrid.Close(context.Background())
+	defer func() { _ = hybrid.Close(context.Background()) }()
 	ctx := context.Background()
 
 	entry := &MCPToolLog{
@@ -457,7 +457,7 @@ func TestHybrid_UpdateMCPToolLogRequiresObjectHydration(t *testing.T) {
 
 func TestHybrid_UpdateMCPToolLogHydratesObjectBeforeHasObjectMarker(t *testing.T) {
 	hybrid, inner, objStore := newTestHybrid(t)
-	defer hybrid.Close(context.Background())
+	defer func() { _ = hybrid.Close(context.Background()) }()
 	ctx := context.Background()
 
 	longInput := ""
@@ -505,7 +505,7 @@ func TestHybrid_UpdateMCPToolLogHydratesObjectBeforeHasObjectMarker(t *testing.T
 
 func TestHybrid_ProcessMCPUploadSkipsMissingRowsWithEmptyStatus(t *testing.T) {
 	hybrid, _, objStore := newTestHybrid(t)
-	defer hybrid.Close(context.Background())
+	defer func() { _ = hybrid.Close(context.Background()) }()
 
 	hybrid.processUpload(&uploadWork{
 		logID:     "mcp-missing-row",
@@ -521,7 +521,7 @@ func TestHybrid_ProcessMCPUploadSkipsMissingRowsWithEmptyStatus(t *testing.T) {
 
 func TestHybrid_DeleteMCPToolLogsDeletesObjects(t *testing.T) {
 	hybrid, _, objStore := newTestHybrid(t)
-	defer hybrid.Close(context.Background())
+	defer func() { _ = hybrid.Close(context.Background()) }()
 	ctx := context.Background()
 
 	entry := &MCPToolLog{
@@ -544,7 +544,7 @@ func TestHybrid_DeleteMCPToolLogsDeletesObjects(t *testing.T) {
 
 func TestHybrid_PutFailureDropsUpload(t *testing.T) {
 	hybrid, _, objStore := newTestHybrid(t)
-	defer hybrid.Close(context.Background())
+	defer func() { _ = hybrid.Close(context.Background()) }()
 	ctx := context.Background()
 
 	// Simulate S3 write failure.
@@ -578,7 +578,7 @@ func TestHybrid_PutFailureDropsUpload(t *testing.T) {
 
 func TestHybrid_DeleteLog(t *testing.T) {
 	hybrid, _, objStore := newTestHybrid(t)
-	defer hybrid.Close(context.Background())
+	defer func() { _ = hybrid.Close(context.Background()) }()
 	ctx := context.Background()
 
 	entry := &Log{
@@ -608,7 +608,7 @@ func TestHybrid_DeleteLog(t *testing.T) {
 
 func TestHybrid_Tags(t *testing.T) {
 	hybrid, _, objStore := newTestHybrid(t)
-	defer hybrid.Close(context.Background())
+	defer func() { _ = hybrid.Close(context.Background()) }()
 	ctx := context.Background()
 
 	ts := time.Date(2026, 4, 3, 14, 30, 0, 0, time.UTC)
@@ -640,7 +640,7 @@ func TestHybrid_Tags(t *testing.T) {
 
 func TestHybrid_MetadataIsRetainedInDBAndWrittenToObjectPayload(t *testing.T) {
 	hybrid, inner, objStore := newTestHybrid(t)
-	defer hybrid.Close(context.Background())
+	defer func() { _ = hybrid.Close(context.Background()) }()
 	ctx := context.Background()
 
 	ts := time.Date(2026, 4, 3, 14, 30, 0, 0, time.UTC)
@@ -689,7 +689,7 @@ func TestHybrid_MetadataIsRetainedInDBAndWrittenToObjectPayload(t *testing.T) {
 
 func TestHybrid_ContentSummaryIsInputOnly(t *testing.T) {
 	hybrid, inner, _ := newTestHybrid(t)
-	defer hybrid.Close(context.Background())
+	defer func() { _ = hybrid.Close(context.Background()) }()
 	ctx := context.Background()
 
 	inputText := "What is the capital of France?"
@@ -725,7 +725,7 @@ func TestHybrid_ResponsesInputHistoryPreservesLastUserMessage(t *testing.T) {
 	// (the full history lives in object storage). Mirrors the input_history
 	// behaviour for chat completions.
 	hybrid, inner, objStore := newTestHybrid(t)
-	defer hybrid.Close(context.Background())
+	defer func() { _ = hybrid.Close(context.Background()) }()
 	ctx := context.Background()
 
 	system := "You are a helpful assistant."
@@ -771,7 +771,7 @@ func TestHybrid_AttachmentsStrippedFromChatPreview(t *testing.T) {
 	// with a placeholder. The full message, base64 included, lives only in
 	// object storage and is hydrated back on FindByID.
 	hybrid, inner, objStore := newTestHybrid(t)
-	defer hybrid.Close(context.Background())
+	defer func() { _ = hybrid.Close(context.Background()) }()
 	ctx := context.Background()
 
 	imageData := "data:image/png;base64,FAKEB64IMAGEDATA"
@@ -828,7 +828,7 @@ func TestHybrid_AttachmentsStrippedFromResponsesPreview(t *testing.T) {
 	// Mirrors TestHybrid_AttachmentsStrippedFromChatPreview for the Responses
 	// API preview stored in responses_input_history.
 	hybrid, inner, objStore := newTestHybrid(t)
-	defer hybrid.Close(context.Background())
+	defer func() { _ = hybrid.Close(context.Background()) }()
 	ctx := context.Background()
 
 	imageData := "data:image/jpeg;base64,FAKEB64RESPIMAGE"
@@ -883,7 +883,7 @@ func TestHybrid_TokenUsageSummaryForListPreview(t *testing.T) {
 	// may still use their lightweight projection and rebuild a usage summary from
 	// denormalized counters.
 	hybrid, inner, objStore := newTestHybrid(t)
-	defer hybrid.Close(context.Background())
+	defer func() { _ = hybrid.Close(context.Background()) }()
 	ctx := context.Background()
 
 	entry := &Log{
@@ -934,7 +934,7 @@ func TestHybrid_SpeechInputSummaryForListPreview(t *testing.T) {
 	// (the UI uses content_summary as its display fallback once payload fields
 	// are offloaded). Same gap exists for responses/image/video inputs.
 	hybrid, inner, objStore := newTestHybrid(t)
-	defer hybrid.Close(context.Background())
+	defer func() { _ = hybrid.Close(context.Background()) }()
 	ctx := context.Background()
 
 	speechText := "The quick brown fox jumps over the lazy dog."
@@ -978,7 +978,7 @@ func newTestHybridWithExclude(t *testing.T, excludeFields []string) (*HybridLogS
 
 func TestHybrid_ExcludeFields_RawRequestStaysInDB(t *testing.T) {
 	hybrid, inner, objStore := newTestHybridWithExclude(t, []string{"raw_request", "raw_response"})
-	defer hybrid.Close(context.Background())
+	defer func() { _ = hybrid.Close(context.Background()) }()
 	ctx := context.Background()
 
 	inputContent := "Hello"
@@ -1018,7 +1018,7 @@ func TestHybrid_ExcludeFields_InputHistoryStaysFullInDB(t *testing.T) {
 	// not just the last user message. An output_message is included so the
 	// S3 upload is not skipped (the payload would otherwise be empty).
 	hybrid, inner, objStore := newTestHybridWithExclude(t, []string{"input_history"})
-	defer hybrid.Close(context.Background())
+	defer func() { _ = hybrid.Close(context.Background()) }()
 	ctx := context.Background()
 
 	system := "You are a helpful assistant."
@@ -1065,7 +1065,7 @@ func TestHybrid_ExcludeFields_InputHistoryStaysFullInDB(t *testing.T) {
 func TestHybrid_ExcludeFields_UnknownFieldIgnored(t *testing.T) {
 	// Unknown field names in excludeFields are silently ignored.
 	hybrid, _, objStore := newTestHybridWithExclude(t, []string{"nonexistent_field_xyz"})
-	defer hybrid.Close(context.Background())
+	defer func() { _ = hybrid.Close(context.Background()) }()
 	ctx := context.Background()
 
 	content := "test"

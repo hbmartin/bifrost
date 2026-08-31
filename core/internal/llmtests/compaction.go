@@ -21,6 +21,7 @@ import (
 //  2. The compact-2026-01-12 beta header is properly sent
 //  3. The API accepts the request without error (non-streaming + streaming)
 func RunCompactionTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.Compaction {
 		t.Logf("Compaction not supported for provider %s", testConfig.Provider)
 		return
@@ -180,6 +181,7 @@ func RunCompactionTest(t *testing.T, client *bifrost.Bifrost, ctx context.Contex
 //  3. Usage token counts are present
 //  4. The compacted output can be fed back into a subsequent ResponsesRequest
 func RunExternalCompactionTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.ExternalCompaction {
 		t.Logf("ExternalCompaction not supported for provider %s", testConfig.Provider)
 		return

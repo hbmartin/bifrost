@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -76,7 +77,8 @@ func main() {
 	// Wrap the HTTP server with middleware that rejects ping requests
 	wrappedHandler := noPingMiddleware(httpServer)
 
-	if err := http.ListenAndServe(addr, wrappedHandler); err != nil {
+	httpSrv := &http.Server{Addr: addr, Handler: wrappedHandler, ReadHeaderTimeout: 5 * time.Second}
+	if err := httpSrv.ListenAndServe(); err != nil {
 		log.Fatalf("Server error: %v", err)
 	}
 }
@@ -189,7 +191,9 @@ func noPingMiddleware(next http.Handler) http.Handler {
 				"id": id,
 			}
 
-			json.NewEncoder(w).Encode(errorResponse)
+			if err := json.NewEncoder(w).Encode(errorResponse); err != nil {
+				log.Printf("failed to encode ping error response: %v", err)
+			}
 			return
 		}
 

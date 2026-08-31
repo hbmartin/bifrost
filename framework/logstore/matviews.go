@@ -5,12 +5,13 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"fmt"
-	"github.com/maximhq/bifrost/framework/queryscope"
 	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/maximhq/bifrost/framework/queryscope"
 
 	"github.com/maximhq/bifrost/core/schemas"
 	"gorm.io/gorm"
@@ -529,7 +530,7 @@ func ensureMatViews(ctx context.Context, db *gorm.DB) error {
 	if err != nil {
 		return fmt.Errorf("failed to get dedicated connection for matview creation: %w", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	var acquired bool
 	if err := conn.QueryRowContext(ctx, "SELECT pg_try_advisory_lock($1)", matviewRefreshAdvisoryLockKey).Scan(&acquired); err != nil {
@@ -622,7 +623,7 @@ func matViewNeedsRebuild(ctx context.Context, conn *sql.Conn, view string, requi
 	if err != nil {
 		return false, fmt.Errorf("failed to inspect matview %s columns: %w", view, err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	actual := make(map[string]struct{}, len(requiredColumns))
 	for rows.Next() {
@@ -839,7 +840,7 @@ func refreshMatViews(ctx context.Context, db *gorm.DB) error {
 		if discardConn {
 			_ = conn.Raw(func(any) error { return driver.ErrBadConn })
 		}
-		conn.Close()
+		_ = conn.Close()
 	}()
 
 	// Activity check happens before the advisory lock so write-quiet replicas

@@ -14,6 +14,7 @@ import (
 
 // RunToolCallsTest executes the tool calls test scenario using dual API testing framework
 func RunToolCallsTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.ToolCalls {
 		t.Logf("Tool calls not supported for provider %s", testConfig.Provider)
 		return
@@ -136,6 +137,7 @@ func RunToolCallsTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context
 }
 
 func validateLocationInToolCalls(t *testing.T, toolCalls []ToolCallInfo, apiName string) {
+	t.Helper()
 	locationFound := false
 
 	for _, toolCall := range toolCalls {
@@ -159,6 +161,7 @@ func validateLocationInToolCalls(t *testing.T, toolCalls []ToolCallInfo, apiName
 
 // RunToolCallsWithEmptyPropertiesTest tests tool calls with explicitly empty properties ({})
 func RunToolCallsWithEmptyPropertiesTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.ToolCalls {
 		t.Logf("Tool calls not supported for provider %s", testConfig.Provider)
 		return
@@ -297,6 +300,7 @@ func RunToolCallsWithEmptyPropertiesTest(t *testing.T, client *bifrost.Bifrost, 
 
 // RunToolCallsWithNilPropertiesTest tests tool calls with nil properties (not defined)
 func RunToolCallsWithNilPropertiesTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.ToolCalls {
 		t.Logf("Tool calls not supported for provider %s", testConfig.Provider)
 		return

@@ -2,10 +2,7 @@
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-} from "@modelcontextprotocol/sdk/types.js";
+import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 
 // Schemas for error test tools
@@ -21,7 +18,12 @@ const TimeoutToolSchema = z.object({
 
 const IntermittentFailSchema = z.object({
   id: z.string().describe("Tool invocation ID"),
-  fail_rate: z.number().min(0).max(1).optional().describe("Probability of failure (0-1, default 0.5)"),
+  fail_rate: z
+    .number()
+    .min(0)
+    .max(1)
+    .optional()
+    .describe("Probability of failure (0-1, default 0.5)"),
 });
 
 const NetworkErrorSchema = z.object({
@@ -41,7 +43,7 @@ const PartialResponseSchema = z.object({
 
 const server = new Server(
   { name: "error-test-server", version: "1.0.0" },
-  { capabilities: { tools: {} } }
+  { capabilities: { tools: {} } },
 );
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
@@ -157,7 +159,6 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const toolName = request.params.name;
-  const startTime = Date.now();
 
   try {
     switch (toolName) {
@@ -332,7 +333,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case "invalid_content_type": {
-        const args = z.object({ id: z.string() }).parse(request.params.arguments);
+        z.object({ id: z.string() }).parse(request.params.arguments);
 
         // Return a response that claims to be JSON but isn't properly formatted
         return {

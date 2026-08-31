@@ -61,14 +61,19 @@ async function runMonitor({ providers, launched, drive, extraArgs = [], ci = tru
     [
       MONITOR,
       ...(ci ? ["--ci"] : []),
-      "--mode", "parallel",
-      "--providers", providers,
-      "--tmp-dir", tmp,
-      "--status-file", join(tmp, "parallel-status"),
-      "--launched", String(launched),
+      "--mode",
+      "parallel",
+      "--providers",
+      providers,
+      "--tmp-dir",
+      tmp,
+      "--status-file",
+      join(tmp, "parallel-status"),
+      "--launched",
+      String(launched),
       ...extraArgs,
     ],
-    { stdio: ["ignore", "pipe", "pipe"] }
+    { stdio: ["ignore", "pipe", "pipe"] },
   );
   let out = "";
   proc.stdout.on("data", (d) => (out += d.toString()));
@@ -90,11 +95,15 @@ async function runMonitor({ providers, launched, drive, extraArgs = [], ci = tru
 const row = (out, provider) => {
   // ANSI has to come off first: the CI path prints a stripAnsi'd table, but the interactive frame
   // keeps its colour codes, and they sit between the row's cell separators.
-  const plain = out.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "");
+  // oxlint-disable-next-line no-control-regex -- ANSI escape sequences begin with ESC.
+  const plain = out.replace(/\u001b\[[0-9;?]*[A-Za-z]/g, "");
   // LAST match, not first: the interactive path redraws the frame every second, so the capture
   // holds dozens of frames and the earliest ones are still all zeroes. Only the final frame
   // carries the committed numbers.
-  const re = new RegExp(`│\\s*(\\S?)\\s*│\\s*${provider}\\s*│\\s*(\\d+)\\s*│\\s*(\\d+)\\s*│\\s*(\\d+)\\s*│`, "g");
+  const re = new RegExp(
+    `│\\s*(\\S?)\\s*│\\s*${provider}\\s*│\\s*(\\d+)\\s*│\\s*(\\d+)\\s*│\\s*(\\d+)\\s*│`,
+    "g",
+  );
   const all = [...plain.matchAll(re)];
   const m = all[all.length - 1];
   assert.ok(m, `no table row for ${provider} in:\n${out}`);
@@ -206,7 +215,7 @@ console.log("harness-monitor shard accounting");
 
   const shardLine = (shard) => {
     const m = r.out.match(
-      new RegExp(`\\[${escapeRe(shard)}\\]\\s+(\\d+) total\\s+(\\d+) pass\\s+(\\d+) fail`)
+      new RegExp(`\\[${escapeRe(shard)}\\]\\s+(\\d+) total\\s+(\\d+) pass\\s+(\\d+) fail`),
     );
     assert.ok(m, `no completion line for ${shard} in:\n${r.out}`);
     return { total: +m[1], pass: +m[2], fail: +m[3] };
@@ -269,7 +278,10 @@ console.log("harness-monitor shard accounting");
     item: [
       {
         name: "folder",
-        item: Array.from({ length: n }, (_, i) => ({ name: `req ${i}`, request: { url: "http://h/v1" } })),
+        item: Array.from({ length: n }, (_, i) => ({
+          name: `req ${i}`,
+          request: { url: "http://h/v1" },
+        })),
       },
     ],
   });
@@ -278,11 +290,20 @@ console.log("harness-monitor shard accounting");
     providers: "openai",
     launched: 2,
     drive: async (tmp) => {
-      writeFileSync(join(tmp, "harness-filtered-openai--tools.json"), JSON.stringify(collectionOf(7)));
-      writeFileSync(join(tmp, "harness-filtered-openai--chat.json"), JSON.stringify(collectionOf(5)));
+      writeFileSync(
+        join(tmp, "harness-filtered-openai--tools.json"),
+        JSON.stringify(collectionOf(7)),
+      );
+      writeFileSync(
+        join(tmp, "harness-filtered-openai--chat.json"),
+        JSON.stringify(collectionOf(5)),
+      );
       // A retry collection replays rows already counted in its shard's file. Counting it too
       // would inflate the denominator to 15 and make the ETA chase work that does not exist.
-      writeFileSync(join(tmp, "harness-filtered-openai--tools-retry1.json"), JSON.stringify(collectionOf(3)));
+      writeFileSync(
+        join(tmp, "harness-filtered-openai--tools-retry1.json"),
+        JSON.stringify(collectionOf(3)),
+      );
       await sleep(1300);
       const a = join(tmp, "newman-cli-openai--tools.log");
       writeFileSync(a, start("openai", "row A") + ok("openai"));
@@ -321,7 +342,7 @@ console.log("harness-monitor shard accounting");
       // The same row, replayed by the retry pass and passing this time.
       writeFileSync(
         join(tmp, "newman-cli-openai--tools-retry1.log"),
-        start("openai", "throttled row") + ok("openai")
+        start("openai", "throttled row") + ok("openai"),
       );
       await sleep(1200);
       appendFileSync(join(tmp, "parallel-status"), "openai--tools:pass\n");
@@ -333,7 +354,7 @@ console.log("harness-monitor shard accounting");
     assert.strictEqual(
       openai.pass + openai.fail,
       1,
-      "the replayed row must be counted once, not once per attempt"
+      "the replayed row must be counted once, not once per attempt",
     );
   });
 }
@@ -347,7 +368,10 @@ console.log("harness-monitor shard accounting");
     launched: 1,
     extraArgs: ["--shard-lines", "0"],
     drive: async (tmp) => {
-      writeFileSync(join(tmp, "newman-cli-openai--tools.log"), start("openai", "row A") + ok("openai"));
+      writeFileSync(
+        join(tmp, "newman-cli-openai--tools.log"),
+        start("openai", "row A") + ok("openai"),
+      );
       await sleep(1200);
       appendFileSync(join(tmp, "parallel-status"), "openai--tools:pass\n");
     },

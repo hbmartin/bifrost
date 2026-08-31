@@ -337,7 +337,10 @@ export default function MCPClientsTable({
 			setReconnectingClients((prev) => [...prev, client.config.client_id]);
 			await reconnectMCPClient(client.config.client_id).unwrap();
 			setReconnectingClients((prev) => prev.filter((id) => id !== client.config.client_id));
-			toast({ title: "Reconnected", description: `Client ${client.config.name} reconnected successfully.` });
+			toast({
+				title: "Reconnected",
+				description: `Client ${client.config.name} reconnected successfully.`,
+			});
 			if (refetch) {
 				await refetch();
 			}
@@ -385,7 +388,11 @@ export default function MCPClientsTable({
 				});
 			}
 		} catch (error) {
-			toast({ title: "Authorization failed", description: getErrorMessage(error), variant: "destructive" });
+			toast({
+				title: "Authorization failed",
+				description: getErrorMessage(error),
+				variant: "destructive",
+			});
 		} finally {
 			setAuthorizingClients((prev) => prev.filter((id) => id !== client.config.client_id));
 		}
@@ -410,7 +417,11 @@ export default function MCPClientsTable({
 				});
 			}
 		} catch (error) {
-			toast({ title: "Reauthorization failed", description: getErrorMessage(error), variant: "destructive" });
+			toast({
+				title: "Reauthorization failed",
+				description: getErrorMessage(error),
+				variant: "destructive",
+			});
 		} finally {
 			setReauthorizingClients((prev) => prev.filter((id) => id !== client.config.client_id));
 		}
@@ -446,7 +457,11 @@ export default function MCPClientsTable({
 				await refetch();
 			}
 		} catch (error) {
-			toast({ title: "Verification failed", description: getErrorMessage(error), variant: "destructive" });
+			toast({
+				title: "Verification failed",
+				description: getErrorMessage(error),
+				variant: "destructive",
+			});
 		} finally {
 			setVerifyingExchangeClients((prev) => prev.filter((id) => id !== client.config.client_id));
 		}
@@ -455,7 +470,10 @@ export default function MCPClientsTable({
 	const handleDelete = async (client: MCPClient) => {
 		try {
 			await deleteMCPClient(client.config.client_id).unwrap();
-			toast({ title: "Deleted", description: `Client ${client.config.name} removed successfully.` });
+			toast({
+				title: "Deleted",
+				description: `Client ${client.config.name} removed successfully.`,
+			});
 			if (refetch) {
 				await refetch();
 			}
@@ -1072,11 +1090,17 @@ export default function MCPClientsTable({
 														})
 															.unwrap()
 															.then(() => {
-																toast({ title: `Server ${checked ? "enabled" : "disabled"} successfully` });
+																toast({
+																	title: `Server ${checked ? "enabled" : "disabled"} successfully`,
+																});
 																if (refetch) refetch();
 															})
 															.catch((err) => {
-																toast({ title: "Error", description: getErrorMessage(err), variant: "destructive" });
+																toast({
+																	title: "Error",
+																	description: getErrorMessage(err),
+																	variant: "destructive",
+																});
 															})
 															.finally(() => {
 																setTogglingClientIds((prev) => {
@@ -1203,7 +1227,10 @@ export default function MCPClientsTable({
 					open={!!headersRefreshFlow}
 					onClose={() => setHeadersRefreshFlow(null)}
 					onSuccess={() => {
-						toast({ title: "Success", description: "Admin discovery credential refreshed successfully." });
+						toast({
+							title: "Success",
+							description: "Admin discovery credential refreshed successfully.",
+						});
 						setHeadersRefreshFlow(null);
 						if (refetch) void refetch();
 					}}

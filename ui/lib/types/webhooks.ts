@@ -5,8 +5,16 @@ import { SecretVar } from "./schemas";
 export type WebhookEvent = "async_job.completed" | "async_job.failed";
 
 export const WEBHOOK_EVENTS: { value: WebhookEvent; label: string; description: string }[] = [
-	{ value: "async_job.completed", label: "Async job completed", description: "An async inference job finished successfully." },
-	{ value: "async_job.failed", label: "Async job failed", description: "An async inference job reached a terminal failure." },
+	{
+		value: "async_job.completed",
+		label: "Async job completed",
+		description: "An async inference job finished successfully.",
+	},
+	{
+		value: "async_job.failed",
+		label: "Async job failed",
+		description: "An async inference job reached a terminal failure.",
+	},
 ];
 
 export interface WebhookEndpoint {

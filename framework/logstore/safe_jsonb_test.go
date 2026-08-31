@@ -221,7 +221,7 @@ func runMalformedHistorySuite(t *testing.T, store *RDBLogStore, db *gorm.DB) {
 // listSelectColumns, which now gates json_extract on json_valid + json_type.
 func TestSearchLogs_MalformedInputHistory_SQLite(t *testing.T) {
 	store := newTestSQLiteStore(t)
-	defer store.Close(context.Background())
+	defer func() { _ = store.Close(context.Background()) }()
 	runMalformedHistorySuite(t, store, store.db)
 }
 

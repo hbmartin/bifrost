@@ -1,6 +1,7 @@
 package anthropic
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -37,7 +38,7 @@ func TestConvertAnthropicContentBlocks_RedactedThinkingRecoversEmbeddedID(t *tes
 		{Type: AnthropicContentBlockTypeRedactedThinking, Data: &embedded},
 	}
 	roleVal := schemas.ResponsesMessageRoleType(AnthropicMessageRoleAssistant)
-	ctx := schemas.NewBifrostContext(nil, time.Time{})
+	ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 
 	out := convertAnthropicContentBlocksToResponsesMessages(ctx, blocks, &roleVal, false, "")
 	msg := findReasoningMessage(t, out)
@@ -88,7 +89,7 @@ func TestConvertAnthropicContentBlocks_ThinkingRecoversEmbeddedID(t *testing.T) 
 		{Type: AnthropicContentBlockTypeThinking, Thinking: &text, Signature: &embedded},
 	}
 	roleVal := schemas.ResponsesMessageRoleType(AnthropicMessageRoleAssistant)
-	ctx := schemas.NewBifrostContext(nil, time.Time{})
+	ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 
 	out := convertAnthropicContentBlocksToResponsesMessages(ctx, blocks, &roleVal, false, "")
 	msg := findReasoningMessage(t, out)
@@ -109,7 +110,7 @@ func TestConvertAnthropicContentBlocks_GenuineSignatureFallsBackToRandomID(t *te
 		{Type: AnthropicContentBlockTypeRedactedThinking, Data: schemas.Ptr(genuineData)},
 	}
 	roleVal := schemas.ResponsesMessageRoleType(AnthropicMessageRoleAssistant)
-	ctx := schemas.NewBifrostContext(nil, time.Time{})
+	ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 
 	out := convertAnthropicContentBlocksToResponsesMessages(ctx, blocks, &roleVal, false, "")
 	msg := findReasoningMessage(t, out)
@@ -144,7 +145,7 @@ func TestConvertBifrostReasoning_BothSummaryAndEncryptedContentEmitBothBlocks(t 
 		},
 	}
 
-	blocks := convertBifrostReasoningToAnthropicThinking(schemas.NewBifrostContext(nil, schemas.NoDeadline), msg, schemas.OpenAI, "gpt-5")
+	blocks := convertBifrostReasoningToAnthropicThinking(schemas.NewBifrostContext(context.Background(), schemas.NoDeadline), msg, schemas.OpenAI, "gpt-5")
 
 	var sawThinking, sawRedacted bool
 	for _, b := range blocks {
@@ -202,14 +203,14 @@ func TestBifrostAnthropicToOpenAI_RedactedThinkingReplayPreservesID(t *testing.T
 	}
 
 	// 2. Egress: convert to the Anthropic block Claude Code receives.
-	blocks := convertBifrostReasoningToAnthropicThinking(schemas.NewBifrostContext(nil, schemas.NoDeadline), original, schemas.OpenAI, "gpt-5")
+	blocks := convertBifrostReasoningToAnthropicThinking(schemas.NewBifrostContext(context.Background(), schemas.NoDeadline), original, schemas.OpenAI, "gpt-5")
 	if len(blocks) != 1 || blocks[0].Type != AnthropicContentBlockTypeRedactedThinking {
 		t.Fatalf("expected 1 redacted_thinking block, got %+v", blocks)
 	}
 
 	// 3. Client echo: the client sends that exact block back on the next turn,
 	// routed to an OpenAI-family model (non-grouped / non-Bedrock path).
-	ctx := schemas.NewBifrostContext(nil, time.Time{})
+	ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 	anthropicMessages := []AnthropicMessage{
 		{Role: AnthropicMessageRoleAssistant, Content: AnthropicContent{ContentBlocks: blocks}},
 	}
@@ -274,7 +275,7 @@ func TestConvertAnthropicContentBlocks_ThinkingAndRedactedThinkingMergeIntoOneMe
 		{Type: AnthropicContentBlockTypeRedactedThinking, Data: &embeddedData},
 	}
 	roleVal := schemas.ResponsesMessageRoleType(AnthropicMessageRoleAssistant)
-	ctx := schemas.NewBifrostContext(nil, time.Time{})
+	ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 
 	out := convertAnthropicContentBlocksToResponsesMessages(ctx, blocks, &roleVal, false, "")
 

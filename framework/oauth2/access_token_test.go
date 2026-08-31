@@ -41,13 +41,13 @@ func seedAccessToken(store *testConfigStore, oauthConfigID, authMode, tokenID, a
 		OauthConfigID: oauthConfigID,
 		// Admin rows are looked up by mcp_client_id (the key every admin row
 		// carries); the tests reuse the same identifier for both lookups.
-		MCPClientID: oauthConfigID,
-		Status:      "active",
-		AccessToken:   accessToken,
-		RefreshToken:  refreshToken,
-		TokenType:     "Bearer",
-		ExpiresAt:     expiresAt,
-		Scopes:        "[]",
+		MCPClientID:  oauthConfigID,
+		Status:       "active",
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		TokenType:    "Bearer",
+		ExpiresAt:    expiresAt,
+		Scopes:       "[]",
 	}
 }
 
@@ -89,7 +89,7 @@ func TestAccessToken_ActiveToken_ReturnsItDirectly(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				refreshCalled = true
 				w.Header().Set("Content-Type", "application/json")
-				json.NewEncoder(w).Encode(map[string]any{"access_token": "should-not-be-used", "token_type": "bearer"})
+				_ = json.NewEncoder(w).Encode(map[string]any{"access_token": "should-not-be-used", "token_type": "bearer"})
 			}))
 			defer server.Close()
 
@@ -113,7 +113,7 @@ func TestAccessToken_ExpiredTokenWithRefresh_RefreshesAndReturnsNewToken(t *test
 		t.Run(g.name, func(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
-				json.NewEncoder(w).Encode(map[string]any{
+				_ = json.NewEncoder(w).Encode(map[string]any{
 					"access_token": "refreshed-access-token",
 					"token_type":   "bearer",
 					"expires_in":   3600,

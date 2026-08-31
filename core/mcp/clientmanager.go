@@ -744,7 +744,7 @@ func (m *MCPManager) VerifyPerUserOAuthConnection(ctx context.Context, config *s
 	var tempClient *client.Client
 	defer func() {
 		if tempClient != nil {
-			tempClient.Close()
+			_ = tempClient.Close()
 		}
 	}()
 	start := time.Now()
@@ -907,7 +907,7 @@ func (m *MCPManager) VerifyHeadersConnection(ctx context.Context, config *schema
 	var tempClient *client.Client
 	defer func() {
 		if tempClient != nil {
-			tempClient.Close()
+			_ = tempClient.Close()
 		}
 	}()
 	start := time.Now()
@@ -2220,7 +2220,7 @@ func (m *MCPManager) connectToMCPClient(requestCtx context.Context, config *sche
 			transportRetryConfig,
 			m.logger,
 		); startErr != nil {
-			return nil, fmt.Errorf("failed to start MCP client transport after %d retries: %v", transportRetryConfig.MaxRetries, startErr)
+			return nil, fmt.Errorf("failed to start MCP client transport after %d retries: %w", transportRetryConfig.MaxRetries, startErr)
 		}
 		m.logger.Debug("%s [%s] Transport started successfully", MCPLogPrefix, config.Name)
 
@@ -2256,7 +2256,7 @@ func (m *MCPManager) connectToMCPClient(requestCtx context.Context, config *sche
 			initRetryConfig,
 			m.logger,
 		); initErr != nil {
-			return nil, fmt.Errorf("failed to initialize MCP client after %d retries: %v", initRetryConfig.MaxRetries, initErr)
+			return nil, fmt.Errorf("failed to initialize MCP client after %d retries: %w", initRetryConfig.MaxRetries, initErr)
 		}
 		m.logger.Debug("%s [%s] Client initialized successfully", MCPLogPrefix, config.Name)
 

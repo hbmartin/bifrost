@@ -200,7 +200,7 @@ func TestBuildStreamingHTTPClient_LongStreamSurvives(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Do: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	scanner := bufio.NewScanner(resp.Body)
 	got := 0

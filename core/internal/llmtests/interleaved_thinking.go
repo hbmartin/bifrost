@@ -17,6 +17,7 @@ import (
 //  2. The API accepts the request with thinking + tools without error
 //  3. The response contains reasoning content
 func RunInterleavedThinkingTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.InterleavedThinking {
 		t.Logf("Interleaved thinking not supported for provider %s", testConfig.Provider)
 		return

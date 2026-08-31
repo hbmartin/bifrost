@@ -124,7 +124,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "connect failed: %v\n", err)
 		os.Exit(1)
 	}
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 
 	if *once != "" {
 		if err := dispatch(c, *once); err != nil {
@@ -229,7 +229,7 @@ func repl(cfg *config, c *client.Client) {
 		case "info":
 			printInfo(cfg)
 		case "reconnect":
-			c.Close()
+			_ = c.Close()
 			nc, err := connect(cfg)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "reconnect failed: %v\n", err)
@@ -399,8 +399,8 @@ func authorize(cfg *config, h *transport.OAuthHandler) error {
 	if err != nil {
 		return fmt.Errorf("listen on callback port %s: %w", cfg.callbackPort, err)
 	}
-	defer srv.Close()
-	go srv.Serve(ln)
+	defer func() { _ = srv.Close() }()
+	go func() { _ = srv.Serve(ln) }()
 
 	fmt.Printf("Open this URL to authorize:\n  %s\n", authURL)
 	openBrowser(authURL)

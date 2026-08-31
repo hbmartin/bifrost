@@ -25,12 +25,12 @@ const (
 type WeaviateConfig struct {
 	// Connection settings
 	Scheme     string              `json:"scheme"`                // "http" or "https" - REQUIRED
-	Host       *schemas.SecretVar     `json:"host"`                  // "localhost:8080" - REQUIRED
+	Host       *schemas.SecretVar  `json:"host"`                  // "localhost:8080" - REQUIRED
 	GrpcConfig *WeaviateGrpcConfig `json:"grpc_config,omitempty"` // grpc config for weaviate (optional)
 
 	// Authentication settings (optional)
-	APIKey  *schemas.SecretVar   `json:"api_key,omitempty"` // API key for authentication
-	Headers map[string]string `json:"headers,omitempty"` // Additional headers
+	APIKey  *schemas.SecretVar `json:"api_key,omitempty"` // API key for authentication
+	Headers map[string]string  `json:"headers,omitempty"` // Additional headers
 
 	// Connection settings
 	// Timeout accepts either a Go duration string (e.g. "5s", "30s") or an

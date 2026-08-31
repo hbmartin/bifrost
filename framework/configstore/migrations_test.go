@@ -46,6 +46,7 @@ type namedDB struct {
 
 // setupTestDB creates an in-memory SQLite database for testing
 func setupTestDB(t *testing.T) *gorm.DB {
+	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err, "Failed to create test database")
 
@@ -568,6 +569,7 @@ func findUniqueNameForTest(baseName string, originalName string, excludeID uint,
 // with the config_providers table but WITHOUT the store_raw_request_response column,
 // simulating the pre-migration state.
 func setupProviderTestDBWithoutStoreRawColumn(t *testing.T) *gorm.DB {
+	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err, "Failed to create test database")
 

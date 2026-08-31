@@ -960,7 +960,7 @@ func CreateAnthropicFilesRouteConfigs(pathPrefix string, handlerStore lib.Handle
 			if err != nil {
 				return err
 			}
-			defer file.Close()
+			defer func() { _ = file.Close() }()
 			// Read file data
 			fileData, err := io.ReadAll(file)
 			if err != nil {

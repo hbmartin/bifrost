@@ -1,6 +1,7 @@
 package gemini
 
 import (
+	"context"
 	"testing"
 
 	"github.com/maximhq/bifrost/core/internal/schemaorder"
@@ -15,7 +16,7 @@ func TestResponseFormatOrderSurvivesGeminiChat(t *testing.T) {
 	var params schemas.ChatParameters
 	require.NoError(t, schemas.Unmarshal([]byte(schemaorder.ChatBody), &params))
 
-	ctx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	out, err := ToGeminiChatCompletionRequest(ctx, &schemas.BifrostChatRequest{
 		Provider: schemas.Gemini,
 		Model:    "gemini-2.5-flash",
@@ -41,7 +42,7 @@ func TestResponseFormatSchemaBytesReachGeminiVerbatim(t *testing.T) {
 	var params schemas.ChatParameters
 	require.NoError(t, schemas.Unmarshal([]byte(schemaorder.ByteExactChatBody), &params))
 
-	ctx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	out, err := ToGeminiChatCompletionRequest(ctx, &schemas.BifrostChatRequest{
 		Provider: schemas.Gemini,
 		Model:    "gemini-2.5-flash",
@@ -63,7 +64,7 @@ func TestResponseFormatOrderSurvivesGeminiResponses(t *testing.T) {
 	var params schemas.ResponsesParameters
 	require.NoError(t, schemas.Unmarshal([]byte(schemaorder.ResponsesBody), &params))
 
-	ctx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	out, err := ToGeminiResponsesRequest(ctx, &schemas.BifrostResponsesRequest{
 		Provider: schemas.Gemini,
 		Model:    "gemini-2.5-flash",

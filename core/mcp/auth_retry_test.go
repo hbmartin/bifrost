@@ -252,18 +252,6 @@ func (m *authRetryClientManager) ReconnectClient(_ string) error {
 	return err
 }
 
-// resetInflight clears any completed inflight record so the next
-// ReconnectClient call starts from a clean no-op state. Only needed by tests
-// that reuse the same authRetryClientManager across multiple reconnect
-// phases and require no stale op to be observable via AwaitReconnect;
-// ReconnectClient's own CompareAndSwap-style replace makes this unnecessary
-// for tests that just call ReconnectClient again.
-func (m *authRetryClientManager) resetInflight() {
-	m.inflightMu.Lock()
-	m.inflight = nil
-	m.inflightMu.Unlock()
-}
-
 func (m *authRetryClientManager) AwaitReconnect(_ string, budget time.Duration) (bool, error) {
 	m.inflightMu.Lock()
 	op := m.inflight

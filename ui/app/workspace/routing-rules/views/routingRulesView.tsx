@@ -53,14 +53,14 @@ export function RoutingRulesView() {
 		},
 	);
 
-	const rules = rulesData?.rules || [];
+	const rules = useMemo(() => rulesData?.rules ?? [], [rulesData?.rules]);
 	const totalCount = rulesData?.total_count || 0;
 
 	// Snap offset back when total shrinks past current page (e.g. delete last item on last page)
 	useEffect(() => {
 		if (!rulesData || offset < totalCount) return;
 		setOffset(totalCount === 0 ? 0 : Math.floor((totalCount - 1) / PAGE_SIZE) * PAGE_SIZE);
-	}, [totalCount, offset]);
+	}, [offset, rulesData, totalCount]);
 
 	const handleCreateNew = () => {
 		setEditingRule(null);

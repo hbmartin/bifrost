@@ -105,7 +105,7 @@ export function GovernanceFormFragment({ provider }: GovernanceFormFragmentProps
 		if (form.formState.isDirty) return;
 		const newProvGov = providerGovernanceData?.providers?.find((p) => p.provider === provider.name);
 		form.reset(governanceToFormValues(newProvGov));
-	}, [provider.name, form]);
+	}, [form, provider.name, providerGovernanceData?.providers]);
 
 	// Drop a stale calendarAligned when no configured budget supports alignment, so the
 	// toggle never reappears pre-enabled if an alignable budget is added back later.
@@ -225,7 +225,8 @@ export function GovernanceFormFragment({ provider }: GovernanceFormFragmentProps
 								Align to calendar cycle
 							</Label>
 							<p className="text-muted-foreground text-xs">
-								Reset budgets at the start of each period (e.g. 1st of month) instead of rolling from creation date. Quarterly budgets always align to fiscal quarter starts.
+								Reset budgets at the start of each period (e.g. 1st of month) instead of rolling from creation date. Quarterly budgets
+								always align to fiscal quarter starts.
 							</p>
 						</div>
 						<Switch

@@ -53,9 +53,7 @@ test.describe("Provider model refresh", () => {
     if (createdKeys.length === 0) {
       return;
     }
-    const leaked = createdKeys
-      .map(({ provider, keyName }) => `${provider}/${keyName}`)
-      .join(", ");
+    const leaked = createdKeys.map(({ provider, keyName }) => `${provider}/${keyName}`).join(", ");
     // No need to reset createdKeys: a failure discards the worker process, so a
     // retry re-imports this module with fresh module state and a fresh runId.
     throw new Error(
@@ -63,18 +61,14 @@ test.describe("Provider model refresh", () => {
     );
   });
 
-  test("should show the provider-level refresh button", async ({
-    providersPage,
-  }) => {
+  test("should show the provider-level refresh button", async ({ providersPage }) => {
     await providersPage.selectProvider("openai");
 
     await expect(providersPage.refreshProviderModelsBtn).toBeVisible();
     await expect(providersPage.refreshProviderModelsBtn).toBeEnabled();
   });
 
-  test("should refresh models for the whole provider", async ({
-    providersPage,
-  }) => {
+  test("should refresh models for the whole provider", async ({ providersPage }) => {
     await providersPage.selectProvider("openai");
 
     await providersPage.refreshProviderModels();
@@ -107,9 +101,7 @@ test.describe("Provider model refresh", () => {
     await expect(refreshBtn).toBeEnabled({ timeout: 15000 });
   });
 
-  test("should disable the refresh button for a disabled key", async ({
-    providersPage,
-  }) => {
+  test("should disable the refresh button for a disabled key", async ({ providersPage }) => {
     await providersPage.selectProvider("openai");
 
     const keyData = createProviderKeyData({
@@ -126,9 +118,7 @@ test.describe("Provider model refresh", () => {
     await providersPage.toggleKeyEnabled(keyData.name);
     expect(await providersPage.getKeyEnabledState(keyData.name)).toBe(false);
 
-    await expect(
-      providersPage.getKeyRefreshModelsBtn(keyData.name),
-    ).toBeDisabled();
+    await expect(providersPage.getKeyRefreshModelsBtn(keyData.name)).toBeDisabled();
   });
 
   test("should keep the edit menu reachable alongside the refresh button", async ({

@@ -129,7 +129,7 @@ func TestSTDIOConnection(t *testing.T) {
 	stdioServer := NewSTDIOServerManager(t)
 	err := stdioServer.Start()
 	require.NoError(t, err, "should start STDIO server")
-	defer stdioServer.Stop()
+	defer func() { _ = stdioServer.Stop() }()
 
 	// Wait for server to be ready
 	time.Sleep(500 * time.Millisecond)

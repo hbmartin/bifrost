@@ -68,209 +68,6 @@ func TestFireworks(t *testing.T) {
 	})
 }
 
-// resolveFireworksModels discovers live Fireworks models for chat, completions, and embeddings.
-func resolveFireworksModels(t *testing.T, client *bifrost.Bifrost, ctx context.Context) (string, string, string) {
-	t.Helper()
-
-	requestedChatModel := normalizeFireworksModelID(os.Getenv("FIREWORKS_CHAT_MODEL"))
-	requestedTextModel := normalizeFireworksModelID(os.Getenv("FIREWORKS_TEXT_MODEL"))
-	requestedEmbeddingModel := normalizeFireworksModelID(os.Getenv("FIREWORKS_EMBEDDING_MODEL"))
-
-	chatModel := requestedChatModel
-	textModel := requestedTextModel
-	embeddingModel := requestedEmbeddingModel
-
-	if requestedChatModel != "" {
-		t.Logf("Using FIREWORKS_CHAT_MODEL=%q override", requestedChatModel)
-	}
-	if requestedTextModel != "" {
-		t.Logf("Using FIREWORKS_TEXT_MODEL=%q override", requestedTextModel)
-	}
-	if requestedEmbeddingModel != "" {
-		t.Logf("Using FIREWORKS_EMBEDDING_MODEL=%q override", requestedEmbeddingModel)
-	}
-
-	if chatModel == "" || textModel == "" || embeddingModel == "" {
-		pageToken := ""
-		for page := 0; page < 5; page++ {
-			req := &schemas.BifrostListModelsRequest{
-				Provider:  schemas.Fireworks,
-				PageSize:  200,
-				PageToken: pageToken,
-			}
-
-			bfCtx := schemas.NewBifrostContext(ctx, schemas.NoDeadline)
-			resp, bifrostErr := client.ListModelsRequest(bfCtx, req)
-			if bifrostErr != nil {
-				if chatModel == "" {
-					t.Fatalf("Failed to list Fireworks models for test discovery: %v", llmtests.GetErrorMessage(bifrostErr))
-				}
-				t.Logf("Fireworks model discovery failed: %v", llmtests.GetErrorMessage(bifrostErr))
-				break
-			}
-
-			if chatModel == "" {
-				chatModel = pickFireworksChatModel(resp.Data)
-			}
-			if textModel == "" {
-				// Fireworks text completions currently reuse the chat-capable model pool;
-				// a later probe verifies that the selected model accepts /v1/completions.
-				textModel = pickFireworksChatModel(resp.Data)
-			}
-			if embeddingModel == "" {
-				embeddingModel = pickFireworksEmbeddingModel(resp.Data)
-			}
-
-			if chatModel != "" && textModel != "" && embeddingModel != "" {
-				break
-			}
-			if resp.NextPageToken == "" {
-				break
-			}
-			pageToken = resp.NextPageToken
-		}
-	}
-
-	if chatModel == "" {
-		t.Fatal("Unable to discover a Fireworks chat model from /v1/models; set FIREWORKS_CHAT_MODEL to override")
-	}
-	if textModel != "" && !fireworksModelSupportsTextCompletions(t, client, ctx, textModel) {
-		t.Logf("Skipping Fireworks text completion scenarios because model %q did not accept /v1/completions", textModel)
-		textModel = ""
-	}
-	if embeddingModel != "" && !fireworksModelSupportsEmbeddings(t, client, ctx, embeddingModel) {
-		t.Logf("Skipping Fireworks embedding scenario because model %q did not accept /v1/embeddings", embeddingModel)
-		embeddingModel = ""
-	}
-	if textModel == "" {
-		t.Log("No Fireworks completions-capable model discovered from /v1/models; text completion scenarios will be skipped unless FIREWORKS_TEXT_MODEL is set")
-	}
-	if embeddingModel == "" {
-		t.Log("No Fireworks embedding model discovered from /v1/models; embedding scenario will be skipped unless FIREWORKS_EMBEDDING_MODEL is set")
-	}
-
-	return chatModel, textModel, embeddingModel
-}
-
-// fireworksModelSupportsTextCompletions validates that the selected model actually accepts Fireworks /v1/completions.
-func fireworksModelSupportsTextCompletions(t *testing.T, client *bifrost.Bifrost, ctx context.Context, model string) bool {
-	t.Helper()
-
-	prompt := "Say ok"
-	bfCtx := schemas.NewBifrostContext(ctx, schemas.NoDeadline)
-	resp, bifrostErr := client.TextCompletionRequest(bfCtx, &schemas.BifrostTextCompletionRequest{
-		Provider: schemas.Fireworks,
-		Model:    model,
-		Input: &schemas.TextCompletionInput{
-			PromptStr: &prompt,
-		},
-		Params: &schemas.TextCompletionParameters{
-			MaxTokens: schemas.Ptr(8),
-		},
-	})
-	if bifrostErr != nil {
-		t.Logf("Fireworks /v1/completions probe failed for %q: %v", model, llmtests.GetErrorMessage(bifrostErr))
-		return false
-	}
-
-	return resp != nil && len(resp.Choices) > 0
-}
-
-// fireworksModelSupportsEmbeddings validates that the selected model actually accepts Fireworks /v1/embeddings.
-func fireworksModelSupportsEmbeddings(t *testing.T, client *bifrost.Bifrost, ctx context.Context, model string) bool {
-	t.Helper()
-
-	text := "embedding probe"
-	bfCtx := schemas.NewBifrostContext(ctx, schemas.NoDeadline)
-	resp, bifrostErr := client.EmbeddingRequest(bfCtx, &schemas.BifrostEmbeddingRequest{
-		Provider: schemas.Fireworks,
-		Model:    model,
-		Input: &schemas.EmbeddingInput{
-			Text: &text,
-		},
-	})
-	if bifrostErr != nil {
-		t.Logf("Fireworks /v1/embeddings probe failed for %q: %v", model, llmtests.GetErrorMessage(bifrostErr))
-		return false
-	}
-
-	return resp != nil && len(resp.Data) > 0
-}
-
-// pickFireworksChatModel selects a text-capable Fireworks model from ListModels output.
-func pickFireworksChatModel(models []schemas.Model) string {
-	for _, model := range models {
-		normalized := normalizeFireworksModelID(model.ID)
-		if isFireworksTextCapable(normalized) {
-			return normalized
-		}
-	}
-	return ""
-}
-
-// pickFireworksEmbeddingModel selects an embedding-capable Fireworks model from ListModels output.
-func pickFireworksEmbeddingModel(models []schemas.Model) string {
-	for _, model := range models {
-		normalized := normalizeFireworksModelID(model.ID)
-		lower := strings.ToLower(normalized)
-		if strings.Contains(lower, "embedding") || strings.Contains(lower, "embed") {
-			return normalized
-		}
-	}
-	return ""
-}
-
-// normalizeFireworksModelID strips any provider prefix so tests can pass raw Fireworks model IDs to Bifrost requests.
-func normalizeFireworksModelID(modelID string) string {
-	modelID = strings.TrimSpace(modelID)
-	if modelID == "" {
-		return ""
-	}
-	_, normalized := schemas.ParseModelString(modelID, schemas.Fireworks)
-	return normalized
-}
-
-// isFireworksTextCapable applies a conservative name-based heuristic for text/chat-capable Fireworks models.
-func isFireworksTextCapable(modelID string) bool {
-	lower := strings.ToLower(modelID)
-	excludedHints := []string{
-		"flux",
-		"whisper",
-		"audio",
-		"speech",
-		"transcrib",
-		"embedding",
-		"embed",
-		"rerank",
-	}
-	for _, hint := range excludedHints {
-		if strings.Contains(lower, hint) {
-			return false
-		}
-	}
-
-	preferredHints := []string{
-		"instruct",
-		"chat",
-		"gpt-oss",
-		"deepseek",
-		"qwen",
-		"llama",
-		"glm",
-		"mixtral",
-		"mistral",
-		"cogito",
-		"gemma",
-	}
-	for _, hint := range preferredHints {
-		if strings.Contains(lower, hint) {
-			return true
-		}
-	}
-
-	return false
-}
-
 // TestFireworksProviderUsesNativeEndpoints verifies that the Fireworks provider targets native completions, responses, and embeddings endpoints.
 func TestFireworksProviderUsesNativeEndpoints(t *testing.T) {
 	tests := []struct {
@@ -282,6 +79,7 @@ func TestFireworksProviderUsesNativeEndpoints(t *testing.T) {
 			name:         "TextCompletion",
 			expectedPath: "/v1/completions",
 			run: func(t *testing.T, provider *fireworksprovider.FireworksProvider, ctx *schemas.BifrostContext, key schemas.Key) {
+				t.Helper()
 				prompt := "A is for apple and B is for"
 				resp, err := provider.TextCompletion(ctx, key, &schemas.BifrostTextCompletionRequest{
 					Provider: schemas.Fireworks,
@@ -302,6 +100,7 @@ func TestFireworksProviderUsesNativeEndpoints(t *testing.T) {
 			name:         "Responses",
 			expectedPath: "/v1/responses",
 			run: func(t *testing.T, provider *fireworksprovider.FireworksProvider, ctx *schemas.BifrostContext, key schemas.Key) {
+				t.Helper()
 				resp, err := provider.Responses(ctx, key, &schemas.BifrostResponsesRequest{
 					Provider: schemas.Fireworks,
 					Model:    "accounts/fireworks/models/deepseek-v3p2",
@@ -326,6 +125,7 @@ func TestFireworksProviderUsesNativeEndpoints(t *testing.T) {
 			name:         "Embedding",
 			expectedPath: "/v1/embeddings",
 			run: func(t *testing.T, provider *fireworksprovider.FireworksProvider, ctx *schemas.BifrostContext, key schemas.Key) {
+				t.Helper()
 				resp, err := provider.Embedding(ctx, key, &schemas.BifrostEmbeddingRequest{
 					Provider: schemas.Fireworks,
 					Model:    "accounts/fireworks/models/nomic-embed-text-v1.5",

@@ -14,6 +14,7 @@ import (
 
 // RunTextCompletionStreamTest executes the text completion streaming test scenario
 func RunTextCompletionStreamTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.TextCompletionStream {
 		t.Logf("Text completion stream not supported for provider %s", testConfig.Provider)
 		return

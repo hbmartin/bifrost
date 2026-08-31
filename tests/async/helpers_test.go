@@ -242,7 +242,7 @@ func doRequest(t *testing.T, req *http.Request) (int, AsyncJobResponse, []byte) 
 	if err != nil {
 		t.Fatalf("HTTP %s %s failed: %v", req.Method, req.URL, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatalf("read response body: %v", err)
@@ -271,6 +271,6 @@ func TestMain(m *testing.M) {
 		fmt.Printf("SKIP: Bifrost gateway not reachable at %s (err=%v)\n", cfg.BaseURL, err)
 		os.Exit(0)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	os.Exit(m.Run())
 }

@@ -34,7 +34,7 @@ func startTestHTTPProxy(t *testing.T) (proxyURL string, connectCount *atomic.Int
 			http.Error(w, err.Error(), http.StatusBadGateway)
 			return
 		}
-		defer destConn.Close()
+		defer func() { _ = destConn.Close() }()
 
 		hijacker, ok := w.(http.Hijacker)
 		if !ok {
@@ -45,14 +45,14 @@ func startTestHTTPProxy(t *testing.T) (proxyURL string, connectCount *atomic.Int
 		if err != nil {
 			return
 		}
-		defer clientConn.Close()
+		defer func() { _ = clientConn.Close() }()
 
 		if _, err := clientConn.Write([]byte("HTTP/1.1 200 Connection Established\r\n\r\n")); err != nil {
 			return
 		}
 
-		go io.Copy(destConn, clientConn) //nolint:errcheck
-		io.Copy(clientConn, destConn)    //nolint:errcheck
+		go io.Copy(destConn, clientConn) //nolint:errcheck // Connection teardown is the expected proxy termination signal.
+		io.Copy(clientConn, destConn)    //nolint:errcheck // Connection teardown is the expected proxy termination signal.
 	}))
 	t.Cleanup(proxy.Close)
 	return proxy.URL, &count
@@ -68,13 +68,15 @@ func startTestWSServer(t *testing.T) *httptest.Server {
 		if err != nil {
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		for {
 			mt, msg, err := conn.ReadMessage()
 			if err != nil {
 				break
 			}
-			conn.WriteMessage(mt, msg)
+			if err := conn.WriteMessage(mt, msg); err != nil {
+				return
+			}
 		}
 	}))
 	return server
@@ -276,7 +278,7 @@ func TestPoolGetSkipsStaleIdleConnection(t *testing.T) {
 		if current == 2 {
 			close(secondConnAccepted)
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		for {
 			mt, msg, err := conn.ReadMessage()
 			if err != nil {

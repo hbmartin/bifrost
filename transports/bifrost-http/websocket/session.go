@@ -121,12 +121,12 @@ func (s *Session) SetUpstream(conn *UpstreamConn) {
 	defer s.mu.Unlock()
 	if s.closed {
 		if conn != nil {
-			conn.Close()
+			_ = conn.Close()
 		}
 		return
 	}
 	if s.upstream != nil && s.upstream != conn {
-		s.upstream.Close()
+		_ = s.upstream.Close()
 	}
 	s.upstream = conn
 }
@@ -441,7 +441,7 @@ func (s *Session) Close() {
 		_ = s.clientConn.Close()
 	}
 	if s.upstream != nil {
-		s.upstream.Close()
+		_ = s.upstream.Close()
 		s.upstream = nil
 	}
 }

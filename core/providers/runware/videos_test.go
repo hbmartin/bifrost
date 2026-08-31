@@ -804,16 +804,19 @@ func TestToRunwareVideoGenerationRequest_ReferenceInputForms(t *testing.T) {
 		check func(*testing.T, *RunwareInputs)
 	}{
 		{"klingai:kling-video@2.6-standard", func(t *testing.T, in *RunwareInputs) {
+			t.Helper()
 			if in == nil || len(in.ReferenceImages) != 1 || len(in.FrameImages) != 0 {
 				t.Fatalf("expected inputs.referenceImages, got %+v", in)
 			}
 		}},
 		{"creatify:aurora@fast", func(t *testing.T, in *RunwareInputs) {
+			t.Helper()
 			if in == nil || in.Image == nil || len(in.FrameImages) != 0 {
 				t.Fatalf("expected inputs.image, got %+v", in)
 			}
 		}},
 		{"klingai:kling-video@3-pro", func(t *testing.T, in *RunwareInputs) {
+			t.Helper()
 			if in == nil || len(in.FrameImages) != 1 {
 				t.Fatalf("expected inputs.frameImages, got %+v", in)
 			}

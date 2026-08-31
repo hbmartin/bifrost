@@ -49,6 +49,7 @@ func CreateFileURLResponsesMessage(text, fileURL string) schemas.ResponsesMessag
 
 // RunFileURLTest executes the file URL input test scenario with separate subtests for each API
 func RunFileURLTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.FileURL {
 		t.Logf("File URL not supported for provider %s", testConfig.Provider)
 		return
@@ -63,6 +64,7 @@ func RunFileURLTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, 
 
 // RunFileURLChatCompletionsTest executes the file URL test using Chat Completions API
 func RunFileURLChatCompletionsTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.FileURL {
 		t.Logf("File URL not supported for provider %s", testConfig.Provider)
 		return
@@ -152,6 +154,7 @@ func RunFileURLChatCompletionsTest(t *testing.T, client *bifrost.Bifrost, ctx co
 
 // RunFileURLResponsesTest executes the file URL test using Responses API
 func RunFileURLResponsesTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.FileURL {
 		t.Logf("File URL not supported for provider %s", testConfig.Provider)
 		return

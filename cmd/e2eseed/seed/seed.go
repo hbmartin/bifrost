@@ -17,6 +17,8 @@ import (
 	"github.com/maximhq/bifrost/framework/configstore/tables"
 	"github.com/maximhq/bifrost/framework/encrypt"
 	"github.com/maximhq/bifrost/framework/logstore"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -842,7 +844,7 @@ func nameFromID(id string) string {
 	if id == "" {
 		return ""
 	}
-	return strings.Title(strings.ReplaceAll(id, "-", " "))
+	return cases.Title(language.Und).String(strings.ReplaceAll(id, "-", " "))
 }
 
 // quoteEnv returns a shell-safe env value.

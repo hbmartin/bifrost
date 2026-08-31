@@ -216,10 +216,13 @@ export class VirtualKeysPage extends BasePage {
 
   private async preserveBudgetUsageIfPrompted(): Promise<void> {
     const dialog = this.page.getByTestId("vk-budget-reset-dialog");
-    const isVisible = await dialog.waitFor({ state: 'visible', timeout: 1000 }).then(() => true).catch(() => false);
+    const isVisible = await dialog
+      .waitFor({ state: "visible", timeout: 1000 })
+      .then(() => true)
+      .catch(() => false);
     if (!isVisible) return;
     await this.page.getByTestId("vk-budget-reset-preserve-btn").click();
-    await dialog.waitFor({ state: 'hidden', timeout: 3000 })
+    await dialog.waitFor({ state: "hidden", timeout: 3000 });
   }
 
   /**
@@ -693,7 +696,9 @@ export class VirtualKeysPage extends BasePage {
     const cancelBtn = this.page.getByTestId("vk-rotate-cancel-btn");
     await cancelBtn.waitFor({ state: "visible", timeout: 5000 });
     await cancelBtn.click();
-    await expect(cancelBtn).not.toBeVisible({ timeout: 5000 }).catch(() => {});
+    await expect(cancelBtn)
+      .not.toBeVisible({ timeout: 5000 })
+      .catch(() => {});
 
     await this.closeSheet();
     await this.goto();

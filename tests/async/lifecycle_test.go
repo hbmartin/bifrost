@@ -90,6 +90,7 @@ func TestLifecycle_CompletedJobResultShape(t *testing.T) {
 		"chat_completions": {
 			"choices[]",
 			func(t *testing.T, result json.RawMessage) {
+				t.Helper()
 				var r struct {
 					Choices []json.RawMessage `json:"choices"`
 				}
@@ -104,6 +105,7 @@ func TestLifecycle_CompletedJobResultShape(t *testing.T) {
 		"embeddings": {
 			"data[]",
 			func(t *testing.T, result json.RawMessage) {
+				t.Helper()
 				var r struct {
 					Data []json.RawMessage `json:"data"`
 				}
@@ -118,6 +120,7 @@ func TestLifecycle_CompletedJobResultShape(t *testing.T) {
 		"rerank": {
 			"results[]",
 			func(t *testing.T, result json.RawMessage) {
+				t.Helper()
 				var r struct {
 					Results []json.RawMessage `json:"results"`
 				}

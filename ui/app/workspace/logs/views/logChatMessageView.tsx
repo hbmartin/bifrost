@@ -111,7 +111,12 @@ function ContentBlockView({ block }: { block: ContentBlock; index: number }) {
 						code={jsonContent}
 						lang="json"
 						readonly={true}
-						options={{ scrollBeyondLastLine: false, collapsibleBlocks: true, lineNumbers: "off", alwaysConsumeMouseWheel: false }}
+						options={{
+							scrollBeyondLastLine: false,
+							collapsibleBlocks: true,
+							lineNumbers: "off",
+							alwaysConsumeMouseWheel: false,
+						}}
 					/>
 				</CollapsibleBox>
 			);
@@ -155,7 +160,12 @@ function ContentBlockView({ block }: { block: ContentBlock; index: number }) {
 					code={jsonContent}
 					lang="json"
 					readonly={true}
-					options={{ scrollBeyondLastLine: false, collapsibleBlocks: true, lineNumbers: "off", alwaysConsumeMouseWheel: false }}
+					options={{
+						scrollBeyondLastLine: false,
+						collapsibleBlocks: true,
+						lineNumbers: "off",
+						alwaysConsumeMouseWheel: false,
+					}}
 				/>
 			</CollapsibleBox>
 		);
@@ -186,7 +196,12 @@ export default function LogChatMessageView({ message, audioFormat }: LogChatMess
 								code={JSON.stringify(cleanJson(message.reasoning), null, 2)}
 								lang="json"
 								readonly={true}
-								options={{ scrollBeyondLastLine: false, collapsibleBlocks: true, lineNumbers: "off", alwaysConsumeMouseWheel: false }}
+								options={{
+									scrollBeyondLastLine: false,
+									collapsibleBlocks: true,
+									lineNumbers: "off",
+									alwaysConsumeMouseWheel: false,
+								}}
 							/>
 						</CollapsibleBox>
 					) : (
@@ -212,7 +227,12 @@ export default function LogChatMessageView({ message, audioFormat }: LogChatMess
 								code={JSON.stringify(cleanJson(message.refusal), null, 2)}
 								lang="json"
 								readonly={true}
-								options={{ scrollBeyondLastLine: false, collapsibleBlocks: true, lineNumbers: "off", alwaysConsumeMouseWheel: false }}
+								options={{
+									scrollBeyondLastLine: false,
+									collapsibleBlocks: true,
+									lineNumbers: "off",
+									alwaysConsumeMouseWheel: false,
+								}}
 							/>
 						</CollapsibleBox>
 					) : (
@@ -244,7 +264,12 @@ export default function LogChatMessageView({ message, audioFormat }: LogChatMess
 										code={JSON.stringify(cleanJson(message.content), null, 2)}
 										lang="json"
 										readonly={true}
-										options={{ scrollBeyondLastLine: false, collapsibleBlocks: true, lineNumbers: "off", alwaysConsumeMouseWheel: false }}
+										options={{
+											scrollBeyondLastLine: false,
+											collapsibleBlocks: true,
+											lineNumbers: "off",
+											alwaysConsumeMouseWheel: false,
+										}}
 									/>
 								</CollapsibleBox>
 							) : (
@@ -282,7 +307,12 @@ export default function LogChatMessageView({ message, audioFormat }: LogChatMess
 									code={jsonContent}
 									lang="json"
 									readonly={true}
-									options={{ scrollBeyondLastLine: false, collapsibleBlocks: true, lineNumbers: "off", alwaysConsumeMouseWheel: false }}
+									options={{
+										scrollBeyondLastLine: false,
+										collapsibleBlocks: true,
+										lineNumbers: "off",
+										alwaysConsumeMouseWheel: false,
+									}}
 								/>
 							</CollapsibleBox>
 						);
@@ -301,7 +331,12 @@ export default function LogChatMessageView({ message, audioFormat }: LogChatMess
 						code={JSON.stringify(message.annotations, null, 2)}
 						lang="json"
 						readonly={true}
-						options={{ scrollBeyondLastLine: false, collapsibleBlocks: true, lineNumbers: "off", alwaysConsumeMouseWheel: false }}
+						options={{
+							scrollBeyondLastLine: false,
+							collapsibleBlocks: true,
+							lineNumbers: "off",
+							alwaysConsumeMouseWheel: false,
+						}}
 					/>
 				</CollapsibleBox>
 			)}

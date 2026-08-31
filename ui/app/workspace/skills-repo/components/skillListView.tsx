@@ -49,6 +49,7 @@ import {
 	Loader2,
 	MoreHorizontal,
 	Package,
+	Pencil,
 	Plus,
 	Search,
 	Trash2,
@@ -225,6 +226,18 @@ function SkillActionsMenu({
 					</Button>
 				</DropdownMenuTrigger>
 				<DropdownMenuContent align="end">
+					<DropdownMenuItem
+						className="cursor-pointer"
+						data-testid={`skill-edit-btn-${skill.name}`}
+						disabled={!hasEditAccess}
+						onSelect={() => {
+							onEdit(skill.id);
+							setIsOpen(false);
+						}}
+					>
+						<Pencil className="h-4 w-4" />
+						Edit
+					</DropdownMenuItem>
 					<DropdownMenuItem
 						className="cursor-pointer"
 						data-testid={`skill-download-btn-${skill.name}`}

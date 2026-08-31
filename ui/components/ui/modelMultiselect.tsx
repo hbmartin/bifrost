@@ -121,7 +121,7 @@ export function ModelMultiselect(props: ModelMultiselectProps) {
 				unfiltered,
 			});
 		}
-	}, [provider, keys, vks, getModels, getBaseModels, shouldLoadOnEmpty, shouldUseBaseModels]);
+	}, [provider, keys, vks, getModels, getBaseModels, shouldLoadOnEmpty, shouldUseBaseModels, unfiltered]);
 
 	// Load options function for AsyncMultiSelect
 	const loadOptions = useCallback(
@@ -175,7 +175,7 @@ export function ModelMultiselect(props: ModelMultiselectProps) {
 					});
 			}
 		},
-		[getModels, getBaseModels, provider, keys, vks, shouldLoadOnEmpty, shouldUseBaseModels, allowAllOption],
+		[getModels, getBaseModels, provider, keys, vks, shouldLoadOnEmpty, shouldUseBaseModels, allowAllOption, unfiltered],
 	);
 
 	// Handle selection change
@@ -215,7 +215,7 @@ export function ModelMultiselect(props: ModelMultiselectProps) {
 				});
 			}
 		},
-		[onChange, provider, keys, vks, getModels, getBaseModels, isSingleSelect, shouldLoadOnEmpty, shouldUseBaseModels],
+		[onChange, provider, keys, vks, getModels, getBaseModels, isSingleSelect, shouldLoadOnEmpty, shouldUseBaseModels, unfiltered],
 	);
 
 	// Handle input change - track in both state and ref

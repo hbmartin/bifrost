@@ -16,7 +16,7 @@ pub fn write_string(s: &str) -> u64 {
         return 0;
     }
     let bytes = s.as_bytes();
-    let ptr = unsafe { malloc(bytes.len() as u32) };
+    let ptr = malloc(bytes.len() as u32);
     if ptr == 0 {
         return 0;
     }
@@ -36,11 +36,13 @@ pub fn read_string(ptr: u32, len: u32) -> String {
 }
 
 /// Allocate memory for the host to write data
-/// 
+///
 /// # Safety
 /// This function is marked as safe but performs unsafe operations internally.
 /// It is intended to be called from WASM host.
-#[no_mangle]
+// Export the host ABI name only for the WASM artifact. Exporting `malloc` from
+// a native test binary overrides the process allocator and crashes the harness.
+#[cfg_attr(target_arch = "wasm32", no_mangle)]
 pub extern "C" fn malloc(size: u32) -> u32 {
     if size == 0 {
         return 0;
@@ -53,11 +55,12 @@ pub extern "C" fn malloc(size: u32) -> u32 {
 }
 
 /// Free allocated memory
-/// 
+///
 /// # Safety
 /// This function is marked as safe but performs unsafe operations internally.
 /// It is intended to be called from WASM host.
-#[no_mangle]
+#[cfg_attr(target_arch = "wasm32", no_mangle)]
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
 pub extern "C" fn free(ptr: u32, size: u32) {
     if ptr == 0 || size == 0 {
         return;

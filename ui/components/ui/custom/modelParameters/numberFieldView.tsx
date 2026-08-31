@@ -18,17 +18,18 @@ interface Props {
 
 export default function NumberFieldView(props: Props) {
 	const { field, config } = props;
+	const { onInvalid } = props;
 
 	const invalid = field.range ? isInvalid(config[field.id] as number, field.range) : false;
 
 	useEffect(() => {
-		if (!props.onInvalid) return;
+		if (!onInvalid) return;
 		if (invalid) {
-			props.onInvalid(true, field.id);
+			onInvalid(true, field.id);
 		} else {
-			props.onInvalid(false, field.id);
+			onInvalid(false, field.id);
 		}
-	}, [invalid]);
+	}, [field.id, invalid, onInvalid]);
 
 	return (
 		<div className={cn("flex flex-col gap-3", props.className)}>

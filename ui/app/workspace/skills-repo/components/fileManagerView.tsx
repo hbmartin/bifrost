@@ -641,7 +641,7 @@ export function FileManagerSection({
 		addEmptyFolderDrafts(rootNode);
 
 		return [rootNode];
-	}, [addingFile, filteredFiles, files, folders, newFolderParent, onSelectBody, searchQuery]);
+	}, [addingFile, filteredFiles, folders, newFolderParent, onSelectBody, searchQuery]);
 
 	const availableFolderPaths = (() => {
 		const folderSet = new Set<string>([""]);

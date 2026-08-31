@@ -31,7 +31,7 @@ func runWithPTY(ctx context.Context, stdout io.Writer, cmd *exec.Cmd) error {
 	if err != nil {
 		return err
 	}
-	defer ptmx.Close()
+	defer func() { _ = ptmx.Close() }()
 
 	// Handle SIGWINCH — propagate terminal resizes to the PTY
 	sigCh := make(chan os.Signal, 1)

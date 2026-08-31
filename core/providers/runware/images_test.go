@@ -542,11 +542,13 @@ func TestToRunwareImageGenerationRequest_InputImages(t *testing.T) {
 		check func(*testing.T, *RunwareInferenceRequest)
 	}{
 		{"runware:101@1", func(t *testing.T, out *RunwareInferenceRequest) {
+			t.Helper()
 			if out.SeedImage == nil || *out.SeedImage != "https://example.com/a.jpg" {
 				t.Fatalf("expected flat seedImage, got %+v", out)
 			}
 		}},
 		{"google:4@1", func(t *testing.T, out *RunwareInferenceRequest) {
+			t.Helper()
 			if out.Inputs == nil || len(out.Inputs.ReferenceImages) != 1 {
 				t.Fatalf("expected inputs.referenceImages, got %+v", out.Inputs)
 			}

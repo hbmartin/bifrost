@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"errors"
 	"io"
 	"strings"
 	"testing"
@@ -12,7 +13,7 @@ func drainSSEDataReader(t *testing.T, r SSEDataReader) []string {
 	var payloads []string
 	for {
 		data, err := r.ReadDataLine()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			return payloads
 		}
 		if err != nil {

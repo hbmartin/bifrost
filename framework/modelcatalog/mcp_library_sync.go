@@ -265,7 +265,7 @@ func fetchMCPLibrary(ctx context.Context, rawURL string) ([]MCPLibraryEntry, err
 		if err != nil {
 			return nil, fmt.Errorf("failed to open MCP library file: %w", err)
 		}
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 		data, err = io.ReadAll(io.LimitReader(f, maxMCPLibraryBodyBytes+1))
 		if err != nil {
 			return nil, fmt.Errorf("failed to read MCP library file: %w", err)
@@ -287,7 +287,7 @@ func fetchMCPLibrary(ctx context.Context, rawURL string) ([]MCPLibraryEntry, err
 		if err != nil {
 			return nil, fmt.Errorf("failed to download MCP library data: %w", err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode != http.StatusOK {
 			return nil, fmt.Errorf("failed to download MCP library data: HTTP %d", resp.StatusCode)

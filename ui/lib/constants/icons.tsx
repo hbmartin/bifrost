@@ -835,7 +835,13 @@ export type RoutingEngineType = keyof typeof RoutingEngineUsedIcons;
 export const RenderProviderIcon = ({ provider, ...props }: IconProps & { provider: keyof typeof ProviderIcons }) => {
 	const { resolvedTheme } = useTheme();
 	const IconComponent = ProviderIcons[provider];
-	return IconComponent ? IconComponent({ ...props, theme: resolvedTheme, className: cn("w-5 h-5 shrink-0", props.className) }) : null;
+	return IconComponent
+		? IconComponent({
+				...props,
+				theme: resolvedTheme,
+				className: cn("w-5 h-5 shrink-0", props.className),
+			})
+		: null;
 };
 
 export type ProviderIconType = keyof typeof ProviderIcons;

@@ -95,14 +95,10 @@ export const SplitButton = React.forwardRef<HTMLDivElement, SplitButtonProps>(
 					disabled={buttonDisabled || disabled || clicked || isLoading}
 					onClick={async (e) => {
 						if (onClick) {
-							try {
-								await onClick(e);
-								if (!disabledCheck) {
-									setClicked(true);
-									setTimeout(() => setClicked(false), 1000);
-								}
-							} catch (err) {
-								throw err;
+							await onClick(e);
+							if (!disabledCheck) {
+								setClicked(true);
+								setTimeout(() => setClicked(false), 1000);
 							}
 						}
 					}}

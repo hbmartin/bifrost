@@ -487,12 +487,18 @@ func (p *OAuth2Provider) ForceRefreshAccessToken(ctx *schemas.BifrostContext, co
 // ValidateToken checks if the token is still valid
 func (p *OAuth2Provider) ValidateToken(ctx context.Context, oauthConfigID string) (bool, error) {
 	oauthConfig, err := p.configStore.GetOauthConfigByID(ctx, oauthConfigID)
-	if err != nil || oauthConfig == nil {
+	if err != nil {
+		return false, fmt.Errorf("get OAuth configuration: %w", err)
+	}
+	if oauthConfig == nil {
 		return false, nil
 	}
 
 	token, err := p.configStore.GetSharedOauthTokenByConfigID(ctx, oauthConfigID)
-	if err != nil || token == nil {
+	if err != nil {
+		return false, fmt.Errorf("get shared OAuth token: %w", err)
+	}
+	if token == nil {
 		return false, nil
 	}
 
@@ -895,7 +901,10 @@ func (p *OAuth2Provider) CompleteOAuthFlow(ctx context.Context, state, code stri
 	// below uses for a different kind of bootstrap-attempt failure.
 	if time.Now().After(flow.ExpiresAt) {
 		oauthConfig.Status = "failed"
-		p.configStore.UpdateOauthConfig(ctx, oauthConfig)
+		if err := p.configStore.UpdateOauthConfig(ctx, oauthConfig); err != nil {
+			p.cleanupFlow(ctx, flow.ID)
+			return fmt.Errorf("mark expired OAuth configuration failed: %w", err)
+		}
 		p.cleanupFlow(ctx, flow.ID)
 		return fmt.Errorf("oauth flow expired")
 	}
@@ -925,12 +934,15 @@ func (p *OAuth2Provider) CompleteOAuthFlow(ctx context.Context, state, code stri
 	)
 	if err != nil {
 		oauthConfig.Status = "failed"
-		p.configStore.UpdateOauthConfig(ctx, oauthConfig)
+		updateErr := p.configStore.UpdateOauthConfig(ctx, oauthConfig)
 		logger.Error("Token exchange failed",
 			"error", err.Error(),
 			"client_id", oauthConfig.GetResolvedClientID(),
 			"token_url", oauthConfig.TokenURL)
 		p.cleanupFlow(ctx, flow.ID)
+		if updateErr != nil {
+			return fmt.Errorf("token exchange failed: %w; marking OAuth configuration failed: %w", err, updateErr)
+		}
 		return fmt.Errorf("token exchange failed: %w", err)
 	}
 
@@ -1247,9 +1259,14 @@ func (p *OAuth2Provider) callTokenEndpoint(ctx context.Context, tokenURL string,
 		// endpoint from streaming an unbounded body — matching the 512KB cap
 		// core/providers/utils/largeresponse.go uses for error bodies.
 		body, err := io.ReadAll(io.LimitReader(resp.Body, maxTokenEndpointResponseBytes))
-		resp.Body.Close()
+		closeErr := resp.Body.Close()
 		if err != nil {
 			lastErr = fmt.Errorf("failed to read response: %w", err)
+			sleepIfNotLastAttempt(ctx, attempt, p.retryBaseDelay)
+			continue
+		}
+		if closeErr != nil {
+			lastErr = fmt.Errorf("close token response body: %w", closeErr)
 			sleepIfNotLastAttempt(ctx, attempt, p.retryBaseDelay)
 			continue
 		}
@@ -1284,14 +1301,16 @@ func (p *OAuth2Provider) callTokenEndpoint(ctx context.Context, tokenURL string,
 			// Fall back to URL-encoded form data (GitHub's OAuth endpoint returns this format)
 			formValues, parseErr := url.ParseQuery(string(body))
 			if parseErr != nil {
-				return nil, fmt.Errorf("failed to parse token response as JSON or form data: JSON error: %w, form error: %v", err, parseErr)
+				return nil, fmt.Errorf("failed to parse token response as JSON or form data: JSON error: %w, form error: %w", err, parseErr)
 			}
 			tokenResponse.AccessToken = formValues.Get("access_token")
 			tokenResponse.RefreshToken = formValues.Get("refresh_token")
 			tokenResponse.TokenType = formValues.Get("token_type")
 			tokenResponse.Scope = formValues.Get("scope")
 			if expiresIn := formValues.Get("expires_in"); expiresIn != "" {
-				fmt.Sscanf(expiresIn, "%d", &tokenResponse.ExpiresIn)
+				if _, err := fmt.Sscanf(expiresIn, "%d", &tokenResponse.ExpiresIn); err != nil {
+					return nil, fmt.Errorf("invalid expires_in value %q: %w", expiresIn, err)
+				}
 			}
 		}
 

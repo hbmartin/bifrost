@@ -180,7 +180,11 @@ function ProviderUsageTabImpl({
 				}
 				totalTooltip={
 					providerCostTotal !== null
-						? providerCostTotal.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 6 })
+						? providerCostTotal.toLocaleString("en-US", {
+								style: "currency",
+								currency: "USD",
+								maximumFractionDigits: 6,
+							})
 						: undefined
 				}
 				legend={
@@ -214,7 +218,9 @@ function ProviderUsageTabImpl({
 														<span key={provider} className="flex items-center gap-1">
 															<span
 																className="h-2 w-2 shrink-0 rounded-full"
-																style={{ backgroundColor: provider === OTHER_SERIES_KEY ? OTHER_SERIES_COLOR : getModelColor(idx + 1) }}
+																style={{
+																	backgroundColor: provider === OTHER_SERIES_KEY ? OTHER_SERIES_COLOR : getModelColor(idx + 1),
+																}}
 															/>
 															{provider === OTHER_SERIES_KEY ? OTHER_SERIES_LABEL : provider}
 														</span>
@@ -302,7 +308,9 @@ function ProviderUsageTabImpl({
 														<span key={provider} className="flex items-center gap-1">
 															<span
 																className="h-2 w-2 shrink-0 rounded-full"
-																style={{ backgroundColor: provider === OTHER_SERIES_KEY ? OTHER_SERIES_COLOR : getModelColor(idx + 1) }}
+																style={{
+																	backgroundColor: provider === OTHER_SERIES_KEY ? OTHER_SERIES_COLOR : getModelColor(idx + 1),
+																}}
 															/>
 															{provider === OTHER_SERIES_KEY ? OTHER_SERIES_LABEL : provider}
 														</span>

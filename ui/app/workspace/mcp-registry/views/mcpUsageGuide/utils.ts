@@ -45,16 +45,28 @@ export function quoteShellValue(value: string): string {
 
 /** Quote a value as a TOML basic string, escaping control characters per the TOML spec. */
 export function quoteTomlString(value: string): string {
-	const escaped = value
-		.replace(/\\/g, "\\\\")
-		.replace(/"/g, '\\"')
-		.replace(/\x08/g, "\\b")
-		.replace(/\t/g, "\\t")
-		.replace(/\n/g, "\\n")
-		.replace(/\f/g, "\\f")
-		.replace(/\r/g, "\\r")
-		// Any remaining control char (U+0000–U+001F, U+007F) must use the \uXXXX form.
-		.replace(/[\x00-\x1f\x7f]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0").toUpperCase()}`);
+	const escaped = [...value]
+		.map((character) => {
+			const code = character.charCodeAt(0);
+			switch (code) {
+				case 8:
+					return "\\b";
+				case 9:
+					return "\\t";
+				case 10:
+					return "\\n";
+				case 12:
+					return "\\f";
+				case 13:
+					return "\\r";
+				default:
+					if (code <= 31 || code === 127) return `\\u${code.toString(16).padStart(4, "0").toUpperCase()}`;
+					if (character === "\\") return "\\\\";
+					if (character === '"') return '\\"';
+					return character;
+			}
+		})
+		.join("");
 	return `"${escaped}"`;
 }
 

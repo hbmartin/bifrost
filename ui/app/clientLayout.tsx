@@ -57,7 +57,9 @@ function AppContent({ children }: { children: React.ReactNode }) {
 	const publicShell = matches.some((m) => (m.staticData as { publicShell?: boolean } | undefined)?.publicShell === true);
 	// Probe dashboard auth state on opted-in routes. is-auth-enabled is whitelisted
 	// (no 401 risk) and returns whether the current cookie is a valid session.
-	const { data: authState, isLoading: authLoading } = useIsAuthEnabledQuery(undefined, { skip: !tempTokenScoped });
+	const { data: authState, isLoading: authLoading } = useIsAuthEnabledQuery(undefined, {
+		skip: !tempTokenScoped,
+	});
 
 	// Snapshot fragment presence at mount: TempTokenScope strips the fragment
 	// shortly after, so re-reading window.location.hash would flip false on

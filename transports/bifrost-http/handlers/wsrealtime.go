@@ -148,7 +148,7 @@ func (h *WSRealtimeHandler) handleUpgrade(ctx *fasthttp.RequestCtx) {
 	if err != nil {
 		upgrader := h.websocketUpgrader("")
 		upgradeErr := upgrader.Upgrade(ctx, func(conn *ws.Conn) {
-			defer conn.Close()
+			defer func() { _ = conn.Close() }()
 			clientConn := newRealtimeClientConn(conn)
 			clientConn.writeRealtimeError(newRealtimeWireBifrostError(400, "invalid_request_error", err.Error()))
 		})
@@ -168,7 +168,7 @@ func (h *WSRealtimeHandler) handleUpgrade(ctx *fasthttp.RequestCtx) {
 		preReqCancel()
 		upgrader := h.websocketUpgrader("")
 		upgradeErr := upgrader.Upgrade(ctx, func(conn *ws.Conn) {
-			defer conn.Close()
+			defer func() { _ = conn.Close() }()
 			clientConn := newRealtimeClientConn(conn)
 			clientConn.writeRealtimeError(newRealtimeWireBifrostError(500, "server_error", "failed to create request context"))
 		})
@@ -201,7 +201,7 @@ func (h *WSRealtimeHandler) handleUpgrade(ctx *fasthttp.RequestCtx) {
 		// for this model — caller's input is unresolvable.
 		upgrader := h.websocketUpgrader("")
 		upgradeErr := upgrader.Upgrade(ctx, func(conn *ws.Conn) {
-			defer conn.Close()
+			defer func() { _ = conn.Close() }()
 			clientConn := newRealtimeClientConn(conn)
 			clientConn.writeRealtimeError(newRealtimeWireBifrostError(400, "invalid_request_error", fmt.Sprintf("no provider could be resolved for model %q (set as provider/model or configure the model catalog)", model)))
 		})
@@ -227,7 +227,7 @@ func (h *WSRealtimeHandler) handleUpgrade(ctx *fasthttp.RequestCtx) {
 	if provider == nil || !ok || !rtProvider.SupportsRealtimeAPI() {
 		upgrader := h.websocketUpgrader("")
 		upgradeErr := upgrader.Upgrade(ctx, func(conn *ws.Conn) {
-			defer conn.Close()
+			defer func() { _ = conn.Close() }()
 			clientConn := newRealtimeClientConn(conn)
 			clientConn.writeRealtimeError(newRealtimeWireBifrostError(400, "invalid_request_error", "provider does not support realtime: "+string(providerKey)))
 		})
@@ -246,7 +246,7 @@ func (h *WSRealtimeHandler) handleUpgrade(ctx *fasthttp.RequestCtx) {
 
 	upgrader := h.websocketUpgrader(rtProvider.RealtimeWebSocketSubprotocol())
 	err = upgrader.Upgrade(ctx, func(conn *ws.Conn) {
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		clientConn := newRealtimeClientConn(conn)
 
 		session, sessionErr := h.sessions.Create(conn)
@@ -705,9 +705,8 @@ func selectRealtimeRelayError(errs ...error) error {
 }
 
 var (
-	errRealtimeModelRequired    = errorf("model or deployment query parameter is required for realtime websocket")
-	errRealtimeModelFormat      = errorf("model query parameter must resolve to provider/model for realtime websocket")
-	errRealtimeDeploymentFormat = errorf("deployment query parameter must resolve to provider/model for realtime websocket")
+	errRealtimeModelRequired = errorf("model or deployment query parameter is required for realtime websocket")
+	errRealtimeModelFormat   = errorf("model query parameter must resolve to provider/model for realtime websocket")
 )
 
 type realtimeClientConn struct {
@@ -738,7 +737,9 @@ func newRealtimeClientConn(conn *ws.Conn) *realtimeClientConn {
 func (c *realtimeClientConn) ReadMessage() (messageType int, p []byte, err error) {
 	messageType, p, err = c.conn.ReadMessage()
 	if err == nil {
-		c.refreshReadDeadline()
+		if deadlineErr := c.refreshReadDeadline(); deadlineErr != nil {
+			return 0, nil, deadlineErr
+		}
 	}
 	return messageType, p, err
 }
@@ -757,7 +758,10 @@ func (c *realtimeClientConn) WriteMessage(messageType int, data []byte) error {
 
 func (c *realtimeClientConn) startHeartbeat() {
 	c.installPongHandler()
-	c.refreshReadDeadline()
+	if err := c.refreshReadDeadline(); err != nil {
+		_ = c.conn.Close()
+		return
+	}
 
 	if !c.heartbeatStarted.CompareAndSwap(false, true) {
 		return

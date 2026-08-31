@@ -84,7 +84,8 @@ func TestPerUserHeadersResolverConnectionHeadersTempTokenReminder(t *testing.T) 
 			if err == nil {
 				t.Fatalf("expected an MCPAuthRequiredError, got nil")
 			}
-			authErr, ok := err.(*schemas.MCPAuthRequiredError)
+			authErr := &schemas.MCPAuthRequiredError{}
+			ok := errors.As(err, &authErr)
 			if !ok {
 				t.Fatalf("expected *schemas.MCPAuthRequiredError, got %T: %v", err, err)
 			}

@@ -2,6 +2,7 @@ package schemas
 
 import (
 	"context"
+	"errors"
 	"runtime"
 	"testing"
 	"time"
@@ -115,7 +116,7 @@ func TestNewBifrostContext_NoGoroutineLeakWithBackgroundAndNoDeadline(t *testing
 			t.Errorf("Context %d should be done after Cancel()", i)
 		}
 
-		if ctx.Err() != context.Canceled {
+		if !errors.Is(ctx.Err(), context.Canceled) {
 			t.Errorf("Context %d Err() should be context.Canceled, got %v", i, ctx.Err())
 		}
 	}
@@ -182,7 +183,7 @@ func TestNewBifrostContext_GoroutineStartsWithCancellableParent(t *testing.T) {
 		t.Error("Context should be cancelled when parent is cancelled")
 	}
 
-	if ctx.Err() != context.Canceled {
+	if !errors.Is(ctx.Err(), context.Canceled) {
 		t.Errorf("Context Err() should be context.Canceled, got %v", ctx.Err())
 	}
 }
@@ -211,7 +212,7 @@ func TestNewBifrostContext_DeadlineExpires(t *testing.T) {
 		t.Error("Context should be done after deadline")
 	}
 
-	if ctx.Err() != context.DeadlineExceeded {
+	if !errors.Is(ctx.Err(), context.DeadlineExceeded) {
 		t.Errorf("Context Err() should be context.DeadlineExceeded, got %v", ctx.Err())
 	}
 }
@@ -239,7 +240,7 @@ func TestNewBifrostContext_SetAndGetValue(t *testing.T) {
 func TestNewBifrostContext_NilParent(t *testing.T) {
 	// Should not panic with nil parent
 	// Note: passing nil is allowed by NewBifrostContext which converts it to context.Background()
-	var nilCtx context.Context //nolint:staticcheck // testing nil parent handling
+	var nilCtx context.Context
 	ctx := NewBifrostContext(nilCtx, NoDeadline)
 
 	// Should work normally
@@ -249,7 +250,7 @@ func TestNewBifrostContext_NilParent(t *testing.T) {
 
 	ctx.Cancel()
 
-	if ctx.Err() != context.Canceled {
+	if !errors.Is(ctx.Err(), context.Canceled) {
 		t.Errorf("Cancelled context should have Canceled error, got %v", ctx.Err())
 	}
 }

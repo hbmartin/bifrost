@@ -140,7 +140,7 @@ export function ValueEditor({
 				} else if (typeof parsedValue === "string") {
 					valueToUse = parsedValue;
 				}
-			} catch (error) {}
+			} catch {}
 		}
 
 		// For single operators (=, !=), use single select

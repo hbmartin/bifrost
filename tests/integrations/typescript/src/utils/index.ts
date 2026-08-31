@@ -3,10 +3,10 @@
  */
 
 // Config loader
-export * from './config-loader'
+export * from "./config-loader";
 
 // Common test utilities
-export * from './common'
+export * from "./common";
 
 // Parametrization utilities
-export * from './parametrize'
+export * from "./parametrize";

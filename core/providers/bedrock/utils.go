@@ -825,25 +825,6 @@ func mergeOrderedMapInto(dst, src *schemas.OrderedMap) {
 	})
 }
 
-func newAnthropicOutputFormatOrderedMap(schemaObj any) *schemas.OrderedMap {
-	// Normalize multi-type arrays (["string","null"], ["string","integer"]) into anyOf branches
-	// so Bedrock's schema validator accepts them. Map inputs use the in-memory normalizer;
-	// json.RawMessage / []byte inputs use the sjson-based normalizer to avoid map round-trips.
-	// OrderedMap schemas are passed through unchanged.
-	switch v := schemaObj.(type) {
-	case map[string]interface{}:
-		schemaObj = anthropic.NormalizeSchemaForAnthropic(v)
-	case json.RawMessage:
-		schemaObj = anthropic.NormalizeSchemaForAnthropicRaw(v)
-	case []byte:
-		schemaObj = anthropic.NormalizeSchemaForAnthropicRaw(json.RawMessage(v))
-	}
-	return schemas.NewOrderedMapFromPairs(
-		schemas.KV("type", "json_schema"),
-		schemas.KV("schema", schemaObj),
-	)
-}
-
 // appendAnthropicBetaToFields merges a single beta header value into
 // additionalModelRequestFields.anthropic_beta without creating duplicates.
 // This is needed for Bedrock: the outer HTTP anthropic-beta header is consumed
@@ -2292,7 +2273,7 @@ func convertTextFormatToTool(ctx *schemas.BifrostContext, model string, textConf
 
 	schemaObjBytes2, err := providerUtils.MarshalSorted(schemaObj)
 	if err != nil {
-		return nil, nil, nil
+		return nil, nil, fmt.Errorf("marshal structured-output schema: %w", err)
 	}
 	return &BedrockTool{
 		ToolSpec: &BedrockToolSpec{
@@ -2608,7 +2589,7 @@ func convertToolConfigFromFiltered(ctx *schemas.BifrostContext, model string, ca
 			bedrockTool := BedrockTool{
 				ToolSpec: &BedrockToolSpec{
 					Name:        bedrockAliasToolName(ctx, tool.Function.Name),
-					Description: new(description),
+					Description: schemas.Ptr(description),
 					InputSchema: BedrockToolInputSchema{
 						JSON: json.RawMessage(schemaObjectBytes),
 					},

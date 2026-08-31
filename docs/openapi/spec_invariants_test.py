@@ -16,7 +16,6 @@ from pathlib import Path
 
 import yaml
 
-
 HERE = Path(__file__).resolve().parent
 ENTRY = HERE / "openapi.yaml"
 PATHS_DIR = HERE / "paths" / "management"
@@ -60,14 +59,11 @@ entry_text = ENTRY.read_text(encoding="utf-8")
 def pointer_tokens(pointer: str) -> tuple[str, ...]:
     """Split on `/` first, then unescape - `~1` is a literal `/` inside one token, so
     `~1plugins~1{name}` is the single key `/plugins/{name}`, not three steps."""
-    return tuple(
-        token.replace("~1", "/").replace("~0", "~") for token in pointer.split("/")
-    )
+    return tuple(token.replace("~1", "/").replace("~0", "~") for token in pointer.split("/"))
 
 
 mounted_refs = {
-    (filename, pointer_tokens(pointer))
-    for filename, pointer in REF_RE.findall(entry_text)
+    (filename, pointer_tokens(pointer)) for filename, pointer in REF_RE.findall(entry_text)
 }
 
 
@@ -140,7 +136,9 @@ def test_no_orphaned_fragments():
         unused = sorted(defined - referenced - composed - KNOWN_ORPHANS.get(source.name, set()))
         if unused:
             orphans.append(f"{source.name}: {unused}")
-    assert not orphans, "fragments defined but never mounted or composed:\n    " + "\n    ".join(orphans)
+    assert not orphans, "fragments defined but never mounted or composed:\n    " + "\n    ".join(
+        orphans
+    )
 
 
 def test_duplicate_operation_ids():
@@ -190,7 +188,10 @@ check("both Hume chat completion routes are documented", test_hume_routes_are_do
 check("every fragment openapi.yaml mounts exists", test_every_mounted_fragment_exists)
 check("no fragment is defined but never used", test_no_orphaned_fragments)
 check("no operationId is claimed by two mounted operations", test_duplicate_operation_ids)
-check("legacy aliases are mounted and their successors documented", test_legacy_aliases_mount_legacy_fragments)
+check(
+    "legacy aliases are mounted and their successors documented",
+    test_legacy_aliases_mount_legacy_fragments,
+)
 
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(0 if failed == 0 else 1)

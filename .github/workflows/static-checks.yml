@@ -1,0 +1,272 @@
+name: Static Checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 7 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: static-checks-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  BASE_REF: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+  FULL_CHECK: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '1' || '0' }}
+
+jobs:
+  detect:
+    name: Detect affected ecosystems
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      go: ${{ steps.paths.outputs.go }}
+      web: ${{ steps.paths.outputs.web }}
+      python_rust: ${{ steps.paths.outputs.python_rust }}
+      repo_docs: ${{ steps.paths.outputs.repo_docs }}
+      infra_contracts: ${{ steps.paths.outputs.infra_contracts }}
+      security: ${{ steps.paths.outputs.security }}
+      fast_unit: ${{ steps.paths.outputs.fast_unit }}
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        with:
+          egress-policy: block
+          allowed-endpoints: >
+            github.com:443
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Detect paths
+        id: paths
+        run: |
+          if [ "$FULL_CHECK" = 1 ]; then
+            scripts/static-checks/detect-paths.sh .golangci.yml
+          else
+            scripts/static-checks/detect-paths.sh
+          fi
+
+  go-static:
+    name: Go static (${{ matrix.shard }}/4)
+    needs: detect
+    if: needs.detect.outputs.go == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: 1
+            index: 0
+          - shard: 2
+            index: 1
+          - shard: 3
+            index: 2
+          - shard: 4
+            index: 3
+    steps:
+      - &harden
+        name: Harden runner
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        with:
+          egress-policy: block
+          allowed-endpoints: >
+            api.github.com:443
+            checkpoint-api.hashicorp.com:443
+            crates.io:443
+            files.pythonhosted.org:443
+            get.helm.sh:443
+            github.com:443
+            go.dev:443
+            index.crates.io:443
+            nodejs.org:443
+            ph.mintlify.com:443
+            proxy.golang.org:443
+            pypi.org:443
+            registry.npmjs.org:443
+            registry.terraform.io:443
+            release-assets.githubusercontent.com:443
+            releases.hashicorp.com:443
+            releases.astral.sh:443
+            static.rust-lang.org:443
+            storage.googleapis.com:443
+            sum.golang.org:443
+      - &checkout
+        name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - &setup-go
+        name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.27.0"
+          cache: false
+      - name: Run Go shard
+        env:
+          GO_SHARD_INDEX: ${{ matrix.index }}
+          GO_SHARD_TOTAL: 4
+        run: make check-go
+
+  web-static:
+    name: Web static
+    needs: detect
+    if: needs.detect.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    steps:
+      - *harden
+      - *checkout
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: |
+            tools/static/package-lock.json
+            ui/package-lock.json
+            **/package-lock.json
+      - name: Run web checks
+        run: make check-web
+
+  python-rust:
+    name: Python and Rust
+    needs: detect
+    if: needs.detect.outputs.python_rust == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    steps:
+      - *harden
+      - *checkout
+      - name: Set up Python
+        uses: actions/setup-python@5fda01b22e2cc14d5c4c5a4e0938424c88adf05d # v6.0.0
+        with:
+          python-version: "3.12"
+      - name: Set up uv
+        uses: step-security/setup-uv@edab89485182ad96613ff847804c272ab5d1e03f # v10.0.0
+        with:
+          version: "0.11.0"
+      - name: Run Python and Rust checks
+        run: make check-python
+
+  repo-docs:
+    name: Repository and docs
+    needs: detect
+    if: needs.detect.outputs.repo_docs == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    steps:
+      - *harden
+      - *checkout
+      - *setup-go
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: tools/static/package-lock.json
+      - name: Set up Python
+        uses: actions/setup-python@5fda01b22e2cc14d5c4c5a4e0938424c88adf05d # v6.0.0
+        with:
+          python-version: "3.12"
+      - name: Set up uv
+        uses: step-security/setup-uv@edab89485182ad96613ff847804c272ab5d1e03f # v10.0.0
+        with:
+          version: "0.11.0"
+      - name: Run repository and documentation checks
+        run: make check-repo
+
+  infra-contracts:
+    name: Infrastructure and contracts
+    needs: detect
+    if: needs.detect.outputs.infra_contracts == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    steps:
+      - *harden
+      - *checkout
+      - *setup-go
+      - name: Set up Python
+        uses: actions/setup-python@5fda01b22e2cc14d5c4c5a4e0938424c88adf05d # v6.0.0
+        with:
+          python-version: "3.12"
+      - name: Set up uv
+        uses: step-security/setup-uv@edab89485182ad96613ff847804c272ab5d1e03f # v10.0.0
+        with:
+          version: "0.11.0"
+      - name: Run infrastructure and contract checks
+        run: make check-infra
+
+  security:
+    name: Security
+    needs: detect
+    if: needs.detect.outputs.security == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    steps:
+      - *harden
+      - *checkout
+      - *setup-go
+      - name: Run credential-free security checks
+        run: make check-security
+
+  fast-unit:
+    name: Fast unit
+    needs: detect
+    if: needs.detect.outputs.fast_unit == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    steps:
+      - *harden
+      - *checkout
+      - *setup-go
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: |
+            tools/static/package-lock.json
+            ui/package-lock.json
+      - name: Set up Python
+        uses: actions/setup-python@5fda01b22e2cc14d5c4c5a4e0938424c88adf05d # v6.0.0
+        with:
+          python-version: "3.12"
+      - name: Set up uv
+        uses: step-security/setup-uv@edab89485182ad96613ff847804c272ab5d1e03f # v10.0.0
+        with:
+          version: "0.11.0"
+      - name: Run credential-free unit checks
+        run: make check-unit
+
+  required:
+    name: required
+    if: always()
+    needs: [detect, go-static, web-static, python-rust, repo-docs, infra-contracts, security, fast-unit]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - *harden
+      - name: Checkout policy script
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Require every relevant lane
+        run: >-
+          scripts/static-checks/aggregate-results.sh
+          '${{ needs.detect.result }}'
+          '${{ needs.go-static.result }}'
+          '${{ needs.web-static.result }}'
+          '${{ needs.python-rust.result }}'
+          '${{ needs.repo-docs.result }}'
+          '${{ needs.infra-contracts.result }}'
+          '${{ needs.security.result }}'
+          '${{ needs.fast-unit.result }}'

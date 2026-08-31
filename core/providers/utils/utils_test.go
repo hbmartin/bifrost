@@ -929,7 +929,7 @@ func TestDrainNonSSEStreamReader_TinyOpenSSEPrefixReturnsPromptly(t *testing.T) 
 			defer fasthttp.ReleaseResponse(resp)
 
 			pr, pw := io.Pipe()
-			defer pr.Close()
+			defer func() { _ = pr.Close() }()
 
 			writeErr := make(chan error, 1)
 			go func() {
@@ -1001,7 +1001,7 @@ func TestDrainNonSSEStreamReader_FragmentedFieldPrefixReturnsPromptly(t *testing
 			defer fasthttp.ReleaseResponse(resp)
 
 			pr, pw := io.Pipe()
-			defer pr.Close()
+			defer func() { _ = pr.Close() }()
 
 			firstWriteErr := make(chan error, 1)
 			go func() {
@@ -1792,35 +1792,43 @@ func TestGetBudgetTokensFromReasoningEffort(t *testing.T) {
 	}{
 		{
 			effort: "none",
-			check:  func(t *testing.T, budget int) { assertEqual(t, 0, budget, "none effort") },
+			check: func(t *testing.T, budget int) {
+				t.Helper()
+				assertEqual(t, 0, budget, "none effort")
+			},
 		},
 		{
 			effort: "minimal",
 			check: func(t *testing.T, budget int) {
+				t.Helper()
 				assertRange(t, min, max-1, budget, "minimal")
 			},
 		},
 		{
 			effort: "low",
 			check: func(t *testing.T, budget int) {
+				t.Helper()
 				assertRange(t, min, max-1, budget, "low")
 			},
 		},
 		{
 			effort: "medium",
 			check: func(t *testing.T, budget int) {
+				t.Helper()
 				assertRange(t, min, max-1, budget, "medium")
 			},
 		},
 		{
 			effort: "high",
 			check: func(t *testing.T, budget int) {
+				t.Helper()
 				assertRange(t, min, max-1, budget, "high")
 			},
 		},
 		{
 			effort: "xhigh",
 			check: func(t *testing.T, budget int) {
+				t.Helper()
 				assertRange(t, min, max-1, budget, "xhigh")
 			},
 		},
@@ -1829,6 +1837,7 @@ func TestGetBudgetTokensFromReasoningEffort(t *testing.T) {
 			// Bedrock and Anthropic both require budget_tokens < max_tokens (strict).
 			effort: "max",
 			check: func(t *testing.T, budget int) {
+				t.Helper()
 				if budget >= max {
 					t.Errorf("max effort: budget %d must be < maxTokens %d", budget, max)
 				}
@@ -1838,6 +1847,7 @@ func TestGetBudgetTokensFromReasoningEffort(t *testing.T) {
 		{
 			effort: "unknown",
 			check: func(t *testing.T, budget int) {
+				t.Helper()
 				assertRange(t, min, max-1, budget, "unknown effort uses safe default")
 			},
 		},
@@ -2037,7 +2047,8 @@ func TestSanitizeAnthropicToolUseID(t *testing.T) {
 	// A tool_use id and its matching tool_result id must sanitize identically,
 	// since Anthropic requires them to reference the same value.
 	toolUseID := "functions.get_weather:0"
-	if SanitizeAnthropicToolUseID(toolUseID) != SanitizeAnthropicToolUseID(toolUseID) {
+	toolResultID := "functions.get_weather:0"
+	if SanitizeAnthropicToolUseID(toolUseID) != SanitizeAnthropicToolUseID(toolResultID) {
 		t.Error("matching tool_use/tool_result ids diverged after sanitization")
 	}
 

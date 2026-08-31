@@ -289,7 +289,11 @@ function OverviewTabImpl({
 					}
 					totalTooltip={
 						costTotal !== null
-							? costTotal.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 6 })
+							? costTotal.toLocaleString("en-US", {
+									style: "currency",
+									currency: "USD",
+									maximumFractionDigits: 6,
+								})
 							: undefined
 					}
 					legend={

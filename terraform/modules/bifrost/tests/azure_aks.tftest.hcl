@@ -36,7 +36,6 @@ mock_provider "kubernetes" {}
 
 run "aks_basic" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider = "azure"
     service        = "aks"
@@ -47,7 +46,6 @@ run "aks_basic" {
 
 run "aks_create_cluster" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider = "azure"
     service        = "aks"
@@ -59,7 +57,6 @@ run "aks_create_cluster" {
 
 run "aks_skip_cluster" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider = "azure"
     service        = "aks"
@@ -71,7 +68,6 @@ run "aks_skip_cluster" {
 
 run "aks_custom_namespace" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider       = "azure"
     service              = "aks"
@@ -83,7 +79,6 @@ run "aks_custom_namespace" {
 
 run "aks_with_hpa" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider     = "azure"
     service            = "aks"
@@ -97,7 +92,6 @@ run "aks_with_hpa" {
 
 run "aks_with_ingress" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider       = "azure"
     service              = "aks"
@@ -110,7 +104,6 @@ run "aks_with_ingress" {
 
 run "aks_custom_nodes" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider    = "azure"
     service           = "aks"
@@ -123,7 +116,6 @@ run "aks_custom_nodes" {
 
 run "aks_custom_volume" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider = "azure"
     service        = "aks"
@@ -135,7 +127,6 @@ run "aks_custom_volume" {
 
 run "aks_existing_resource_group" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider            = "azure"
     service                   = "aks"
@@ -147,7 +138,6 @@ run "aks_existing_resource_group" {
 
 run "aks_existing_vnet" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider      = "azure"
     service             = "aks"

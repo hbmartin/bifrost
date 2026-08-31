@@ -117,7 +117,7 @@ func RollingWindowStart(anchor time.Time, duration time.Duration, now time.Time)
 	if elapsed < 0 {
 		return anchor
 	}
-	return anchor.Add((elapsed / duration) * duration)
+	return anchor.Add(elapsed.Truncate(duration))
 }
 
 // CountCalendarPeriods returns how many calendar-period boundaries the interval

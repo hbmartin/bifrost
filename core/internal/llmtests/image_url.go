@@ -12,6 +12,7 @@ import (
 
 // RunImageURLTest executes the image URL test scenario using dual API testing framework
 func RunImageURLTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.ImageURL {
 		t.Logf("Image URL not supported for provider %s", testConfig.Provider)
 		return
@@ -133,6 +134,7 @@ func RunImageURLTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context,
 }
 
 func validateImageProcessingContent(t *testing.T, content string, apiName string) {
+	t.Helper()
 	lowerContent := strings.ToLower(content)
 	foundObjectIdentification := strings.Contains(lowerContent, "ant") || strings.Contains(lowerContent, "insect")
 

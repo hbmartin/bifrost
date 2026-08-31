@@ -92,7 +92,10 @@ export function SettingsPanel() {
 
 	// Ensure current provider always has a label-resolved option (even before providers query loads)
 	const providerOptions = useMemo(() => {
-		const opts = configuredProviders.map((p) => ({ label: getProviderLabel(p.name), value: p.name }));
+		const opts = configuredProviders.map((p) => ({
+			label: getProviderLabel(p.name),
+			value: p.name,
+		}));
 		if (provider && !opts.find((o) => o.value === provider)) {
 			opts.unshift({ label: getProviderLabel(provider), value: provider as ModelProviderName });
 		}

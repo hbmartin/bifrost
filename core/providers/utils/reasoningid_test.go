@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"context"
 	"testing"
 
 	"github.com/maximhq/bifrost/core/schemas"
@@ -115,7 +116,7 @@ func TestShouldEmbedReasoningItemID(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+			ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 			if tc.baseProvider != "" {
 				ctx.SetValue(schemas.BifrostContextKeyBaseProviderType, tc.baseProvider)
 			}

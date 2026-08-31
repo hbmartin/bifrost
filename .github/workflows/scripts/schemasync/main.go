@@ -175,7 +175,7 @@ type checker struct {
 	visited map[string]bool
 	// secretVarFields records where SecretVar types occur, for downstream checks
 	secretVarFields []secretVarLocation
-	findings     []Finding
+	findings        []Finding
 }
 
 func main() {
@@ -183,6 +183,7 @@ func main() {
 	pkgDir := flag.String("pkg-root", ".", "repo root used as packages.Load dir")
 	helmValuesFlag := flag.String("helm-values", "helm-charts/bifrost/values.schema.json", "path to helm values.schema.json (for SecretVar secret-support check)")
 	helmHelpersFlag := flag.String("helm-helpers", "helm-charts/bifrost/templates/_helpers.tpl", "path to helm _helpers.tpl (for env.BIFROST_* emission detection)")
+	goWorkFlag := flag.String("go-work", "", "path to the generated Go workspace used to load local modules")
 	flag.Parse()
 
 	schemaBytes, err := os.ReadFile(*schemaFlag)
@@ -210,10 +211,17 @@ func main() {
 		fmt.Fprintf(os.Stderr, "abs pkg-root: %v\n", err)
 		os.Exit(2)
 	}
-	// Always use the repo's go.work so local modules resolve against each
-	// other (not against registry tarballs). The tool refuses to run without
-	// go.work — that's the only configuration bifrost is tested against.
-	goworkPath := filepath.Join(absRoot, "go.work")
+	// Always use an explicit workspace so local modules resolve against each
+	// other without depending on a developer's ignored go.work file.
+	goworkPath := *goWorkFlag
+	if goworkPath == "" {
+		goworkPath = filepath.Join(absRoot, "go.work")
+	}
+	goworkPath, err = filepath.Abs(goworkPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "resolve go.work path: %v\n", err)
+		os.Exit(2)
+	}
 	if _, err := os.Stat(goworkPath); err != nil {
 		fmt.Fprintf(os.Stderr, "schemasync requires go.work at %s: %v\n", goworkPath, err)
 		os.Exit(2)
@@ -326,7 +334,7 @@ func printReport(w interface{ Write([]byte) (int, error) }, findings []Finding) 
 		if title == "" {
 			title = cat
 		}
-		fmt.Fprintf(w.(interface{ Write([]byte) (int, error) }), "\n### %s (%d)\n\n", title, len(items))
+		_, _ = fmt.Fprintf(w, "\n### %s (%d)\n\n", title, len(items))
 		// Pick columns based on category for readability.
 		switch cat {
 		case "missing-in-schema", "schema-path-not-found":

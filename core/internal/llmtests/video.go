@@ -19,6 +19,7 @@ const (
 )
 
 func RunVideoGenerationTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.VideoGeneration {
 		t.Logf("Video generation not supported for provider %s", testConfig.Provider)
 		return
@@ -57,6 +58,7 @@ func RunVideoGenerationTest(t *testing.T, client *bifrost.Bifrost, ctx context.C
 }
 
 func RunVideoRetrieveTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.VideoRetrieve {
 		t.Logf("Video retrieve not supported for provider %s", testConfig.Provider)
 		return
@@ -96,6 +98,7 @@ func RunVideoRetrieveTest(t *testing.T, client *bifrost.Bifrost, ctx context.Con
 }
 
 func RunVideoRemixTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.VideoRemix {
 		t.Logf("Video remix not supported for provider %s", testConfig.Provider)
 		return
@@ -163,6 +166,7 @@ func RunVideoRemixTest(t *testing.T, client *bifrost.Bifrost, ctx context.Contex
 }
 
 func RunVideoDownloadTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.VideoDownload {
 		t.Logf("Video download not supported for provider %s", testConfig.Provider)
 		return
@@ -219,6 +223,7 @@ func RunVideoDownloadTest(t *testing.T, client *bifrost.Bifrost, ctx context.Con
 }
 
 func RunVideoListTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.VideoList {
 		t.Logf("Video list not supported for provider %s", testConfig.Provider)
 		return
@@ -251,6 +256,7 @@ func RunVideoListTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context
 }
 
 func RunVideoDeleteTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.VideoDelete {
 		t.Logf("Video delete not supported for provider %s", testConfig.Provider)
 		return
@@ -308,6 +314,7 @@ func RunVideoDeleteTest(t *testing.T, client *bifrost.Bifrost, ctx context.Conte
 }
 
 func RunVideoUnsupportedTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if testConfig.Scenarios.VideoList || testConfig.Scenarios.VideoDelete || testConfig.Scenarios.VideoRemix {
 		return
 	}

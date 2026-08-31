@@ -10,10 +10,10 @@
 // Vertex-hosted Gemini under the bare model id with provider "vertex_ai" (vs the
 // AI-Studio variant "gemini/<model>" with provider "gemini"), so a Bifrost
 // "vertex" row would otherwise fail the provider guard below.
-const PRICING_PROVIDER_ALIASES = { vertex: 'vertex_ai' };
+const PRICING_PROVIDER_ALIASES = { vertex: "vertex_ai" };
 
 function normalizePricingProvider(p) {
-  if (!p) return '';
+  if (!p) return "";
   const lp = String(p).toLowerCase();
   return PRICING_PROVIDER_ALIASES[lp] || lp;
 }
@@ -21,12 +21,14 @@ function normalizePricingProvider(p) {
 function resolvePricingEntry(sheet, model, provider) {
   if (!sheet || !model) return null;
   const m = String(model);
-  const bare = m.includes('/') ? m.split('/').pop() : m;
+  const bare = m.includes("/") ? m.split("/").pop() : m;
   // Datasheet keys are lowercase-prefixed (litellm style), so lower-case the
   // provider before building the prefixed candidate to avoid case-only misses.
-  const lowerProvider = provider ? String(provider).toLowerCase() : '';
+  const lowerProvider = provider ? String(provider).toLowerCase() : "";
   const np = normalizePricingProvider(provider);
-  const candidates = [m, bare,
+  const candidates = [
+    m,
+    bare,
     lowerProvider ? `${lowerProvider}/${bare}` : null,
     np && np !== lowerProvider ? `${np}/${bare}` : null,
   ].filter(Boolean);

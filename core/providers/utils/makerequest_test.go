@@ -29,7 +29,7 @@ func newTestServer(t *testing.T, delay time.Duration, statusCode int) (*fasthttp
 		},
 	}
 
-	go server.Serve(ln) //nolint:errcheck
+	go server.Serve(ln) //nolint:errcheck // Closing the listener is the expected test shutdown path.
 
 	client := &fasthttp.Client{
 		Dial: func(addr string) (net.Conn, error) {
@@ -40,7 +40,7 @@ func newTestServer(t *testing.T, delay time.Duration, statusCode int) (*fasthttp
 	}
 
 	cleanup := func() {
-		ln.Close()
+		_ = ln.Close()
 	}
 
 	return client, cleanup

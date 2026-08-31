@@ -140,12 +140,18 @@ export function PrometheusFormFragment({
 			shouldDirty: true,
 			shouldValidate: true,
 		});
-		form.setValue("prometheus_config.job_name", defaults.prometheus_config.job_name, { shouldDirty: true, shouldValidate: true });
+		form.setValue("prometheus_config.job_name", defaults.prometheus_config.job_name, {
+			shouldDirty: true,
+			shouldValidate: true,
+		});
 		form.setValue("prometheus_config.instance_id", defaults.prometheus_config.instance_id ?? "", {
 			shouldDirty: true,
 			shouldValidate: true,
 		});
-		form.setValue("prometheus_config.push_interval", defaults.prometheus_config.push_interval, { shouldDirty: true, shouldValidate: true });
+		form.setValue("prometheus_config.push_interval", defaults.prometheus_config.push_interval, {
+			shouldDirty: true,
+			shouldValidate: true,
+		});
 		form.setValue("prometheus_config.basic_auth_username", defaults.prometheus_config.basic_auth_username ?? emptySecretVar(), {
 			shouldDirty: true,
 			shouldValidate: true,

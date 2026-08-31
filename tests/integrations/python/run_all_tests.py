@@ -15,13 +15,14 @@ Usage:
 """
 
 import argparse
+import concurrent.futures
+import os
 import subprocess
 import sys
 import time
-import os
 from pathlib import Path
-from typing import List, Dict, Optional
-import concurrent.futures
+from typing import Any
+
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -31,9 +32,9 @@ load_dotenv()
 class BifrostTestRunner:
     """Main test runner for Bifrost integration tests"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.test_dir = Path(__file__).parent
-        self.integrations = {
+        self.integrations: dict[str, dict[str, Any]] = {
             "openai": {
                 "file": "tests/integrations/test_openai.py",
                 "description": "OpenAI Python SDK integration tests",
@@ -69,7 +70,7 @@ class BifrostTestRunner:
             },
         }
 
-        self.results = {}
+        self.results: dict[str, dict[str, Any]] = {}
 
     def check_environment(self, integration: str) -> bool:
         """Check if required environment variables are set for an integration"""
@@ -88,7 +89,7 @@ class BifrostTestRunner:
 
         return True
 
-    def run_integration_test(self, integration: str, verbose: bool = False) -> Dict:
+    def run_integration_test(self, integration: str, verbose: bool = False) -> dict:
         """Run tests for a specific integration"""
         if integration not in self.integrations:
             return {"success": False, "error": f"Unknown integration: {integration}"}
@@ -107,9 +108,9 @@ class BifrostTestRunner:
                 "skipped": True,
             }
 
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"Running {integration.upper()} Integration Tests")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         print(f"Description: {config['description']}")
         print(f"Test file: {config['file']}")
 
@@ -193,9 +194,7 @@ class BifrostTestRunner:
         with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
             # Submit all tests
             future_to_integration = {
-                executor.submit(
-                    self.run_integration_test, integration, verbose
-                ): integration
+                executor.submit(self.run_integration_test, integration, verbose): integration
                 for integration in self.integrations
             }
 
@@ -209,9 +208,9 @@ class BifrostTestRunner:
 
     def _print_summary(self, total_time: float) -> None:
         """Print test summary"""
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("TEST SUMMARY")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         passed = 0
         failed = 0
@@ -227,9 +226,7 @@ class BifrostTestRunner:
 
             if result.get("skipped"):
                 skipped += 1
-                print(
-                    f"⚠ {integration:12} {status:8} - {result.get('error', 'Unknown error')}"
-                )
+                print(f"⚠ {integration:12} {status:8} - {result.get('error', 'Unknown error')}")
             elif result["success"]:
                 passed += 1
                 print(f"✓ {integration:12} {status:8} - {elapsed:.2f}s")
@@ -239,15 +236,15 @@ class BifrostTestRunner:
                 print(f"✗ {integration:12} {status:8} - {error_msg}")
 
                 # Print stderr if available
-                if "stderr" in result and result["stderr"]:
+                if result.get("stderr"):
                     print(f"  Error output: {result['stderr'][:200]}...")
 
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(
             f"Total: {len(self.integrations)} | Passed: {passed} | Failed: {failed} | Skipped: {skipped}"
         )
         print(f"Total time: {total_time:.2f} seconds")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         # Exit with appropriate code
         if failed > 0:
@@ -280,9 +277,7 @@ Examples:
         """,
     )
 
-    parser.add_argument(
-        "--integration", "-i", help="Run tests for specific integration only"
-    )
+    parser.add_argument("--integration", "-i", help="Run tests for specific integration only")
 
     parser.add_argument(
         "--list",

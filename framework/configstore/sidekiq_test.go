@@ -12,6 +12,7 @@ import (
 
 // setupSidekiqTestStore extends the base test store with the sidekiq table.
 func setupSidekiqTestStore(t *testing.T) *RDBConfigStore {
+	t.Helper()
 	store := setupRDBTestStore(t)
 	require.NoError(t, store.DB().AutoMigrate(&tables.TableSidekiqJob{}), "migrate sidekiq table")
 	return store

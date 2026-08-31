@@ -2,7 +2,6 @@ package tui
 
 import (
 	"context"
-	"os"
 	"strings"
 	"testing"
 
@@ -10,21 +9,12 @@ import (
 )
 
 func TestPrefersPlainChooserLayoutAppleTerminal(t *testing.T) {
-	old := os.Getenv("TERM_PROGRAM")
-	t.Cleanup(func() {
-		if old == "" {
-			os.Unsetenv("TERM_PROGRAM")
-			return
-		}
-		os.Setenv("TERM_PROGRAM", old)
-	})
-
-	os.Setenv("TERM_PROGRAM", "Apple_Terminal")
+	t.Setenv("TERM_PROGRAM", "Apple_Terminal")
 	if !prefersPlainChooserLayout() {
 		t.Fatal("expected Apple Terminal to use the plain chooser layout")
 	}
 
-	os.Setenv("TERM_PROGRAM", "iTerm.app")
+	t.Setenv("TERM_PROGRAM", "iTerm.app")
 	if prefersPlainChooserLayout() {
 		t.Fatal("did not expect iTerm to use the plain chooser layout")
 	}

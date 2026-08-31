@@ -89,7 +89,11 @@ export function BudgetOverrideManagerDialog({
 		setError(null);
 		try {
 			const wasActive = hasActiveBudgetOverride(row.budget);
-			await onSave(row.budget.id, { amount: parsedAmount, mode, ...(mode === "cycles" ? { cycles: parsedCycles } : {}) });
+			await onSave(row.budget.id, {
+				amount: parsedAmount,
+				mode,
+				...(mode === "cycles" ? { cycles: parsedCycles } : {}),
+			});
 			toast.success(wasActive ? "Budget override updated" : "Budget override added");
 			setExpandedKey(null);
 		} catch (mutationError) {

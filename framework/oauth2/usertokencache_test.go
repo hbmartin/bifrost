@@ -51,7 +51,7 @@ func TestUserTokenCache_CapacityEviction(t *testing.T) {
 	c := newUserTokenCache(2)
 
 	for i := 1; i <= 3; i++ {
-		_, err := c.Fill(context.Background(), 
+		_, err := c.Fill(context.Background(),
 			fmt.Sprintf("k%d", i),
 			fillWith(testToken(fmt.Sprintf("t%d", i), fmt.Sprintf("access-%d", i), nil)),
 		)
@@ -447,7 +447,7 @@ func TestGetUserAccessTokenByMode_ExpiredRefreshesOnceUnderConcurrency(t *testin
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		tokenEndpointCalls.Add(1)
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"access_token":  "refreshed-access",
 			"refresh_token": "new-refresh-token",
 			"token_type":    "bearer",

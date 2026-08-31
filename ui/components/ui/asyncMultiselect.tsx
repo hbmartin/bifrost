@@ -266,7 +266,7 @@ export function AsyncMultiSelect<T>(props: AsyncMultiSelectProps<T>) {
 				}
 				props.reload(query, callback);
 			},
-			[props.reload],
+			[props],
 		),
 		props.debounce ?? 0,
 	);
@@ -386,7 +386,7 @@ export function AsyncMultiSelect<T>(props: AsyncMultiSelectProps<T>) {
 						normalizedSelection = (selection as Option<T>[]) || [];
 					}
 
-					props.onChange && props.onChange(normalizedSelection);
+					props.onChange?.(normalizedSelection);
 				}}
 				formatCreateLabel={props.formatCreateLabel}
 				controlShouldRenderValue={props.controlShouldRenderValue ?? true}
@@ -513,7 +513,7 @@ export function MultiSelectInput<T>(props: AsyncMultiSelectProps<T>) {
 				setValue(newOptions);
 				setInputValue("");
 				event.preventDefault();
-				props.onChange && props.onChange(newOptions);
+				props.onChange?.(newOptions);
 				break;
 			}
 		}
@@ -531,7 +531,7 @@ export function MultiSelectInput<T>(props: AsyncMultiSelectProps<T>) {
 			hideSearchIcon
 			onChange={(newValue) => {
 				setValue(newValue);
-				props.onChange && props.onChange(newValue);
+				props.onChange?.(newValue);
 			}}
 			onKeyDown={handleKeyDown}
 			inputValue={inputValue}
@@ -542,8 +542,6 @@ export function MultiSelectInput<T>(props: AsyncMultiSelectProps<T>) {
 }
 
 function CustomOption<T>(props: OptionProps<Option<T>> & { selectProps: CustomOptionProps & CustomComponentsProps }) {
-	const { Option } = components;
-
 	if (props.selectProps.optionView) {
 		return props.selectProps.optionView(props);
 	}
@@ -594,7 +592,9 @@ function CustomControl<T>(props: ControlProps<Option<T>> & { selectProps: Custom
 }
 
 function CustomDropdownIndicator<T>(
-	props: DropdownIndicatorProps<Option<T>> & { selectProps: CustomDropdownIndicatorProps & CustomComponentsProps },
+	props: DropdownIndicatorProps<Option<T>> & {
+		selectProps: CustomDropdownIndicatorProps & CustomComponentsProps;
+	},
 ) {
 	if (props.selectProps.dropdownIndicatorView) {
 		return props.selectProps.dropdownIndicatorView(props);
@@ -607,8 +607,6 @@ function CustomDropdownIndicator<T>(
 }
 
 function CustomMultiValueRemove<T>(props: MultiValueRemoveProps<Option<T>> & { selectProps: CustomComponentsProps }) {
-	const { MultiValueRemove } = components;
-
 	if (props.selectProps.multiValueRemoveView) {
 		return props.selectProps.multiValueRemoveView(props);
 	}
@@ -645,8 +643,6 @@ function CustomGroupHeading<T>(props: GroupHeadingProps<Option<T>> & { selectPro
 }
 
 function CustomGroup<T>(props: GroupProps<Option<T>> & { selectProps: CustomComponentsProps }) {
-	const { Group } = components;
-
 	if (props.selectProps.groupView) {
 		return props.selectProps.groupView(props);
 	}
@@ -727,7 +723,11 @@ function CustomNoOptionsMessage<T>(props: NoticeProps<Option<T>> & { selectProps
 	return <NoOptionsMessageWrapper {...props} />;
 }
 
-function CustomPlaceholder<T>(props: PlaceholderProps<Option<T>> & { selectProps: CustomPlaceholderProps & CustomComponentsProps }) {
+function CustomPlaceholder<T>(
+	props: PlaceholderProps<Option<T>> & {
+		selectProps: CustomPlaceholderProps & CustomComponentsProps;
+	},
+) {
 	if (props.selectProps.placeholderView) {
 		return props.selectProps.placeholderView(props);
 	}

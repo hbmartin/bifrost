@@ -502,7 +502,7 @@ func (provider *VLLMProvider) Rerank(ctx *schemas.BifrostContext, key schemas.Ke
 	responsePayload, rawRequest, rawResponse, responseBody, statusCode, latency, bifrostErr := provider.callVLLMRerankEndpoint(ctx, key, request, resolvedPath, jsonData)
 	if bifrostErr != nil && !hasPathOverride && isRerankFallbackStatus(statusCode) {
 		var fallbackLatency time.Duration
-		responsePayload, rawRequest, rawResponse, responseBody, statusCode, fallbackLatency, bifrostErr = provider.callVLLMRerankEndpoint(ctx, key, request, "/rerank", jsonData)
+		responsePayload, rawRequest, rawResponse, responseBody, _, fallbackLatency, bifrostErr = provider.callVLLMRerankEndpoint(ctx, key, request, "/rerank", jsonData)
 		latency += fallbackLatency
 	}
 	if bifrostErr != nil {
@@ -668,9 +668,9 @@ func (provider *VLLMProvider) TranscriptionStream(ctx *schemas.BifrostContext, p
 		go func() {
 			defer providerUtils.EnsureStreamFinalizerCalled(ctx, postHookSpanFinalizer)
 			defer func() {
-				if ctx.Err() == context.Canceled {
+				if errors.Is(ctx.Err(), context.Canceled) {
 					providerUtils.HandleStreamCancellation(ctx, postHookRunner, responseChan, logger, postHookSpanFinalizer, nil)
-				} else if ctx.Err() == context.DeadlineExceeded {
+				} else if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 					providerUtils.HandleStreamTimeout(ctx, postHookRunner, responseChan, logger, postHookSpanFinalizer, nil)
 				}
 				providerUtils.CloseStream(ctx, responseChan)
@@ -707,7 +707,7 @@ func (provider *VLLMProvider) TranscriptionStream(ctx *schemas.BifrostContext, p
 					if ctx.Err() != nil {
 						return
 					}
-					if readErr != io.EOF {
+					if !errors.Is(readErr, io.EOF) {
 						ctx.SetValue(schemas.BifrostContextKeyStreamEndIndicator, true)
 						logger.Warn("Error reading stream: %v", readErr)
 						providerUtils.ProcessAndSendError(ctx, postHookRunner, readErr, responseChan, logger, postHookSpanFinalizer)

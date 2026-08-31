@@ -1,10 +1,9 @@
 # =============================================================================
 # Test Wrapper Module
 #
-# This module exists solely to declare all required_providers in one place
-# for the Terraform test framework. The root bifrost module intentionally
-# does NOT declare required_providers so users only need to configure the
-# provider for their chosen cloud.
+# This wrapper gives tests an alternate module boundary while inheriting the
+# root module's complete provider declarations. Those declarations let the
+# Terraform test framework replace every provider with its mock equivalent.
 #
 # Test files use: module { source = "./tests/setup" } in run blocks.
 # =============================================================================

@@ -12,6 +12,7 @@ import (
 
 // RunAutomaticFunctionCallingTest executes the automatic function calling test scenario using dual API testing framework
 func RunAutomaticFunctionCallingTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.AutomaticFunctionCall {
 		t.Logf("Automatic function calling not supported for provider %s", testConfig.Provider)
 		return
@@ -161,10 +162,11 @@ func RunAutomaticFunctionCallingTest(t *testing.T, client *bifrost.Bifrost, ctx 
 }
 
 func validateAutomaticToolCall(t *testing.T, toolCalls []ToolCallInfo, apiName string) {
+	t.Helper()
 	// Validation for tool call already happened inside WithDualAPITestRetry
 	// If we reach here, the tool call was successful
 	// This function just provides additional logging for tool call details
-	
+
 	for _, toolCall := range toolCalls {
 		if toolCall.Name == string(SampleToolTypeTime) {
 			t.Logf("✅ %s automatic function call: %s", apiName, toolCall.Arguments)

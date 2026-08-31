@@ -68,7 +68,7 @@ func seedOffloadedBillingLog(t *testing.T, hybrid *HybridLogStore, inner LogStor
 
 func TestHybrid_SearchLogsForBillingHydratesCacheBreakdown(t *testing.T) {
 	hybrid, inner, objStore := newTestHybrid(t)
-	defer hybrid.Close(context.Background())
+	defer func() { _ = hybrid.Close(context.Background()) }()
 	ctx := context.Background()
 
 	seedOffloadedBillingLog(t, hybrid, inner, "bill-hydrate-1", false)
@@ -118,7 +118,7 @@ func TestHybrid_SearchLogsForBillingHydratesCacheBreakdown(t *testing.T) {
 // inputs from object storage.
 func TestHybrid_SearchLogsForBillingHydratesContentHiddenForBilling(t *testing.T) {
 	hybrid, inner, objStore := newTestHybrid(t)
-	defer hybrid.Close(context.Background())
+	defer func() { _ = hybrid.Close(context.Background()) }()
 	ctx := context.Background()
 
 	seedOffloadedBillingLog(t, hybrid, inner, "bill-hidden-1", true)
@@ -143,7 +143,7 @@ func TestHybrid_SearchLogsForBillingHydratesContentHiddenForBilling(t *testing.T
 // leave the stub in place and bill it. A lost object must surface as unpriceable.
 func TestHybrid_SearchLogsForBillingReportsFetchFailureAsUnpriceable(t *testing.T) {
 	hybrid, inner, objStore := newTestHybrid(t)
-	defer hybrid.Close(context.Background())
+	defer func() { _ = hybrid.Close(context.Background()) }()
 	ctx := context.Background()
 
 	seedOffloadedBillingLog(t, hybrid, inner, "bill-lost-1", false)
@@ -169,7 +169,7 @@ func TestHybrid_SearchLogsForBillingReportsFetchFailureAsUnpriceable(t *testing.
 // object fetches we do not need.
 func TestHybrid_SearchLogsForBillingLeavesNonOffloadedRowsAlone(t *testing.T) {
 	hybrid, inner, _ := newTestHybrid(t)
-	defer hybrid.Close(context.Background())
+	defer func() { _ = hybrid.Close(context.Background()) }()
 	ctx := context.Background()
 
 	// Write straight through the inner store so nothing is offloaded and has_object
@@ -205,7 +205,7 @@ func TestHybrid_SearchLogsForBillingLeavesNonOffloadedRowsAlone(t *testing.T) {
 // object would be pure waste. Deleting the object proves no fetch is attempted.
 func TestHybrid_HydrateBillingChunkSkipsRowsThatNeedNothing(t *testing.T) {
 	hybrid, inner, objStore := newTestHybridWithExclude(t, []string{"token_usage", "cache_debug"})
-	defer hybrid.Close(context.Background())
+	defer func() { _ = hybrid.Close(context.Background()) }()
 	ctx := context.Background()
 
 	entry := &Log{
@@ -261,7 +261,7 @@ func TestHybrid_HydrateBillingChunkSkipsRowsThatNeedNothing(t *testing.T) {
 // hydration in fact fully succeeded, and would leave a real TTS charge unbilled forever.
 func TestHybrid_HydrateBillingChunkKeepsModalityRowWithoutTokenUsage(t *testing.T) {
 	hybrid, inner, objStore := newTestHybrid(t)
-	defer hybrid.Close(context.Background())
+	defer func() { _ = hybrid.Close(context.Background()) }()
 	ctx := context.Background()
 
 	entry := &Log{

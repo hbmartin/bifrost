@@ -1,6 +1,7 @@
 package configstore
 
 import (
+	"fmt"
 	"log"
 	"reflect"
 
@@ -32,9 +33,15 @@ type vaultStoreSelfManaged interface {
 // SecretVar columns inside BeforeSave implement vaultStoreSelfManaged and do their own
 // store at the correct midpoint; the global callback skips them.
 func RegisterVaultCallbacks(db *gorm.DB) {
-	db.Callback().Create().Before("gorm:before_create").Register("bifrost:vault_store", vaultStoreCallback)
-	db.Callback().Update().Before("gorm:before_update").Register("bifrost:vault_store", vaultStoreCallback)
-	db.Callback().Delete().After("gorm:after_delete").Register("bifrost:vault_remove", vaultRemoveCallback)
+	if err := db.Callback().Create().Before("gorm:before_create").Register("bifrost:vault_store", vaultStoreCallback); err != nil {
+		_ = db.AddError(fmt.Errorf("register vault create callback: %w", err))
+	}
+	if err := db.Callback().Update().Before("gorm:before_update").Register("bifrost:vault_store", vaultStoreCallback); err != nil {
+		_ = db.AddError(fmt.Errorf("register vault update callback: %w", err))
+	}
+	if err := db.Callback().Delete().After("gorm:after_delete").Register("bifrost:vault_remove", vaultRemoveCallback); err != nil {
+		_ = db.AddError(fmt.Errorf("register vault delete callback: %w", err))
+	}
 }
 
 func vaultStoreCallback(tx *gorm.DB) {

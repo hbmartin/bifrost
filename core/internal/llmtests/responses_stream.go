@@ -14,6 +14,7 @@ import (
 
 // RunResponsesStreamTest executes the responses streaming test scenario
 func RunResponsesStreamTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.CompletionStream {
 		t.Logf("Responses completion stream not supported for provider %s", testConfig.Provider)
 		return
@@ -944,8 +945,6 @@ func RunResponsesStreamTest(t *testing.T, client *bifrost.Bifrost, ctx context.C
 
 				if allEventsPresent {
 					t.Logf("✅ All required lifecycle events are present and properly ordered")
-				} else {
-					// Errors already collected above
 				}
 
 				if len(validationErrors) > 0 {
@@ -979,6 +978,7 @@ func RunResponsesStreamTest(t *testing.T, client *bifrost.Bifrost, ctx context.C
 // validateResponsesStreamingStructure validates the structure and events of responses streaming
 // Returns a list of validation errors (empty if validation passes)
 func validateResponsesStreamingStructure(t *testing.T, eventTypes map[schemas.ResponsesStreamResponseType]int, sequenceNumbers []int, hasResponseCreated, hasResponseCompleted, hasOutputItems, hasContentParts bool) []string {
+	t.Helper()
 	var errors []string
 
 	// Validate sequence numbers are increasing
@@ -1035,6 +1035,7 @@ type StreamingValidationResult struct {
 
 // validateResponsesStreamingResponse validates streaming-specific aspects of responses API
 func validateResponsesStreamingResponse(t *testing.T, eventTypes map[schemas.ResponsesStreamResponseType]int, sequenceNumbers []int, finalContent string, lastResponse *schemas.BifrostStreamChunk, testConfig ComprehensiveTestConfig) StreamingValidationResult {
+	t.Helper()
 	var errors []string
 
 	// Basic content validation

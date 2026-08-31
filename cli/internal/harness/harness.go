@@ -251,17 +251,17 @@ func opencodePreLaunch(baseURL, apiKey, model string) ([]string, func(), error) 
 		return nil, nil, fmt.Errorf("create opencode config: %w", err)
 	}
 	if _, err := f.WriteString(runtimeCfg); err != nil {
-		f.Close()
-		os.Remove(f.Name())
+		_ = f.Close()
+		_ = os.Remove(f.Name())
 		return nil, nil, fmt.Errorf("write opencode config: %w", err)
 	}
 	if err := f.Close(); err != nil {
-		os.Remove(f.Name())
+		_ = os.Remove(f.Name())
 		return nil, nil, fmt.Errorf("close opencode config: %w", err)
 	}
 
 	env = append(env, "OPENCODE_CONFIG="+f.Name())
-	cleanupFns = append(cleanupFns, func() { os.Remove(f.Name()) })
+	cleanupFns = append(cleanupFns, func() { _ = os.Remove(f.Name()) })
 	return env, combineCleanup(cleanupFns), nil
 }
 
@@ -299,16 +299,16 @@ func opencodeTUIPreLaunch() ([]string, func(), error) {
 		return nil, nil, fmt.Errorf("create opencode tui config: %w", err)
 	}
 	if _, err := f.Write(b); err != nil {
-		f.Close()
-		os.Remove(f.Name())
+		_ = f.Close()
+		_ = os.Remove(f.Name())
 		return nil, nil, fmt.Errorf("write opencode tui config: %w", err)
 	}
 	if err := f.Close(); err != nil {
-		os.Remove(f.Name())
+		_ = os.Remove(f.Name())
 		return nil, nil, fmt.Errorf("close opencode tui config: %w", err)
 	}
 
-	return []string{"OPENCODE_TUI_CONFIG=" + f.Name()}, func() { os.Remove(f.Name()) }, nil
+	return []string{"OPENCODE_TUI_CONFIG=" + f.Name()}, func() { _ = os.Remove(f.Name()) }, nil
 }
 
 // opencodeTUIConfigPath returns the path to the Opencode TUI config.

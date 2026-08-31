@@ -483,9 +483,11 @@ func DefaultTestRetryConfig() TestRetryConfig {
 			&EmptyResponseCondition{},
 		},
 		OnRetry: func(attempt int, reason string, t *testing.T) {
+			t.Helper()
 			t.Logf("🔄 Retrying test (attempt %d): %s", attempt, reason)
 		},
 		OnFinalFail: func(attempts int, finalErr error, t *testing.T) {
+			t.Helper()
 			t.Logf("❌ Test failed after %d attempts: %v", attempts, finalErr)
 		},
 	}
@@ -500,6 +502,7 @@ func WithChatTestRetry(
 	scenarioName string,
 	operation func() (*schemas.BifrostChatResponse, *schemas.BifrostError),
 ) (*schemas.BifrostChatResponse, *schemas.BifrostError) {
+	t.Helper()
 
 	var lastResponse *schemas.BifrostChatResponse
 	var lastError *schemas.BifrostError
@@ -665,6 +668,7 @@ func WithResponsesTestRetry(
 	scenarioName string,
 	operation func() (*schemas.BifrostResponsesResponse, *schemas.BifrostError),
 ) (*schemas.BifrostResponsesResponse, *schemas.BifrostError) {
+	t.Helper()
 
 	var lastResponse *schemas.BifrostResponsesResponse
 	var lastError *schemas.BifrostError
@@ -828,6 +832,7 @@ func WithStreamRetry(
 	context TestRetryContext,
 	operation func() (chan *schemas.BifrostStreamChunk, *schemas.BifrostError),
 ) (chan *schemas.BifrostStreamChunk, *schemas.BifrostError) {
+	t.Helper()
 	var lastChannel chan *schemas.BifrostStreamChunk
 	var lastError *schemas.BifrostError
 
@@ -1020,6 +1025,7 @@ func ToolCallRetryConfig(expectedToolName string) TestRetryConfig {
 			&MalformedToolArgsCondition{},
 		},
 		OnRetry: func(attempt int, reason string, t *testing.T) {
+			t.Helper()
 			t.Logf("🔄 Retrying tool call test (attempt %d): %s", attempt, reason)
 		},
 	}
@@ -1037,6 +1043,7 @@ func MultiToolRetryConfig(expectedToolCount int, expectedTools []string) TestRet
 			&MalformedToolArgsCondition{},
 		},
 		OnRetry: func(attempt int, reason string, t *testing.T) {
+			t.Helper()
 			t.Logf("🔄 Retrying multi-tool test (attempt %d): %s", attempt, reason)
 		},
 	}
@@ -1055,6 +1062,7 @@ func ImageProcessingRetryConfig() TestRetryConfig {
 			&ContentValidationCondition{}, // 🎯 KEY ADDITION: Retry when valid response lacks expected keywords
 		},
 		OnRetry: func(attempt int, reason string, t *testing.T) {
+			t.Helper()
 			t.Logf("🔄 Retrying image processing test (attempt %d): %s", attempt, reason)
 		},
 	}
@@ -1073,6 +1081,7 @@ func FileInputRetryConfig() TestRetryConfig {
 			&ContentValidationCondition{}, // Retry when valid response lacks expected document content
 		},
 		OnRetry: func(attempt int, reason string, t *testing.T) {
+			t.Helper()
 			t.Logf("🔄 Retrying file input test (attempt %d): %s", attempt, reason)
 		},
 	}
@@ -1091,6 +1100,7 @@ func FileInputResponsesRetryConfig() ResponsesRetryConfig {
 			&ResponsesContentValidationCondition{},
 		},
 		OnRetry: func(attempt int, reason string, t *testing.T) {
+			t.Helper()
 			t.Logf("🔄 Retrying file input test (attempt %d): %s", attempt, reason)
 		},
 	}
@@ -1109,12 +1119,14 @@ func StreamingRetryConfig() TestRetryConfig {
 			&IncompleteStreamCondition{}, // Check for incomplete streams
 		},
 		OnRetry: func(attempt int, reason string, t *testing.T) {
+			t.Helper()
 			// reason already contains ❌ prefix from retry logic
 			// attempt represents the current failed attempt number
 			// Log with attempt+1 to show the next attempt that will run
 			t.Logf("🔄 Retrying streaming test (attempt %d): %s", attempt+1, reason)
 		},
 		OnFinalFail: func(attempts int, finalErr error, t *testing.T) {
+			t.Helper()
 			// finalErr already contains ❌ prefix from retry logic
 			t.Logf("❌ Streaming test failed after %d attempts: %v", attempts, finalErr)
 		},
@@ -1132,6 +1144,7 @@ func ConversationRetryConfig() TestRetryConfig {
 			&GenericResponseCondition{}, // Catch generic AI responses
 		},
 		OnRetry: func(attempt int, reason string, t *testing.T) {
+			t.Helper()
 			t.Logf("🔄 Retrying conversation test (attempt %d): %s", attempt, reason)
 		},
 	}
@@ -1148,6 +1161,7 @@ func DefaultSpeechRetryConfig() TestRetryConfig {
 			&GenericResponseCondition{}, // Catch generic error responses
 		},
 		OnRetry: func(attempt int, reason string, t *testing.T) {
+			t.Helper()
 			t.Logf("🔄 Retrying speech synthesis test (attempt %d): %s", attempt, reason)
 		},
 	}
@@ -1164,10 +1178,12 @@ func SpeechStreamRetryConfig() TestRetryConfig {
 			&EmptySpeechCondition{}, // Check for missing audio data
 		},
 		OnRetry: func(attempt int, reason string, t *testing.T) {
+			t.Helper()
 			// reason already contains ❌ prefix from retry logic
 			t.Logf("🔄 Retrying streaming speech synthesis test (attempt %d): %s", attempt, reason)
 		},
 		OnFinalFail: func(attempts int, finalErr error, t *testing.T) {
+			t.Helper()
 			// finalErr already contains ❌ prefix from retry logic
 			t.Logf("❌ Streaming speech synthesis test failed after %d attempts: %v", attempts, finalErr)
 		},
@@ -1185,6 +1201,7 @@ func DefaultTranscriptionRetryConfig() TestRetryConfig {
 			&GenericResponseCondition{},    // Catch generic error responses
 		},
 		OnRetry: func(attempt int, reason string, t *testing.T) {
+			t.Helper()
 			t.Logf("🔄 Retrying transcription test (attempt %d): %s", attempt, reason)
 		},
 	}
@@ -1201,6 +1218,7 @@ func DefaultImageGenerationRetryConfig() TestRetryConfig {
 			&GenericResponseCondition{},      // Catch generic error responses
 		},
 		OnRetry: func(attempt int, reason string, t *testing.T) {
+			t.Helper()
 			t.Logf("🔄 Retrying image generation test (attempt %d): %s", attempt, reason)
 		},
 	}
@@ -1229,6 +1247,7 @@ func DefaultEmbeddingRetryConfig() TestRetryConfig {
 			&InvalidEmbeddingDimensionCondition{},
 		},
 		OnRetry: func(attempt int, reason string, t *testing.T) {
+			t.Helper()
 			t.Logf("🔄 Retrying embedding test (attempt %d): %s", attempt, reason)
 		},
 	}
@@ -1245,6 +1264,7 @@ func DefaultCountTokensRetryConfig() TestRetryConfig {
 			&InvalidCountTokensCondition{},
 		},
 		OnRetry: func(attempt int, reason string, t *testing.T) {
+			t.Helper()
 			t.Logf("🔄 Retrying count tokens test (attempt %d): %s", attempt, reason)
 		},
 	}
@@ -1261,9 +1281,11 @@ func DefaultListModelsRetryConfig() TestRetryConfig {
 			&EmptyResponseCondition{}, // Retry on empty responses
 		},
 		OnRetry: func(attempt int, reason string, t *testing.T) {
+			t.Helper()
 			t.Logf("🔄 Retrying list models test (attempt %d): %s", attempt, reason)
 		},
 		OnFinalFail: func(attempts int, finalErr error, t *testing.T) {
+			t.Helper()
 			t.Logf("❌ List models test failed after %d attempts: %v", attempts, finalErr)
 		},
 	}
@@ -1292,6 +1314,7 @@ func WithDualAPITestRetry(
 	chatOperation func() (*schemas.BifrostChatResponse, *schemas.BifrostError),
 	responsesOperation func() (*schemas.BifrostResponsesResponse, *schemas.BifrostError),
 ) DualAPITestResult {
+	t.Helper()
 
 	var lastResult DualAPITestResult
 
@@ -1503,6 +1526,7 @@ func WithTextCompletionTestRetry(
 	scenarioName string,
 	operation func() (*schemas.BifrostTextCompletionResponse, *schemas.BifrostError),
 ) (*schemas.BifrostTextCompletionResponse, *schemas.BifrostError) {
+	t.Helper()
 
 	var lastResponse *schemas.BifrostTextCompletionResponse
 	var lastError *schemas.BifrostError
@@ -1668,6 +1692,7 @@ func WithSpeechTestRetry(
 	scenarioName string,
 	operation func() (*schemas.BifrostSpeechResponse, *schemas.BifrostError),
 ) (*schemas.BifrostSpeechResponse, *schemas.BifrostError) {
+	t.Helper()
 
 	var lastResponse *schemas.BifrostSpeechResponse
 	var lastError *schemas.BifrostError
@@ -1855,6 +1880,7 @@ func WithEmbeddingTestRetry(
 	scenarioName string,
 	operation func() (*schemas.BifrostEmbeddingResponse, *schemas.BifrostError),
 ) (*schemas.BifrostEmbeddingResponse, *schemas.BifrostError) {
+	t.Helper()
 
 	var lastResponse *schemas.BifrostEmbeddingResponse
 	var lastError *schemas.BifrostError
@@ -2020,6 +2046,7 @@ func WithTranscriptionTestRetry(
 	scenarioName string,
 	operation func() (*schemas.BifrostTranscriptionResponse, *schemas.BifrostError),
 ) (*schemas.BifrostTranscriptionResponse, *schemas.BifrostError) {
+	t.Helper()
 
 	var lastResponse *schemas.BifrostTranscriptionResponse
 	var lastError *schemas.BifrostError
@@ -2209,6 +2236,7 @@ func WithCountTokensTestRetry(
 	scenarioName string,
 	operation func() (*schemas.BifrostCountTokensResponse, *schemas.BifrostError),
 ) (*schemas.BifrostCountTokensResponse, *schemas.BifrostError) {
+	t.Helper()
 
 	var lastResponse *schemas.BifrostCountTokensResponse
 	var lastError *schemas.BifrostError
@@ -2379,6 +2407,7 @@ func WithImageGenerationRetry(
 	scenarioName string,
 	operation func() (*schemas.BifrostImageGenerationResponse, *schemas.BifrostError),
 ) (*schemas.BifrostImageGenerationResponse, *schemas.BifrostError) {
+	t.Helper()
 
 	var lastResponse *schemas.BifrostImageGenerationResponse
 	var lastError *schemas.BifrostError
@@ -2570,6 +2599,7 @@ func WithListModelsTestRetry(
 	scenarioName string,
 	operation func() (*schemas.BifrostListModelsResponse, *schemas.BifrostError),
 ) (*schemas.BifrostListModelsResponse, *schemas.BifrostError) {
+	t.Helper()
 
 	var lastResponse *schemas.BifrostListModelsResponse
 	var lastError *schemas.BifrostError
@@ -2684,17 +2714,6 @@ func WithListModelsTestRetry(
 	return lastResponse, lastError
 }
 
-// checkListModelsRetryConditions checks if any list models retry conditions are met
-func checkListModelsRetryConditions(response *schemas.BifrostListModelsResponse, err *schemas.BifrostError, context TestRetryContext, conditions []ListModelsRetryCondition) (bool, string) {
-	for _, condition := range conditions {
-		if shouldRetry, reason := condition.ShouldRetry(response, err, context); shouldRetry {
-			return true, fmt.Sprintf("%s: %s", condition.GetConditionName(), reason)
-		}
-	}
-
-	return false, ""
-}
-
 // =============================================================================
 // BATCH API RETRY FUNCTIONS
 // =============================================================================
@@ -2708,6 +2727,7 @@ func WithBatchCreateTestRetry(
 	scenarioName string,
 	operation func() (*schemas.BifrostBatchCreateResponse, *schemas.BifrostError),
 ) (*schemas.BifrostBatchCreateResponse, *schemas.BifrostError) {
+	t.Helper()
 
 	var lastResponse *schemas.BifrostBatchCreateResponse
 	var lastError *schemas.BifrostError
@@ -2812,6 +2832,7 @@ func WithBatchListTestRetry(
 	scenarioName string,
 	operation func() (*schemas.BifrostBatchListResponse, *schemas.BifrostError),
 ) (*schemas.BifrostBatchListResponse, *schemas.BifrostError) {
+	t.Helper()
 
 	var lastResponse *schemas.BifrostBatchListResponse
 	var lastError *schemas.BifrostError
@@ -2908,6 +2929,7 @@ func WithBatchRetrieveTestRetry(
 	scenarioName string,
 	operation func() (*schemas.BifrostBatchRetrieveResponse, *schemas.BifrostError),
 ) (*schemas.BifrostBatchRetrieveResponse, *schemas.BifrostError) {
+	t.Helper()
 
 	var lastResponse *schemas.BifrostBatchRetrieveResponse
 	var lastError *schemas.BifrostError
@@ -3004,6 +3026,7 @@ func WithBatchCancelTestRetry(
 	scenarioName string,
 	operation func() (*schemas.BifrostBatchCancelResponse, *schemas.BifrostError),
 ) (*schemas.BifrostBatchCancelResponse, *schemas.BifrostError) {
+	t.Helper()
 
 	var lastResponse *schemas.BifrostBatchCancelResponse
 	var lastError *schemas.BifrostError
@@ -3100,6 +3123,7 @@ func WithBatchResultsTestRetry(
 	scenarioName string,
 	operation func() (*schemas.BifrostBatchResultsResponse, *schemas.BifrostError),
 ) (*schemas.BifrostBatchResultsResponse, *schemas.BifrostError) {
+	t.Helper()
 
 	var lastResponse *schemas.BifrostBatchResultsResponse
 	var lastError *schemas.BifrostError
@@ -3200,6 +3224,7 @@ func WithFileUploadTestRetry(
 	scenarioName string,
 	operation func() (*schemas.BifrostFileUploadResponse, *schemas.BifrostError),
 ) (*schemas.BifrostFileUploadResponse, *schemas.BifrostError) {
+	t.Helper()
 
 	var lastResponse *schemas.BifrostFileUploadResponse
 	var lastError *schemas.BifrostError
@@ -3296,6 +3321,7 @@ func WithFileListTestRetry(
 	scenarioName string,
 	operation func() (*schemas.BifrostFileListResponse, *schemas.BifrostError),
 ) (*schemas.BifrostFileListResponse, *schemas.BifrostError) {
+	t.Helper()
 
 	var lastResponse *schemas.BifrostFileListResponse
 	var lastError *schemas.BifrostError
@@ -3392,6 +3418,7 @@ func WithFileRetrieveTestRetry(
 	scenarioName string,
 	operation func() (*schemas.BifrostFileRetrieveResponse, *schemas.BifrostError),
 ) (*schemas.BifrostFileRetrieveResponse, *schemas.BifrostError) {
+	t.Helper()
 
 	var lastResponse *schemas.BifrostFileRetrieveResponse
 	var lastError *schemas.BifrostError
@@ -3488,6 +3515,7 @@ func WithFileDeleteTestRetry(
 	scenarioName string,
 	operation func() (*schemas.BifrostFileDeleteResponse, *schemas.BifrostError),
 ) (*schemas.BifrostFileDeleteResponse, *schemas.BifrostError) {
+	t.Helper()
 
 	var lastResponse *schemas.BifrostFileDeleteResponse
 	var lastError *schemas.BifrostError
@@ -3584,6 +3612,7 @@ func WithFileContentTestRetry(
 	scenarioName string,
 	operation func() (*schemas.BifrostFileContentResponse, *schemas.BifrostError),
 ) (*schemas.BifrostFileContentResponse, *schemas.BifrostError) {
+	t.Helper()
 
 	var lastResponse *schemas.BifrostFileContentResponse
 	var lastError *schemas.BifrostError
@@ -3689,6 +3718,7 @@ func WithSpeechStreamValidationRetry(
 	operation func() (chan *schemas.BifrostStreamChunk, *schemas.BifrostError),
 	validateStream func(chan *schemas.BifrostStreamChunk) SpeechStreamValidationResult,
 ) SpeechStreamValidationResult {
+	t.Helper()
 	var lastResult SpeechStreamValidationResult
 
 	for attempt := 1; attempt <= config.MaxAttempts; attempt++ {
@@ -3840,6 +3870,7 @@ func WithResponsesStreamValidationRetry(
 	operation func() (chan *schemas.BifrostStreamChunk, *schemas.BifrostError),
 	validateStream func(chan *schemas.BifrostStreamChunk) ResponsesStreamValidationResult,
 ) ResponsesStreamValidationResult {
+	t.Helper()
 	var lastResult ResponsesStreamValidationResult
 
 	for attempt := 1; attempt <= config.MaxAttempts; attempt++ {
@@ -4060,6 +4091,7 @@ func WithChatStreamValidationRetry(
 	operation func() (chan *schemas.BifrostStreamChunk, *schemas.BifrostError),
 	validateStream func(chan *schemas.BifrostStreamChunk) ChatStreamValidationResult,
 ) ChatStreamValidationResult {
+	t.Helper()
 	var lastResult ChatStreamValidationResult
 
 	for attempt := 1; attempt <= config.MaxAttempts; attempt++ {
@@ -4217,6 +4249,7 @@ func WithImageGenerationStreamRetry(
 	context TestRetryContext,
 	operation func() (chan *schemas.BifrostStreamChunk, *schemas.BifrostError),
 	validateStream func(chan *schemas.BifrostStreamChunk) ImageGenerationStreamValidationResult) ImageGenerationStreamValidationResult {
+	t.Helper()
 
 	var lastResult ImageGenerationStreamValidationResult
 

@@ -99,7 +99,7 @@ func TestSanitizeFetchError(t *testing.T) {
 
 	t.Run("passes through a non-url error unchanged", func(t *testing.T) {
 		cause := errors.New("unexpected EOF")
-		if got := sanitizeFetchError(cause, redacted); got != cause {
+		if got := sanitizeFetchError(cause, redacted); !errors.Is(got, cause) {
 			t.Errorf("expected the original error to be returned, got %v", got)
 		}
 	})

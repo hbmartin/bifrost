@@ -117,7 +117,7 @@ func (s *StarlarkCodeMode) handleExecuteToolCode(ctx *schemas.BifrostContext, to
 	var arguments map[string]interface{}
 	if err := sonic.Unmarshal([]byte(toolCall.Function.Arguments), &arguments); err != nil {
 		s.logger.Debug("%s Failed to parse tool arguments: %v", codemcp.CodeModeLogPrefix, err)
-		return nil, fmt.Errorf("failed to parse tool arguments: %v", err)
+		return nil, fmt.Errorf("failed to parse tool arguments: %w", err)
 	}
 
 	code, ok := arguments["code"].(string)
@@ -295,7 +295,7 @@ func (s *StarlarkCodeMode) executeCode(ctx *schemas.BifrostContext, code string)
 				// Call the MCP tool
 				result, err := s.callMCPTool(ctx, capturedClientName, capturedToolName, goArgs, appendLog)
 				if err != nil {
-					return starlark.None, fmt.Errorf("tool call failed: %v", err)
+					return starlark.None, fmt.Errorf("tool call failed: %w", err)
 				}
 
 				// Convert result back to Starlark
@@ -454,7 +454,7 @@ func (s *StarlarkCodeMode) callMCPTool(ctx *schemas.BifrostContext, clientName, 
 	// Marshal arguments to JSON for the tool call
 	argsJSON, err := schemas.MarshalSorted(args)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal tool arguments: %v", err)
+		return nil, fmt.Errorf("failed to marshal tool arguments: %w", err)
 	}
 
 	// Build tool call for MCP request
@@ -510,7 +510,7 @@ func (s *StarlarkCodeMode) callMCPTool(ctx *schemas.BifrostContext, clientName, 
 			} else {
 				var mutatedArgs map[string]interface{}
 				if err := sonic.Unmarshal([]byte(toolCallReq.Function.Arguments), &mutatedArgs); err != nil {
-					return nil, fmt.Errorf("failed to parse modified tool arguments for '%s': %v", effectiveToolName, err)
+					return nil, fmt.Errorf("failed to parse modified tool arguments for '%s': %w", effectiveToolName, err)
 				}
 				effectiveArgs = mutatedArgs
 			}
@@ -543,7 +543,7 @@ func (s *StarlarkCodeMode) callMCPTool(ctx *schemas.BifrostContext, clientName, 
 		if callErr != nil {
 			s.logger.Debug("%s Tool call failed: %s.%s - %v", codemcp.CodeModeLogPrefix, clientName, effectiveToolName, callErr)
 			appendLog(fmt.Sprintf("[TOOL] %s.%s error: %v", clientName, effectiveToolName, callErr))
-			return nil, fmt.Errorf("tool call failed for %s.%s: %v", clientName, effectiveToolName, callErr)
+			return nil, fmt.Errorf("tool call failed for %s.%s: %w", clientName, effectiveToolName, callErr)
 		}
 
 		rawResult := extractTextFromMCPResponse(toolResponse, effectiveToolName)

@@ -125,7 +125,7 @@ func TestConvertBifrostReasoning_SignaturePresent(t *testing.T) {
 
 	t.Run("DeepSeek does not embed the id", func(t *testing.T) {
 		msg := newMsg()
-		blocks := convertBifrostReasoningToAnthropicThinking(schemas.NewBifrostContext(nil, schemas.NoDeadline), msg, schemas.DeepSeek, "deepseek-chat")
+		blocks := convertBifrostReasoningToAnthropicThinking(schemas.NewBifrostContext(context.Background(), schemas.NoDeadline), msg, schemas.DeepSeek, "deepseek-chat")
 		if len(blocks) != 1 {
 			t.Fatalf("expected 1 thinking block, got %d", len(blocks))
 		}
@@ -145,7 +145,7 @@ func TestConvertBifrostReasoning_SignaturePresent(t *testing.T) {
 
 	t.Run("OpenAI embeds the id", func(t *testing.T) {
 		msg := newMsg()
-		blocks := convertBifrostReasoningToAnthropicThinking(schemas.NewBifrostContext(nil, schemas.NoDeadline), msg, schemas.OpenAI, "gpt-5")
+		blocks := convertBifrostReasoningToAnthropicThinking(schemas.NewBifrostContext(context.Background(), schemas.NoDeadline), msg, schemas.OpenAI, "gpt-5")
 		if len(blocks) != 1 {
 			t.Fatalf("expected 1 thinking block, got %d", len(blocks))
 		}
@@ -163,7 +163,7 @@ func TestConvertBifrostReasoning_SignaturePresent(t *testing.T) {
 	// models served through an openai-based custom provider silently lose the id.
 	t.Run("openai-based custom provider embeds the id", func(t *testing.T) {
 		msg := newMsg()
-		ctx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+		ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 		ctx.SetValue(schemas.BifrostContextKeyBaseProviderType, schemas.OpenAI)
 		blocks := convertBifrostReasoningToAnthropicThinking(ctx, msg, schemas.ModelProvider("my-openai"), "my-gpt-deployment")
 		if len(blocks) != 1 {

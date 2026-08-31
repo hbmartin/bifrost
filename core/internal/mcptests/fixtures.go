@@ -39,6 +39,7 @@ var (
 // InitMCPServerPaths initializes the global MCP server paths
 // Call this in tests that need STDIO MCP servers
 func InitMCPServerPaths(t *testing.T) {
+	t.Helper()
 	if mcpServerPaths.BifrostRoot != "" {
 		return // Already initialized
 	}
@@ -1061,6 +1062,7 @@ func GetParallelTestServerConfig(bifrostRoot string) schemas.MCPClientConfig {
 
 // GetBifrostRoot returns the bifrost root directory by walking up from the current directory
 func GetBifrostRoot(t *testing.T) string {
+	t.Helper()
 	// Start from current working directory
 	cwd, err := os.Getwd()
 	require.NoError(t, err, "should get current working directory")
@@ -2161,7 +2163,7 @@ func GetTestDataPath(t *testing.T, filename string) string {
 // CreateTempTestFile creates a temporary test file
 func CreateTempTestFile(t *testing.T, content string) string {
 	t.Helper()
-	tmpFile, err := os.CreateTemp("", "bifrost-test-*")
+	tmpFile, err := os.CreateTemp(t.TempDir(), "bifrost-test-*")
 	require.NoError(t, err)
 
 	_, err = tmpFile.WriteString(content)
@@ -2172,7 +2174,7 @@ func CreateTempTestFile(t *testing.T, content string) string {
 
 	// Cleanup
 	t.Cleanup(func() {
-		os.Remove(tmpFile.Name())
+		_ = os.Remove(tmpFile.Name())
 	})
 
 	return tmpFile.Name()
@@ -2191,6 +2193,7 @@ type testLogger struct {
 // newTestLogger creates a new test logger with log level set to Error by default
 // to reduce test output noise
 func newTestLogger(t *testing.T) *testLogger {
+	t.Helper()
 	return &testLogger{t: t, level: schemas.LogLevelError}
 }
 

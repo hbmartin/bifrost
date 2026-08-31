@@ -148,20 +148,20 @@ export default function LogsPage() {
 			cache_hit_types: urlState.cache_hit_types,
 			metadata_filters: urlState.metadata_filters
 				? (() => {
-					try {
-						return JSON.parse(urlState.metadata_filters);
-					} catch {
-						return undefined;
-					}
-				})()
+						try {
+							return JSON.parse(urlState.metadata_filters);
+						} catch {
+							return undefined;
+						}
+					})()
 				: undefined,
 			// Use a period if present
 			...(urlState.period
 				? { period: urlState.period }
 				: {
-					start_time: dateUtils.toISOString(urlState.start_time),
-					end_time: dateUtils.toISOString(urlState.end_time),
-				}),
+						start_time: dateUtils.toISOString(urlState.start_time),
+						end_time: dateUtils.toISOString(urlState.end_time),
+					}),
 		}),
 		// Only re-derive filters when filter-related URL params change (not pagination)
 		[
@@ -366,7 +366,7 @@ export default function LogsPage() {
 				parent_request_id: parentRequestId,
 			});
 		},
-		[filters, setFilters],
+		[filters, setFilters, setUrlState],
 	);
 
 	// --- Grouped view: chain expansion state -------------------------------
@@ -406,7 +406,13 @@ export default function LogsPage() {
 			setLoadingChainIds((prev) => new Set(prev).add(log.id));
 			triggerGetChainChildren({
 				filters: { ...filters, parent_request_id: log.id },
-				pagination: { ...pagination, limit: chainChildrenPageLimit, offset: 0, sort_by: "timestamp", order: "asc" },
+				pagination: {
+					...pagination,
+					limit: chainChildrenPageLimit,
+					offset: 0,
+					sort_by: "timestamp",
+					order: "asc",
+				},
 			}).then((result) => {
 				setLoadingChainIds((prev) => {
 					const next = new Set(prev);
@@ -625,7 +631,7 @@ export default function LogsPage() {
 	});
 
 	// Navigation for log detail sheet
-	const logs = logsData?.logs ?? [];
+	const logs = useMemo(() => logsData?.logs ?? [], [logsData?.logs]);
 	const totalItems = logsData?.stats?.total_requests ?? 0;
 
 	// Grouped view: splice loaded children in below their expanded root. Children

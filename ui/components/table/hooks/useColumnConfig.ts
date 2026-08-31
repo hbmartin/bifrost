@@ -2,6 +2,8 @@ import { ColumnPinningState, VisibilityState } from "@tanstack/react-table";
 import { parseAsString, useQueryState } from "nuqs";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
+const EMPTY_COLUMN_IDS: string[] = [];
+
 export interface ColumnConfigEntry {
 	id: string;
 	visible: boolean;
@@ -66,8 +68,8 @@ function isSerializedConfigValid(str: string): boolean {
 export function useColumnConfig({ columnIds, paramName = "cols", fixedColumns, storageKey, defaultHidden }: UseColumnConfigOptions) {
 	const [raw, setRaw] = useQueryState(paramName, parseAsString.withDefault(""));
 
-	const fixedLeft = fixedColumns?.left ?? [];
-	const fixedRight = fixedColumns?.right ?? [];
+	const fixedLeft = fixedColumns?.left ?? EMPTY_COLUMN_IDS;
+	const fixedRight = fixedColumns?.right ?? EMPTY_COLUMN_IDS;
 	const fixedSet = useMemo(() => new Set([...fixedLeft, ...fixedRight]), [fixedLeft, fixedRight]);
 
 	const configurableIds = useMemo(() => columnIds.filter((id) => !fixedSet.has(id)), [columnIds, fixedSet]);

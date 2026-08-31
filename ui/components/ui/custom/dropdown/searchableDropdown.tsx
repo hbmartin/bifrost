@@ -96,7 +96,7 @@ export function SearchableDropdown<T = {}>({
 		};
 
 		return options.map(filterOption).filter(Boolean) as DropdownOption<T>[];
-	}, [options, searchTerm, hideSelectedValues, value, selectedValuesSafe]);
+	}, [hideSelectedValues, options, removeEmptyGroups, searchTerm, selectedValuesSafe, value]);
 
 	const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		setSearchTerm(e.target.value);

@@ -1782,7 +1782,7 @@ func (p *Part) UnmarshalJSON(data []byte) error {
 			}
 			decoded, err := base64.StdEncoding.DecodeString(standardBase64)
 			if err != nil {
-				return fmt.Errorf("failed to decode base64 thoughtSignature: %v", err)
+				return fmt.Errorf("failed to decode base64 thoughtSignature: %w", err)
 			}
 			p.ThoughtSignature = decoded
 		}
@@ -3064,7 +3064,7 @@ func (v *VideoImageData) UnmarshalJSON(data []byte) error {
 		// Validate by decoding
 		decoded, err := base64.StdEncoding.DecodeString(standardBase64)
 		if err != nil {
-			return fmt.Errorf("failed to decode base64 bytesBase64Encoded: %v", err)
+			return fmt.Errorf("failed to decode base64 bytesBase64Encoded: %w", err)
 		}
 
 		// Re-encode normalized version (optional but recommended)

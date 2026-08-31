@@ -77,7 +77,7 @@ func (s *StarlarkCodeMode) handleReadToolFile(ctx context.Context, toolCall sche
 	// Parse tool arguments
 	var arguments map[string]interface{}
 	if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &arguments); err != nil {
-		return nil, fmt.Errorf("failed to parse tool arguments: %v", err)
+		return nil, fmt.Errorf("failed to parse tool arguments: %w", err)
 	}
 
 	fileName, ok := arguments["fileName"].(string)

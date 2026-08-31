@@ -3,6 +3,7 @@ package vectorstore
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -40,6 +41,7 @@ type RedisTestSetup struct {
 
 // NewRedisTestSetup creates a test setup with environment-driven configuration
 func NewRedisTestSetup(t *testing.T) *RedisTestSetup {
+	t.Helper()
 	// Get configuration from environment variables
 
 	addr := schemas.NewSecretVar(getEnvWithDefault("REDIS_ADDR", DefaultTestAddr))
@@ -94,6 +96,7 @@ func NewRedisTestSetup(t *testing.T) *RedisTestSetup {
 
 // Cleanup cleans up test resources
 func (ts *RedisTestSetup) Cleanup(t *testing.T) {
+	t.Helper()
 	defer ts.cancel()
 
 	if !testing.Short() {
@@ -108,6 +111,7 @@ func (ts *RedisTestSetup) Cleanup(t *testing.T) {
 
 // ensureNamespaceExists creates the test namespace in Redis
 func (ts *RedisTestSetup) ensureNamespaceExists(t *testing.T) {
+	t.Helper()
 	// Create namespace with test properties
 	properties := map[string]VectorStoreProperties{
 		"key": {
@@ -163,6 +167,7 @@ func (ts *RedisTestSetup) ensureNamespaceExists(t *testing.T) {
 
 // cleanupTestData removes all test objects from the namespace
 func (ts *RedisTestSetup) cleanupTestData(t *testing.T) {
+	t.Helper()
 	// Delete all objects in the test namespace
 	allTestKeys, _, err := ts.Store.GetAll(ts.ctx, TestNamespace, []Query{}, []string{}, nil, 1000)
 	if err != nil {
@@ -383,7 +388,8 @@ func (s *fakeRedisSearchServer) serve(t *testing.T) {
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
-			if ne, ok := err.(net.Error); ok && ne.Temporary() {
+			var networkErr net.Error
+			if errors.As(err, &networkErr) && networkErr.Temporary() {
 				continue
 			}
 			return
@@ -395,7 +401,7 @@ func (s *fakeRedisSearchServer) serve(t *testing.T) {
 
 func (s *fakeRedisSearchServer) handleConn(t *testing.T, conn net.Conn) {
 	t.Helper()
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	reader := bufio.NewReader(conn)
 	writer := bufio.NewWriter(conn)
@@ -403,7 +409,7 @@ func (s *fakeRedisSearchServer) handleConn(t *testing.T, conn net.Conn) {
 	for {
 		command, err := readRESPCommand(reader)
 		if err != nil {
-			if err == io.EOF || strings.Contains(strings.ToLower(err.Error()), "use of closed network connection") {
+			if errors.Is(err, io.EOF) || strings.Contains(strings.ToLower(err.Error()), "use of closed network connection") {
 				return
 			}
 			return
@@ -1858,7 +1864,7 @@ func TestVectorStoreFactory_Redis(t *testing.T) {
 	if err != nil {
 		t.Skipf("Could not create Redis store: %v", err)
 	}
-	defer store.Close(context.Background(), TestNamespace)
+	defer func() { _ = store.Close(context.Background(), TestNamespace) }()
 
 	// Verify it's actually a RedisStore
 	redisStore, ok := store.(*RedisStore)

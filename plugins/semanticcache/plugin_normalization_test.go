@@ -23,6 +23,7 @@ func TestTextNormalizationDirectCache(t *testing.T) {
 }
 
 func testChatCompletionNormalization(t *testing.T, setup *TestSetup) {
+	t.Helper()
 	ctx := CreateContextWithCacheKey(t, "test-chat-normalization")
 
 	// Test cases with different case and whitespace variations
@@ -128,6 +129,7 @@ func testChatCompletionNormalization(t *testing.T, setup *TestSetup) {
 }
 
 func testSpeechNormalization(t *testing.T, setup *TestSetup) {
+	t.Helper()
 	ctx := CreateContextWithCacheKey(t, "test-speech-normalization")
 
 	// Test cases with different case and whitespace variations for speech input

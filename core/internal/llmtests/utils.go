@@ -650,6 +650,7 @@ func getEmbeddingVector(embedding schemas.EmbeddingData) ([]float64, error) {
 // GenerateTTSAudioForTest generates real audio using TTS and writes a temp file.
 // Returns audio bytes and temp filepath. Caller’s t will clean it up.
 func GenerateTTSAudioForTest(ctx context.Context, t *testing.T, client *bifrost.Bifrost, provider schemas.ModelProvider, ttsModel string, text string, voiceType string, format string) ([]byte, string) {
+	t.Helper()
 	// inline import guard comment: context/testing/os are required at call sites; Go compiler will include them.
 	voice := GetProviderVoice(provider, voiceType)
 	if voice == "" {
@@ -770,6 +771,7 @@ func GetErrorMessage(err *schemas.BifrostError) string {
 //   - testConfig: the comprehensive test config containing DisableParallelFor settings
 //   - scenario: the test scenario name (e.g., "Transcription", "SpeechSynthesis")
 func ShouldRunParallel(t *testing.T, testConfig ComprehensiveTestConfig, scenario string) {
+	t.Helper()
 	// Check global environment variable first
 	if os.Getenv("SKIP_PARALLEL_TESTS") == "true" {
 		return

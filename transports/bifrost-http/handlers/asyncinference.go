@@ -42,8 +42,7 @@ var AsyncPathToTypeMapping = map[string]schemas.RequestType{
 // RegisterAsyncRequestTypeMiddleware handles exact path matching for non-parameterized routes
 func RegisterAsyncRequestTypeMiddleware(next fasthttp.RequestHandler) fasthttp.RequestHandler {
 	return func(ctx *fasthttp.RequestCtx) {
-		path := string(ctx.Path())
-		if requestType, ok := AsyncPathToTypeMapping[path]; ok {
+		if requestType, ok := AsyncPathToTypeMapping[string(ctx.Path())]; ok {
 			ctx.SetUserValue(schemas.BifrostContextKeyHTTPRequestType, requestType)
 		}
 		next(ctx)

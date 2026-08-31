@@ -106,7 +106,7 @@ func parseMultipartFormValues(body []byte) map[string][]string {
 	}
 	// ReadForm spills parts over maxMemory to temp files; clean them up. form.Value is held in
 	// memory and stays valid after RemoveAll (which only purges spilled file parts).
-	defer form.RemoveAll()
+	defer func() { _ = form.RemoveAll() }()
 	return form.Value
 }
 

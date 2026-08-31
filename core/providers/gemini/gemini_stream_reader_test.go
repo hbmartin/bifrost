@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"compress/gzip"
+	"errors"
 	"io"
 	"testing"
 )
@@ -24,7 +25,7 @@ func TestReadNextSSEDataLine_SkipInlineDataOnGzipReader(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create gzip reader: %v", err)
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	line, err := readNextSSEDataLine(bufio.NewReaderSize(reader, 64*1024), true)
 	if err != nil {
@@ -56,7 +57,7 @@ func TestReadNextSSEDataLine_SkipInlineDataContinuedLine(t *testing.T) {
 	}
 
 	_, err = readNextSSEDataLine(bufio.NewReaderSize(bytes.NewReader(nil), 64*1024), true)
-	if err != io.EOF {
+	if !errors.Is(err, io.EOF) {
 		t.Fatalf("expected EOF on empty reader, got %v", err)
 	}
 }

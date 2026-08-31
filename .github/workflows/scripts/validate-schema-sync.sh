@@ -20,36 +20,19 @@ if ! command -v go >/dev/null 2>&1; then
   exit 2
 fi
 
-# Ensure go.work exists at the repo root. schemasync's packages.Load needs
-# it to resolve bifrost's local modules against each other. On fresh CI
-# runners go.work is not checked in, so we provision it here inline.
-# Sibling scripts (test-bifrost-http.sh etc.) call setup-go-workspace.sh
-# via `source`, but that relies on the `return` builtin which has
-# platform-dependent edge cases under `set -e`; we instead do the same
-# work inline so this wrapper is self-contained.
-if [ ! -f "$REPO_ROOT/go.work" ]; then
-  echo "🔧 Setting up Go workspace (go.work not found)..."
-  (
-    cd "$REPO_ROOT"
-    go work init
-    for mod in ./core ./framework ./transports ./cli; do
-      if [ -f "$REPO_ROOT/$mod/go.mod" ]; then
-        go work use "$mod"
-      fi
-    done
-    # Discover plugin modules instead of listing them (mirrors
-    # setup-go-workspace.sh), so a newly added plugin never needs a matching
-    # CI edit here.
-    for plugin_dir in ./plugins/*/; do
-      if [ -f "$REPO_ROOT/$plugin_dir/go.mod" ]; then
-        go work use "$plugin_dir"
-      fi
-    done
-  )
-  echo "✅ Go workspace initialized at $REPO_ROOT/go.work"
-else
-  echo "🔍 Go workspace already exists at $REPO_ROOT/go.work, skipping initialization"
-fi
+# Build a temporary workspace from every tracked module. This makes the check
+# independent of an ignored, stale developer go.work and keeps validation
+# non-mutating on clean CI checkouts.
+WORKSPACE_DIR=$(mktemp -d)
+trap 'rm -rf "$WORKSPACE_DIR"' EXIT
+(
+  cd "$WORKSPACE_DIR"
+  GOWORK=off go work init
+  while IFS= read -r mod_file; do
+    go work use "$REPO_ROOT/${mod_file%/go.mod}"
+  done < <(git -C "$REPO_ROOT" ls-files '**/go.mod' 'go.mod' | sort)
+)
+GO_WORK_FILE="$WORKSPACE_DIR/go.work"
 
 echo "🔍 Validating Go ↔ config.schema.json sync (recursive, AST-based)"
 echo "=================================================================="
@@ -62,5 +45,6 @@ echo "=================================================================="
 /tmp/schemasync \
   --schema "$REPO_ROOT/transports/config.schema.json" \
   --pkg-root "$REPO_ROOT" \
+  --go-work "$GO_WORK_FILE" \
   --helm-values "$REPO_ROOT/helm-charts/bifrost/values.schema.json" \
   --helm-helpers "$REPO_ROOT/helm-charts/bifrost/templates/_helpers.tpl"

@@ -1,11 +1,11 @@
 /**
  * Type definitions for Bifrost WASM plugins.
- * 
+ *
  * Uses json-as library with @json decorators for safe JSON parsing.
  * These types mirror the Go SDK types for interoperability.
  */
 
-import { JSON } from 'json-as'
+import { JSON } from "json-as";
 
 // =============================================================================
 // HTTP Transport Input/Output Types
@@ -19,12 +19,12 @@ import { JSON } from 'json-as'
  */
 @json
 export class BifrostContext {
-  request_id: string = ''
+  request_id: string = "";
 
   // Custom values for plugin use (add more as needed)
-  plugin_processed: string = ''
-  plugin_name: string = ''
-  post_hook_completed: string = ''
+  plugin_processed: string = "";
+  plugin_name: string = "";
+  post_hook_completed: string = "";
 }
 
 // =============================================================================
@@ -37,11 +37,11 @@ export class BifrostContext {
  */
 @json
 export class HTTPRequest {
-  method: string = ''
-  path: string = ''
-  body: string = '' // base64 encoded
-  headers: Map<string, string> = new Map<string, string>()
-  query: Map<string, string> = new Map<string, string>()
+  method: string = "";
+  path: string = "";
+  body: string = ""; // base64 encoded
+  headers: Map<string, string> = new Map<string, string>();
+  query: Map<string, string> = new Map<string, string>();
 }
 
 /**
@@ -49,9 +49,9 @@ export class HTTPRequest {
  */
 @json
 export class HTTPResponse {
-  status_code: i32 = 200
-  body: string = '' // base64 encoded
-  headers: Map<string, string> = new Map<string, string>()
+  status_code: i32 = 200;
+  body: string = ""; // base64 encoded
+  headers: Map<string, string> = new Map<string, string>();
 }
 
 /**
@@ -61,8 +61,8 @@ export class HTTPResponse {
  */
 @json
 export class HTTPInterceptInput {
-  context: JSON.Obj = new JSON.Obj()
-  request: JSON.Raw = new JSON.Raw('null')
+  context: JSON.Obj = new JSON.Obj();
+  request: JSON.Raw = new JSON.Raw("null");
 }
 
 /**
@@ -70,11 +70,11 @@ export class HTTPInterceptInput {
  */
 @json
 export class HTTPInterceptOutput {
-  context: JSON.Obj = new JSON.Obj()
-  request: JSON.Raw = new JSON.Raw('null')
-  response: JSON.Raw = new JSON.Raw('null')
-  has_response: bool = false
-  error: string = ''
+  context: JSON.Obj = new JSON.Obj();
+  request: JSON.Raw = new JSON.Raw("null");
+  response: JSON.Raw = new JSON.Raw("null");
+  has_response: bool = false;
+  error: string = "";
 }
 
 // =============================================================================
@@ -86,8 +86,8 @@ export class HTTPInterceptOutput {
  */
 @json
 export class PreHookInput {
-  context: JSON.Obj = new JSON.Obj()
-  request: JSON.Raw = new JSON.Raw('null')
+  context: JSON.Obj = new JSON.Obj();
+  request: JSON.Raw = new JSON.Raw("null");
 }
 
 /**
@@ -95,11 +95,11 @@ export class PreHookInput {
  */
 @json
 export class PreHookOutput {
-  context: JSON.Obj = new JSON.Obj()
-  request: JSON.Raw = new JSON.Raw('null')
-  short_circuit: JSON.Raw = new JSON.Raw('null')
-  has_short_circuit: bool = false
-  error: string = ''
+  context: JSON.Obj = new JSON.Obj();
+  request: JSON.Raw = new JSON.Raw("null");
+  short_circuit: JSON.Raw = new JSON.Raw("null");
+  has_short_circuit: bool = false;
+  error: string = "";
 }
 
 // =============================================================================
@@ -111,10 +111,10 @@ export class PreHookOutput {
  */
 @json
 export class PostHookInput {
-  context: JSON.Obj = new JSON.Obj()
-  response: JSON.Raw = new JSON.Raw('null')
-  error: JSON.Raw = new JSON.Raw('null')
-  has_error: bool = false
+  context: JSON.Obj = new JSON.Obj();
+  response: JSON.Raw = new JSON.Raw("null");
+  error: JSON.Raw = new JSON.Raw("null");
+  has_error: bool = false;
 }
 
 /**
@@ -122,11 +122,11 @@ export class PostHookInput {
  */
 @json
 export class PostHookOutput {
-  context: JSON.Obj = new JSON.Obj()
-  response: JSON.Raw = new JSON.Raw('null')
-  error: JSON.Raw = new JSON.Raw('null')
-  has_error: bool = false
-  hook_error: string = ''
+  context: JSON.Obj = new JSON.Obj();
+  response: JSON.Raw = new JSON.Raw("null");
+  error: JSON.Raw = new JSON.Raw("null");
+  has_error: bool = false;
+  hook_error: string = "";
 }
 
 // =============================================================================
@@ -139,9 +139,9 @@ export class PostHookOutput {
  */
 @json
 export class HTTPStreamChunkHookInput {
-  context: JSON.Obj = new JSON.Obj()
-  request: JSON.Raw = new JSON.Raw('null')
-  chunk: JSON.Raw = new JSON.Raw('null') // BifrostStreamChunk as JSON
+  context: JSON.Obj = new JSON.Obj();
+  request: JSON.Raw = new JSON.Raw("null");
+  chunk: JSON.Raw = new JSON.Raw("null"); // BifrostStreamChunk as JSON
 }
 
 /**
@@ -149,9 +149,9 @@ export class HTTPStreamChunkHookInput {
  */
 @json
 export class HTTPStreamChunkHookOutput {
-  context: JSON.Obj = new JSON.Obj()
-  chunk: JSON.Raw = new JSON.Raw('null') // BifrostStreamChunk as JSON, or null to skip
-  has_chunk: bool = false
-  skip: bool = false
-  error: string = ''
+  context: JSON.Obj = new JSON.Obj();
+  chunk: JSON.Raw = new JSON.Raw("null"); // BifrostStreamChunk as JSON, or null to skip
+  has_chunk: bool = false;
+  skip: bool = false;
+  error: string = "";
 }

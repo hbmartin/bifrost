@@ -3,7 +3,6 @@ package logstore
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -11,12 +10,6 @@ import (
 	"github.com/maximhq/bifrost/framework/migrator"
 	"gorm.io/gorm"
 )
-
-// isValidJSON checks if a string is valid JSON.
-func isValidJSON(s string) bool {
-	var js json.RawMessage
-	return json.Unmarshal([]byte(s), &js) == nil
-}
 
 // addColumnIfNotExists is a package-local alias for migrator.AddColumnIfNotExists,
 // the idempotent column-add helper shared with configstore. Declared at package
@@ -110,7 +103,7 @@ func acquireAdvisoryLock(ctx context.Context, db *gorm.DB, logger schemas.Logger
 		err = conn.QueryRowContext(attemptCtx, "SELECT pg_try_advisory_lock($1)", lockKey).Scan(&acquired)
 		attemptCancel()
 		if err != nil {
-			conn.Close()
+			_ = conn.Close()
 			return nil, fmt.Errorf("failed to attempt %s advisory lock: %w", label, err)
 		}
 
@@ -123,7 +116,7 @@ func acquireAdvisoryLock(ctx context.Context, db *gorm.DB, logger schemas.Logger
 
 		// Lock not acquired -- check if we've exceeded the timeout
 		if time.Now().After(deadline) {
-			conn.Close()
+			_ = conn.Close()
 			return nil, fmt.Errorf(
 				"failed to acquire logstore %s lock (key=%d) after %d attempts over %s\n\n"+
 					"This usually means another Bifrost pod (or a previous crashed pod's lingering\n"+
@@ -150,7 +143,7 @@ func acquireAdvisoryLock(ctx context.Context, db *gorm.DB, logger schemas.Logger
 		// Wait before retrying, but respect context cancellation
 		select {
 		case <-ctx.Done():
-			conn.Close()
+			_ = conn.Close()
 			return nil, fmt.Errorf("context cancelled while waiting for %s lock: %w", label, ctx.Err())
 		case <-time.After(advisoryLockRetryInterval):
 		}
@@ -164,7 +157,7 @@ func (l *advisoryLock) release(ctx context.Context) {
 	}
 	// Release lock on the SAME connection that acquired it.
 	_, _ = l.conn.ExecContext(ctx, "SELECT pg_advisory_unlock($1)", l.lockKey)
-	l.conn.Close()
+	_ = l.conn.Close()
 }
 
 // acquireMigrationLock acquires the serialization lock for schema migrations.
@@ -3553,51 +3546,6 @@ func migrationRecreateMatViewsWithCostBreakdown(ctx context.Context, db *gorm.DB
 	}})
 	if err := m.Migrate(); err != nil {
 		return fmt.Errorf("error while recreating matviews with cost breakdown columns: %s", err.Error())
-	}
-	return nil
-}
-
-// migrationSplitFilterDataMatView drops the legacy mv_logs_filterdata view so
-// ensureMatViews recreates it as per-dimension matviews (mv_filter_models,
-// mv_filter_selected_keys, ...). The old view DISTINCTed across 16 columns and
-// could grow nearly as large as the source `logs` table on multi-tenant
-// deployments, making REFRESH ... CONCURRENTLY memory-intensive. Splitting per
-// dimension keeps each view bounded by a single column's cardinality.
-//
-// NOT CALLED YET. Multi-replica deployments do rolling restarts, so dropping
-// mv_logs_filterdata in this release would make every filterdata request on
-// not-yet-upgraded replicas return "relation does not exist" until they
-// restart. The per-dimension views ship in this release and the legacy view
-// is intentionally left in place. A follow-up release — after this one has
-// fully rolled out everywhere — will wire this migration into RunMigrations
-// (or add "mv_logs_filterdata" to legacyMatViewNames in matviews.go) to
-// actually perform the drop.
-func migrationSplitFilterDataMatView(ctx context.Context, db *gorm.DB, logger schemas.Logger) error {
-	migrationName := "logs_split_filter_data_matview"
-	logger.Info("[logstore] starting migration %s", migrationName)
-	defer logger.Info("[logstore] finished migration %s", migrationName)
-	// Materialized views are PostgreSQL-only; skip on other dialects.
-	opts := *migrator.DefaultOptions
-	opts.UseTransaction = true
-	m := migrator.New(db, &opts, []*migrator.Migration{{
-		ID: migrationName,
-		Migrate: func(tx *gorm.DB) error {
-			if db.Dialector.Name() != "postgres" {
-				return nil
-			}
-			tx = tx.WithContext(ctx)
-			if err := tx.Exec("DROP MATERIALIZED VIEW IF EXISTS mv_logs_filterdata CASCADE").Error; err != nil {
-				return fmt.Errorf("failed to drop legacy mv_logs_filterdata: %w", err)
-			}
-			return nil
-		},
-		Rollback: func(tx *gorm.DB) error {
-			// No rollback — ensureMatViews recreates the per-dim views on next startup.
-			return nil
-		},
-	}})
-	if err := m.Migrate(); err != nil {
-		return fmt.Errorf("error while splitting filter-data matview: %s", err.Error())
 	}
 	return nil
 }

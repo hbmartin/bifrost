@@ -434,7 +434,15 @@ export function ProviderConfigCard({
 														onChangeSelect={(v) => {
 															update({
 																modelBudgets: modelBudgets.map((m, i) =>
-																	i === mbIndex ? { ...m, rate_limit: { ...(m.rate_limit || {}), token_reset_duration: v } } : m,
+																	i === mbIndex
+																		? {
+																				...m,
+																				rate_limit: {
+																					...(m.rate_limit || {}),
+																					token_reset_duration: v,
+																				},
+																			}
+																		: m,
 																),
 															});
 														}}
@@ -467,7 +475,15 @@ export function ProviderConfigCard({
 														onChangeSelect={(v) => {
 															update({
 																modelBudgets: modelBudgets.map((m, i) =>
-																	i === mbIndex ? { ...m, rate_limit: { ...(m.rate_limit || {}), request_reset_duration: v } } : m,
+																	i === mbIndex
+																		? {
+																				...m,
+																				rate_limit: {
+																					...(m.rate_limit || {}),
+																					request_reset_duration: v,
+																				},
+																			}
+																		: m,
 																),
 															});
 														}}
@@ -493,7 +509,13 @@ export function ProviderConfigCard({
 												if (!model) return;
 												if (modelBudgets.some((m) => m.model_name === model)) return;
 												update({
-													modelBudgets: [...modelBudgets, { model_name: model, budgets: [{ max_limit: undefined, reset_duration: "1d" }] }],
+													modelBudgets: [
+														...modelBudgets,
+														{
+															model_name: model,
+															budgets: [{ max_limit: undefined, reset_duration: "1d" }],
+														},
+													],
 												});
 												setOpenModelEditor(model);
 											}}
@@ -538,7 +560,11 @@ export function ProviderConfigCard({
 									const configKeyIds = value.keyIds;
 									const hasWildcard = configKeyIds.includes("*");
 									const allKeyOptions: KeyOption[] = [
-										{ label: "Allow All Keys", value: "*", description: "Allow all current and future keys for this provider" },
+										{
+											label: "Allow All Keys",
+											value: "*",
+											description: "Allow all current and future keys for this provider",
+										},
 										...keys.map((key) => ({
 											label: key.name,
 											value: key.key_id,
@@ -645,7 +671,9 @@ export function ProviderConfigCard({
 												keys={modelKeyScope}
 												value={hasWildcardModels ? ["*"] : value.allowedModels}
 												onChange={(models: string[]) => {
-													update({ allowedModels: resolveWildcardSelection(value.allowedModels, models) });
+													update({
+														allowedModels: resolveWildcardSelection(value.allowedModels, models),
+													});
 												}}
 												placeholder={
 													hasWildcardModels
@@ -688,7 +716,9 @@ export function ProviderConfigCard({
 												keys={modelKeyScope}
 												value={hasWildcardBlocked ? ["*"] : value.blacklistedModels}
 												onChange={(models: string[]) => {
-													update({ blacklistedModels: resolveWildcardSelection(value.blacklistedModels, models) });
+													update({
+														blacklistedModels: resolveWildcardSelection(value.blacklistedModels, models),
+													});
 												}}
 												placeholder={
 													hasWildcardBlocked
@@ -714,7 +744,13 @@ export function ProviderConfigCard({
 								selectValue={value.rateLimit?.token_reset_duration || "1h"}
 								onChangeNumber={(v) => {
 									const current = value.rateLimit || {};
-									update({ rateLimit: { ...current, token_max_limit: v, token_reset_duration: current.token_reset_duration || "1h" } });
+									update({
+										rateLimit: {
+											...current,
+											token_max_limit: v,
+											token_reset_duration: current.token_reset_duration || "1h",
+										},
+									});
 								}}
 								onChangeSelect={(v) => {
 									const current = value.rateLimit || {};
@@ -733,7 +769,11 @@ export function ProviderConfigCard({
 								onChangeNumber={(v) => {
 									const current = value.rateLimit || {};
 									update({
-										rateLimit: { ...current, request_max_limit: v, request_reset_duration: current.request_reset_duration || "1h" },
+										rateLimit: {
+											...current,
+											request_max_limit: v,
+											request_reset_duration: current.request_reset_duration || "1h",
+										},
 									});
 								}}
 								onChangeSelect={(v) => {

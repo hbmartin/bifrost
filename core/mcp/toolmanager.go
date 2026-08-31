@@ -716,8 +716,12 @@ func (m *ToolsManager) executeToolInternal(
 		arguments = map[string]interface{}{}
 	} else {
 		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &arguments); err != nil {
-			return nil, "", "", fmt.Errorf("failed to parse tool arguments for '%s': %v", toolName, err)
+			return nil, "", "", fmt.Errorf("failed to parse tool arguments for '%s': %w", toolName, err)
 		}
+	}
+
+	if executionConfig == nil {
+		return nil, "", "", fmt.Errorf("missing execution configuration for tool %q", toolName)
 	}
 
 	// Strip the client name prefix from tool name before calling MCP server
@@ -728,7 +732,7 @@ func (m *ToolsManager) executeToolInternal(
 	// Create timeout context for tool execution.
 	// Per-server timeout (executionConfig.ToolExecutionTimeout) takes precedence over the global.
 	toolExecutionTimeout := m.toolExecutionTimeout.Load().(time.Duration)
-	if executionConfig != nil && executionConfig.ToolExecutionTimeout > 0 {
+	if executionConfig.ToolExecutionTimeout > 0 {
 		toolExecutionTimeout = executionConfig.ToolExecutionTimeout
 	}
 	toolCtx, cancel := context.WithTimeout(ctx, toolExecutionTimeout)
@@ -796,7 +800,7 @@ func (m *ToolsManager) executeToolInternal(
 		}
 
 		m.logger.Error("%s Tool execution failed for %s via client %s: %v", MCPLogPrefix, toolName, executionConfig.Name, callErr)
-		return nil, "", "", fmt.Errorf("MCP tool call failed for %s: %v: %w", toolName, callErr, ErrMCPToolCallFailed)
+		return nil, "", "", fmt.Errorf("MCP tool call failed for %s: %w: %w", toolName, callErr, ErrMCPToolCallFailed)
 	}
 
 	// Extract text from MCP response

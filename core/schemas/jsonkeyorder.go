@@ -3,6 +3,7 @@ package schemas
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 )
 
 // JSONKeyOrder is a lightweight helper that preserves JSON key ordering through
@@ -138,7 +139,7 @@ func ReorderJSONKeys(data []byte, order []string) ([]byte, error) {
 	dec := json.NewDecoder(bytes.NewReader(trimmed))
 	dec.UseNumber()
 	if _, err := dec.Token(); err != nil { // '{'
-		return data, nil
+		return data, fmt.Errorf("decode object start: %w", err)
 	}
 
 	type kvPair struct {
@@ -151,7 +152,7 @@ func ReorderJSONKeys(data []byte, order []string) ([]byte, error) {
 	for dec.More() {
 		tok, err := dec.Token()
 		if err != nil {
-			return data, nil
+			return data, fmt.Errorf("decode object key: %w", err)
 		}
 		key, ok := tok.(string)
 		if !ok {
@@ -159,7 +160,7 @@ func ReorderJSONKeys(data []byte, order []string) ([]byte, error) {
 		}
 		var val json.RawMessage
 		if err := dec.Decode(&val); err != nil {
-			return data, nil
+			return data, fmt.Errorf("decode value for %q: %w", key, err)
 		}
 		pairs = append(pairs, kvPair{key, val})
 		pairMap[key] = val

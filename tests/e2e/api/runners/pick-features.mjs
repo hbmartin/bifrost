@@ -26,7 +26,11 @@ const FEATURES = [
   // diff the usage numbers. They emit their own report artifacts (tmp/harness-token-parity.md,
   // tmp/harness-cache-parity.md) on top of the usual pass/fail.
   { key: "token-parity", label: "Token usage parity (direct vs Bifrost)" },
-  { key: "cache-parity", label: "Prompt cache parity / cache_control", note: "runs last, sequentially" },
+  {
+    key: "cache-parity",
+    label: "Prompt cache parity / cache_control",
+    note: "runs last, sequentially",
+  },
 ];
 
 // Keys whose rows match EVERY provider fork, so running them in the main (parallel) pass would
@@ -61,7 +65,9 @@ const C = {
 
 function render() {
   const lines = [];
-  lines.push(`${C.bold}Bifrost harness - pick modalities${C.reset}  ${C.dim}(space toggles, a=all, n=none, enter runs, q=cancel)${C.reset}`);
+  lines.push(
+    `${C.bold}Bifrost harness - pick modalities${C.reset}  ${C.dim}(space toggles, a=all, n=none, enter runs, q=cancel)${C.reset}`,
+  );
   lines.push("");
   for (let i = 0; i < FEATURES.length; i++) {
     const f = FEATURES[i];
@@ -73,11 +79,12 @@ function render() {
   }
   lines.push("");
   const n = selected.size;
-  const summary = n === FEATURES.length
-    ? `${C.dim}All modalities selected (no filter) - all providers will run${C.reset}`
-    : n === 0
-      ? `${C.yellow}No modalities selected - press space or 'a' to choose at least one${C.reset}`
-      : `${C.dim}${n} of ${FEATURES.length} selected: ${[...selected].join(", ")}${C.reset}`;
+  const summary =
+    n === FEATURES.length
+      ? `${C.dim}All modalities selected (no filter) - all providers will run${C.reset}`
+      : n === 0
+        ? `${C.yellow}No modalities selected - press space or 'a' to choose at least one${C.reset}`
+        : `${C.dim}${n} of ${FEATURES.length} selected: ${[...selected].join(", ")}${C.reset}`;
   lines.push(summary);
 
   let out = "";
@@ -93,7 +100,9 @@ function render() {
 }
 
 function restoreTty() {
-  try { process.stdin.setRawMode(false); } catch {}
+  try {
+    process.stdin.setRawMode(false);
+  } catch {}
   writeUI("\x1b[?25h");
 }
 
@@ -105,7 +114,7 @@ function commit() {
   if (deferred.length) {
     writeUI(
       `${C.yellow}[pick-features] ${deferred.join(", ")} will run last, in a single sequential pass ` +
-        `(these rows match every provider fork, so running them in the parallel pass would repeat each request once per fork).${C.reset}\n`
+        `(these rows match every provider fork, so running them in the parallel pass would repeat each request once per fork).${C.reset}\n`,
     );
   }
   // Emit empty when all are selected so the Makefile takes the no-filter path.

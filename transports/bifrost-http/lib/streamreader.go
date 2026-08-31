@@ -273,6 +273,6 @@ func StartSSEHeartbeat(interval time.Duration, send func() bool, onDisconnect fu
 // the heartbeat goroutine could still be mid-send on it panics ("send on closed channel").
 func StopSSEHeartbeat(reader *SSEStreamReader, done chan struct{}, exited <-chan struct{}) {
 	close(done)
-	reader.Close()
+	_ = reader.Close()
 	<-exited
 }

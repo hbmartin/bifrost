@@ -21,7 +21,6 @@
 
 import HeadersForm from "@/components/headersForm";
 import FullPageLoader from "@/components/fullPageLoader";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -37,7 +36,7 @@ import {
 import { MCPFlowDetail } from "@/lib/types/mcpSessions";
 import { MCPHeadersFlowDetail } from "@/lib/types/mcpPerUserHeaders";
 import { Link } from "@tanstack/react-router";
-import { CheckCircle2, ExternalLink, Fingerprint, KeyRound, Loader2, LogIn, ShieldCheck, TriangleAlert, UserRound } from "lucide-react";
+import { CheckCircle2, ExternalLink, Fingerprint, KeyRound, Loader2, LogIn, ShieldCheck, UserRound } from "lucide-react";
 import { useQueryState } from "nuqs";
 import React from "react";
 import { useMemo, useState } from "react";

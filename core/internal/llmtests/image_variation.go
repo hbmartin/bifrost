@@ -15,6 +15,7 @@ import (
 
 // RunImageVariationTest executes the end-to-end image variation test (non-streaming)
 func RunImageVariationTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if testConfig.ImageVariationModel == "" {
 		t.Logf("Image variation not configured for provider %s", testConfig.Provider)
 		return
@@ -179,6 +180,7 @@ func RunImageVariationTest(t *testing.T, client *bifrost.Bifrost, ctx context.Co
 // RunImageVariationStreamTest executes the end-to-end streaming image variation test
 // Note: Currently, streaming image variation is not supported by any provider
 func RunImageVariationStreamTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.ImageVariationStream {
 		t.Logf("Image variation streaming not supported for provider %s", testConfig.Provider)
 		return

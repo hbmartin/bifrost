@@ -31,7 +31,7 @@ const args = Object.fromEntries(
       acc.push([cur.slice(2), next && !next.startsWith("--") ? next : "true"]);
     }
     return acc;
-  }, [])
+  }, []),
 );
 
 const REPORT = args.report;

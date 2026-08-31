@@ -247,7 +247,7 @@ func (p *OAuth2Provider) markExchangeAdminNeedsReauth(token *tables.TableMCPOaut
 	}
 	p.EvictUserTokenByID(token.ID)
 	logger.Debug("admin exchange credential marked needs_reauth: mcp_client=%s cause=%v", token.MCPClientID, cause)
-	return fmt.Errorf("admin exchange credential requires re-verification: %v: %w", cause, schemas.ErrOAuth2TokenExpired)
+	return fmt.Errorf("admin exchange credential requires re-verification: %w: %w", cause, schemas.ErrOAuth2TokenExpired)
 }
 
 // EvictExchangedToken removes every cached exchanged token for one binding,

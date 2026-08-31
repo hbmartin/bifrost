@@ -169,7 +169,7 @@ func runPaginationTotalCountSuite(t *testing.T, store *RDBLogStore) {
 // TestSearchLogs_MetadataFilter_StringMatching_SQLite exercises the metadata string matching fix on SQLite.
 func TestSearchLogs_MetadataFilter_StringMatching_SQLite(t *testing.T) {
 	store := newTestSQLiteStore(t)
-	defer store.Close(context.Background())
+	defer func() { _ = store.Close(context.Background()) }()
 	runMetadataStringMatchingSuite(t, store)
 }
 
@@ -184,7 +184,7 @@ func TestSearchLogs_MetadataFilter_StringMatching_Postgres(t *testing.T) {
 // TestSearchLogs_PaginationTotalCount_SQLite verifies pagination.TotalCount on SQLite.
 func TestSearchLogs_PaginationTotalCount_SQLite(t *testing.T) {
 	store := newTestSQLiteStore(t)
-	defer store.Close(context.Background())
+	defer func() { _ = store.Close(context.Background()) }()
 	runPaginationTotalCountSuite(t, store)
 }
 

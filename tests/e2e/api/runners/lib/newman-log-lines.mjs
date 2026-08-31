@@ -26,8 +26,7 @@ export const RE_METHOD_URL = /^(?:GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\s+http
 // On the last full local sweep that was 1362 of 1937 completed requests,
 // including 327 of openai's 375 and 106 of azure's 108 - i.e. the table read as
 // near-empty for exactly the providers that were failing hardest.
-export const RE_REQUEST_DONE =
-  /\[\s*\d+(?:\s+[A-Za-z]+)*,\s*[\d.]+\s*[kMG]?B,\s*[\d.]+\s*m?s\s*\]/;
+export const RE_REQUEST_DONE = /\[\s*\d+(?:\s+[A-Za-z]+)*,\s*[\d.]+\s*[kMG]?B,\s*[\d.]+\s*m?s\s*\]/;
 
 // A request that never got a response (connection refused, DNS, timeout) gets
 // "[errored]" where the [status, size, duration] summary would be. Without this

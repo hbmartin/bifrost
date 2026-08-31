@@ -140,10 +140,11 @@ func (h *WebSocketHandler) connectStream(ctx *fasthttp.RequestCtx) {
 	err := upgrader.Upgrade(ctx, func(ws *websocket.Conn) {
 		// Read safety & liveness
 		ws.SetReadLimit(50 << 20) // 50 MiB
-		ws.SetReadDeadline(time.Now().Add(60 * time.Second))
+		if err := ws.SetReadDeadline(time.Now().Add(60 * time.Second)); err != nil {
+			return
+		}
 		ws.SetPongHandler(func(string) error {
-			ws.SetReadDeadline(time.Now().Add(60 * time.Second))
-			return nil
+			return ws.SetReadDeadline(time.Now().Add(60 * time.Second))
 		})
 		// Create a new client with its own mutex
 		client := &WebSocketClient{

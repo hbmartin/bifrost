@@ -17,7 +17,7 @@ import type { ChartType } from "./chartTypeToggle";
 
 // Sanitize model names to avoid Recharts interpreting dots/brackets as path separators
 function sanitizeModelKey(model: string): string {
-	return model.replace(/[.\[\]]/g, "_");
+	return model.replace(/[.[\]]/g, "_");
 }
 
 interface ModelUsageChartProps {

@@ -81,7 +81,7 @@ export function HeadersTable<T extends HeaderValue>({
 	// Track duplicate key conflicts: maps rowIndex -> attempted duplicate key
 	const [duplicateConflicts, setDuplicateConflicts] = useState<Map<number, string>>(new Map());
 	// Track which row to highlight (for scroll-to-existing behavior)
-	const [highlightedRow, setHighlightedRow] = useState<number | null>(null);
+	const [highlightedRow] = useState<number | null>(null);
 	// Refs for each table row to enable scrolling
 	const rowRefs = useRef<(HTMLTableRowElement | null)[]>([]);
 
@@ -143,7 +143,7 @@ export function HeadersTable<T extends HeaderValue>({
 		onChange(newHeaders);
 	};
 
-	const handleValueChange = (currentKey: string, newValue: string | SecretVar, rowIndex: number) => {
+	const handleValueChange = (currentKey: string, newValue: string | SecretVar, _rowIndex: number) => {
 		const newHeaders = { ...value };
 
 		if (isSecretVarMode) {

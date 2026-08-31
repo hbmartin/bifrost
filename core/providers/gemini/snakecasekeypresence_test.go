@@ -26,6 +26,7 @@ func TestGenerationConfig_ExplicitCamelCaseValueBeatsSnakeCase(t *testing.T) {
 			name: "explicit false is not treated as absent",
 			body: `{"responseLogprobs":false,"response_logprobs":true}`,
 			assert: func(t *testing.T, g *GenerationConfig) {
+				t.Helper()
 				assert.False(t, g.ResponseLogprobs,
 					"the caller explicitly turned logprobs off; a snake_case sibling must not turn them on")
 			},
@@ -34,6 +35,7 @@ func TestGenerationConfig_ExplicitCamelCaseValueBeatsSnakeCase(t *testing.T) {
 			name: "explicit zero is not treated as absent",
 			body: `{"candidateCount":0,"candidate_count":5}`,
 			assert: func(t *testing.T, g *GenerationConfig) {
+				t.Helper()
 				assert.Equal(t, int32(0), g.CandidateCount)
 			},
 		},
@@ -41,6 +43,7 @@ func TestGenerationConfig_ExplicitCamelCaseValueBeatsSnakeCase(t *testing.T) {
 			name: "explicit empty string is not treated as absent",
 			body: `{"responseMimeType":"","response_mime_type":"application/json"}`,
 			assert: func(t *testing.T, g *GenerationConfig) {
+				t.Helper()
 				assert.Equal(t, "", g.ResponseMIMEType)
 			},
 		},
@@ -48,6 +51,7 @@ func TestGenerationConfig_ExplicitCamelCaseValueBeatsSnakeCase(t *testing.T) {
 			name: "explicit null is not treated as absent",
 			body: `{"topP":null,"top_p":0.5}`,
 			assert: func(t *testing.T, g *GenerationConfig) {
+				t.Helper()
 				assert.Nil(t, g.TopP, "an explicit null is a choice, not a missing key")
 			},
 		},
@@ -55,6 +59,7 @@ func TestGenerationConfig_ExplicitCamelCaseValueBeatsSnakeCase(t *testing.T) {
 			name: "explicit empty slice is not treated as absent",
 			body: `{"stopSequences":[],"stop_sequences":["STOP"]}`,
 			assert: func(t *testing.T, g *GenerationConfig) {
+				t.Helper()
 				assert.Empty(t, g.StopSequences,
 					"an explicitly empty stop list must not be repopulated from snake_case")
 			},
@@ -63,6 +68,7 @@ func TestGenerationConfig_ExplicitCamelCaseValueBeatsSnakeCase(t *testing.T) {
 			name: "absent camelCase still falls back to snake_case",
 			body: `{"response_logprobs":true,"candidate_count":5,"top_p":0.5}`,
 			assert: func(t *testing.T, g *GenerationConfig) {
+				t.Helper()
 				assert.True(t, g.ResponseLogprobs, "the fallback must still work when camelCase is genuinely absent")
 				assert.Equal(t, int32(5), g.CandidateCount)
 				require.NotNil(t, g.TopP)
@@ -73,6 +79,7 @@ func TestGenerationConfig_ExplicitCamelCaseValueBeatsSnakeCase(t *testing.T) {
 			name: "camelCase wins when both carry real values",
 			body: `{"maxOutputTokens":100,"max_output_tokens":200}`,
 			assert: func(t *testing.T, g *GenerationConfig) {
+				t.Helper()
 				assert.Equal(t, int32(100), g.MaxOutputTokens)
 			},
 		},

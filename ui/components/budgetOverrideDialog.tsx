@@ -55,7 +55,11 @@ export function BudgetOverrideDialog({ budget, onSave, onRemove, disabled, calen
 		setIsSaving(true);
 		setError(null);
 		try {
-			await onSave({ amount: parsedAmount, mode, ...(mode === "cycles" ? { cycles: parsedCycles } : {}) });
+			await onSave({
+				amount: parsedAmount,
+				mode,
+				...(mode === "cycles" ? { cycles: parsedCycles } : {}),
+			});
 			toast.success(active ? "Budget override updated" : "Budget override added");
 			setOpen(false);
 		} catch (mutationError) {

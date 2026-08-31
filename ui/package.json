@@ -9,7 +9,7 @@
 		"build": "vite build && npm run typecheck && npm run copy-build",
 		"copy-build": "rm -rf ../transports/bifrost-http/ui && cp -r out ../transports/bifrost-http/ui",
 		"start": "vite preview",
-		"lint": "oxlint",
+		"lint": "oxlint --max-warnings=288",
 		"format": "oxfmt",
 		"format:check": "oxfmt --check",
 		"format:enterprise": "oxfmt app/enterprise/"

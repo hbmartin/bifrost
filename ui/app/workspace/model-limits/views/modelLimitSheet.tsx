@@ -179,7 +179,11 @@ export default function ModelLimitSheet({ modelConfig, onSave, onCancel }: Model
 		if (!isEditing || !modelConfig) return false;
 		const next = (data.budgets ?? [])
 			.filter((b) => b.max_limit !== undefined && b.max_limit !== null)
-			.map((b) => ({ max_limit: b.max_limit, reset_duration: b.reset_duration, reset_config: b.reset_config }));
+			.map((b) => ({
+				max_limit: b.max_limit,
+				reset_duration: b.reset_duration,
+				reset_config: b.reset_config,
+			}));
 		const current = (modelConfig.budgets ?? []).map((b) => ({
 			max_limit: b.max_limit ?? undefined,
 			reset_duration: b.reset_duration,

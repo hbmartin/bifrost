@@ -12,6 +12,7 @@ import (
 
 // RunEnd2EndToolCallingTest executes the end-to-end tool calling test scenario
 func RunEnd2EndToolCallingTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.End2EndToolCalling {
 		t.Logf("End-to-end tool calling not supported for provider %s", testConfig.Provider)
 		return
@@ -144,9 +145,7 @@ func RunEnd2EndToolCallingTest(t *testing.T, client *bifrost.Bifrost, ctx contex
 		// Build conversation history for Responses API
 		responsesConversationMessages := []schemas.ResponsesMessage{responsesUserMessage}
 		if result1.ResponsesAPIResponse.Output != nil {
-			for _, output := range result1.ResponsesAPIResponse.Output {
-				responsesConversationMessages = append(responsesConversationMessages, output)
-			}
+			responsesConversationMessages = append(responsesConversationMessages, result1.ResponsesAPIResponse.Output...)
 		}
 		responsesConversationMessages = append(responsesConversationMessages, CreateToolResponsesMessage(toolResult, responsesToolCall.ID))
 

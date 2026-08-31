@@ -1146,7 +1146,7 @@ func (provider *HuggingFaceProvider) ImageGenerationStream(ctx *schemas.BifrostC
 				if ctx.Err() != nil {
 					return
 				}
-				if readErr != io.EOF {
+				if !errors.Is(readErr, io.EOF) {
 					bifrostErr := providerUtils.NewBifrostOperationError(
 						fmt.Sprintf("Error reading fal-ai stream: %v", readErr),
 						readErr)
@@ -1530,7 +1530,7 @@ func (provider *HuggingFaceProvider) ImageEditStream(ctx *schemas.BifrostContext
 				if ctx.Err() != nil {
 					return
 				}
-				if readErr != io.EOF {
+				if !errors.Is(readErr, io.EOF) {
 					bifrostErr := providerUtils.NewBifrostOperationError(
 						fmt.Sprintf("Error reading fal-ai stream: %v", readErr),
 						readErr)

@@ -40,22 +40,22 @@ func ConvertPCMToWAV(pcmData []byte, config PCMConfig) ([]byte, error) {
 
 	// RIFF header
 	buf.WriteString("RIFF")
-	binary.Write(&buf, binary.LittleEndian, fileSize)
+	_ = binary.Write(&buf, binary.LittleEndian, fileSize)
 	buf.WriteString("WAVE")
 
 	// fmt subchunk
 	buf.WriteString("fmt ")
-	binary.Write(&buf, binary.LittleEndian, uint32(16))                   // Subchunk1Size (16 for PCM)
-	binary.Write(&buf, binary.LittleEndian, uint16(1))                    // AudioFormat (1 = PCM)
-	binary.Write(&buf, binary.LittleEndian, uint16(config.NumChannels))   // NumChannels
-	binary.Write(&buf, binary.LittleEndian, uint32(config.SampleRate))    // SampleRate
-	binary.Write(&buf, binary.LittleEndian, uint32(byteRate))             // ByteRate
-	binary.Write(&buf, binary.LittleEndian, uint16(blockAlign))           // BlockAlign
-	binary.Write(&buf, binary.LittleEndian, uint16(config.BitsPerSample)) // BitsPerSample
+	_ = binary.Write(&buf, binary.LittleEndian, uint32(16))                   // Subchunk1Size (16 for PCM)
+	_ = binary.Write(&buf, binary.LittleEndian, uint16(1))                    // AudioFormat (1 = PCM)
+	_ = binary.Write(&buf, binary.LittleEndian, uint16(config.NumChannels))   // NumChannels
+	_ = binary.Write(&buf, binary.LittleEndian, uint32(config.SampleRate))    // SampleRate
+	_ = binary.Write(&buf, binary.LittleEndian, uint32(byteRate))             // ByteRate
+	_ = binary.Write(&buf, binary.LittleEndian, uint16(blockAlign))           // BlockAlign
+	_ = binary.Write(&buf, binary.LittleEndian, uint16(config.BitsPerSample)) // BitsPerSample
 
 	// data subchunk
 	buf.WriteString("data")
-	binary.Write(&buf, binary.LittleEndian, dataSize)
+	_ = binary.Write(&buf, binary.LittleEndian, dataSize)
 	buf.Write(pcmData)
 
 	return buf.Bytes(), nil

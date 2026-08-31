@@ -17,7 +17,7 @@ const args = Object.fromEntries(
   process.argv.slice(2).reduce((acc, cur, i, arr) => {
     if (cur.startsWith("--")) acc.push([cur.slice(2), arr[i + 1]]);
     return acc;
-  }, [])
+  }, []),
 );
 const REPORT = args.report || "tmp/newman-report.json";
 const BIFROST_LOG = args["bifrost-log"] || "tmp/bifrost-dev.log";
@@ -29,14 +29,22 @@ if (!existsSync(REPORT)) {
 }
 
 const FIX_HINTS = {
-  provider_not_configured: "Add the provider in `tests/integrations/python/config.json` (the APP_DIR config used by the harness) with a valid key/region. Restart `make dev` so Bifrost picks it up.",
-  model_not_found: "Update the model identifier in the collection - check the upstream provider's `/models` endpoint or docs for the canonical id at the time of testing. Common cause: model names in the harness are 2026-vintage placeholders that may not be deployed in your provider account yet.",
-  auth_invalid: "Re-source secrets via `INFISICAL=1` or update `.env`; verify the key matches the project/path your Bifrost config references. If the key is correct, check the provider account's quota/restrictions.",
-  rate_limit: "Backoff/retry; not a harness bug. Either reduce concurrency, lift quota, or rerun later.",
-  service_unavailable: "The provider was overloaded (503 = OpenAI 'engine is currently overloaded', 529 = Anthropic overloaded_error); not a harness bug and not your quota. The run already replayed these up to RETRY_429 times, so surviving rows mean the provider stayed down for the whole backoff - rerun later. Persistent 529 on anthropic/bedrock during a wide sweep can also be self-inflicted: lower HARNESS_JOBS.",
-  request_shape_mismatch: "Inspect the response body for the schema error and adjust the request JSON in the collection. Bedrock Converse and GenAI generateContent schemas are strict.",
-  network_or_timeout: "Check Bifrost is still up (`curl /health`) and that the upstream provider isn't blocking egress. Also possible: the upstream provider is unreachable from your network.",
-  unknown: "Open a bug; attach the bifrost-dev.log excerpt below. Check the response body for a more specific error string.",
+  provider_not_configured:
+    "Add the provider in `tests/integrations/python/config.json` (the APP_DIR config used by the harness) with a valid key/region. Restart `make dev` so Bifrost picks it up.",
+  model_not_found:
+    "Update the model identifier in the collection - check the upstream provider's `/models` endpoint or docs for the canonical id at the time of testing. Common cause: model names in the harness are 2026-vintage placeholders that may not be deployed in your provider account yet.",
+  auth_invalid:
+    "Re-source secrets via `INFISICAL=1` or update `.env`; verify the key matches the project/path your Bifrost config references. If the key is correct, check the provider account's quota/restrictions.",
+  rate_limit:
+    "Backoff/retry; not a harness bug. Either reduce concurrency, lift quota, or rerun later.",
+  service_unavailable:
+    "The provider was overloaded (503 = OpenAI 'engine is currently overloaded', 529 = Anthropic overloaded_error); not a harness bug and not your quota. The run already replayed these up to RETRY_429 times, so surviving rows mean the provider stayed down for the whole backoff - rerun later. Persistent 529 on anthropic/bedrock during a wide sweep can also be self-inflicted: lower HARNESS_JOBS.",
+  request_shape_mismatch:
+    "Inspect the response body for the schema error and adjust the request JSON in the collection. Bedrock Converse and GenAI generateContent schemas are strict.",
+  network_or_timeout:
+    "Check Bifrost is still up (`curl /health`) and that the upstream provider isn't blocking egress. Also possible: the upstream provider is unreachable from your network.",
+  unknown:
+    "Open a bug; attach the bifrost-dev.log excerpt below. Check the response body for a more specific error string.",
 };
 
 // Head length newman-merge.jq keeps when it caps a stream (see its `trimstream`). Everything after
@@ -79,12 +87,9 @@ const isExpected4xx = (name, code) =>
 // Single definition of "this execution failed", shared by the coverage matrix pass
 // and the failure-listing pass so the two can never disagree about a row.
 const isFailedExecution = (name, code, assertFailCount, hasResponse) =>
-  assertFailCount > 0 ||
-  code === 0 ||
-  !hasResponse ||
-  (code >= 400 && !isExpected4xx(name, code));
+  assertFailCount > 0 || code === 0 || !hasResponse || (code >= 400 && !isExpected4xx(name, code));
 
-const categorize = (code, body, bifrostLines) => {
+const categorize = (code, body) => {
   // Check body content first - Bifrost's "failed to get config for provider" can manifest as
   // 400 OR 500 depending on the integration, so the body string is more reliable than the status.
   const bodyLower = (body || "").toLowerCase();
@@ -119,7 +124,11 @@ const categorize = (code, body, bifrostLines) => {
   }
 
   if (code === 400) {
-    if (bodyLower.includes("does not exist") || bodyLower.includes("invalid model") || bodyLower.includes("unsupported model")) {
+    if (
+      bodyLower.includes("does not exist") ||
+      bodyLower.includes("invalid model") ||
+      bodyLower.includes("unsupported model")
+    ) {
       return "model_not_found";
     }
     return "request_shape_mismatch";
@@ -137,9 +146,14 @@ const reconstructUrl = (urlObj) => {
   const host = Array.isArray(urlObj.host) ? urlObj.host.join(".") : urlObj.host || "";
   const port = urlObj.port ? `:${urlObj.port}` : "";
   const path = Array.isArray(urlObj.path) ? "/" + urlObj.path.join("/") : urlObj.path || "";
-  const query = Array.isArray(urlObj.query) && urlObj.query.length
-    ? "?" + urlObj.query.filter((q) => !q.disabled).map((q) => `${q.key}=${q.value}`).join("&")
-    : "";
+  const query =
+    Array.isArray(urlObj.query) && urlObj.query.length
+      ? "?" +
+        urlObj.query
+          .filter((q) => !q.disabled)
+          .map((q) => `${q.key}=${q.value}`)
+          .join("&")
+      : "";
   return `${protocol}://${host}${port}${path}${query}`;
 };
 
@@ -166,9 +180,14 @@ const buildFolderMap = (collection) => {
 const grepBifrostForUrl = (logText, url) => {
   if (!logText || !url) return [];
   let path = url;
-  try { path = new URL(url).pathname; } catch { /* not a parseable URL, leave as-is */ }
+  try {
+    path = new URL(url).pathname;
+  } catch {
+    /* not a parseable URL, leave as-is */
+  }
   if (!path) return [];
-  const errorIndicators = /"level":"(error|warn)"|http\.status_code":[45]\d\d|"error"|failed|panic/i;
+  const errorIndicators =
+    /"level":"(error|warn)"|http\.status_code":[45]\d\d|"error"|failed|panic/i;
   const lines = logText.split(/\r?\n/);
   const matched = [];
   for (const line of lines) {
@@ -322,7 +341,7 @@ const PROVIDER_FEATURE_COMPAT = {
   "Code Execution": ["Anthropic", "Bedrock", "Vertex", "Gemini"],
   "Code Interpreter": ["OpenAI", "Azure"],
   "File Search": ["OpenAI", "Azure"],
-  "Citations": ["Anthropic", "Bedrock", "Vertex"],
+  Citations: ["Anthropic", "Bedrock", "Vertex"],
   "Prompt Caching (ephemeral)": ["Anthropic", "Bedrock", "Vertex", "OpenAI", "Gemini"],
   "Prompt Caching (persistent/1h)": ["Anthropic", "Bedrock", "Vertex"],
   "MCP Toolset": ["Anthropic", "OpenAI", "Bedrock", "Vertex"],
@@ -330,7 +349,14 @@ const PROVIDER_FEATURE_COMPAT = {
   "Audio Input": ["OpenAI", "Gemini", "Vertex", "Azure"],
   "Safety Settings (Gemini)": ["Gemini", "Vertex"],
   "Response Format (mime_type)": ["Gemini", "Vertex"],
-  "Structured Output (json_schema)": ["OpenAI", "Anthropic", "Bedrock", "Vertex", "Azure", "Gemini"],
+  "Structured Output (json_schema)": [
+    "OpenAI",
+    "Anthropic",
+    "Bedrock",
+    "Vertex",
+    "Azure",
+    "Gemini",
+  ],
   "Token Counting": ["Anthropic", "Gemini", "OpenAI"],
   "Batch API": ["Anthropic", "OpenAI", "Bedrock"],
   "Files API": ["Anthropic", "OpenAI", "Gemini"],
@@ -365,7 +391,10 @@ const detectModel = (url, body) => {
 const detectRoute = (url) => {
   if (/_passthrough\//.test(url)) return "passthrough";
   // Cross-model uses /v1/chat/completions or /v1/responses without a /openai|/anthropic|/bedrock|/genai prefix.
-  if (/\/(v1\/chat\/completions|v1\/responses)(?!\/)/.test(url) && !/\/(openai|anthropic|bedrock|genai|azure)\//.test(url)) {
+  if (
+    /\/(v1\/chat\/completions|v1\/responses)(?!\/)/.test(url) &&
+    !/\/(openai|anthropic|bedrock|genai|azure)\//.test(url)
+  ) {
     return "cross-model";
   }
   return "drop-in";
@@ -380,11 +409,15 @@ const detectFeatures = (folder, name, body, headers) => {
   const folderLow = folder.toLowerCase();
   const nameLow = name.toLowerCase();
   const hay = (folderLow + " " + nameLow + " " + body).toLowerCase();
-  const headerHay = (headers || []).map((h) => `${h.key}:${h.value}`).join(" ").toLowerCase();
+  const headerHay = (headers || [])
+    .map((h) => `${h.key}:${h.value}`)
+    .join(" ")
+    .toLowerCase();
 
   // Tools (server-side)
   if (/computer_2025[01]124/.test(hay) || /\bcomputer use\b/.test(hay)) tags.add("Computer Use");
-  if (/text_editor_2025\d+|str_replace_based_edit_tool|str_replace_editor/.test(hay)) tags.add("Text Editor Tool");
+  if (/text_editor_2025\d+|str_replace_based_edit_tool|str_replace_editor/.test(hay))
+    tags.add("Text Editor Tool");
   if (/\bbash_2025\d+/.test(hay) || /\bbash tool\b/.test(hay)) tags.add("Bash Tool");
   if (/memory_2025\d+|\bmemory tool\b/.test(hay)) tags.add("Memory Tool");
   if (/tool_search_/.test(hay)) tags.add("Tool Search");
@@ -392,7 +425,8 @@ const detectFeatures = (folder, name, body, headers) => {
 
   // Web search variants
   if (/web_search_20260209|dynamic filtering/.test(hay)) tags.add("Web Search (dynamic filtering)");
-  if (/web_search_20250305|web_search_preview|googlesearch|"google_search"/.test(hay)) tags.add("Web Search (basic)");
+  if (/web_search_20250305|web_search_preview|googlesearch|"google_search"/.test(hay))
+    tags.add("Web Search (basic)");
   if (/allowed_domains|blocked_domains/.test(hay)) tags.add("Web Search (domain filter)");
   if (/user_location/.test(hay)) tags.add("Web Search (user location)");
   if (/web_fetch_/.test(hay)) tags.add("Web Fetch");
@@ -403,32 +437,41 @@ const detectFeatures = (folder, name, body, headers) => {
   if (/"file_search"|file search/.test(hay)) tags.add("File Search");
 
   // Multimodal
-  if (/image_url|"type":\s*"image"|inline_data|filedata|\bvision\b/.test(hay)) tags.add("Vision (image)");
+  if (/image_url|"type":\s*"image"|inline_data|filedata|\bvision\b/.test(hay))
+    tags.add("Vision (image)");
   if (/"type":\s*"document"|application\/pdf|\bpdf\b/.test(hay)) tags.add("PDF Input");
   if (/audio.input|"input_audio"|"type":\s*"audio"/.test(hay)) tags.add("Audio Input");
   if (/citations|cited_text/.test(hay)) tags.add("Citations");
 
   // Reasoning / thinking
-  if (/"thinking":\s*\{[^}]*"type":\s*"enabled"|budget_tokens/.test(hay)) tags.add("Extended Thinking (budget_tokens)");
-  if (/"thinking":\s*\{[^}]*"type":\s*"adaptive"|adaptive thinking/.test(hay)) tags.add("Adaptive Thinking");
+  if (/"thinking":\s*\{[^}]*"type":\s*"enabled"|budget_tokens/.test(hay))
+    tags.add("Extended Thinking (budget_tokens)");
+  if (/"thinking":\s*\{[^}]*"type":\s*"adaptive"|adaptive thinking/.test(hay))
+    tags.add("Adaptive Thinking");
   if (/reasoning_effort|reasoning effort/.test(hay)) tags.add("Reasoning Effort (OpenAI)");
   if (/thinkingbudget|thinking_budget/.test(hay)) tags.add("Thinking Budget (Gemini)");
 
   // Output shape
-  if (/"json_schema"|"response_format":\s*\{[^}]*json_schema/.test(hay)) tags.add("Structured Output (json_schema)");
-  if (/responsemimetype|response_mime_type|responseschema|response_schema/.test(hay)) tags.add("Response Format (mime_type)");
+  if (/"json_schema"|"response_format":\s*\{[^}]*json_schema/.test(hay))
+    tags.add("Structured Output (json_schema)");
+  if (/responsemimetype|response_mime_type|responseschema|response_schema/.test(hay))
+    tags.add("Response Format (mime_type)");
 
   // Caching
-  if (/cache_control[^}]*"ephemeral"|"type":\s*"ephemeral"/.test(hay)) tags.add("Prompt Caching (ephemeral)");
-  if (/cache_control[^}]*"persistent"|"ttl":\s*"1h"|cache.*1.hour/.test(hay)) tags.add("Prompt Caching (persistent/1h)");
+  if (/cache_control[^}]*"ephemeral"|"type":\s*"ephemeral"/.test(hay))
+    tags.add("Prompt Caching (ephemeral)");
+  if (/cache_control[^}]*"persistent"|"ttl":\s*"1h"|cache.*1.hour/.test(hay))
+    tags.add("Prompt Caching (persistent/1h)");
 
   // Streaming
   if (/"stream":\s*true|streamgeneratecontent|"alt":\s*"sse"/.test(hay)) tags.add("Streaming");
   if (/eager_input_streaming|eager.input.streaming/.test(hay)) tags.add("Eager Input Streaming");
 
   // Tool-use mechanics
-  if (/"type":\s*"function"|functiondeclarations|function_declaration|"toolconfig":/.test(hay)) tags.add("Function Calling");
-  if (/"tool_choice":\s*\{|"tool_choice":\s*"required"|"tool_choice":\s*"any"|forced/.test(hay)) tags.add("Tool Choice (forced)");
+  if (/"type":\s*"function"|functiondeclarations|function_declaration|"toolconfig":/.test(hay))
+    tags.add("Function Calling");
+  if (/"tool_choice":\s*\{|"tool_choice":\s*"required"|"tool_choice":\s*"any"|forced/.test(hay))
+    tags.add("Tool Choice (forced)");
   if (/parallel_tool_calls/.test(hay)) tags.add("Parallel Tool Calls");
 
   // Sampling params
@@ -436,16 +479,19 @@ const detectFeatures = (folder, name, body, headers) => {
   if (/stop_sequences|"stop":/.test(hay)) tags.add("Stop Sequences");
 
   // Anthropic beta / advanced
-  if (/anthropic-beta/.test(headerHay) || /"betas":\s*\[/.test(hay)) tags.add("Anthropic Beta Header (any)");
+  if (/anthropic-beta/.test(headerHay) || /"betas":\s*\[/.test(hay))
+    tags.add("Anthropic Beta Header (any)");
   if (/defer_loading/.test(hay)) tags.add("Defer Loading");
   if (/allowed_callers/.test(hay)) tags.add("Allowed Callers");
   if (/interleaved.thinking|interleaved-thinking/.test(hay)) tags.add("Interleaved Thinking");
-  if (/context.management|context-management|context-1m|compact-/.test(hay)) tags.add("Context Management");
+  if (/context.management|context-management|context-1m|compact-/.test(hay))
+    tags.add("Context Management");
   if (/"skill":|skills.*container|"container":\s*\{/.test(hay)) tags.add("Skills / Container");
   if (/"service_tier"|priority/.test(hay)) tags.add("Service Tier");
 
   // Provider-specific
-  if (/safetysettings|safety_settings|harm_category/.test(hay)) tags.add("Safety Settings (Gemini)");
+  if (/safetysettings|safety_settings|harm_category/.test(hay))
+    tags.add("Safety Settings (Gemini)");
 
   // Endpoints / batches / files
   if (/count_tokens|input_tokens.*endpoint/.test(hay)) tags.add("Token Counting");
@@ -546,7 +592,13 @@ const formatCell = (c) => {
 const renderFeatureRowsTable = (matrixByCol, columnNames, isProviderAxis = false) => {
   const out = [];
   out.push("| Feature | " + columnNames.join(" | ") + " |");
-  out.push("|" + Array(columnNames.length + 1).fill("---").join("|") + "|");
+  out.push(
+    "|" +
+      Array(columnNames.length + 1)
+        .fill("---")
+        .join("|") +
+      "|",
+  );
   for (const f of COVERAGE_FEATURES) {
     const cells = [f];
     for (const col of columnNames) {
@@ -577,15 +629,16 @@ const renderPerModelCoverage = (byModel) => {
     const cells = byModel[key];
     const tested = COVERAGE_FEATURES.filter((f) => cells[f].total > 0);
     if (tested.length === 0) continue; // skip models with no tracked features (shouldn't happen — all hit Basic Chat at least)
-    const totalReqs = tested.reduce((acc, f) => acc + cells[f].total, 0);
     const passedReqs = tested.reduce((acc, f) => acc + cells[f].passed, 0);
     const failedReqs = tested.reduce((acc, f) => acc + cells[f].failed, 0);
-    const featureTags = tested.map((f) => {
-      const c = cells[f];
-      if (c.failed === 0) return `${f}`;
-      if (c.passed === 0) return `~~${f}~~`; // strikethrough for all-failed
-      return `${f}*`;
-    }).join(", ");
+    const featureTags = tested
+      .map((f) => {
+        const c = cells[f];
+        if (c.failed === 0) return `${f}`;
+        if (c.passed === 0) return `~~${f}~~`; // strikethrough for all-failed
+        return `${f}*`;
+      })
+      .join(", ");
     out.push(`| \`${key}\` | ${tested.length} | ${passedReqs} | ${failedReqs} | ${featureTags} |`);
   }
   return out.join("\n");
@@ -611,9 +664,14 @@ const renderMissingPerModel = (byModel) => {
       out.push(`- \`${key}\` — full coverage.`);
     } else {
       // Trim missing list to top 8 to keep the section readable; full breadth is in the matrix.
-      const shown = missing.slice(0, 8).map((m) => "`" + m + "`").join(", ");
+      const shown = missing
+        .slice(0, 8)
+        .map((m) => "`" + m + "`")
+        .join(", ");
       const rest = missing.length > 8 ? ` _(+${missing.length - 8} more)_` : "";
-      out.push(`- \`${key}\` — ${tested.length} tested, ${missing.length} missing: ${shown}${rest}`);
+      out.push(
+        `- \`${key}\` — ${tested.length} tested, ${missing.length} missing: ${shown}${rest}`,
+      );
     }
   }
   return out.join("\n");
@@ -630,7 +688,9 @@ const renderMissingPerProvider = (byProvider) => {
     if (missing.length === 0) {
       out.push(`- **${p}**: full coverage across all ${applicable.length} applicable features.`);
     } else {
-      out.push(`- **${p}** — ${tested}/${applicable.length} applicable tested, ${missing.length} missing: ${missing.map((m) => "`" + m + "`").join(", ")}`);
+      out.push(
+        `- **${p}** — ${tested}/${applicable.length} applicable tested, ${missing.length} missing: ${missing.map((m) => "`" + m + "`").join(", ")}`,
+      );
     }
   }
   return out.join("\n");
@@ -643,9 +703,13 @@ const renderMissingPerRoute = (byRoute) => {
     const missing = COVERAGE_FEATURES.filter((f) => byRoute[r][f].total === 0);
     const tested = COVERAGE_FEATURES.length - missing.length;
     if (missing.length === 0) {
-      out.push(`- **${r}**: full coverage across all ${COVERAGE_FEATURES.length} tracked features.`);
+      out.push(
+        `- **${r}**: full coverage across all ${COVERAGE_FEATURES.length} tracked features.`,
+      );
     } else {
-      out.push(`- **${r}** — ${tested}/${COVERAGE_FEATURES.length} tested, ${missing.length} missing: ${missing.map((m) => "`" + m + "`").join(", ")}`);
+      out.push(
+        `- **${r}** — ${tested}/${COVERAGE_FEATURES.length} tested, ${missing.length} missing: ${missing.map((m) => "`" + m + "`").join(", ")}`,
+      );
     }
   }
   return out.join("\n");
@@ -654,7 +718,6 @@ const renderMissingPerRoute = (byRoute) => {
 const main = () => {
   const raw = readReport(REPORT);
   const execs = raw.run?.executions || [];
-  const stats = raw.run?.stats || {};
   const logText = existsSync(BIFROST_LOG) ? readFileSync(BIFROST_LOG, "utf8") : "";
   const folderMap = buildFolderMap(raw.collection || {});
 
@@ -669,9 +732,10 @@ const main = () => {
     if (!isFail) continue;
     const url = reconstructUrl(e.request?.url);
     const bifrostLines = grepBifrostForUrl(logText, url);
-    const category = categorize(code, body, bifrostLines);
+    const category = categorize(code, body);
     const itemId = e.item?.id;
-    const folder = (itemId && folderMap.byId.get(itemId)) || folderMap.byName.get(itemName) || "(root)";
+    const folder =
+      (itemId && folderMap.byId.get(itemId)) || folderMap.byName.get(itemName) || "(root)";
     failed.push({
       name: itemName,
       folder,
@@ -711,14 +775,21 @@ const main = () => {
   // possible drift, because the report reads complete either way. Caught adding
   // service_unavailable, which would otherwise have hidden every 503/529 instead of miscategorising
   // it - strictly worse than the "unknown" bucket it was moved out of.
-  const orderedCats = [...CATEGORY_ORDER, ...Object.keys(grouped).filter((c) => !CATEGORY_ORDER.includes(c)).sort()];
+  const orderedCats = [
+    ...CATEGORY_ORDER,
+    ...Object.keys(grouped)
+      .filter((c) => !CATEGORY_ORDER.includes(c))
+      .sort(),
+  ];
 
   const lines = [];
   lines.push(`# Bifrost Provider Harness - Failure Report`);
   lines.push("");
   lines.push(`Generated: ${new Date().toISOString()}`);
   lines.push(`Source report: \`${REPORT}\``);
-  lines.push(`Bifrost log: \`${BIFROST_LOG}\` (${logText ? logText.split("\n").length + " lines" : "empty/missing"})`);
+  lines.push(
+    `Bifrost log: \`${BIFROST_LOG}\` (${logText ? logText.split("\n").length + " lines" : "empty/missing"})`,
+  );
   lines.push("");
   lines.push(`**Total: ${total} | Passed: ${passCount} | Failed: ${failCount}**`);
   lines.push("");
@@ -729,12 +800,16 @@ const main = () => {
 
   lines.push(`## Coverage matrices`);
   lines.push("");
-  lines.push(`Cell legend: \`✓ P/T\` all P passed; \`✗ 0/T\` all failed; \`P/T\` mixed; \`—\` no test for this combination (gap). Multi-tag detection: a single request can exercise multiple features (e.g. "Function Calling" + "Streaming"), so cell totals can exceed request count.`);
+  lines.push(
+    `Cell legend: \`✓ P/T\` all P passed; \`✗ 0/T\` all failed; \`P/T\` mixed; \`—\` no test for this combination (gap). Multi-tag detection: a single request can exercise multiple features (e.g. "Function Calling" + "Streaming"), so cell totals can exceed request count.`,
+  );
   lines.push("");
 
   lines.push(`### Feature × Provider (drop-in routes + cross-model + passthrough)`);
   lines.push("");
-  lines.push(`Cells marked \`N/A\` mean the feature is not part of that provider's API surface (e.g., "Reasoning Effort" is OpenAI-only, "Adaptive Thinking" is Anthropic-only). Only \`—\` cells are real coverage gaps.`);
+  lines.push(
+    `Cells marked \`N/A\` mean the feature is not part of that provider's API surface (e.g., "Reasoning Effort" is OpenAI-only, "Adaptive Thinking" is Anthropic-only). Only \`—\` cells are real coverage gaps.`,
+  );
   lines.push("");
   lines.push(renderFeatureRowsTable(byProvider, COVERAGE_PROVIDERS, true));
   lines.push("");
@@ -746,7 +821,9 @@ const main = () => {
 
   lines.push(`### Per-model coverage (every distinct provider/model exercised)`);
   lines.push("");
-  lines.push(`Tags with \`*\` mean some requests passed and some failed for that feature; \`~~feature~~\` means all requests for that feature failed on this model.`);
+  lines.push(
+    `Tags with \`*\` mean some requests passed and some failed for that feature; \`~~feature~~\` means all requests for that feature failed on this model.`,
+  );
   lines.push("");
   lines.push(renderPerModelCoverage(byModel));
   lines.push("");
@@ -767,7 +844,12 @@ const main = () => {
   lines.push("");
 
   if (untagged.length) {
-    lines.push(`> ${untagged.length} request(s) could not be auto-classified by provider; not counted in the per-provider matrix above. Examples: ${untagged.slice(0, 3).map((u) => "`" + (u.name || u.url) + "`").join(", ")}.`);
+    lines.push(
+      `> ${untagged.length} request(s) could not be auto-classified by provider; not counted in the per-provider matrix above. Examples: ${untagged
+        .slice(0, 3)
+        .map((u) => "`" + (u.name || u.url) + "`")
+        .join(", ")}.`,
+    );
     lines.push("");
   }
 
@@ -790,7 +872,9 @@ const main = () => {
     }
   }
   lines.push("");
-  lines.push(`**Recommended fix order**: \`provider_not_configured\` -> \`auth_invalid\` -> \`model_not_found\` -> \`request_shape_mismatch\` -> others. Fixing config + auth first usually collapses cascading downstream failures.`);
+  lines.push(
+    `**Recommended fix order**: \`provider_not_configured\` -> \`auth_invalid\` -> \`model_not_found\` -> \`request_shape_mismatch\` -> others. Fixing config + auth first usually collapses cascading downstream failures.`,
+  );
   lines.push("");
 
   for (const cat of orderedCats) {
@@ -802,7 +886,9 @@ const main = () => {
     lines.push("");
     for (const f of items) {
       // Avoid "POST POST /bedrock/..." when the request name already starts with the method.
-      const displayName = new RegExp(`^${f.method}\\b`, "i").test(f.name) ? f.name : `${f.method} ${f.name}`;
+      const displayName = new RegExp(`^${f.method}\\b`, "i").test(f.name)
+        ? f.name
+        : `${f.method} ${f.name}`;
       lines.push(`### ${displayName} - status ${f.code || "n/a"}`);
       lines.push(`Folder: \`${f.folder || "(root)"}\``);
       lines.push(`URL: \`${f.url}\``);
@@ -828,7 +914,9 @@ const main = () => {
   }
 
   writeFileSync(OUT, lines.join("\n") + "\n");
-  console.log(`[analyze-failures] wrote ${OUT} - ${failCount} failures across ${Object.keys(grouped).length} categories`);
+  console.log(
+    `[analyze-failures] wrote ${OUT} - ${failCount} failures across ${Object.keys(grouped).length} categories`,
+  );
 };
 
 main();

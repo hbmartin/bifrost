@@ -1,6 +1,7 @@
 package schemas
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -9,7 +10,7 @@ import (
 
 // TestGuardrailDebugContextRoundTrip verifies typed guardrail debug context storage.
 func TestGuardrailDebugContextRoundTrip(t *testing.T) {
-	ctx := NewBifrostContext(nil, NoDeadline)
+	ctx := NewBifrostContext(context.Background(), NoDeadline)
 	call := BifrostGuardrailJudgeCall{
 		Phase:         "input",
 		RuleName:      "pii",
@@ -28,7 +29,7 @@ func TestGuardrailDebugContextRoundTrip(t *testing.T) {
 
 // TestGuardrailDebugContextReturnsOwnedSnapshot verifies callers cannot mutate context state.
 func TestGuardrailDebugContextReturnsOwnedSnapshot(t *testing.T) {
-	ctx := NewBifrostContext(nil, NoDeadline)
+	ctx := NewBifrostContext(context.Background(), NoDeadline)
 	require.True(t, AppendGuardrailJudgeCallOnContext(ctx, BifrostGuardrailJudgeCall{
 		JudgeProvider: OpenAI,
 		JudgeModel:    "gpt-4o-mini",
@@ -46,7 +47,7 @@ func TestGuardrailDebugContextReturnsOwnedSnapshot(t *testing.T) {
 
 // TestGuardrailDebugContextClonesUsageDetails verifies nested pricing details cannot alias context state.
 func TestGuardrailDebugContextClonesUsageDetails(t *testing.T) {
-	ctx := NewBifrostContext(nil, NoDeadline)
+	ctx := NewBifrostContext(context.Background(), NoDeadline)
 	citationTokens := 3
 	require.True(t, AppendGuardrailJudgeCallOnContext(ctx, BifrostGuardrailJudgeCall{
 		JudgeProvider: OpenAI,
@@ -75,7 +76,7 @@ func TestGuardrailDebugContextClonesUsageDetails(t *testing.T) {
 
 // TestAppendGuardrailJudgeCallRejectsEmptyUsage verifies non-billable calls are omitted.
 func TestAppendGuardrailJudgeCallRejectsEmptyUsage(t *testing.T) {
-	ctx := NewBifrostContext(nil, NoDeadline)
+	ctx := NewBifrostContext(context.Background(), NoDeadline)
 	assert.False(t, AppendGuardrailJudgeCallOnContext(ctx, BifrostGuardrailJudgeCall{}))
 	_, ok := GuardrailDebugFromContext(ctx)
 	assert.False(t, ok)

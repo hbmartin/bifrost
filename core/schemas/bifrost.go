@@ -973,11 +973,14 @@ const (
 // Once callers fully migrate to MCPRequestTypeExecuteTool, this method will be
 // removed and consumers should switch to `t == MCPRequestTypeExecuteTool` directly.
 func (t MCPRequestType) IsExecuteTool() bool {
+	//exhaustive
 	switch t {
 	case MCPRequestTypeChatToolCall,
 		MCPRequestTypeResponsesToolCall,
 		MCPRequestTypeExecuteTool:
 		return true
+	case MCPRequestTypePing, MCPRequestTypeListTools:
+		return false
 	}
 	return false
 }

@@ -31,6 +31,7 @@ func TestToHuggingFaceChatCompletionRequest_ResponseFormat(t *testing.T) {
 			name:           "nil_response_format",
 			responseFormat: nil,
 			validate: func(t *testing.T, result *HuggingFaceChatRequest) {
+				t.Helper()
 				assert.Nil(t, result.ResponseFormat)
 			},
 		},
@@ -41,6 +42,7 @@ func TestToHuggingFaceChatCompletionRequest_ResponseFormat(t *testing.T) {
 				return &rf
 			}(),
 			validate: func(t *testing.T, result *HuggingFaceChatRequest) {
+				t.Helper()
 				require.NotNil(t, result.ResponseFormat)
 				assert.Equal(t, "json_object", result.ResponseFormat.Type)
 				assert.Nil(t, result.ResponseFormat.JSONSchema)
@@ -66,6 +68,7 @@ func TestToHuggingFaceChatCompletionRequest_ResponseFormat(t *testing.T) {
 				return &rf
 			}(),
 			validate: func(t *testing.T, result *HuggingFaceChatRequest) {
+				t.Helper()
 				require.NotNil(t, result.ResponseFormat)
 				assert.Equal(t, "json_schema", result.ResponseFormat.Type)
 				require.NotNil(t, result.ResponseFormat.JSONSchema)
@@ -97,6 +100,7 @@ func TestToHuggingFaceChatCompletionRequest_ResponseFormat(t *testing.T) {
 				return &rf
 			}(),
 			validate: func(t *testing.T, result *HuggingFaceChatRequest) {
+				t.Helper()
 				require.NotNil(t, result.ResponseFormat, "ResponseFormat should not be nil — ConvertViaJSON fallback must handle struct values")
 				assert.Equal(t, "json_schema", result.ResponseFormat.Type)
 				require.NotNil(t, result.ResponseFormat.JSONSchema)
@@ -112,6 +116,7 @@ func TestToHuggingFaceChatCompletionRequest_ResponseFormat(t *testing.T) {
 				return &rf
 			}(),
 			validate: func(t *testing.T, result *HuggingFaceChatRequest) {
+				t.Helper()
 				assert.Nil(t, result.ResponseFormat, "inconvertible value should gracefully result in nil ResponseFormat")
 			},
 		},

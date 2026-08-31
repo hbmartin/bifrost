@@ -30,7 +30,6 @@ mock_provider "kubernetes" {}
 
 run "creates_vpc" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider = "aws"
     service        = "ecs"
@@ -41,7 +40,6 @@ run "creates_vpc" {
 
 run "skips_vpc_when_existing" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider      = "aws"
     service             = "ecs"
@@ -54,7 +52,6 @@ run "skips_vpc_when_existing" {
 
 run "skips_sg_when_existing" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider              = "aws"
     service                     = "ecs"
@@ -66,7 +63,6 @@ run "skips_sg_when_existing" {
 
 run "custom_cidr" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider = "aws"
     service        = "ecs"
@@ -78,7 +74,6 @@ run "custom_cidr" {
 
 run "custom_prefix" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider = "aws"
     service        = "ecs"
@@ -90,7 +85,6 @@ run "custom_prefix" {
 
 run "tags_applied" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider = "aws"
     service        = "ecs"
@@ -102,7 +96,6 @@ run "tags_applied" {
 
 run "eks_no_ecs_resources" {
   command = plan
-  module { source = "./tests/setup" }
   variables {
     cloud_provider = "aws"
     service        = "eks"

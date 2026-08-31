@@ -25,6 +25,7 @@ import (
 // This intentionally runs across all four providers (no single-provider gate
 // unlike RunFastModeTest, which is Opus-4.6-only).
 func RunEagerInputStreamingTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.EagerInputStreaming {
 		t.Logf("EagerInputStreaming not supported for provider %s", testConfig.Provider)
 		return

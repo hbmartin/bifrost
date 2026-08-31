@@ -23,7 +23,7 @@ import { RbacOperation, RbacResource, useRbac } from "@enterprise/lib";
 import { useNavigate } from "@tanstack/react-router";
 import { AlertCircle, ArrowLeft, Server } from "lucide-react";
 import { useQueryState } from "nuqs";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import AddCustomProviderSheet from "./dialogs/addNewCustomProviderSheet";
 import ConfirmDeleteProviderDialog from "./dialogs/confirmDeleteProviderDialog";
@@ -60,9 +60,8 @@ export default function Providers() {
 	const [getProvider, { isLoading: isLoadingProvider }] = useLazyGetProviderQuery();
 	const [createProvider] = useCreateProviderMutation();
 
-	const configuredProviders = (savedProviders ?? []).slice().sort((a, b) => a.name.localeCompare(b.name));
-	const configuredProviderNamesArr = configuredProviders.map((p) => p.name);
-	const configuredProviderNamesKey = JSON.stringify(configuredProviderNamesArr);
+	const configuredProviders = useMemo(() => (savedProviders ?? []).slice().sort((a, b) => a.name.localeCompare(b.name)), [savedProviders]);
+	const configuredProviderNamesArr = useMemo(() => configuredProviders.map((provider) => provider.name), [configuredProviders]);
 	const existingInSidebarNames = new Set(configuredProviders.map((p) => p.name));
 
 	const knownProviders = ProviderNames.map((name) => ({ name }));
@@ -99,13 +98,12 @@ export default function Providers() {
 					description: `We encountered an error while getting provider config: ${getErrorMessage(err)}`,
 				});
 			});
-	}, [provider, isLoadingProviders]);
+	}, [configuredProviders, dispatch, getProvider, provider]);
 
 	useEffect(() => {
 		if (selectedProvider || configuredProviders.length === 0 || provider) return;
 		setProvider(configuredProviders[0].name);
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [selectedProvider, configuredProviderNamesKey]);
+	}, [configuredProviders, provider, selectedProvider, setProvider]);
 
 	// A provider in the URL is a direct link to its detail view on small screens.
 	useEffect(() => {
@@ -121,8 +119,7 @@ export default function Providers() {
 		if (!isCurrentConfigured) {
 			setProvider(configuredProviderNamesArr[0]);
 		}
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [provider, configuredProviderNamesKey]);
+	}, [configuredProviderNamesArr, provider, setProvider]);
 
 	if (!hasProvidersAccess && hasSettingsOnly) {
 		return <FullPageLoader />;

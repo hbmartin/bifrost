@@ -76,7 +76,14 @@ func (s *BifrostHTTPServer) registerPluginWithStatus(ctx context.Context, name s
 		return nil
 	}
 
-	s.Config.ReloadPlugin(plugin)
+	if err := s.Config.ReloadPlugin(plugin); err != nil {
+		s.Config.UpdatePluginOverallStatus(name, name, schemas.PluginStatusError,
+			[]string{fmt.Sprintf("error registering %s plugin: %v", name, err)}, InferPluginTypes(plugin))
+		if failOnError {
+			return fmt.Errorf("register %s plugin: %w", name, err)
+		}
+		return nil
+	}
 	s.Config.UpdatePluginOverallStatus(name, name, schemas.PluginStatusActive,
 		[]string{fmt.Sprintf("%s plugin initialized successfully", name)}, InferPluginTypes(plugin))
 	return nil

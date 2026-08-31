@@ -52,14 +52,26 @@ const TUNING_FIELDS: {
 	label: string;
 	description: string;
 }[] = [
-	{ key: "max_retries", label: "Max retries", description: "Retries after the first delivery attempt." },
+	{
+		key: "max_retries",
+		label: "Max retries",
+		description: "Retries after the first delivery attempt.",
+	},
 	{
 		key: "retry_backoff_initial_seconds",
 		label: "Initial retry backoff (seconds)",
 		description: "Delay before the first retry; doubles per retry.",
 	},
-	{ key: "retry_backoff_max_seconds", label: "Max retry backoff (seconds)", description: "Cap on the per-retry delay." },
-	{ key: "attempt_timeout_seconds", label: "Attempt timeout (seconds)", description: "End-to-end bound for one delivery attempt." },
+	{
+		key: "retry_backoff_max_seconds",
+		label: "Max retry backoff (seconds)",
+		description: "Cap on the per-retry delay.",
+	},
+	{
+		key: "attempt_timeout_seconds",
+		label: "Attempt timeout (seconds)",
+		description: "End-to-end bound for one delivery attempt.",
+	},
 	{
 		key: "max_response_payload_kbs",
 		label: "Max response payload (KB)",
@@ -279,7 +291,12 @@ export function WebhookSheet({ open, endpoint, onClose, onSecret }: WebhookSheet
 							<Switch
 								id="webhook-private-network"
 								checked={allowPrivateNetwork}
-								onCheckedChange={(checked) => setValue("allow_private_network", checked, { shouldDirty: true, shouldValidate: true })}
+								onCheckedChange={(checked) =>
+									setValue("allow_private_network", checked, {
+										shouldDirty: true,
+										shouldValidate: true,
+									})
+								}
 								data-testid="webhook-private-network-switch"
 							/>
 						</div>

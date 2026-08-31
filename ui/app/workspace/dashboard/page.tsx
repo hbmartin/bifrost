@@ -144,7 +144,9 @@ export default function DashboardPage() {
 			...(urlState.user_ids.length > 0 && { user_ids: urlState.user_ids }),
 			...(urlState.team_ids.length > 0 && { team_ids: urlState.team_ids }),
 			...(urlState.customer_ids.length > 0 && { customer_ids: urlState.customer_ids }),
-			...(urlState.business_unit_ids.length > 0 && { business_unit_ids: urlState.business_unit_ids }),
+			...(urlState.business_unit_ids.length > 0 && {
+				business_unit_ids: urlState.business_unit_ids,
+			}),
 			...(urlState.aliases.length > 0 && { aliases: urlState.aliases }),
 			...(urlState.apps.length > 0 && { apps: urlState.apps }),
 		}),
@@ -216,18 +218,21 @@ export default function DashboardPage() {
 	const virtualKeyRankingsRef = useRef<DimensionRankingsTabViewHandle>(null);
 	const appRankingsRef = useRef<DimensionRankingsTabViewHandle>(null);
 
-	const allRefs = [
-		overviewRef,
-		providerRef,
-		mcpRef,
-		modelRankingsRef,
-		teamRankingsRef,
-		customerRankingsRef,
-		buRankingsRef,
-		userRankingsRef,
-		virtualKeyRankingsRef,
-		appRankingsRef,
-	];
+	const allRefs = useMemo(
+		() => [
+			overviewRef,
+			providerRef,
+			mcpRef,
+			modelRankingsRef,
+			teamRankingsRef,
+			customerRankingsRef,
+			buRankingsRef,
+			userRankingsRef,
+			virtualKeyRankingsRef,
+			appRankingsRef,
+		],
+		[],
+	);
 
 	const getDashboardData = useCallback((): DashboardData => {
 		const merged: Partial<DashboardData> = {};
@@ -255,7 +260,7 @@ export default function DashboardPage() {
 			mcpTopToolsData: null,
 			...merged,
 		};
-	}, []);
+	}, [allRefs]);
 
 	// Which scope the in-flight export covers; null when not exporting.
 	// "all" force-mounts every tab, a single tab exports only what is open.
@@ -264,35 +269,38 @@ export default function DashboardPage() {
 	/** True while this tab is part of the running export, so rankings render their uncapped snapshot. */
 	const isExportingTab = (tab: DashboardTab) => exportingAll || exportScope === tab;
 
-	const handlePreloadData = useCallback(async (scope: ExportTab) => {
-		// For an all-tabs export, force-mount every tab before loading: Radix
-		// unmounts inactive TabsContent, so an inactive tab view has no ref yet
-		// and would never load its export snapshot - the report would only cover
-		// the tab that happened to be open. A single-tab export deliberately
-		// skips this, so only the open tab's data reaches the export.
-		setExportScope(scope);
-		await nextFrames();
+	const handlePreloadData = useCallback(
+		async (scope: ExportTab) => {
+			// For an all-tabs export, force-mount every tab before loading: Radix
+			// unmounts inactive TabsContent, so an inactive tab view has no ref yet
+			// and would never load its export snapshot - the report would only cover
+			// the tab that happened to be open. A single-tab export deliberately
+			// skips this, so only the open tab's data reaches the export.
+			setExportScope(scope);
+			await nextFrames();
 
-		const refsByTab: Record<DashboardTab, RefObject<{ loadData: () => Promise<void> } | null>> = {
-			overview: overviewRef,
-			"provider-usage": providerRef,
-			mcp: mcpRef,
-			rankings: modelRankingsRef,
-			"team-rankings": teamRankingsRef,
-			"customer-rankings": customerRankingsRef,
-			"bu-rankings": buRankingsRef,
-			"user-rankings": userRankingsRef,
-			"virtual-key-rankings": virtualKeyRankingsRef,
-			"app-rankings": appRankingsRef,
-		};
+			const refsByTab: Record<DashboardTab, RefObject<{ loadData: () => Promise<void> } | null>> = {
+				overview: overviewRef,
+				"provider-usage": providerRef,
+				mcp: mcpRef,
+				rankings: modelRankingsRef,
+				"team-rankings": teamRankingsRef,
+				"customer-rankings": customerRankingsRef,
+				"bu-rankings": buRankingsRef,
+				"user-rankings": userRankingsRef,
+				"virtual-key-rankings": virtualKeyRankingsRef,
+				"app-rankings": appRankingsRef,
+			};
 
-		const refs = scope === "all" ? allRefs : [refsByTab[scope]];
-		await Promise.all(refs.map((r) => r.current?.loadData()));
+			const refs = scope === "all" ? allRefs : [refsByTab[scope]];
+			await Promise.all(refs.map((r) => r.current?.loadData()));
 
-		// Let the loaded snapshots commit before the caller reads getData() or
-		// captures the DOM.
-		await nextFrames();
-	}, []);
+			// Let the loaded snapshots commit before the caller reads getData() or
+			// captures the DOM.
+			await nextFrames();
+		},
+		[allRefs],
+	);
 
 	// Tab change handler
 	const handleTabChange = useCallback(

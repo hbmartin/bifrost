@@ -2,10 +2,7 @@
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-} from "@modelcontextprotocol/sdk/types.js";
+import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 
 // Schemas for edge case test tools
@@ -51,7 +48,7 @@ const ExtremeSizesSchema = z.object({
 
 const server = new Server(
   { name: "edge-case-server", version: "1.0.0" },
-  { capabilities: { tools: {} } }
+  { capabilities: { tools: {} } },
 );
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
@@ -352,7 +349,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         let text = "";
 
         if (charType === "quotes" || charType === "all") {
-          text += 'Text with "double quotes" and \'single quotes\' ';
+          text += "Text with \"double quotes\" and 'single quotes' ";
         }
 
         if (charType === "backslashes" || charType === "all") {
@@ -383,7 +380,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case "zero_length": {
-        const args = ZeroLengthSchema.parse(request.params.arguments);
+        ZeroLengthSchema.parse(request.params.arguments);
 
         return {
           content: [

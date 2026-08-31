@@ -364,7 +364,7 @@ function ToolNamesFilter({ filters, onFiltersChange, defaultOpen }: FilterCompon
 		isLoading,
 		isFetching,
 	} = useGetMCPLogsFilterDataQuery({ dimensions: ["tool_names"], q: searchQuery || undefined }, { skip: !opened && !hasActive });
-	const availableToolNames = filterData?.tool_names || [];
+	const availableToolNames = useMemo(() => filterData?.tool_names ?? [], [filterData?.tool_names]);
 	const items = useMemo(() => {
 		const seen = new Set(availableToolNames);
 		const extras = (filters.tool_names || []).filter((n) => !seen.has(n));
@@ -408,7 +408,7 @@ function ServersFilter({ filters, onFiltersChange, defaultOpen }: FilterComponen
 		isLoading,
 		isFetching,
 	} = useGetMCPLogsFilterDataQuery({ dimensions: ["server_labels"], q: searchQuery || undefined }, { skip: !opened && !hasActive });
-	const availableServerLabels = filterData?.server_labels || [];
+	const availableServerLabels = useMemo(() => filterData?.server_labels ?? [], [filterData?.server_labels]);
 	const items = useMemo(() => {
 		const seen = new Set(availableServerLabels);
 		const extras = (filters.server_labels || []).filter((l) => !seen.has(l));
@@ -500,7 +500,7 @@ function VirtualKeysFilter({ filters, onFiltersChange, defaultOpen }: FilterComp
 		isLoading,
 		isFetching,
 	} = useGetMCPLogsFilterDataQuery({ dimensions: ["virtual_keys"], q: searchQuery || undefined }, { skip: !opened && !hasActive });
-	const availableVirtualKeys = filterData?.virtual_keys || [];
+	const availableVirtualKeys = useMemo(() => filterData?.virtual_keys ?? [], [filterData?.virtual_keys]);
 	const nameToId = useMemo(() => new Map(availableVirtualKeys.map((key) => [key.name, key.id])), [availableVirtualKeys]);
 
 	if (!isUninitialized && !isLoading && availableVirtualKeys.length === 0 && !hasActive && !opened) return null;

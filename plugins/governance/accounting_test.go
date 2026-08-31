@@ -343,12 +343,12 @@ func TestReportBatchUsage_ChargesPerModelBudgets(t *testing.T) {
 	// What a settled batch looks like: the wildcard budget was collected at create
 	// time (and so is already charged the full total), the per-model budget was not.
 	report := batchaccounting.BatchUsageReport{
-		RequestID:    "batch-cost:openai:batch-models",
-		Provider:     schemas.OpenAI,
-		Cost:         30.0,
-		TokensUsed:   300,
-		BudgetIDs:    []string{"wildcard-budget"},
-		UserID:       "user-alice",
+		RequestID:  "batch-cost:openai:batch-models",
+		Provider:   schemas.OpenAI,
+		Cost:       30.0,
+		TokensUsed: 300,
+		BudgetIDs:  []string{"wildcard-budget"},
+		UserID:     "user-alice",
 		ModelUsage: []batchaccounting.BatchModelUsage{
 			{Model: "gpt-5", Cost: 20.0, TokensUsed: 200},
 			{Model: "gpt-4o", Cost: 10.0, TokensUsed: 100},

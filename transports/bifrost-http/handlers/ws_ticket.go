@@ -255,7 +255,9 @@ func encryptWSTicketPayload(key []byte, payload []byte) ([]byte, error) {
 		return nil, err
 	}
 	ciphertext := aead.Seal(nil, nonce, payload, nil)
-	return append(nonce, ciphertext...), nil
+	encrypted := make([]byte, 0, len(nonce)+len(ciphertext))
+	encrypted = append(encrypted, nonce...)
+	return append(encrypted, ciphertext...), nil
 }
 
 // decryptWSTicketPayload decrypts an AES-GCM WebSocket ticket payload.

@@ -1,7 +1,10 @@
 // Unit tests for the generated cross-provider prompt-cache matrix items.
 // Run directly: `node crossprovider-cache-matrix.test.mjs`.
 import assert from "node:assert";
-import { buildCrossProviderCacheMatrixItems, IMPLICIT_ROUNDS } from "./crossprovider-cache-matrix.mjs";
+import {
+  buildCrossProviderCacheMatrixItems,
+  IMPLICIT_ROUNDS,
+} from "./crossprovider-cache-matrix.mjs";
 
 let passed = 0;
 function test(name, fn) {
@@ -20,7 +23,11 @@ const scriptOf = (item, listen) =>
 
 const itemNamed = (fragment) => {
   const found = ITEMS.filter((i) => i.name.includes(fragment));
-  assert.strictEqual(found.length, 1, `expected exactly one item matching ${fragment}, got ${found.length}`);
+  assert.strictEqual(
+    found.length,
+    1,
+    `expected exactly one item matching ${fragment}, got ${found.length}`,
+  );
   return found[0];
 };
 
@@ -87,7 +94,8 @@ function runSeries(usages) {
   let last = null;
   for (let i = 0; i < usages.length; i++) {
     const round = i + 1;
-    const name = round === usages.length ? `${CELL} round ${round} (verdict)` : `${CELL} round ${round}`;
+    const name =
+      round === usages.length ? `${CELL} round ${round} (verdict)` : `${CELL} round ${round}`;
     last = runRound(itemNamed(name), usages[i], vars);
   }
   return last;
@@ -104,9 +112,12 @@ test("the reported counters describe the same round as the reported hit rate", (
   assert.strictEqual(
     (report.read / billed).toFixed(4),
     report.hitRate.toFixed(4),
-    `counters and hit rate describe different rounds: ${JSON.stringify(report)}`
+    `counters and hit rate describe different rounds: ${JSON.stringify(report)}`,
   );
-  assert.ok(report.read > 0, `best round hit the cache but reported read=0: ${JSON.stringify(report)}`);
+  assert.ok(
+    report.read > 0,
+    `best round hit the cache but reported read=0: ${JSON.stringify(report)}`,
+  );
 });
 
 // The series is what the report prints as the per-round column and what the verdict is taken
@@ -116,11 +127,11 @@ test("the series stays one rate per round, in round order", () => {
   assert.strictEqual(
     report.series.length,
     IMPLICIT_ROUNDS,
-    `expected ${IMPLICIT_ROUNDS} rounds, got ${JSON.stringify(report.series)}`
+    `expected ${IMPLICIT_ROUNDS} rounds, got ${JSON.stringify(report.series)}`,
   );
   assert.ok(
     report.series.every((h) => typeof h === "number"),
-    `series must be numeric rates: ${JSON.stringify(report.series)}`
+    `series must be numeric rates: ${JSON.stringify(report.series)}`,
   );
   assert.strictEqual(report.series[0], 0, `round 1 missed but reported ${report.series[0]}`);
   assert.ok(report.series[1] > 0, `round 2 hit but reported ${report.series[1]}`);
@@ -132,9 +143,17 @@ test("the series stays one rate per round, in round order", () => {
 test("a mid-series hit passes and an all-miss series fails", () => {
   assert.deepStrictEqual(runSeries(ONE_MID_HIT).failures, []);
   const dry = runSeries(ALL_MISS);
-  assert.strictEqual(dry.failures.length, 1, `expected exactly one failure, got ${JSON.stringify(dry.failures)}`);
+  assert.strictEqual(
+    dry.failures.length,
+    1,
+    `expected exactly one failure, got ${JSON.stringify(dry.failures)}`,
+  );
   assert.match(dry.failures[0][0], /caches at least once/);
-  assert.strictEqual(dry.report.read, 0, `an all-miss series must report read=0: ${JSON.stringify(dry.report)}`);
+  assert.strictEqual(
+    dry.report.read,
+    0,
+    `an all-miss series must report read=0: ${JSON.stringify(dry.report)}`,
+  );
 });
 
 // Round 1 resets the series because collection variables outlive an iteration. Without it a second
@@ -149,15 +168,20 @@ test("round 1 starts a fresh series rather than appending to the previous iterat
   const usages = ALL_MISS;
   for (let i = 0; i < usages.length; i++) {
     const round = i + 1;
-    const name = round === usages.length ? `${CELL} round ${round} (verdict)` : `${CELL} round ${round}`;
+    const name =
+      round === usages.length ? `${CELL} round ${round} (verdict)` : `${CELL} round ${round}`;
     last = runRound(itemNamed(name), usages[i], vars);
   }
   assert.strictEqual(
     last.report.series.length,
     IMPLICIT_ROUNDS,
-    `stale round leaked in: ${JSON.stringify(last.report.series)}`
+    `stale round leaked in: ${JSON.stringify(last.report.series)}`,
   );
-  assert.strictEqual(last.failures.length, 1, "a stale hit satisfied the verdict of an all-miss run");
+  assert.strictEqual(
+    last.failures.length,
+    1,
+    "a stale hit satisfied the verdict of an all-miss run",
+  );
 });
 
 // The renderer decides "PASS" vs "PASS (warm)" from the write counters this report carries. The
@@ -165,14 +189,25 @@ test("round 1 starts a fresh series rather than appending to the previous iterat
 // write) rather than round 1 (write, no read) -- so a cold run looked warm and a whole matrix
 // reported that the write path had never been exercised. writeTotal sums every round instead.
 test("the verdict report carries writes summed across rounds, not just the best round's", () => {
-  const WRITE = { prompt_tokens: 15748, prompt_tokens_details: { cached_tokens: 0, cache_write_tokens: 15748 } };
+  const WRITE = {
+    prompt_tokens: 15748,
+    prompt_tokens_details: { cached_tokens: 0, cache_write_tokens: 15748 },
+  };
   const { report } = runSeries([WRITE, ...rounds(2).slice(1)]);
   assert.ok(report, "the verdict round logged no CACHE_MATRIX_REPORT");
   assert.notStrictEqual(report.writeTotal, undefined, "writeTotal is missing from the report");
-  assert.strictEqual(report.writeTotal, 15748, `round 1's write did not reach writeTotal: ${JSON.stringify(report)}`);
+  assert.strictEqual(
+    report.writeTotal,
+    15748,
+    `round 1's write did not reach writeTotal: ${JSON.stringify(report)}`,
+  );
   // The point of the field: the best round wrote nothing, so a renderer reading `write` alone
   // would call this cold run warm.
-  assert.strictEqual(report.write, 0, "fixture no longer exercises the best-round-is-not-round-1 case");
+  assert.strictEqual(
+    report.write,
+    0,
+    "fixture no longer exercises the best-round-is-not-round-1 case",
+  );
   assert.ok(report.writeTotal > report.write, "writeTotal must outlive the best round's write");
 });
 

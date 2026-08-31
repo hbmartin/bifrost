@@ -59,9 +59,12 @@ test("a genuine provider row still matches", () => {
   const h = buildHaystack(
     {
       name: "anthropic/claude-opus-5 prompt caching",
-      request: { body: { mode: "raw", raw: '{"model":"anthropic/claude-opus-5"}' }, url: { raw: "{{baseUrl}}/anthropic/v1/messages" } },
+      request: {
+        body: { mode: "raw", raw: '{"model":"anthropic/claude-opus-5"}' },
+        url: { raw: "{{baseUrl}}/anthropic/v1/messages" },
+      },
     },
-    ["10. Feature Variations (per-provider)", "Anthropic Features"]
+    ["10. Feature Variations (per-provider)", "Anthropic Features"],
   );
   assert.ok(h.includes("anthropic"));
   assert.ok(h.includes("claude-"));
@@ -78,10 +81,13 @@ test("missing fields do not throw", () => {
 test("an object-form description contributes the same text as a string one", () => {
   const asObject = buildHaystack(
     { name: "External row", description: { content: "targets vertex", type: "text/markdown" } },
-    []
+    [],
   );
   const asString = buildHaystack({ name: "External row", description: "targets vertex" }, []);
-  assert.ok(asObject.includes("targets vertex"), `object-form description was dropped: ${asObject}`);
+  assert.ok(
+    asObject.includes("targets vertex"),
+    `object-form description was dropped: ${asObject}`,
+  );
   assert.strictEqual(asObject, asString, "both encodings must reduce to the same identity");
 });
 
@@ -95,12 +101,19 @@ test("a non-string description content is still ignored", () => {
   assert.strictEqual(
     buildHaystack({ name: "x", description: { type: "text/markdown" } }, []),
     baseline,
-    "a description object with no content must reduce to the no-description case"
+    "a description object with no content must reduce to the no-description case",
   );
 
-  const nested = buildHaystack({ name: "x", description: { content: { nested: "zzsentinelzz" } } }, []);
+  const nested = buildHaystack(
+    { name: "x", description: { content: { nested: "zzsentinelzz" } } },
+    [],
+  );
   assert.ok(!nested.includes("zzsentinelzz"), `non-string description content leaked: ${nested}`);
-  assert.strictEqual(nested, baseline, "a non-string content must reduce to the no-description case");
+  assert.strictEqual(
+    nested,
+    baseline,
+    "a non-string content must reduce to the no-description case",
+  );
 });
 
 console.log(`\n${passed} passed`);

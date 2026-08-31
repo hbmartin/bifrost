@@ -69,7 +69,7 @@ func (c *OtelClientHTTP) Emit(ctx context.Context, rs []*ResourceSpan) error {
 		logger.Error("[otel] failed to send request to %s: %v", c.endpoint, err)
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode/100 != 2 {
 		// Discard the body to avoid leaking memory
 		_, _ = io.Copy(io.Discard, resp.Body)

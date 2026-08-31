@@ -6,12 +6,12 @@ This script runs tests for each integration independently using their native SDK
 No more complex gateway conversions - just direct testing!
 """
 
-import os
-import sys
 import argparse
+import os
 import subprocess
+import sys
 from pathlib import Path
-from typing import List, Optional
+from typing import Any
 
 
 def check_api_keys():
@@ -31,16 +31,16 @@ def check_api_keys():
 
 
 def run_integration_tests(
-    integrations: List[str], test_pattern: Optional[str] = None, verbose: bool = False
+    integrations: list[str], test_pattern: str | None = None, verbose: bool = False
 ):
     """Run tests for specified integrations"""
 
-    results = {}
+    results: dict[str, dict[str, Any]] = {}
 
     for integration in integrations:
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"🧪 TESTING {integration.upper()} INTEGRATION")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         # Build pytest command with absolute path relative to script location
         script_dir = Path(__file__).parent
@@ -106,15 +106,15 @@ def run_integration_tests(
 
 
 def print_summary(
-    results: dict, available_integrations: List[str], missing_integrations: List[str]
+    results: dict, available_integrations: list[str], missing_integrations: list[str]
 ):
     """Print final summary"""
-    print(f"\n{'='*80}")
+    print(f"\n{'=' * 80}")
     print("🎯 FINAL SUMMARY")
-    print(f"{'='*80}")
+    print(f"{'=' * 80}")
 
     # API Key Status
-    print(f"\n🔑 API Key Status:")
+    print("\n🔑 API Key Status:")
     for integration in available_integrations:
         print(f"  ✅ {integration.upper()}: Available")
 
@@ -122,7 +122,7 @@ def print_summary(
         print(f"  ❌ {integration.upper()}: Missing API key")
 
     # Test Results
-    print(f"\n📊 Test Results:")
+    print("\n📊 Test Results:")
     passed_integrations = []
     failed_integrations = []
 
@@ -141,11 +141,11 @@ def print_summary(
     total_tested = len(results)
     total_passed = len(passed_integrations)
 
-    print(f"\n🏆 Overall Results:")
+    print("\n🏆 Overall Results:")
     print(f"  Integrations tested: {total_tested}")
     print(f"  Integrations passed: {total_passed}")
     print(
-        f"  Success rate: {(total_passed/total_tested)*100:.1f}%"
+        f"  Success rate: {(total_passed / total_tested) * 100:.1f}%"
         if total_tested > 0
         else "  Success rate: N/A"
     )
@@ -156,9 +156,7 @@ def print_summary(
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Run integration-specific integration tests"
-    )
+    parser = argparse.ArgumentParser(description="Run integration-specific integration tests")
     parser.add_argument(
         "--integrations",
         nargs="+",
@@ -166,13 +164,9 @@ def main():
         default=["all"],
         help="Integrations to test (default: all available)",
     )
-    parser.add_argument(
-        "--test", help="Run specific test pattern (e.g., 'test_01_simple_chat')"
-    )
+    parser.add_argument("--test", help="Run specific test pattern (e.g., 'test_01_simple_chat')")
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
-    parser.add_argument(
-        "--check-keys", action="store_true", help="Only check API key availability"
-    )
+    parser.add_argument("--check-keys", action="store_true", help="Only check API key availability")
     parser.add_argument(
         "--show-models",
         action="store_true",
@@ -226,9 +220,7 @@ def main():
             "litellm",
         ]  # all possible integrations
     else:
-        integrations_to_test = [
-            p for p in args.integrations if p in available_integrations
-        ]
+        integrations_to_test = [p for p in args.integrations if p in available_integrations]
         requested_integrations = args.integrations
 
     if not integrations_to_test:
@@ -242,18 +234,14 @@ def main():
 
     # Calculate which requested integrations are missing API keys
     requested_missing_integrations = [
-        integration
-        for integration in requested_integrations
-        if integration in missing_integrations
+        integration for integration in requested_integrations if integration in missing_integrations
     ]
 
     # Show what we're about to test
     print("🚀 Starting integration tests...")
     print(f"📋 Testing integrations: {', '.join(integrations_to_test)}")
     if requested_missing_integrations:
-        print(
-            f"⏭️  Skipping integrations (no API key): {', '.join(requested_missing_integrations)}"
-        )
+        print(f"⏭️  Skipping integrations (no API key): {', '.join(requested_missing_integrations)}")
 
     # Run tests
     results = run_integration_tests(integrations_to_test, args.test, args.verbose)
@@ -262,9 +250,7 @@ def main():
     print_summary(results, available_integrations, requested_missing_integrations)
 
     # Exit with appropriate code
-    failed_count = sum(
-        1 for r in results.values() if r.get("returncode", 1) != 0 or "error" in r
-    )
+    failed_count = sum(1 for r in results.values() if r.get("returncode", 1) != 0 or "error" in r)
     sys.exit(failed_count)
 
 

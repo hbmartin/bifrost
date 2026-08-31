@@ -1,6 +1,7 @@
 package azure
 
 import (
+	"context"
 	"testing"
 
 	"github.com/maximhq/bifrost/core/schemas"
@@ -152,7 +153,7 @@ func TestBuildPassthroughURL_AliasAPIVersionOverride(t *testing.T) {
 
 	// Build a ctx carrying an alias with APIVersion override.
 	overrideVer := "2024-10-21"
-	ctx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	ctx.SetValue(schemas.BifrostContextKeyResolvedAlias, &schemas.ResolvedAlias{
 		Key: "best-model",
 		Config: &schemas.AliasConfig{
@@ -194,7 +195,7 @@ func TestResolveAPIVersion_NoAlias(t *testing.T) {
 	if got := resolveAPIVersion(nil, DefaultAzureAPIVersion); got != DefaultAzureAPIVersion {
 		t.Errorf("got %q, want %q", got, DefaultAzureAPIVersion)
 	}
-	ctx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	if got := resolveAPIVersion(ctx, AzureAPIVersionPreview); got != AzureAPIVersionPreview {
 		t.Errorf("got %q, want %q", got, AzureAPIVersionPreview)
 	}
@@ -216,7 +217,7 @@ func TestResolveAzureEndpoint_AliasOverride(t *testing.T) {
 	if got := resolveAzureEndpoint(nil, key); got != keyEndpoint {
 		t.Errorf("nil ctx: got %q, want key-level %q", got, keyEndpoint)
 	}
-	ctx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	if got := resolveAzureEndpoint(ctx, key); got != keyEndpoint {
 		t.Errorf("empty ctx: got %q, want key-level %q", got, keyEndpoint)
 	}
@@ -239,7 +240,7 @@ func TestResolveAzureEndpoint_AliasOverride(t *testing.T) {
 	// Alias with empty Endpoint value falls through to key-level — guards against
 	// a misconfigured alias accidentally erasing the endpoint.
 	emptyOverride := schemas.NewSecretVar("")
-	ctx2 := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx2 := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	ctx2.SetValue(schemas.BifrostContextKeyResolvedAlias, &schemas.ResolvedAlias{
 		Key: "x",
 		Config: &schemas.AliasConfig{
@@ -261,7 +262,7 @@ func TestResolveAnthropicVersion_AliasOverride(t *testing.T) {
 		t.Errorf("nil ctx: got %q, want default", got)
 	}
 	override := "2024-10-22"
-	ctx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	ctx.SetValue(schemas.BifrostContextKeyResolvedAlias, &schemas.ResolvedAlias{
 		Key: "best-claude",
 		Config: &schemas.AliasConfig{

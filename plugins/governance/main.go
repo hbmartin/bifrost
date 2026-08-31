@@ -282,7 +282,11 @@ func InitFromStore(
 		} else if err := lock.Lock(ctx); err != nil {
 			logger.Warn("failed to acquire governance startup reset lock, skipping startup reset: %v", err)
 		} else {
-			defer lock.Unlock(ctx)
+			defer func(unlockCtx context.Context) {
+				if err := lock.Unlock(unlockCtx); err != nil {
+					logger.Warn("failed to release governance startup reset lock: %v", err)
+				}
+			}(ctx)
 			if err := tracker.PerformStartupResets(ctx); err != nil {
 				logger.Warn("startup reset failed: %v", err)
 				// Continue initialization even if startup reset fails (non-critical)

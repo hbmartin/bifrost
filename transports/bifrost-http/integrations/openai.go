@@ -2733,7 +2733,7 @@ func parseOpenAIFileUploadMultipartRequest(ctx *fasthttp.RequestCtx, req interfa
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	// Read file data
 	fileData, err := io.ReadAll(file)
@@ -3475,7 +3475,7 @@ func parseTranscriptionMultipartRequest(ctx *fasthttp.RequestCtx, req interface{
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	// Read file data
 	fileData, err := io.ReadAll(file)
@@ -3623,7 +3623,7 @@ func parseOpenAIVideoEditRequest(ctx *fasthttp.RequestCtx, req interface{}) erro
 		if err != nil {
 			return err
 		}
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 		fileData, err := io.ReadAll(f)
 		if err != nil {
 			return err
@@ -3718,7 +3718,7 @@ func parseOpenAIImageEditMultipartRequest(ctx *fasthttp.RequestCtx, req interfac
 		if err != nil {
 			return err
 		}
-		defer file.Close()
+		defer func() { _ = file.Close() }()
 
 		// Read file data
 		fileData, err := io.ReadAll(file)
@@ -3831,7 +3831,7 @@ func parseOpenAIImageEditMultipartRequest(ctx *fasthttp.RequestCtx, req interfac
 		if err != nil {
 			return err
 		}
-		defer file.Close()
+		defer func() { _ = file.Close() }()
 
 		maskData, err := io.ReadAll(file)
 		if err != nil {
@@ -3895,7 +3895,7 @@ func parseOpenAIImageVariationMultipartRequest(ctx *fasthttp.RequestCtx, req int
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	// Read file data
 	fileData, err := io.ReadAll(file)
@@ -3992,7 +3992,7 @@ func parseOpenAIVideoGenerationMultipartRequest(ctx *fasthttp.RequestCtx, req in
 		if err != nil {
 			return err
 		}
-		defer file.Close()
+		defer func() { _ = file.Close() }()
 
 		// Read file data
 		fileData, err := io.ReadAll(file)
@@ -4074,7 +4074,7 @@ func parseContainerFileCreateMultipartRequest(ctx *fasthttp.RequestCtx, req inte
 		if err != nil {
 			return err
 		}
-		defer file.Close()
+		defer func() { _ = file.Close() }()
 
 		fileData, err := io.ReadAll(file)
 		if err != nil {

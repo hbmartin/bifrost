@@ -225,7 +225,13 @@ function collectDAGStructure(root: TrieNode): { lNodes: LNode[]; lEdges: LEdge[]
 				const color = nodeColor(node, colorCache);
 				const terminalRules = collectTerminals(node);
 				const scopes = [...new Set(terminalRules.map((r) => r.scope))];
-				lNodes.push({ id: selfId, kind: "condition", data: { condition: node.condition, color, scopes }, w: COND_W, h: COND_H });
+				lNodes.push({
+					id: selfId,
+					kind: "condition",
+					data: { condition: node.condition, color, scopes },
+					w: COND_W,
+					h: COND_H,
+				});
 				addedNodes.add(selfId);
 			}
 			addEdge(parentId, selfId, undefined, nodeColor(node, colorCache) ?? undefined);
@@ -241,7 +247,13 @@ function collectDAGStructure(root: TrieNode): { lNodes: LNode[]; lEdges: LEdge[]
 			const ruleId = `rule-${rule.id}`;
 			const sc = SCOPE_CONFIG[rule.scope as ScopeKey]?.color ?? "#9ca3af";
 			if (!addedNodes.has(ruleId)) {
-				lNodes.push({ id: ruleId, kind: "rule", data: { rule, scopeColor: sc }, w: RULE_W, h: RULE_H });
+				lNodes.push({
+					id: ruleId,
+					kind: "rule",
+					data: { rule, scopeColor: sc },
+					w: RULE_W,
+					h: RULE_H,
+				});
 				addedNodes.add(ruleId);
 			}
 			addEdge(selfId, ruleId, undefined, sc);
@@ -318,7 +330,11 @@ function collectDAGStructure(root: TrieNode): { lNodes: LNode[]; lEdges: LEdge[]
 				if (t.model) vars.model = t.model;
 				if (!Object.keys(vars).length) {
 					// passthrough target — chain loops back to source (static: we know the input is unchanged)
-					addEdge(ruleId, "source", "↺", sc, { isChainBack: true, isChainWeak: false, sourceHandle: "chain-out" });
+					addEdge(ruleId, "source", "↺", sc, {
+						isChainBack: true,
+						isChainWeak: false,
+						sourceHandle: "chain-out",
+					});
 					continue;
 				}
 				const key = JSON.stringify(vars);
@@ -328,10 +344,18 @@ function collectDAGStructure(root: TrieNode): { lNodes: LNode[]; lEdges: LEdge[]
 				const entries = findEntries(childrenOf.get("source") ?? [], vars);
 				if (entries.length === 0) {
 					// resolved vars match no condition node — fall back to source
-					addEdge(ruleId, "source", "↺", sc, { isChainBack: true, isChainWeak: false, sourceHandle: "chain-out" });
+					addEdge(ruleId, "source", "↺", sc, {
+						isChainBack: true,
+						isChainWeak: false,
+						sourceHandle: "chain-out",
+					});
 				}
 				for (const { id: condId, strong } of entries) {
-					addEdge(ruleId, condId, "↺", sc, { isChainBack: true, isChainWeak: !strong, sourceHandle: "chain-out" });
+					addEdge(ruleId, condId, "↺", sc, {
+						isChainBack: true,
+						isChainWeak: !strong,
+						sourceHandle: "chain-out",
+					});
 				}
 			}
 		}

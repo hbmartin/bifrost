@@ -353,7 +353,11 @@ export const logsApi = baseApi.injectEndpoints({
 		>({
 			query: ({ filters, dimension, limit, all }) => ({
 				url: "/logs/rankings/by-dimension",
-				params: { ...buildFilterParams(filters), dimension, ...buildRankingLimitParams(limit, all) },
+				params: {
+					...buildFilterParams(filters),
+					dimension,
+					...buildRankingLimitParams(limit, all),
+				},
 			}),
 			providesTags: ["Logs"],
 		}),

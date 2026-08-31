@@ -3506,6 +3506,7 @@ func (bifrost *Bifrost) ContainerFileDeleteRequest(ctx *schemas.BifrostContext, 
 // RemovePlugin removes a plugin from the server.
 func (bifrost *Bifrost) RemovePlugin(name string, pluginTypes []schemas.PluginType) error {
 	for _, pluginType := range pluginTypes {
+		//exhaustive
 		switch pluginType {
 		case schemas.PluginTypeLLM:
 			err := bifrost.removeLLMPlugin(name)
@@ -3517,6 +3518,8 @@ func (bifrost *Bifrost) RemovePlugin(name string, pluginTypes []schemas.PluginTy
 			if err != nil {
 				return err
 			}
+		case schemas.PluginTypeHTTP:
+			return fmt.Errorf("HTTP transport plugins are not managed by the core Bifrost plugin registry")
 		}
 	}
 	return nil
@@ -3598,6 +3601,7 @@ func (bifrost *Bifrost) removeMCPPlugin(name string) error {
 // During the reload - it's stop the world phase where we take a global lock on the plugin mutex
 func (bifrost *Bifrost) ReloadPlugin(plugin schemas.BasePlugin, pluginTypes []schemas.PluginType) error {
 	for _, pluginType := range pluginTypes {
+		//exhaustive
 		switch pluginType {
 		case schemas.PluginTypeLLM:
 			llmPlugin, ok := plugin.(schemas.LLMPlugin)
@@ -3617,6 +3621,8 @@ func (bifrost *Bifrost) ReloadPlugin(plugin schemas.BasePlugin, pluginTypes []sc
 			if err != nil {
 				return err
 			}
+		case schemas.PluginTypeHTTP:
+			return fmt.Errorf("HTTP transport plugins are not managed by the core Bifrost plugin registry")
 		}
 	}
 	return nil
@@ -3652,6 +3658,7 @@ func (bifrost *Bifrost) reloadLLMPlugin(plugin schemas.LLMPlugin) error {
 		if !found {
 			// This means that user is adding a new plugin
 			bifrost.logger.Debug("adding new LLM plugin %s", plugin.GetName())
+			//nolint:makezero // newPlugins intentionally starts as a copy of the existing registry before appending the new plugin.
 			newPlugins = append(newPlugins, plugin)
 		}
 		// Atomic compare-and-swap
@@ -3694,6 +3701,7 @@ func (bifrost *Bifrost) reloadMCPPlugin(plugin schemas.MCPPlugin) error {
 		if !found {
 			// This means that user is adding a new plugin
 			bifrost.logger.Debug("adding new MCP plugin %s", plugin.GetName())
+			//nolint:makezero // newPlugins intentionally starts as a copy of the existing registry before appending the new plugin.
 			newPlugins = append(newPlugins, plugin)
 		}
 		// Atomic compare-and-swap
@@ -3885,7 +3893,7 @@ func (bifrost *Bifrost) UpdateProvider(providerKey schemas.ModelProvider) error 
 	// Get the updated configuration from the account
 	providerConfig, err := bifrost.account.GetConfigForProvider(providerKey)
 	if err != nil {
-		return fmt.Errorf("failed to get updated config for provider %s: %v", providerKey, err)
+		return fmt.Errorf("failed to get updated config for provider %s: %w", providerKey, err)
 	}
 	if providerConfig == nil {
 		return fmt.Errorf("config is nil for provider %s", providerKey)
@@ -3916,7 +3924,7 @@ func (bifrost *Bifrost) UpdateProvider(providerKey schemas.ModelProvider) error 
 	// provider construction fails, the old provider/queue continues serving.
 	provider, err := bifrost.createBaseProvider(providerKey, providerConfig)
 	if err != nil {
-		return fmt.Errorf("provider update for %s failed during initialization; old provider is still active: %v", providerKey, err)
+		return fmt.Errorf("provider update for %s failed during initialization; old provider is still active: %w", providerKey, err)
 	}
 
 	// Step 2: Create new ProviderQueue and wait group with updated settings.
@@ -4650,7 +4658,7 @@ func (bifrost *Bifrost) prepareProvider(providerKey schemas.ModelProvider, confi
 
 	provider, err := bifrost.createBaseProvider(providerKey, config)
 	if err != nil {
-		return fmt.Errorf("failed to create provider for the given key: %v", err)
+		return fmt.Errorf("failed to create provider for the given key: %w", err)
 	}
 
 	waitGroupValue, _ := bifrost.waitGroups.Load(providerKey)
@@ -4711,7 +4719,7 @@ func (bifrost *Bifrost) getProviderQueue(providerKey schemas.ModelProvider) (*Pr
 	bifrost.logger.Debug("Creating new request queue for provider %s at runtime", providerKey)
 	config, err := bifrost.account.GetConfigForProvider(providerKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get config for provider %s: %v", providerKey, err)
+		return nil, fmt.Errorf("failed to get config for provider %s: %w", providerKey, err)
 	}
 	if config == nil {
 		return nil, fmt.Errorf("config is nil for provider %s", providerKey)
@@ -5299,7 +5307,6 @@ func populateLatencyExtraFields(ctx *schemas.BifrostContext, resp *schemas.Bifro
 // It is the wrapper for all non-streaming public API methods.
 func (bifrost *Bifrost) handleRequest(ctx *schemas.BifrostContext, req *schemas.BifrostRequest) (resp *schemas.BifrostResponse, bifrostErr *schemas.BifrostError) {
 	defer bifrost.releaseBifrostRequest(req)
-	provider, model, fallbacks := req.GetRequestFields()
 
 	// Handle nil context early to prevent blocking
 	if ctx == nil {
@@ -5341,7 +5348,7 @@ func (bifrost *Bifrost) handleRequest(ctx *schemas.BifrostContext, req *schemas.
 	bifrost.releasePluginPipeline(preReqPipeline)
 	bifrost.endCoreSpan(setupSpan)
 	// Re-read after PreRequestHook — provider/model/fallbacks may have changed.
-	provider, model, fallbacks = req.GetRequestFields()
+	provider, model, fallbacks := req.GetRequestFields()
 	// Empty provider/model after PreRequestHook means no plugin
 	// could pick a provider for this model — the caller's input is unresolvable.
 	if err := validateRequestAfterPreRequestHooks(req); err != nil {
@@ -5449,7 +5456,6 @@ func (bifrost *Bifrost) handleRequest(ctx *schemas.BifrostContext, req *schemas.
 // It is the wrapper for all streaming public API methods.
 func (bifrost *Bifrost) handleStreamRequest(ctx *schemas.BifrostContext, req *schemas.BifrostRequest) (chan *schemas.BifrostStreamChunk, *schemas.BifrostError) {
 	defer bifrost.releaseBifrostRequest(req)
-	provider, model, fallbacks := req.GetRequestFields()
 
 	// Handle nil context early to prevent blocking
 	if ctx == nil {
@@ -5478,7 +5484,7 @@ func (bifrost *Bifrost) handleStreamRequest(ctx *schemas.BifrostContext, req *sc
 	preReqPipeline.RunPreRequestHooks(ctx, req)
 	bifrost.releasePluginPipeline(preReqPipeline)
 	// Re-read after PreRequestHook — provider/model/fallbacks may have changed.
-	provider, model, fallbacks = req.GetRequestFields()
+	provider, model, fallbacks := req.GetRequestFields()
 	// Empty provider after PreRequestHook means no plugin
 	// could pick a provider for this model — the caller's input is unresolvable.
 	if err := validateRequestAfterPreRequestHooks(req); err != nil {
@@ -8379,9 +8385,6 @@ func (p *PluginPipeline) RunMCPPreConnectionHooks(ctx *schemas.BifrostContext, r
 		}
 
 		pluginCtx := ctx.WithPluginScope(&pluginName)
-		shortCircuit = nil
-		err = nil
-
 		if cp, ok := plugin.(schemas.MCPConnectionPlugin); ok {
 			req, shortCircuit, err = cp.PreMCPConnectionHook(pluginCtx, req)
 		} else {

@@ -1,76 +1,76 @@
-import { test as base } from '@playwright/test'
-import { randomUUID } from 'crypto'
+import { test as base } from "@playwright/test";
+import { randomUUID } from "crypto";
 
 /**
  * Test data types
  */
 export interface ProviderKeyConfig {
-  name: string
-  value: string
-  models?: string[]
-  weight?: number
+  name: string;
+  value: string;
+  models?: string[];
+  weight?: number;
 }
 
 export interface CustomProviderConfig {
-  name: string
-  baseProviderType: 'openai' | 'anthropic' | 'gemini' | 'cohere' | 'bedrock' | string
-  baseUrl?: string
-  authType?: 'api_key' | 'bearer' | 'basic' | 'none'
-  isKeyless?: boolean
+  name: string;
+  baseProviderType: "openai" | "anthropic" | "gemini" | "cohere" | "bedrock" | string;
+  baseUrl?: string;
+  authType?: "api_key" | "bearer" | "basic" | "none";
+  isKeyless?: boolean;
 }
 
 export interface VirtualKeyConfig {
-  name: string
-  description?: string
-  isActive?: boolean
-  providerConfigs?: ProviderConfigItem[]
-  budget?: BudgetConfig
-  rateLimit?: RateLimitConfig
-  teamId?: string
-  customerId?: string
+  name: string;
+  description?: string;
+  isActive?: boolean;
+  providerConfigs?: ProviderConfigItem[];
+  budget?: BudgetConfig;
+  rateLimit?: RateLimitConfig;
+  teamId?: string;
+  customerId?: string;
 }
 
 export interface ProviderConfigItem {
-  provider: string
-  weight?: number
-  allowedModels?: string[]
-  keyIds?: string[]
-  budget?: BudgetConfig
-  rateLimit?: RateLimitConfig
+  provider: string;
+  weight?: number;
+  allowedModels?: string[];
+  keyIds?: string[];
+  budget?: BudgetConfig;
+  rateLimit?: RateLimitConfig;
 }
 
 export interface BudgetConfig {
-  maxLimit: number
-  resetDuration: string
+  maxLimit: number;
+  resetDuration: string;
 }
 
 export interface RateLimitConfig {
-  tokenMaxLimit?: number
-  tokenResetDuration?: string
-  requestMaxLimit?: number
-  requestResetDuration?: string
+  tokenMaxLimit?: number;
+  tokenResetDuration?: string;
+  requestMaxLimit?: number;
+  requestResetDuration?: string;
 }
 
 /**
  * Test data fixture type
  */
 type TestDataFixtures = {
-  testData: TestDataFactory
-}
+  testData: TestDataFactory;
+};
 
 /**
  * Factory for creating test data with unique identifiers
  */
 export class TestDataFactory {
-  private counter = 0
-  private runId = randomUUID()
+  private counter = 0;
+  private runId = randomUUID();
 
   /**
    * Generate a unique ID for test data
    */
-  uniqueId(prefix = 'test'): string {
-    this.counter++
-    return `${prefix}-${this.runId}-${this.counter}`
+  uniqueId(prefix = "test"): string {
+    this.counter++;
+    return `${prefix}-${this.runId}-${this.counter}`;
   }
 
   /**
@@ -78,12 +78,12 @@ export class TestDataFactory {
    */
   createProviderKey(overrides: Partial<ProviderKeyConfig> = {}): ProviderKeyConfig {
     return {
-      name: this.uniqueId('key'),
+      name: this.uniqueId("key"),
       value: `sk-test-${this.uniqueId()}`,
-      models: ['*'],
+      models: ["*"],
       weight: 1.0,
       ...overrides,
-    }
+    };
   }
 
   /**
@@ -91,12 +91,12 @@ export class TestDataFactory {
    */
   createCustomProvider(overrides: Partial<CustomProviderConfig> = {}): CustomProviderConfig {
     return {
-      name: this.uniqueId('provider'),
-      baseProviderType: 'openai',
-      baseUrl: 'https://api.example.com',
-      authType: 'api_key',
+      name: this.uniqueId("provider"),
+      baseProviderType: "openai",
+      baseUrl: "https://api.example.com",
+      authType: "api_key",
       ...overrides,
-    }
+    };
   }
 
   /**
@@ -104,12 +104,12 @@ export class TestDataFactory {
    */
   createVirtualKey(overrides: Partial<VirtualKeyConfig> = {}): VirtualKeyConfig {
     return {
-      name: this.uniqueId('vk'),
-      description: 'Test virtual key',
+      name: this.uniqueId("vk"),
+      description: "Test virtual key",
       isActive: true,
       providerConfigs: [],
       ...overrides,
-    }
+    };
   }
 
   /**
@@ -117,16 +117,16 @@ export class TestDataFactory {
    */
   createVirtualKeyWithBudget(
     budgetOverrides: Partial<BudgetConfig> = {},
-    vkOverrides: Partial<VirtualKeyConfig> = {}
+    vkOverrides: Partial<VirtualKeyConfig> = {},
   ): VirtualKeyConfig {
     return this.createVirtualKey({
       budget: {
         maxLimit: 100,
-        resetDuration: '1M',
+        resetDuration: "1M",
         ...budgetOverrides,
       },
       ...vkOverrides,
-    })
+    });
   }
 
   /**
@@ -134,18 +134,18 @@ export class TestDataFactory {
    */
   createVirtualKeyWithRateLimit(
     rateLimitOverrides: Partial<RateLimitConfig> = {},
-    vkOverrides: Partial<VirtualKeyConfig> = {}
+    vkOverrides: Partial<VirtualKeyConfig> = {},
   ): VirtualKeyConfig {
     return this.createVirtualKey({
       rateLimit: {
         tokenMaxLimit: 10000,
-        tokenResetDuration: '1h',
+        tokenResetDuration: "1h",
         requestMaxLimit: 1000,
-        requestResetDuration: '1h',
+        requestResetDuration: "1h",
         ...rateLimitOverrides,
       },
       ...vkOverrides,
-    })
+    });
   }
 
   /**
@@ -153,12 +153,12 @@ export class TestDataFactory {
    */
   createProviderConfigItem(overrides: Partial<ProviderConfigItem> = {}): ProviderConfigItem {
     return {
-      provider: 'openai',
+      provider: "openai",
       weight: 1.0,
-      allowedModels: ['*'],
-      keyIds: ['*'],
+      allowedModels: ["*"],
+      keyIds: ["*"],
       ...overrides,
-    }
+    };
   }
 }
 
@@ -167,6 +167,6 @@ export class TestDataFactory {
  */
 export const testWithData = base.extend<TestDataFixtures>({
   testData: async (_, use) => {
-    await use(new TestDataFactory())
+    await use(new TestDataFactory());
   },
-})
+});

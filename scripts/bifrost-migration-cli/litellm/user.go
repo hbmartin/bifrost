@@ -45,7 +45,7 @@ func (c *LiteLLMClient) ListUsers(ctx context.Context) ([]LiteLLMUser, error) {
 			return nil, fmt.Errorf("list users: %w", err)
 		}
 		body, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		if err != nil {
 			return nil, fmt.Errorf("list users: read body: %w", err)
 		}

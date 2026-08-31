@@ -1588,7 +1588,7 @@ func MergeExtraParamsIntoJSON(jsonBody []byte, extraParams map[string]interface{
 	dec.UseNumber()
 
 	if _, err := dec.Token(); err != nil { // '{'
-		return jsonBody, nil
+		return jsonBody, fmt.Errorf("decode object start: %w", err)
 	}
 
 	type kvPair struct {
@@ -1601,7 +1601,7 @@ func MergeExtraParamsIntoJSON(jsonBody []byte, extraParams map[string]interface{
 	for dec.More() {
 		tok, err := dec.Token()
 		if err != nil {
-			return jsonBody, nil
+			return jsonBody, fmt.Errorf("decode object key: %w", err)
 		}
 		key, ok := tok.(string)
 		if !ok {
@@ -1609,7 +1609,7 @@ func MergeExtraParamsIntoJSON(jsonBody []byte, extraParams map[string]interface{
 		}
 		var val json.RawMessage
 		if err := dec.Decode(&val); err != nil {
-			return jsonBody, nil
+			return jsonBody, fmt.Errorf("decode value for %q: %w", key, err)
 		}
 		seen[key] = len(pairs)
 		pairs = append(pairs, kvPair{key, val})
@@ -3031,9 +3031,9 @@ type streamCloserWithError interface {
 // io.Closer for net/http responses, streamCloserWithError for fasthttp.
 func closeBodyStream(bodyStream io.Reader, err error) {
 	if closer, ok := bodyStream.(io.Closer); ok {
-		closer.Close()
+		_ = closer.Close()
 	} else if wce, ok := bodyStream.(streamCloserWithError); ok {
-		wce.CloseWithError(err)
+		_ = wce.CloseWithError(err)
 	}
 }
 
@@ -3173,7 +3173,7 @@ func (r *idleTimeoutReader) Read(p []byte) (n int, err error) {
 	if n > 0 {
 		r.timer.Reset(r.timeout)
 	}
-	if err != nil && err != io.EOF && r.fired.Load() {
+	if err != nil && !errors.Is(err, io.EOF) && r.fired.Load() {
 		return n, ErrStreamIdleTimeout
 	}
 	return n, err
@@ -3547,7 +3547,7 @@ func ReleaseStreamingResponse(ctx *schemas.BifrostContext, resp *fasthttp.Respon
 	// mustPeekBuffered. Detaching makes ReleaseResponse's Reset a no-op
 	// (closeBodyStream short-circuits on nil). The CAS above already serializes
 	// this against the cancellation / idle-timeout closers.
-	resp.CloseBodyStream()
+	_ = resp.CloseBodyStream()
 	fasthttp.ReleaseResponse(resp)
 }
 

@@ -2395,7 +2395,7 @@ func parseStringArrayParam(s string) []string {
 // parseMetadataFilters extracts metadata_* query params and sets them on the filters.
 func parseMetadataFilters(ctx *fasthttp.RequestCtx, filters *logstore.SearchFilters) {
 	var metadataFilters map[string]string
-	ctx.QueryArgs().VisitAll(func(key, value []byte) { //nolint:staticcheck
+	ctx.QueryArgs().VisitAll(func(key, value []byte) {
 		keyStr := string(key)
 		if strings.HasPrefix(keyStr, "metadata_") {
 			metadataKey := strings.TrimPrefix(keyStr, "metadata_")

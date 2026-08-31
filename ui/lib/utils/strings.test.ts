@@ -169,7 +169,10 @@ describe("simulateOnChange (clean + Number)", () => {
 		expect(simulateOnChange("abc")).toEqual({ display: "", value: undefined });
 	});
 	test("999,999,999.99 → 999999999.99", () => {
-		expect(simulateOnChange("999,999,999.99")).toEqual({ display: "999999999.99", value: 999999999.99 });
+		expect(simulateOnChange("999,999,999.99")).toEqual({
+			display: "999999999.99",
+			value: 999999999.99,
+		});
 	});
 	test("0.01 → 0.01", () => {
 		expect(simulateOnChange("0.01")).toEqual({ display: "0.01", value: 0.01 });

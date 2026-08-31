@@ -53,7 +53,11 @@ export function getEffectiveBudgetLimit(budget: BudgetOverrideFields): number {
 
 /** Validates the operator-entered override fields before sending them to the API. Delegates to budgetOverrideFormSchema. */
 export function validateBudgetOverride(amount: number, mode: "cycles" | "forever", cycles: number): string | null {
-	const result = budgetOverrideFormSchema.safeParse({ amount, mode, ...(mode === "cycles" ? { cycles } : {}) });
+	const result = budgetOverrideFormSchema.safeParse({
+		amount,
+		mode,
+		...(mode === "cycles" ? { cycles } : {}),
+	});
 	return result.success ? null : (result.error.issues[0]?.message ?? "Invalid input");
 }
 

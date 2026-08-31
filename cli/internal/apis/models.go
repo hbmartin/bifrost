@@ -74,7 +74,7 @@ func (c *Client) ListModels(ctx context.Context, baseURL, virtualKey string) ([]
 	if err != nil {
 		return nil, fmt.Errorf("request /v1/models: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))

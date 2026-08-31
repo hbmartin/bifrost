@@ -11,6 +11,7 @@ import (
 
 // RunTextCompletionTest tests text completion functionality
 func RunTextCompletionTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.TextCompletion || testConfig.TextModel == "" {
 		t.Logf("⏭️ Text completion not supported for provider %s", testConfig.Provider)
 		return

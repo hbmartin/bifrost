@@ -357,6 +357,7 @@ func FormatErrorConcise(parsed ParsedError) string {
 
 // LogError logs a BifrostError in a readable format
 func LogError(t *testing.T, err *schemas.BifrostError, context string) {
+	t.Helper()
 	if err == nil {
 		return
 	}
@@ -367,6 +368,7 @@ func LogError(t *testing.T, err *schemas.BifrostError, context string) {
 
 // LogErrorConcise logs a BifrostError in a concise format
 func LogErrorConcise(t *testing.T, err *schemas.BifrostError, context string) {
+	t.Helper()
 	if err == nil {
 		return
 	}
@@ -378,6 +380,7 @@ func LogErrorConcise(t *testing.T, err *schemas.BifrostError, context string) {
 // RequireNoError is like require.NoError but with better error formatting
 // ALWAYS includes ❌ prefix in error messages for consistency
 func RequireNoError(t *testing.T, err *schemas.BifrostError, msgAndArgs ...interface{}) {
+	t.Helper()
 	if err != nil {
 		parsed := ParseBifrostError(err)
 		message := "Expected no error"
@@ -400,6 +403,7 @@ func RequireNoError(t *testing.T, err *schemas.BifrostError, msgAndArgs ...inter
 
 // AssertNoError is like assert.NoError but with better error formatting
 func AssertNoError(t *testing.T, err *schemas.BifrostError, msgAndArgs ...interface{}) bool {
+	t.Helper()
 	if err != nil {
 		parsed := ParseBifrostError(err)
 		message := "Expected no error"

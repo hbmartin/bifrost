@@ -44,9 +44,10 @@ Tests all core scenarios using Anthropic SDK directly:
 33. Passthrough messages (streaming)
 """
 
+import contextlib
 import logging
 import time
-from typing import Any, Dict, List
+from typing import Any
 
 import pytest
 from anthropic import Anthropic, NotFoundError
@@ -57,9 +58,12 @@ from .utils.common import (
     ANTHROPIC_THINKING_STREAMING_PROMPT,
     BASE64_IMAGE,
     CALCULATOR_TOOL,
+    CITATION_MULTI_DOCUMENT_SET,
+    # Citation utilities
+    CITATION_TEXT_DOCUMENT,
     COMPARISON_KEYWORDS,
-    IMAGE_URL,
     FILE_DATA_BASE64,
+    IMAGE_URL,
     INPUT_TOKENS_LONG_TEXT,
     INPUT_TOKENS_SIMPLE_TEXT,
     INPUT_TOKENS_WITH_SYSTEM,
@@ -77,23 +81,20 @@ from .utils.common import (
     WEATHER_TOOL,
     Config,
     assert_has_tool_calls,
+    assert_valid_anthropic_citation,
     assert_valid_batch_inline_response,
     assert_valid_chat_response,
     assert_valid_image_response,
     assert_valid_input_tokens_response,
+    collect_anthropic_streaming_citations,
     collect_streaming_content,
+    create_anthropic_document,
     # Files API utilities
     create_batch_inline_requests,
     create_batch_jsonl_content,
     extract_tool_calls,
     get_api_key,
     mock_tool_response,
-    # Citation utilities
-    CITATION_TEXT_DOCUMENT,
-    CITATION_MULTI_DOCUMENT_SET,
-    assert_valid_anthropic_citation,
-    collect_anthropic_streaming_citations,
-    create_anthropic_document,
 )
 from .utils.config_loader import get_config, get_model
 from .utils.parametrize import (
@@ -159,8 +160,8 @@ def get_provider_anthropic_client(provider, passthrough: bool = False):
 
 
 def convert_to_anthropic_messages(
-    messages: List[Dict[str, Any]],
-) -> List[Dict[str, Any]]:
+    messages: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
     """Convert common message format to Anthropic format"""
     anthropic_messages = []
 
@@ -208,7 +209,7 @@ def convert_to_anthropic_messages(
     return anthropic_messages
 
 
-def convert_to_anthropic_tools(tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def convert_to_anthropic_tools(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Convert common tool format to Anthropic format"""
     anthropic_tools = []
 
@@ -507,9 +508,9 @@ class TestAnthropicIntegration:
         content = get_anthropic_text(response).lower()
         assert content
         # Should mention comparison or differences
-        assert any(
-            word in content for word in COMPARISON_KEYWORDS
-        ), f"Response should contain comparison keywords. Got content: {content}"
+        assert any(word in content for word in COMPARISON_KEYWORDS), (
+            f"Response should contain comparison keywords. Got content: {content}"
+        )
 
     def test_10_complex_end2end(self, anthropic_client, test_config):
         """Test Case 10: Complex end-to-end with conversation, images, and tools"""
@@ -687,7 +688,7 @@ class TestAnthropicIntegration:
                     stream=True,
                 )
 
-                content_tools, chunk_count_tools, tool_calls_detected_tools = (
+                _content_tools, chunk_count_tools, tool_calls_detected_tools = (
                     collect_streaming_content(stream_with_tools, "anthropic", timeout=300)
                 )
 
@@ -865,7 +866,7 @@ class TestAnthropicIntegration:
                             has_redacted_thinking_block = True
 
                 # Handle content_block_delta events
-                elif event_type == "content_block_delta":
+                elif event_type == "content_block_delta":  # noqa: SIM102
                     if event.delta and event.delta.type:
                         # Check for thinking delta
                         if event.delta.type == "thinking_delta":
@@ -1027,9 +1028,9 @@ class TestAnthropicIntegration:
 
                 # Check that our uploaded file is in the list
                 file_ids = [f.id for f in response.data]
-                assert (
-                    uploaded_file.id in file_ids
-                ), f"Uploaded file {uploaded_file.id} should be in file list"
+                assert uploaded_file.id in file_ids, (
+                    f"Uploaded file {uploaded_file.id} should be in file list"
+                )
 
                 print(f"Success: Listed {len(response.data)} files for provider {provider}")
 
@@ -1091,7 +1092,7 @@ class TestAnthropicIntegration:
             print(f"Success: Deleted file {uploaded_file.id} (provider: {provider})")
 
             # Verify file is no longer retrievable
-            with pytest.raises(Exception):
+            with pytest.raises(Exception):  # noqa: B017
                 client.beta.files.retrieve(uploaded_file.id)
 
         except Exception as e:
@@ -1214,9 +1215,7 @@ class TestAnthropicIntegration:
             pytest.skip("No providers configured for batch_inline scenario")
 
         if provider == "gemini":
-            pytest.skip(
-                "Anthropic batch messages are not currently converted to Gemini contents"
-            )
+            pytest.skip("Anthropic batch messages are not currently converted to Gemini contents")
 
         # Get provider-specific client
         client = get_provider_anthropic_client(provider)
@@ -1285,9 +1284,7 @@ class TestAnthropicIntegration:
             pytest.skip("No providers configured for batch_retrieve scenario")
 
         if provider in ("azure", "bedrock", "gemini", "vertex"):
-            pytest.skip(
-                f"{provider} cannot create an Anthropic-format inline batch for retrieval"
-            )
+            pytest.skip(f"{provider} cannot create an Anthropic-format inline batch for retrieval")
 
         # Get provider-specific client
         client = get_provider_anthropic_client(provider)
@@ -1307,9 +1304,9 @@ class TestAnthropicIntegration:
 
             # Validate response
             assert retrieved_batch is not None, "Retrieved batch should not be None"
-            assert (
-                retrieved_batch.id == batch_id
-            ), f"Batch ID should match: expected {batch_id}, got {retrieved_batch.id}"
+            assert retrieved_batch.id == batch_id, (
+                f"Batch ID should match: expected {batch_id}, got {retrieved_batch.id}"
+            )
 
             print(
                 f"Success: Retrieved batch {batch_id}, status: {retrieved_batch.processing_status} for provider {provider}"
@@ -1318,10 +1315,8 @@ class TestAnthropicIntegration:
         finally:
             # Clean up
             if batch_id:
-                try:
+                with contextlib.suppress(Exception):
                     client.beta.messages.batches.cancel(batch_id)
-                except Exception:
-                    pass
 
     @pytest.mark.parametrize(
         "provider,model", get_cross_provider_params_for_scenario("batch_cancel")
@@ -1383,9 +1378,7 @@ class TestAnthropicIntegration:
         Results are only available after the batch has completed processing.
         """
         if provider in ("azure", "bedrock", "gemini", "vertex"):
-            pytest.skip(
-                f"{provider} cannot create an Anthropic-format inline batch for results"
-            )
+            pytest.skip(f"{provider} cannot create an Anthropic-format inline batch for results")
 
         client = get_provider_anthropic_client(provider)
 
@@ -1425,10 +1418,8 @@ class TestAnthropicIntegration:
                     print(f"Info: Could not retrieve results: {results_error}")
 
             # Clean up
-            try:
+            with contextlib.suppress(Exception):
                 client.beta.messages.batches.cancel(batch_id)
-            except Exception:
-                pass
 
         except Exception as e:
             error_str = str(e).lower()
@@ -1449,9 +1440,7 @@ class TestAnthropicIntegration:
             pytest.skip("No providers configured for batch_inline scenario")
 
         if provider == "gemini":
-            pytest.skip(
-                "Anthropic batch messages are not currently converted to Gemini contents"
-            )
+            pytest.skip("Anthropic batch messages are not currently converted to Gemini contents")
 
         import time
 
@@ -1478,7 +1467,7 @@ class TestAnthropicIntegration:
 
             for i in range(max_polls):
                 retrieved_batch = client.beta.messages.batches.retrieve(batch_id)
-                print(f"  Poll {i+1}: status = {retrieved_batch.processing_status}")
+                print(f"  Poll {i + 1}: status = {retrieved_batch.processing_status}")
 
                 if retrieved_batch.processing_status in ["ended"]:
                     print(f"  Batch reached terminal state: {retrieved_batch.processing_status}")
@@ -1563,9 +1552,9 @@ class TestAnthropicIntegration:
         cache_read_tokens = validate_cache_read(response2.usage, "Second request")
 
         # Validate that cache read tokens are approximately equal to cache creation tokens
-        assert (
-            abs(cache_write_tokens - cache_read_tokens) < 100
-        ), f"Cache read tokens ({cache_read_tokens}) should be close to cache creation tokens ({cache_write_tokens})"
+        assert abs(cache_write_tokens - cache_read_tokens) < 100, (
+            f"Cache read tokens ({cache_read_tokens}) should be close to cache creation tokens ({cache_write_tokens})"
+        )
 
         print(
             f"✓ System caching validated - Cache created: {cache_write_tokens} tokens, "
@@ -1632,9 +1621,9 @@ class TestAnthropicIntegration:
         cache_read_tokens = validate_cache_read(response2.usage, "Second request")
 
         # Validate that cache read tokens are approximately equal to cache creation tokens
-        assert (
-            abs(cache_write_tokens - cache_read_tokens) < 100
-        ), f"Cache read tokens ({cache_read_tokens}) should be close to cache creation tokens ({cache_write_tokens})"
+        assert abs(cache_write_tokens - cache_read_tokens) < 100, (
+            f"Cache read tokens ({cache_read_tokens}) should be close to cache creation tokens ({cache_write_tokens})"
+        )
 
         print(
             f"✓ Messages caching validated - Cache created: {cache_write_tokens} tokens, "
@@ -1706,9 +1695,9 @@ class TestAnthropicIntegration:
 
         # Providers account for protocol framing differently (Bedrock includes
         # additional message overhead), so validate a conservative sane range.
-        assert (
-            3 <= response.input_tokens <= 256
-        ), f"Simple text should have 3-256 tokens, got {response.input_tokens}"
+        assert 3 <= response.input_tokens <= 256, (
+            f"Simple text should have 3-256 tokens, got {response.input_tokens}"
+        )
 
     @pytest.mark.parametrize(
         "provider,model", get_cross_provider_params_for_scenario("count_tokens")
@@ -1740,9 +1729,9 @@ class TestAnthropicIntegration:
         assert_valid_input_tokens_response(response, "anthropic")
 
         # With system message should have more tokens than simple text
-        assert (
-            response.input_tokens > 2
-        ), f"With system message should have >2 tokens, got {response.input_tokens}"
+        assert response.input_tokens > 2, (
+            f"With system message should have >2 tokens, got {response.input_tokens}"
+        )
 
     @pytest.mark.parametrize(
         "provider,model", get_cross_provider_params_for_scenario("count_tokens")
@@ -1761,9 +1750,9 @@ class TestAnthropicIntegration:
         assert_valid_input_tokens_response(response, "anthropic")
 
         # Long text should have significantly more tokens
-        assert (
-            response.input_tokens > 100
-        ), f"Long text should have >100 tokens, got {response.input_tokens}"
+        assert response.input_tokens > 100, (
+            f"Long text should have >100 tokens, got {response.input_tokens}"
+        )
 
     @pytest.mark.parametrize("provider,model", get_cross_provider_params_for_scenario("file_input"))
     def test_31_document_pdf_input(self, anthropic_client, test_config, provider, model):
@@ -1802,9 +1791,9 @@ class TestAnthropicIntegration:
         assert content
 
         # Should mention "hello world" from the PDF
-        assert any(
-            word in content for word in ["hello", "world"]
-        ), f"Response should reference document content. Got: {content}"
+        assert any(word in content for word in ["hello", "world"]), (
+            f"Response should reference document content. Got: {content}"
+        )
 
     @pytest.mark.parametrize(
         "provider,model", get_cross_provider_params_for_scenario("file_input_text")
@@ -1858,9 +1847,9 @@ This document is used to verify that the AI can read and understand text documen
 
         # Should reference the document features
         document_keywords = ["feature", "line", "format", "list", "document"]
-        assert any(
-            word in content for word in document_keywords
-        ), f"Response should reference document features. Got: {content}"
+        assert any(word in content for word in document_keywords), (
+            f"Response should reference document features. Got: {content}"
+        )
 
     @pytest.mark.parametrize("provider,model", get_cross_provider_params_for_scenario("citations"))
     def test_33_citations_pdf(self, anthropic_client, test_config, provider, model):
@@ -1980,7 +1969,7 @@ This document is used to verify that the AI can read and understand text documen
 
         # Create multiple documents using helper
         documents = []
-        for idx, doc_info in enumerate(CITATION_MULTI_DOCUMENT_SET):
+        for _idx, doc_info in enumerate(CITATION_MULTI_DOCUMENT_SET):
             doc = create_anthropic_document(
                 content=doc_info["content"], doc_type="text", title=doc_info["title"]
             )
@@ -2042,7 +2031,7 @@ This document is used to verify that the AI can read and understand text documen
         assert has_citations, "Response should contain citations"
 
         # Report statistics
-        print(f"\n✓ Multi-document citations test passed:")
+        print("\n✓ Multi-document citations test passed:")
         print(f"  - Total citations: {total_citations}")
         for doc_idx, count in citations_by_doc.items():
             doc_title = CITATION_MULTI_DOCUMENT_SET[doc_idx]["title"]
@@ -2214,7 +2203,7 @@ This document is used to verify that the AI can read and understand text documen
                         # Log first few results
                         for i, result in enumerate(block.content[:3]):
                             if hasattr(result, "url") and hasattr(result, "title"):
-                                print(f"  Result {i+1}: {result.title}")
+                                print(f"  Result {i + 1}: {result.title}")
 
                 # Check for text with citations
                 elif block.type == "text":
@@ -2228,17 +2217,18 @@ This document is used to verify that the AI can read and understand text documen
                             assert hasattr(citation, "type"), "Citation should have type"
                             assert hasattr(citation, "url"), "Citation should have URL"
                             assert hasattr(citation, "title"), "Citation should have title"
-                            assert hasattr(
-                                citation, "cited_text"
-                            ), "Citation should have cited_text"
+                            assert hasattr(citation, "cited_text"), (
+                                "Citation should have cited_text"
+                            )
                             print(f"  Citation: {citation.title}")
 
         # Validate that web search was performed
         assert has_web_search, "Response should contain web_search tool use"
         assert has_search_results, "Response should contain web search results"
+        assert has_citations, "Response should cite at least one web search result"
         assert search_query is not None, "Web search should have a query"
 
-        print(f"✓ Web search (non-streaming) test passed!")
+        print("✓ Web search (non-streaming) test passed!")
 
     @pytest.mark.parametrize(
         "provider,model",
@@ -2277,7 +2267,6 @@ This document is used to verify that the AI can read and understand text documen
 
         # Collect streaming events
         text_parts = []
-        search_queries = []
         search_results = []
         citations = []
         chunk_count = 0
@@ -2320,7 +2309,7 @@ This document is used to verify that the AI can read and understand text documen
                                         )
 
                 # Handle content_block_delta for queries and text
-                elif event_type == "content_block_delta":
+                elif event_type == "content_block_delta":  # noqa: SIM102
                     if hasattr(event, "delta") and event.delta:
                         delta = event.delta
 
@@ -2350,6 +2339,7 @@ This document is used to verify that the AI can read and understand text documen
         assert chunk_count > 0, "Should receive at least one chunk"
         assert has_server_tool_use, "Should detect web search tool use in streaming"
         assert has_search_tool_result, "Should receive search results in streaming"
+        assert has_citation_delta, "Should receive citation metadata in streaming"
         assert len(search_results) > 0, "Should collect search results from stream"
         assert len(complete_text) > 0, "Should receive text content about weather"
 
@@ -2364,7 +2354,7 @@ This document is used to verify that the AI can read and understand text documen
         if len(search_results) > 0:
             print("✓ Search results:")
             for i, result in enumerate(search_results[:3]):
-                print(f"  {i+1}. {result['title']}")
+                print(f"  {i + 1}. {result['title']}")
 
         print("✓ Web search (streaming) test passed!")
 
@@ -2409,7 +2399,7 @@ This document is used to verify that the AI can read and understand text documen
         # Collect search results
         search_results = []
         for block in response.content:
-            if hasattr(block, "type") and block.type == "web_search_tool_result":
+            if hasattr(block, "type") and block.type == "web_search_tool_result":  # noqa: SIM102
                 if hasattr(block, "content") and block.content:
                     for result in block.content:
                         if hasattr(result, "url") and hasattr(result, "title"):
@@ -2423,7 +2413,7 @@ This document is used to verify that the AI can read and understand text documen
             validate_domain_filter(search_results, allowed=["wikipedia.org", "britannica.com"])
             print(f"✓ All {len(search_results)} results respect allowed_domains filter")
 
-        print(f"✓ Web search with allowed_domains test passed!")
+        print("✓ Web search with allowed_domains test passed!")
 
     @pytest.mark.parametrize(
         "provider,model",
@@ -2466,7 +2456,7 @@ This document is used to verify that the AI can read and understand text documen
         # Collect search results
         search_results = []
         for block in response.content:
-            if hasattr(block, "type") and block.type == "web_search_tool_result":
+            if hasattr(block, "type") and block.type == "web_search_tool_result":  # noqa: SIM102
                 if hasattr(block, "content") and block.content:
                     for result in block.content:
                         if hasattr(result, "url"):
@@ -2480,7 +2470,7 @@ This document is used to verify that the AI can read and understand text documen
             validate_domain_filter(search_results, blocked=["reddit.com", "twitter.com", "x.com"])
             print(f"✓ All {len(search_results)} results respect blocked_domains filter")
 
-        print(f"✓ Web search with blocked_domains test passed!")
+        print("✓ Web search with blocked_domains test passed!")
 
     @pytest.mark.parametrize(
         "provider,model",
@@ -2506,7 +2496,7 @@ This document is used to verify that the AI can read and understand text documen
         )
 
         assert response1 is not None, "First response should not be None"
-        print(f"✓ First turn completed")
+        print("✓ First turn completed")
 
         # Add assistant response to conversation
         messages.append(
@@ -2532,13 +2522,13 @@ This document is used to verify that the AI can read and understand text documen
         # Validate that context was maintained
         has_text_response = False
         for block in response2.content:
-            if hasattr(block, "type") and block.type == "text":
+            if hasattr(block, "type") and block.type == "text":  # noqa: SIM102
                 if hasattr(block, "text") and len(block.text) > 0:
                     has_text_response = True
                     print(f"✓ Second turn response (first 150 chars): {block.text[:150]}...")
 
         assert has_text_response, "Second turn should have text response"
-        print(f"✓ Multi-turn web search conversation test passed!")
+        print("✓ Multi-turn web search conversation test passed!")
 
     @pytest.mark.parametrize(
         "provider,model",
@@ -2567,7 +2557,7 @@ This document is used to verify that the AI can read and understand text documen
         # Find citations in response
         citations_found = []
         for block in response.content:
-            if hasattr(block, "type") and block.type == "text":
+            if hasattr(block, "type") and block.type == "text":  # noqa: SIM102
                 if hasattr(block, "citations") and block.citations:
                     for citation in block.citations:
                         citations_found.append(citation)
@@ -2579,16 +2569,16 @@ This document is used to verify that the AI can read and understand text documen
             print(f"✓ Found {len(citations_found)} citations")
             for i, citation in enumerate(citations_found[:3]):
                 assert_valid_web_search_citation(citation, sdk_type="anthropic")
-                print(f"  Citation {i+1}: {citation.title}")
+                print(f"  Citation {i + 1}: {citation.title}")
                 print(f"    URL: {citation.url}")
                 print(
                     f"    Cited text (first 50 chars): {citation.cited_text[:50] if citation.cited_text else 'N/A'}..."
                 )
-            print(f"✓ All citations have valid structure")
+            print("✓ All citations have valid structure")
         else:
-            print(f"⚠ No citations found (may be acceptable)")
+            print("⚠ No citations found (may be acceptable)")
 
-        print(f"✓ Citation validation test passed!")
+        print("✓ Citation validation test passed!")
 
     @pytest.mark.parametrize(
         "provider,model",
@@ -2629,12 +2619,12 @@ This document is used to verify that the AI can read and understand text documen
                         block_type = getattr(event.content_block, "type", "unknown")
                         print(f"✓ Event: content_block_start ({block_type})")
                 elif event_type == "content_block_stop":
-                    print(f"✓ Event: content_block_stop")
-                elif event_type == "content_block_delta":
+                    print("✓ Event: content_block_stop")
+                elif event_type == "content_block_delta":  # noqa: SIM102
                     if hasattr(event, "delta") and hasattr(event.delta, "type"):
                         delta_type = event.delta.type
                         if delta_type == "input_json_delta":
-                            print(f"✓ Event: content_block_delta (input_json_delta)")
+                            print("✓ Event: content_block_delta (input_json_delta)")
 
         # Validate expected event types are present
         assert "message_start" in event_sequence, "Should have message_start event"
@@ -2643,7 +2633,7 @@ This document is used to verify that the AI can read and understand text documen
         assert "message_stop" in event_sequence, "Should have message_stop event"
 
         print(f"✓ Received {len(event_sequence)} total events")
-        print(f"✓ Event sequence validation passed!")
+        print("✓ Event sequence validation passed!")
 
     @pytest.mark.parametrize(
         "provider,model",
@@ -2713,7 +2703,7 @@ This document is used to verify that the AI can read and understand text documen
             if cache_read_tokens > 0:
                 print(f"✓ Successfully read {cache_read_tokens} tokens from cache")
 
-        print(f"✓ Prompt caching test passed!")
+        print("✓ Prompt caching test passed!")
 
     @pytest.mark.parametrize(
         "provider,model",
@@ -2750,21 +2740,21 @@ This document is used to verify that the AI can read and understand text documen
             # Look for any error structures in the response
             has_error = False
             for block in response.content:
-                if hasattr(block, "type") and block.type == "web_search_tool_result":
-                    if hasattr(block, "content") and isinstance(block.content, dict):
+                if hasattr(block, "type") and block.type == "web_search_tool_result":  # noqa: SIM102
+                    if hasattr(block, "content") and isinstance(block.content, dict):  # noqa: SIM102
                         if "error_code" in block.content:
                             has_error = True
                             error_code = block.content["error_code"]
                             print(f"✓ Found error code: {error_code}")
 
             if not has_error:
-                print(f"✓ Request handled successfully (no errors triggered)")
+                print("✓ Request handled successfully (no errors triggered)")
 
         except Exception as e:
             # Some errors might be raised as exceptions
             print(f"✓ Exception caught (expected for error scenarios): {type(e).__name__}")
 
-        print(f"✓ Error handling test passed!")
+        print("✓ Error handling test passed!")
 
     @pytest.mark.parametrize(
         "provider,model",
@@ -2810,7 +2800,7 @@ This document is used to verify that the AI can read and understand text documen
                     and block.name == "web_search"
                 ):
                     has_search_attempt = True
-                    print(f"✓ Web search was attempted")
+                    print("✓ Web search was attempted")
                 elif block.type == "text" and hasattr(block, "text"):
                     has_response_text = True
                     print(f"✓ Response text present (first 100 chars): {block.text[:100]}...")
@@ -2818,7 +2808,7 @@ This document is used to verify that the AI can read and understand text documen
         assert has_search_attempt, "Should attempt web search"
         assert has_response_text, "Should provide text response even with no/few results"
 
-        print(f"✓ No results graceful handling test passed!")
+        print("✓ No results graceful handling test passed!")
 
     @pytest.mark.parametrize(
         "provider,model",
@@ -2850,7 +2840,7 @@ This document is used to verify that the AI can read and understand text documen
         # Collect all search sources
         all_sources = []
         for block in response.content:
-            if hasattr(block, "type") and block.type == "web_search_tool_result":
+            if hasattr(block, "type") and block.type == "web_search_tool_result":  # noqa: SIM102
                 if hasattr(block, "content") and block.content:
                     for result in block.content:
                         if hasattr(result, "type") and result.type == "web_search_result":
@@ -2865,17 +2855,17 @@ This document is used to verify that the AI can read and understand text documen
 
             # Log details of first few sources
             for i, source in enumerate(all_sources[:3]):
-                print(f"  Source {i+1}:")
+                print(f"  Source {i + 1}:")
                 print(f"    URL: {source.url}")
                 print(f"    Title: {source.title if hasattr(source, 'title') else 'N/A'}")
                 if hasattr(source, "page_age"):
                     print(f"    Page age: {source.page_age}")
                 if hasattr(source, "encrypted_content"):
-                    print(f"    Encrypted content: Present")
+                    print("    Encrypted content: Present")
         else:
-            print(f"⚠ No search sources found (may indicate no search was performed)")
+            print("⚠ No search sources found (may indicate no search was performed)")
 
-        print(f"✓ Sources validation test passed!")
+        print("✓ Sources validation test passed!")
 
     # =========================================================================
     # Async Inference Tests
@@ -3023,7 +3013,7 @@ This document is used to verify that the AI can read and understand text documen
         # Must exceed OpenAI's 1024-token minimum for automatic prompt caching
         system = f"You are a legal document analysis assistant.\n\n{PROMPT_CACHING_LARGE_CONTEXT}"
 
-        print(f"\n=== Testing OpenAI prompt_cache_key from metadata.user_id ===")
+        print("\n=== Testing OpenAI prompt_cache_key from metadata.user_id ===")
         print(f"First request: populating cache bucket for user '{user_id}'...")
 
         response1 = client.messages.create(
@@ -3073,11 +3063,11 @@ This document is used to verify that the AI can read and understand text documen
         )
 
         print(f"✓ OpenAI prompt cache hit: {cache_read_tokens} cached tokens read")
-        print(f"✓ prompt_cache_key correctly derived from metadata.user_id")
+        print("✓ prompt_cache_key correctly derived from metadata.user_id")
 
 
 # Additional helper functions specific to Anthropic
-def serialize_anthropic_content(content_blocks: List[Any]) -> List[Dict[str, Any]]:
+def serialize_anthropic_content(content_blocks: list[Any]) -> list[dict[str, Any]]:
     """Serialize Anthropic content blocks (including ToolUseBlock objects) to dicts"""
     serialized_content = []
 
@@ -3105,7 +3095,7 @@ def serialize_anthropic_content(content_blocks: List[Any]) -> List[Dict[str, Any
     return serialized_content
 
 
-def extract_anthropic_tool_calls(response: Any) -> List[Dict[str, Any]]:
+def extract_anthropic_tool_calls(response: Any) -> list[dict[str, Any]]:
     """Extract tool calls from Anthropic response format with proper type checking"""
     tool_calls = []
     logger = logging.getLogger("AnthropicToolCallsExtractor")
@@ -3115,7 +3105,7 @@ def extract_anthropic_tool_calls(response: Any) -> List[Dict[str, Any]]:
         return tool_calls
 
     for content in response.content:
-        if hasattr(content, "type") and content.type == "tool_use":
+        if hasattr(content, "type") and content.type == "tool_use":  # noqa: SIM102
             if hasattr(content, "name") and hasattr(content, "input"):
                 try:
                     logger.debug(f"Extracting tool call: {content}")
@@ -3141,15 +3131,15 @@ def validate_cache_write(usage: Any, operation: str) -> int:
         f"cache_read_input_tokens: {getattr(usage, 'cache_read_input_tokens', 0)}"
     )
 
-    assert hasattr(
-        usage, "cache_creation_input_tokens"
-    ), f"{operation} should have cache_creation_input_tokens"
+    assert hasattr(usage, "cache_creation_input_tokens"), (
+        f"{operation} should have cache_creation_input_tokens"
+    )
     cache_write_tokens = getattr(usage, "cache_creation_input_tokens", 0)
     cache_read_tokens = getattr(usage, "cache_read_input_tokens", 0)
     cached_tokens = max(cache_write_tokens, cache_read_tokens)
-    assert (
-        cached_tokens > 0
-    ), f"{operation} should create or hit cache (write={cache_write_tokens}, read={cache_read_tokens})"
+    assert cached_tokens > 0, (
+        f"{operation} should create or hit cache (write={cache_write_tokens}, read={cache_read_tokens})"
+    )
 
     return cached_tokens
 
@@ -3162,13 +3152,13 @@ def validate_cache_read(usage: Any, operation: str) -> int:
         f"cache_read_input_tokens: {getattr(usage, 'cache_read_input_tokens', 0)}"
     )
 
-    assert hasattr(
-        usage, "cache_read_input_tokens"
-    ), f"{operation} should have cache_read_input_tokens"
+    assert hasattr(usage, "cache_read_input_tokens"), (
+        f"{operation} should have cache_read_input_tokens"
+    )
     cache_read_tokens = getattr(usage, "cache_read_input_tokens", 0)
-    assert (
-        cache_read_tokens > 0
-    ), f"{operation} should read from cache (got {cache_read_tokens} tokens)"
+    assert cache_read_tokens > 0, (
+        f"{operation} should read from cache (got {cache_read_tokens} tokens)"
+    )
 
     return cache_read_tokens
 
@@ -3216,7 +3206,7 @@ class TestAnthropicCompaction:
         repeat_count = chars_needed // len(base_text) + 1
         return (base_text * repeat_count)[:chars_needed]
 
-    def _create_large_messages(self, total_tokens: int = 80000) -> List[Dict[str, Any]]:
+    def _create_large_messages(self, total_tokens: int = 80000) -> list[dict[str, Any]]:
         """Create messages with enough content to trigger compaction
 
         Args:
@@ -3230,8 +3220,10 @@ class TestAnthropicCompaction:
         chunk_size = len(large_text) // 10
         for i in range(10):
             chunk = large_text[i * chunk_size : (i + 1) * chunk_size]
-            messages.append({"role": "user", "content": f"Document part {i+1}: {chunk}"})
-            messages.append({"role": "assistant", "content": f"I've received document part {i+1}."})
+            messages.append({"role": "user", "content": f"Document part {i + 1}: {chunk}"})
+            messages.append(
+                {"role": "assistant", "content": f"I've received document part {i + 1}."}
+            )
 
         # Add final query
         messages.append(
@@ -3342,7 +3334,7 @@ class TestAnthropicCompaction:
         assert hasattr(response, "usage"), "Response should have usage information"
         usage = response.usage
 
-        print(f"Top-level usage:")
+        print("Top-level usage:")
         print(f"  input_tokens: {usage.input_tokens}")
         print(f"  output_tokens: {usage.output_tokens}")
 
@@ -3373,9 +3365,9 @@ class TestAnthropicCompaction:
                 else:
                     assert hasattr(iteration, "type"), "Iteration should have type"
                     assert hasattr(iteration, "input_tokens"), "Iteration should have input_tokens"
-                    assert hasattr(
-                        iteration, "output_tokens"
-                    ), "Iteration should have output_tokens"
+                    assert hasattr(iteration, "output_tokens"), (
+                        "Iteration should have output_tokens"
+                    )
 
                     iter_type = iteration.type
                     iter_input = iteration.input_tokens
@@ -3390,12 +3382,12 @@ class TestAnthropicCompaction:
                     # Validate compaction iteration
                     assert iter_input > 0, "Compaction should consume input tokens"
                     assert iter_output > 0, "Compaction should produce summary tokens"
-                    print(f"    ✓ Compaction iteration validated")
+                    print("    ✓ Compaction iteration validated")
                 elif iter_type == "message":
                     # Validate message iteration
                     assert iter_input > 0, "Message should have input tokens"
                     assert iter_output > 0, "Message should have output tokens"
-                    print(f"    ✓ Message iteration validated")
+                    print("    ✓ Message iteration validated")
 
                 # Only sum non-compaction iterations for comparison with top-level
                 if iter_type != "compaction":
@@ -3403,17 +3395,17 @@ class TestAnthropicCompaction:
                     total_output += iter_output
 
             # Top-level tokens should equal sum of non-compaction iterations
-            print(f"\nValidating top-level vs iterations:")
+            print("\nValidating top-level vs iterations:")
             print(f"  Top-level input: {usage.input_tokens}, Non-compaction sum: {total_input}")
             print(f"  Top-level output: {usage.output_tokens}, Non-compaction sum: {total_output}")
 
             # Allow small variance due to rounding
-            assert (
-                abs(usage.input_tokens - total_input) < 10
-            ), f"Top-level input tokens should match non-compaction sum"
-            assert (
-                abs(usage.output_tokens - total_output) < 10
-            ), f"Top-level output tokens should match non-compaction sum"
+            assert abs(usage.input_tokens - total_input) < 10, (
+                "Top-level input tokens should match non-compaction sum"
+            )
+            assert abs(usage.output_tokens - total_output) < 10, (
+                "Top-level output tokens should match non-compaction sum"
+            )
 
             print("✓ Usage tracking validation passed")
         else:
@@ -3486,7 +3478,7 @@ class TestAnthropicCompaction:
 
         # Validate streaming results
         if compaction_started:
-            print(f"\n✓ Compaction triggered during streaming")
+            print("\n✓ Compaction triggered during streaming")
             assert len(compaction_content) > 0, "Compaction content should not be empty"
             print(
                 f"  Compaction summary: {len(compaction_content)} chars, {compaction_delta_count} delta(s)"
@@ -3507,7 +3499,7 @@ class TestAnthropicCompaction:
         assert len(final_message.content) > 0, "Final message should have content blocks"
         assert hasattr(final_message, "usage"), "Final message should have usage"
 
-        print(f"✓ Streaming compaction test passed")
+        print("✓ Streaming compaction test passed")
 
     def test_35_compaction_pause_after(self, compaction_client):
         """Test Case 35: Compaction with pause_after_compaction
@@ -3771,7 +3763,7 @@ class TestAnthropicCompaction:
             # Validate response
             assert_valid_chat_response(response)
 
-        print(f"\n✓ Multiple iteration test completed")
+        print("\n✓ Multiple iteration test completed")
         print(f"  Total compactions triggered: {compaction_count}")
 
         if compaction_count > 0:
@@ -4051,13 +4043,13 @@ class TestAnthropicCodeExecution:
     def _scan(content):
         """Classify code-execution blocks in a response/final-message content list."""
         out = {
-            "tool_names": [],       # server_tool_use names (code-exec sub-tools)
-            "inputs": [],           # their input dicts
-            "result_types": [],     # *_code_execution_tool_result block types
-            "inner_types": [],      # inner result discriminators
-            "error_codes": [],      # error_code on *_tool_result_error inner blocks
-            "file_ids": [],         # generated-file ids inside result content
-            "web_search": False,    # a web_search server_tool_use appeared
+            "tool_names": [],  # server_tool_use names (code-exec sub-tools)
+            "inputs": [],  # their input dicts
+            "result_types": [],  # *_code_execution_tool_result block types
+            "inner_types": [],  # inner result discriminators
+            "error_codes": [],  # error_code on *_tool_result_error inner blocks
+            "file_ids": [],  # generated-file ids inside result content
+            "web_search": False,  # a web_search server_tool_use appeared
             "web_search_results": False,
         }
         for block in content or []:
@@ -4079,7 +4071,7 @@ class TestAnthropicCodeExecution:
                 if isinstance(inner_type, str) and inner_type.endswith("_error"):
                     out["error_codes"].append(_attr(inner, "error_code"))
                 # Generated files live in the inner result's own "content" array.
-                for sub in (_attr(inner, "content") or []):
+                for sub in _attr(inner, "content") or []:
                     fid = _attr(sub, "file_id")
                     if fid:
                         out["file_ids"].append(fid)
@@ -4122,10 +4114,18 @@ class TestAnthropicCodeExecution:
             model=self.MODEL,
             max_tokens=2048,
             tools=[{"type": "code_execution_20250825", "name": "code_execution"}],
-            messages=[{"role": "user", "content": "Use Python to list the first 15 Fibonacci numbers and print them."}],
+            messages=[
+                {
+                    "role": "user",
+                    "content": "Use Python to list the first 15 Fibonacci numbers and print them.",
+                }
+            ],
         ) as stream:
             for event in stream:
-                if event.type == "content_block_delta" and _attr(event.delta, "type") == "text_delta":
+                if (
+                    event.type == "content_block_delta"
+                    and _attr(event.delta, "type") == "text_delta"
+                ):
                     text += event.delta.text
             final = stream.get_final_message()  # must not raise
 
@@ -4178,7 +4178,12 @@ class TestAnthropicCodeExecution:
             model=self.MODEL,
             max_tokens=2048,
             tools=[{"type": "code_execution_20250825", "name": "code_execution"}],
-            messages=[{"role": "user", "content": "Use the text editor tool to create a file hello.py with the line print('hi'), then view it."}],
+            messages=[
+                {
+                    "role": "user",
+                    "content": "Use the text editor tool to create a file hello.py with the line print('hi'), then view it.",
+                }
+            ],
         ) as stream:
             for _event in stream:
                 pass
@@ -4190,9 +4195,7 @@ class TestAnthropicCodeExecution:
         assert "text_editor_code_execution" in scan["tool_names"], (
             f"streamed text_editor_code_execution not exercised; tool_names={scan['tool_names']}"
         )
-        inputs_have_path = any(
-            isinstance(i, dict) and i.get("path") for i in scan["inputs"]
-        )
+        inputs_have_path = any(isinstance(i, dict) and i.get("path") for i in scan["inputs"])
         assert inputs_have_path, f"streamed text_editor input lost its path: {scan['inputs']}"
         print("✓ streaming text_editor input preserved")
 
@@ -4233,15 +4236,26 @@ class TestAnthropicCodeExecution:
             model=self.MODEL,
             max_tokens=2048,
             tools=[{"type": "code_execution_20260120", "name": "code_execution"}, custom_tool],
-            messages=[{"role": "user", "content": "Write Python that calls get_stock_price for 'AAPL' and 'GOOGL' in a loop and prints each result."}],
+            messages=[
+                {
+                    "role": "user",
+                    "content": "Write Python that calls get_stock_price for 'AAPL' and 'GOOGL' in a loop and prints each result.",
+                }
+            ],
         )
         assert resp is not None and resp.content
         # The model may either call the tool programmatically (a tool_use with a
         # caller, surfaced as a normal function tool_use) or run code first; either
         # way the request must be accepted and code execution must be available.
         scan = self._scan(resp.content)
-        names = [_attr(b, "name") for b in resp.content if _attr(b, "type") in {"server_tool_use", "tool_use"}]
-        print(f"✓ programmatic tool calling accepted; tool uses={names}, code_exec={scan['inner_types']}")
+        names = [
+            _attr(b, "name")
+            for b in resp.content
+            if _attr(b, "type") in {"server_tool_use", "tool_use"}
+        ]
+        print(
+            f"✓ programmatic tool calling accepted; tool uses={names}, code_exec={scan['inner_types']}"
+        )
         # Prove the *programmatic* path engaged. A bare get_stock_price (a normal
         # top-level tool call) or a lone code-execution result does NOT show the
         # sandbox invoked the tool — and either could appear if allowed_callers were
@@ -4270,14 +4284,21 @@ class TestAnthropicCodeExecution:
             model=self.MODEL,
             max_tokens=2048,
             tools=[{"type": "web_search_20260209", "name": "web_search"}],
-            messages=[{"role": "user", "content": "Search the web and tell me one notable technology announcement from this week."}],
+            messages=[
+                {
+                    "role": "user",
+                    "content": "Search the web and tell me one notable technology announcement from this week.",
+                }
+            ],
         )
         assert resp is not None and resp.content
         scan = self._scan(resp.content)
         assert scan["web_search"] or scan["web_search_results"] or scan["result_types"], (
             f"web_search did not engage the server-tool pipeline; got {scan}"
         )
-        print(f"✓ web_search pipeline: web_search={scan['web_search']}, code_exec_results={scan['result_types']}")
+        print(
+            f"✓ web_search pipeline: web_search={scan['web_search']}, code_exec_results={scan['result_types']}"
+        )
 
     # ---- 10. web_search auto-inject, STREAMING (the headline regression) ------
     def test_10_web_search_code_execution_streaming(self, code_exec_client):
@@ -4285,7 +4306,12 @@ class TestAnthropicCodeExecution:
             model=self.MODEL,
             max_tokens=2048,
             tools=[{"type": "web_search_20260209", "name": "web_search"}],
-            messages=[{"role": "user", "content": "Search the web for the current P/E ratios of AAPL and GOOGL and compare them."}],
+            messages=[
+                {
+                    "role": "user",
+                    "content": "Search the web for the current P/E ratios of AAPL and GOOGL and compare them.",
+                }
+            ],
         ) as stream:
             for _event in stream:
                 pass
@@ -4293,7 +4319,9 @@ class TestAnthropicCodeExecution:
 
         assert final is not None and final.content
         scan = self._scan(final.content)
-        print(f"✓ streamed web_search+code_execution well-formed: {scan['result_types']}, web_search={scan['web_search']}")
+        print(
+            f"✓ streamed web_search+code_execution well-formed: {scan['result_types']}, web_search={scan['web_search']}"
+        )
 
     # ---- 11. File upload + container_upload (analyze an uploaded CSV) ---------
     def test_11_file_upload_and_container_upload(self, files_beta_client):
@@ -4308,13 +4336,18 @@ class TestAnthropicCodeExecution:
                     model=self.MODEL,
                     max_tokens=2048,
                     tools=[{"type": "code_execution_20250825", "name": "code_execution"}],
-                    messages=[{
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": "Load this CSV with pandas and print the average score."},
-                            {"type": "container_upload", "file_id": uploaded.id},
-                        ],
-                    }],
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Load this CSV with pandas and print the average score.",
+                                },
+                                {"type": "container_upload", "file_id": uploaded.id},
+                            ],
+                        }
+                    ],
                 )
                 assert resp is not None and resp.content
                 scan = self._scan(resp.content)
@@ -4336,7 +4369,9 @@ class TestAnthropicCodeExecution:
             model=self.MODEL,
             max_tokens=1024,
             tools=[{"type": "code_execution_20250825", "name": "code_execution"}],
-            messages=[{"role": "user", "content": "Use Python to set a variable x = 42 and print it."}],
+            messages=[
+                {"role": "user", "content": "Use Python to set a variable x = 42 and print it."}
+            ],
         )
         container = _attr(first, "container")
         container_id = _attr(container, "id")
@@ -4361,7 +4396,12 @@ class TestAnthropicCodeExecution:
             model=self.MODEL,
             max_tokens=2048,
             tools=[{"type": "code_execution_20250825", "name": "code_execution"}],
-            messages=[{"role": "user", "content": "Use Python to write the text 'hello world' to a file called output.txt in the working directory."}],
+            messages=[
+                {
+                    "role": "user",
+                    "content": "Use Python to write the text 'hello world' to a file called output.txt in the working directory.",
+                }
+            ],
         )
         assert resp is not None and resp.content
         scan = self._scan(resp.content)
@@ -4369,4 +4409,6 @@ class TestAnthropicCodeExecution:
         if scan["file_ids"]:
             print(f"✓ generated file ids surfaced: {scan['file_ids']}")
         else:
-            print("⚠ no generated file_ids surfaced (model may have used stdout only); code-exec valid")
+            print(
+                "⚠ no generated file_ids surfaced (model may have used stdout only); code-exec valid"
+            )

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"log"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -388,9 +389,6 @@ func main() {
 	fmt.Printf("📈 Current rows in database: %d\n", currentCount)
 	fmt.Printf("🎯 Will insert %d new rows\n\n", *numRows)
 
-	// Generate and insert logs
-	rand.Seed(time.Now().UnixNano())
-
 	startTime := time.Now()
 	totalInserted := 0
 
@@ -479,7 +477,9 @@ func main() {
 		fmt.Println("💡 Adjust the --size parameter and run again to fine-tune")
 	}
 
-	sqlDB.Close()
+	if err := sqlDB.Close(); err != nil {
+		log.Fatalf("failed to close database: %v", err)
+	}
 	fmt.Println("\n🎉 Done!")
 }
 
@@ -506,10 +506,17 @@ func connectDB() (*gorm.DB, error) {
 		if err != nil {
 			return nil, err
 		}
-		sqlDB.Exec("PRAGMA journal_mode=WAL")
-		sqlDB.Exec("PRAGMA synchronous=NORMAL")
-		sqlDB.Exec("PRAGMA cache_size=1000000")
-		sqlDB.Exec("PRAGMA temp_store=MEMORY")
+		for _, statement := range []string{
+			"PRAGMA journal_mode=WAL",
+			"PRAGMA synchronous=NORMAL",
+			"PRAGMA cache_size=1000000",
+			"PRAGMA temp_store=MEMORY",
+		} {
+			if _, err := sqlDB.Exec(statement); err != nil {
+				_ = sqlDB.Close()
+				return nil, fmt.Errorf("failed to apply %q: %w", statement, err)
+			}
+		}
 
 		return db, nil
 
@@ -685,7 +692,7 @@ func generateMCPLog(index int) logstore.MCPToolLog {
 	}
 
 	latency := float64(rand.Intn(2000)+50) / 1000.0 // 50ms to 2050ms
-	cost := float64(rand.Intn(10)+1) * 0.001         // $0.001 to $0.01
+	cost := float64(rand.Intn(10)+1) * 0.001        // $0.001 to $0.01
 
 	log := logstore.MCPToolLog{
 		ID:          fmt.Sprintf("mcp-%d-%d", timestamp.Unix(), index),

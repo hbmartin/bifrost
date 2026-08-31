@@ -94,7 +94,7 @@ export function AddCustomProviderSheetContent({ show = true, onClose, onSave }: 
 		if (show) {
 			form.clearErrors();
 		}
-	}, [show]);
+	}, [form, show]);
 
 	const onSubmit = (data: FormData) => {
 		const payload = {

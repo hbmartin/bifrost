@@ -2206,7 +2206,7 @@ func zstdCompress(data []byte) ([]byte, error) {
 		return nil, err
 	}
 	if _, err := io.Copy(enc, bytes.NewReader(data)); err != nil {
-		enc.Close()
+		_ = enc.Close()
 		return nil, err
 	}
 	if err := enc.Close(); err != nil {

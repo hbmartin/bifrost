@@ -1,6 +1,7 @@
 package anthropic
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -175,7 +176,7 @@ type ptFrame struct {
 // except ContentPartAdded) to prove the bug reproduces.
 func runAnthropicPassthrough(t *testing.T, raws []string, applyFix bool) ([]ptFrame, *schemas.BifrostContext) {
 	t.Helper()
-	ctx := schemas.NewBifrostContext(nil, time.Time{})
+	ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 	// This harness always models the passthrough path (raw frames interleaved), so
 	// mark the reverse converter accordingly — mirroring the transport, which calls
 	// SetResponsesStreamPassthrough when shouldUsePassthrough is true. This drives
@@ -342,7 +343,7 @@ func TestAnthropicPassthrough_ReproducesBugWithoutFix(t *testing.T) {
 // frame.
 func TestAnthropicConverterOnlyStream_WellFormed(t *testing.T) {
 	stream := ptConcat([]string{ptMsgStart()}, ptThinking(0), ptAdvisor(1, "srv_A"), ptWebSearch(3, "srv_W"), ptWebFetch(5, "srv_F"), ptText(7), ptMsgEnd())
-	ctx := schemas.NewBifrostContext(nil, time.Time{})
+	ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 	state := newAdvisorStreamState()
 	var frames []ptFrame
 	seq := 0
@@ -394,7 +395,7 @@ func TestAnthropicConverterOnly_IndicesContiguous(t *testing.T) {
 	for name, raws := range scenarios {
 		t.Run(name, func(t *testing.T) {
 			// No SetResponsesStreamPassthrough: this is the all-normalized path.
-			ctx := schemas.NewBifrostContext(nil, time.Time{})
+			ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 			state := newAdvisorStreamState()
 			seq := 0
 			var starts []int
@@ -540,7 +541,7 @@ func TestAnthropicWebFetchTextResultRoundTrip(t *testing.T) {
 }
 
 func TestAnthropicWebFetchPassthroughNoResultConsumesHiddenIndex(t *testing.T) {
-	ctx := schemas.NewBifrostContext(nil, time.Time{})
+	ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 	SetResponsesStreamPassthrough(ctx)
 
 	toolID := "srvtoolu_fetch_missing_result"

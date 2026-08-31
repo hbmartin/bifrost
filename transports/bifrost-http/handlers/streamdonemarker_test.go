@@ -44,7 +44,7 @@ func serveStreamingResponse(t *testing.T, chunks []*schemas.BifrostStreamChunk) 
 	}
 
 	serverConn, clientConn := net.Pipe()
-	defer clientConn.Close()
+	defer func() { _ = clientConn.Close() }()
 
 	go func() {
 		_ = fasthttp.ServeConn(serverConn, handler)

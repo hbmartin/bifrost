@@ -53,14 +53,16 @@ func TestBifrostRealtimeWebSocket(t *testing.T) {
 			buf := make([]byte, 2048)
 			n, _ := resp.Body.Read(buf)
 			body = string(buf[:n])
-			resp.Body.Close()
+			_ = resp.Body.Close()
 		}
 		t.Fatalf("failed to connect to Bifrost realtime endpoint %s: %v (body: %s)", wsURL, err, body)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	t.Logf("connected to %s", wsURL)
 
-	conn.SetReadDeadline(time.Now().Add(15 * time.Second))
+	if err := conn.SetReadDeadline(time.Now().Add(15 * time.Second)); err != nil {
+		t.Fatalf("set initial read deadline: %v", err)
+	}
 	if !waitForEvent(t, conn, "session.created", 10) {
 		t.Fatal("did not receive session.created")
 	}
@@ -87,7 +89,9 @@ func TestBifrostRealtimeWebSocket(t *testing.T) {
 
 	var transcript strings.Builder
 	gotDelta, gotDone := false, false
-	conn.SetReadDeadline(time.Now().Add(30 * time.Second))
+	if err := conn.SetReadDeadline(time.Now().Add(30 * time.Second)); err != nil {
+		t.Fatalf("set response read deadline: %v", err)
+	}
 	for i := 0; i < 200 && !gotDone; i++ {
 		_, msg, err := conn.ReadMessage()
 		if err != nil {
@@ -99,7 +103,9 @@ func TestBifrostRealtimeWebSocket(t *testing.T) {
 			var delta struct {
 				Delta string `json:"delta"`
 			}
-			json.Unmarshal(msg, &delta)
+			if err := json.Unmarshal(msg, &delta); err != nil {
+				t.Fatalf("decode text delta: %v", err)
+			}
 			transcript.WriteString(delta.Delta)
 		case "response.done":
 			gotDone = true

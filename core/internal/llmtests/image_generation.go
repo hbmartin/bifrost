@@ -19,6 +19,7 @@ import (
 
 // RunImageGenerationTest executes the end-to-end image generation test (non-streaming)
 func RunImageGenerationTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.ImageGeneration {
 		t.Logf("Image generation not supported for provider %s", testConfig.Provider)
 		return
@@ -156,6 +157,7 @@ func RunImageGenerationTest(t *testing.T, client *bifrost.Bifrost, ctx context.C
 
 // RunImageGenerationStreamTest executes the end-to-end streaming image generation test
 func RunImageGenerationStreamTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.ImageGenerationStream {
 		t.Logf("Image generation streaming not supported for provider %s", testConfig.Provider)
 		return

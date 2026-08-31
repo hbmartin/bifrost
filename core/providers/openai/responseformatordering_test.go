@@ -1,6 +1,7 @@
 package openai
 
 import (
+	"context"
 	"testing"
 
 	"github.com/maximhq/bifrost/core/internal/schemaorder"
@@ -16,7 +17,7 @@ func TestResponseFormatSchemaKeyOrderSurvivesOpenAIChat(t *testing.T) {
 	var inbound OpenAIChatRequest
 	require.NoError(t, schemas.Unmarshal([]byte(schemaorder.ChatBody), &inbound))
 
-	ctx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	bifrostReq := inbound.ToBifrostChatRequest(ctx)
 	require.NotNil(t, bifrostReq)
 	bifrostReq.Provider = schemas.OpenAI
@@ -39,7 +40,7 @@ func TestResponseFormatSchemaKeyOrderSurvivesOpenAIResponses(t *testing.T) {
 	var inbound OpenAIResponsesRequest
 	require.NoError(t, schemas.Unmarshal([]byte(schemaorder.ResponsesBody), &inbound))
 
-	ctx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	bifrostReq := inbound.ToBifrostResponsesRequest(ctx)
 	require.NotNil(t, bifrostReq)
 	bifrostReq.Provider = schemas.OpenAI
@@ -62,7 +63,7 @@ func TestResponseFormatChatToResponsesConversionKeepsOrder(t *testing.T) {
 	var inbound OpenAIChatRequest
 	require.NoError(t, schemas.Unmarshal([]byte(schemaorder.ChatBody), &inbound))
 
-	ctx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	bifrostReq := inbound.ToBifrostChatRequest(ctx)
 	require.NotNil(t, bifrostReq)
 
@@ -81,7 +82,7 @@ func TestResponseFormatSchemaOrderIsDeterministic(t *testing.T) {
 	var inbound OpenAIChatRequest
 	require.NoError(t, schemas.Unmarshal([]byte(schemaorder.ChatBody), &inbound))
 
-	ctx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	outbound := ToOpenAIChatRequest(ctx, inbound.ToBifrostChatRequest(ctx))
 	require.NotNil(t, outbound)
 
@@ -102,7 +103,7 @@ func TestResponseFormatSchemaBytesReachOpenAIVerbatim(t *testing.T) {
 	var inbound OpenAIChatRequest
 	require.NoError(t, schemas.Unmarshal([]byte(schemaorder.ByteExactChatBody), &inbound))
 
-	ctx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	bifrostReq := inbound.ToBifrostChatRequest(ctx)
 	bifrostReq.Provider = schemas.OpenAI
 
@@ -127,7 +128,7 @@ func TestResponseFormatSurvivesDelegatingProviders(t *testing.T) {
 			var inbound OpenAIChatRequest
 			require.NoError(t, schemas.Unmarshal([]byte(schemaorder.ByteExactChatBody), &inbound))
 
-			ctx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+			ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 			bifrostReq := inbound.ToBifrostChatRequest(ctx)
 			bifrostReq.Provider = provider
 

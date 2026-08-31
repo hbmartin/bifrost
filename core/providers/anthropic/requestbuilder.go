@@ -276,7 +276,7 @@ func BuildAnthropicResponsesRequestBody(ctx *schemas.BifrostContext, request *sc
 		// manually.
 		var probe AnthropicMessageRequest
 		if unmarshalErr := schemas.Unmarshal(jsonBody, &probe); unmarshalErr == nil {
-			AddMissingBetaHeadersToContext(ctx, &probe, cfg.Provider)
+			_ = AddMissingBetaHeadersToContext(ctx, &probe, cfg.Provider)
 		}
 
 		for _, field := range cfg.ExcludeFields {
@@ -351,7 +351,7 @@ func BuildAnthropicResponsesRequestBody(ctx *schemas.BifrostContext, request *sc
 		// model-level strip. The raw path above already uses capModel.
 		stripUnsupportedAnthropicFields(reqBody, cfg.Provider, capModel)
 
-		AddMissingBetaHeadersToContext(ctx, reqBody, cfg.Provider)
+		_ = AddMissingBetaHeadersToContext(ctx, reqBody, cfg.Provider)
 
 		jsonBody, err = providerUtils.MarshalProviderRequest(reqBody)
 		if err != nil {
@@ -562,7 +562,7 @@ func BuildAnthropicChatRequestBody(ctx *schemas.BifrostContext, request *schemas
 
 		var probe AnthropicMessageRequest
 		if unmarshalErr := schemas.Unmarshal(jsonBody, &probe); unmarshalErr == nil {
-			AddMissingBetaHeadersToContext(ctx, &probe, cfg.Provider)
+			_ = AddMissingBetaHeadersToContext(ctx, &probe, cfg.Provider)
 		}
 
 		for _, field := range cfg.ExcludeFields {
@@ -621,7 +621,7 @@ func BuildAnthropicChatRequestBody(ctx *schemas.BifrostContext, request *schemas
 		// Anthropic model names, not Bifrost aliases.
 		stripUnsupportedAnthropicFields(reqBody, cfg.Provider, capModel)
 
-		AddMissingBetaHeadersToContext(ctx, reqBody, cfg.Provider)
+		_ = AddMissingBetaHeadersToContext(ctx, reqBody, cfg.Provider)
 
 		jsonBody, err = providerUtils.MarshalProviderRequest(reqBody)
 		if err != nil {

@@ -431,7 +431,7 @@ func TestResolveVertexProjectID_AliasOverride(t *testing.T) {
 		t.Errorf("nil ctx: got %q, want key-level %q", got, keyProject)
 	}
 
-	ctx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	if got := resolveVertexProjectID(ctx, key); got != keyProject {
 		t.Errorf("empty ctx: got %q, want key-level %q", got, keyProject)
 	}
@@ -450,7 +450,7 @@ func TestResolveVertexProjectID_AliasOverride(t *testing.T) {
 	}
 
 	// Empty alias ProjectID falls through to key-level.
-	ctx2 := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx2 := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	ctx2.SetValue(schemas.BifrostContextKeyResolvedAlias, &schemas.ResolvedAlias{
 		Key: "x",
 		Config: &schemas.AliasConfig{
@@ -480,12 +480,12 @@ func TestResolveVertexRegion_AliasOverride(t *testing.T) {
 		t.Errorf("nil ctx: got %q, want %q", got, keyRegion)
 	}
 
-	ctx0 := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx0 := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	if got := resolveVertexRegion(ctx0, key); got != keyRegion {
 		t.Errorf("empty ctx: got %q, want key-level %q", got, keyRegion)
 	}
 
-	ctx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	ctx.SetValue(schemas.BifrostContextKeyResolvedAlias, &schemas.ResolvedAlias{
 		Key: "best-claude",
 		Config: &schemas.AliasConfig{
@@ -497,7 +497,7 @@ func TestResolveVertexRegion_AliasOverride(t *testing.T) {
 		t.Errorf("alias Region should win: got %q, want %q", got, aliasRegion)
 	}
 
-	ctx2 := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx2 := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	ctx2.SetValue(schemas.BifrostContextKeyResolvedAlias, &schemas.ResolvedAlias{
 		Key: "x",
 		Config: &schemas.AliasConfig{
@@ -524,12 +524,12 @@ func TestResolveVertexProjectNumber_AliasOverride(t *testing.T) {
 		t.Errorf("nil ctx: got %q, want %q", got, keyNumber)
 	}
 
-	ctx0 := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx0 := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	if got := resolveVertexProjectNumber(ctx0, key); got != keyNumber {
 		t.Errorf("empty ctx: got %q, want key-level %q", got, keyNumber)
 	}
 
-	ctx := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	ctx.SetValue(schemas.BifrostContextKeyResolvedAlias, &schemas.ResolvedAlias{
 		Key: "x",
 		Config: &schemas.AliasConfig{
@@ -543,7 +543,7 @@ func TestResolveVertexProjectNumber_AliasOverride(t *testing.T) {
 		t.Errorf("alias ProjectNumber should win: got %q, want %q", got, aliasNumber)
 	}
 
-	ctx2 := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx2 := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	ctx2.SetValue(schemas.BifrostContextKeyResolvedAlias, &schemas.ResolvedAlias{
 		Key: "x",
 		Config: &schemas.AliasConfig{
@@ -576,13 +576,13 @@ func TestResolveVertexForceSingleRegion_AliasOverride(t *testing.T) {
 	}
 
 	// empty ctx (no resolved alias) uses the key-level value.
-	ctx0 := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctx0 := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	if got := resolveVertexForceSingleRegion(ctx0, keyForceFalse); got {
 		t.Errorf("empty ctx: got %v, want key-level false", got)
 	}
 
 	// Alias-level true overrides key-level false.
-	ctxTrue := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctxTrue := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	ctxTrue.SetValue(schemas.BifrostContextKeyResolvedAlias, &schemas.ResolvedAlias{
 		Key: "best-claude",
 		Config: &schemas.AliasConfig{
@@ -595,7 +595,7 @@ func TestResolveVertexForceSingleRegion_AliasOverride(t *testing.T) {
 	}
 
 	// Alias-level false overrides key-level true (explicit set beats nil).
-	ctxFalse := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctxFalse := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	ctxFalse.SetValue(schemas.BifrostContextKeyResolvedAlias, &schemas.ResolvedAlias{
 		Key: "best-claude",
 		Config: &schemas.AliasConfig{
@@ -608,7 +608,7 @@ func TestResolveVertexForceSingleRegion_AliasOverride(t *testing.T) {
 	}
 
 	// Alias present but ForceSingleRegion nil falls through to the key-level value.
-	ctxNil := schemas.NewBifrostContext(nil, schemas.NoDeadline)
+	ctxNil := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
 	ctxNil.SetValue(schemas.BifrostContextKeyResolvedAlias, &schemas.ResolvedAlias{
 		Key: "best-claude",
 		Config: &schemas.AliasConfig{

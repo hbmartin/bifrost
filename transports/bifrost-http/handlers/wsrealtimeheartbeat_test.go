@@ -43,7 +43,10 @@ func dialRealtimeTestConnPair(t *testing.T) (*ws.Conn, *ws.Conn, func()) {
 	srv := &fasthttp.Server{Handler: r.Handler}
 	go func() { _ = srv.Serve(ln) }()
 
-	client, _, err := ws.DefaultDialer.Dial("ws://"+ln.Addr().String()+"/realtime", nil)
+	client, resp, err := ws.DefaultDialer.Dial("ws://"+ln.Addr().String()+"/realtime", nil)
+	if resp != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
 	if err != nil {
 		_ = srv.Shutdown()
 		t.Fatalf("dial: %v", err)

@@ -30,7 +30,7 @@
     try {
       var v = window.localStorage.getItem(STORAGE_KEY);
       return v && v.trim() ? v.trim() : DEFAULT_URL;
-    } catch (e) {
+    } catch {
       return DEFAULT_URL;
     }
   }
@@ -38,7 +38,7 @@
   function writeStoredUrl(url) {
     try {
       window.localStorage.setItem(STORAGE_KEY, url);
-    } catch (e) {
+    } catch {
       /* ignore quota / private mode */
     }
   }

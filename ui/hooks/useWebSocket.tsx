@@ -148,7 +148,7 @@ export function WebSocketProvider({ children, path = "/ws" }: WebSocketProviderP
 				reconnectTimeoutRef.current = setTimeout(connect, delay);
 			};
 
-			ws.onerror = (error) => {
+			ws.onerror = (_error) => {
 				setIsConnected(false);
 				ws.close();
 			};

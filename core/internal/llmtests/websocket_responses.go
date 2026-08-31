@@ -16,6 +16,7 @@ import (
 // RunWebSocketResponsesTest dials the provider's native WebSocket Responses endpoint,
 // sends a response.create event, and validates the streaming events that come back.
 func RunWebSocketResponsesTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.WebSocketResponses || testConfig.ChatModel == "" {
 		t.Logf("WebSocketResponses not supported for provider %s", testConfig.Provider)
 		return
@@ -62,11 +63,11 @@ func RunWebSocketResponsesTest(t *testing.T, client *bifrost.Bifrost, ctx contex
 				buf := make([]byte, 512)
 				n, _ := resp.Body.Read(buf)
 				body = string(buf[:n])
-				resp.Body.Close()
+				_ = resp.Body.Close()
 			}
 			t.Fatalf("failed to dial WS %s: %v (body: %s)", wsURL, dialErr, body)
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 
 		t.Logf("connected to WebSocket Responses endpoint: %s", wsURL)
 
@@ -104,7 +105,7 @@ func RunWebSocketResponsesTest(t *testing.T, client *bifrost.Bifrost, ctx contex
 		)
 
 		readDeadline := time.Now().Add(30 * time.Second)
-		conn.SetReadDeadline(readDeadline)
+		_ = conn.SetReadDeadline(readDeadline)
 
 		for {
 			_, msg, readErr := conn.ReadMessage()
@@ -124,7 +125,7 @@ func RunWebSocketResponsesTest(t *testing.T, client *bifrost.Bifrost, ctx contex
 
 			var eventType string
 			if typeBytes, ok := raw["type"]; ok {
-				json.Unmarshal(typeBytes, &eventType)
+				_ = json.Unmarshal(typeBytes, &eventType) // Invalid event metadata remains unknown and is ignored below.
 			}
 
 			switch eventType {

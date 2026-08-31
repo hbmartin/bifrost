@@ -193,7 +193,7 @@ func (s *Store) loadPricingFromURL(ctx context.Context) (map[string]Entry, error
 		if err != nil {
 			return nil, fmt.Errorf("failed to download pricing data: %w", err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		if resp.StatusCode != http.StatusOK {
 			return nil, fmt.Errorf("failed to download pricing data: HTTP %d", resp.StatusCode)
 		}

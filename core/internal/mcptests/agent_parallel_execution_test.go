@@ -2,8 +2,6 @@ package mcptests
 
 import (
 	"fmt"
-	"sort"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -571,25 +569,4 @@ func countOutcome(outcomes []string, target string) int {
 		}
 	}
 	return count
-}
-
-func sortToolResultsByID(results []*schemas.ChatMessage) []*schemas.ChatMessage {
-	sorted := make([]*schemas.ChatMessage, len(results))
-	copy(sorted, results)
-
-	sort.Slice(sorted, func(i, j int) bool {
-		idI := ""
-		idJ := ""
-
-		if sorted[i].ChatToolMessage != nil && sorted[i].ChatToolMessage.ToolCallID != nil {
-			idI = *sorted[i].ChatToolMessage.ToolCallID
-		}
-		if sorted[j].ChatToolMessage != nil && sorted[j].ChatToolMessage.ToolCallID != nil {
-			idJ = *sorted[j].ChatToolMessage.ToolCallID
-		}
-
-		return strings.Compare(idI, idJ) < 0
-	})
-
-	return sorted
 }

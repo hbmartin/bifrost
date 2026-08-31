@@ -2668,7 +2668,7 @@ func (provider *VertexProvider) VideoDownload(ctx *schemas.BifrostContext, key s
 	var content []byte
 	var latency time.Duration
 	var providerResponseHeaders map[string]string
-	contentType := "video/mp4"
+	var contentType string
 	// Check if it's a data URL (base64-encoded video)
 	if videoResp.Videos[0].Type == schemas.VideoOutputTypeBase64 && videoResp.Videos[0].Base64Data != nil {
 		// Decode base64 content
@@ -3608,7 +3608,7 @@ func gcsParseTime(s string) int64 {
 
 func gcsParseSize(s string) int64 {
 	var n int64
-	fmt.Sscanf(s, "%d", &n)
+	_, _ = fmt.Sscanf(s, "%d", &n) // Invalid or absent provider size metadata falls back to zero.
 	return n
 }
 

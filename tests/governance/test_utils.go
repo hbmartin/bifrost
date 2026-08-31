@@ -103,6 +103,7 @@ func baseURL() string {
 }
 
 func MakeRequest(t *testing.T, req APIRequest) *APIResponse {
+	t.Helper()
 	client := &http.Client{}
 	url := fmt.Sprintf("%s%s", baseURL(), req.Path)
 
@@ -131,7 +132,7 @@ func MakeRequest(t *testing.T, req APIRequest) *APIResponse {
 	if err != nil {
 		t.Fatalf("Failed to execute HTTP request: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	rawBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -157,6 +158,7 @@ func MakeRequest(t *testing.T, req APIRequest) *APIResponse {
 // MakeRequestWithCustomHeaders makes an HTTP request with custom headers
 // Use this when you need to test specific header formats (e.g., Authorization, x-api-key)
 func MakeRequestWithCustomHeaders(t *testing.T, req APIRequest, customHeaders map[string]string) *APIResponse {
+	t.Helper()
 	client := &http.Client{}
 	url := fmt.Sprintf("%s%s", baseURL(), req.Path)
 
@@ -185,7 +187,7 @@ func MakeRequestWithCustomHeaders(t *testing.T, req APIRequest, customHeaders ma
 	if err != nil {
 		t.Fatalf("Failed to execute HTTP request: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	rawBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -376,6 +378,7 @@ type ChatMessage struct {
 
 // ExtractIDFromResponse extracts the ID from a creation response
 func ExtractIDFromResponse(t *testing.T, resp *APIResponse) string {
+	t.Helper()
 	if resp.StatusCode >= 400 {
 		t.Fatalf("Request failed with status %d: %v", resp.StatusCode, resp.Body)
 	}
@@ -400,6 +403,7 @@ func ExtractIDFromResponse(t *testing.T, resp *APIResponse) string {
 // CheckErrorMessage checks if the response error contains expected text
 // Returns true if error found, false otherwise. Asserts fail if status is not >= 400.
 func CheckErrorMessage(t *testing.T, resp *APIResponse, expectedText string) bool {
+	t.Helper()
 	if resp.StatusCode < 400 {
 		t.Fatalf("Expected error response but got status %d. Response: %v", resp.StatusCode, resp.Body)
 	}
@@ -461,6 +465,7 @@ func (g *GlobalTestData) AddCustomer(id string) {
 // Retries up to 5 times if the response status is not 200 or 204
 // Delete requests don't require VK headers
 func deleteWithRetry(t *testing.T, path string, resourceType string, resourceID string) bool {
+	t.Helper()
 	maxRetries := 5
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		resp := MakeRequest(t, APIRequest{
@@ -502,6 +507,7 @@ func deleteWithRetry(t *testing.T, path string, resourceType string, resourceID 
 // Retries up to 5 times for each delete operation if status is not 200 or 204
 // Delete requests don't require VK headers
 func (g *GlobalTestData) Cleanup(t *testing.T) {
+	t.Helper()
 	// Delete virtual keys
 	for _, vkID := range g.VirtualKeys {
 		deleteWithRetry(t, fmt.Sprintf("/api/governance/virtual-keys/%s", vkID), "virtual key", vkID)
@@ -524,6 +530,7 @@ func (g *GlobalTestData) Cleanup(t *testing.T) {
 // WaitForCondition polls a condition function until it returns true or times out
 // Useful for waiting for async updates to propagate to in-memory store
 func WaitForCondition(t *testing.T, checkFunc func() bool, timeout time.Duration, description string) bool {
+	t.Helper()
 	deadline := time.Now().Add(timeout)
 	attempt := 0
 
@@ -551,6 +558,7 @@ func WaitForCondition(t *testing.T, checkFunc func() bool, timeout time.Duration
 // WaitForAPICondition makes repeated API requests until a condition is satisfied or times out
 // Useful for verifying async updates in API responses
 func WaitForAPICondition(t *testing.T, req APIRequest, condition func(*APIResponse) bool, timeout time.Duration, description string) (*APIResponse, bool) {
+	t.Helper()
 	deadline := time.Now().Add(timeout)
 	attempt := 0
 	var lastResp *APIResponse

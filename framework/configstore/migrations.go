@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"slices"
@@ -96,7 +97,7 @@ func acquireMigrationLock(ctx context.Context, db *gorm.DB, logger schemas.Logge
 		err = conn.QueryRowContext(attemptCtx, "SELECT pg_try_advisory_lock($1)", migrationAdvisoryLockKey).Scan(&acquired)
 		attemptCancel()
 		if err != nil {
-			conn.Close()
+			_ = conn.Close()
 			return nil, fmt.Errorf("failed to attempt migration advisory lock: %w", err)
 		}
 
@@ -109,7 +110,7 @@ func acquireMigrationLock(ctx context.Context, db *gorm.DB, logger schemas.Logge
 
 		// Lock not acquired -- check if we've exceeded the timeout
 		if time.Now().After(deadline) {
-			conn.Close()
+			_ = conn.Close()
 			return nil, fmt.Errorf(
 				"failed to acquire configstore migration lock (key=%d) after %d attempts over %s\n\n"+
 					"This usually means another Bifrost pod (or a previous crashed pod's lingering\n"+
@@ -136,7 +137,7 @@ func acquireMigrationLock(ctx context.Context, db *gorm.DB, logger schemas.Logge
 		// Wait before retrying, but respect context cancellation
 		select {
 		case <-ctx.Done():
-			conn.Close()
+			_ = conn.Close()
 			return nil, fmt.Errorf("context cancelled while waiting for migration lock: %w", ctx.Err())
 		case <-time.After(advisoryLockRetryInterval):
 		}
@@ -150,7 +151,7 @@ func (l *migrationLock) release(ctx context.Context) {
 	}
 	// Release lock on the SAME connection that acquired it
 	_, _ = l.conn.ExecContext(ctx, "SELECT pg_advisory_unlock($1)", migrationAdvisoryLockKey)
-	l.conn.Close()
+	_ = l.conn.Close()
 }
 
 // RunSingleMigration applies a single gormigrate migration on the given
@@ -1759,10 +1760,9 @@ func migrationAddProviderConfigBudgetRateLimit(ctx context.Context, db *gorm.DB,
 			// Note: budget_id is added via raw SQL because the field was later removed from the struct
 			// (migrated to governance_budgets.provider_config_id in add_multi_budget_tables)
 			if migrator.HasTable(&tables.TableVirtualKeyProviderConfig{}) {
-				if err := tx.Exec("ALTER TABLE governance_virtual_key_provider_configs ADD COLUMN IF NOT EXISTS budget_id VARCHAR(255)").Error; err != nil {
-					// Ignore error for databases that don't support IF NOT EXISTS (e.g., SQLite)
-					// The column may already exist from a previous run
-				}
+				// Best effort for databases that do not support IF NOT EXISTS (for
+				// example SQLite); the column may already exist from a previous run.
+				_ = tx.Exec("ALTER TABLE governance_virtual_key_provider_configs ADD COLUMN IF NOT EXISTS budget_id VARCHAR(255)").Error
 
 				// Add RateLimitID column if it doesn't exist
 				if err := addColumnIfNotExists(tx, logger, &tables.TableVirtualKeyProviderConfig{}, "rate_limit_id"); err != nil {
@@ -1770,9 +1770,9 @@ func migrationAddProviderConfigBudgetRateLimit(ctx context.Context, db *gorm.DB,
 				}
 
 				// Create foreign key indexes for better performance
-				if err := tx.Exec("CREATE INDEX IF NOT EXISTS idx_provider_config_budget ON governance_virtual_key_provider_configs (budget_id)").Error; err != nil {
-					// Ignore - index may already exist or column may not exist yet
-				}
+				// Best effort: the index may already exist or the legacy column may
+				// not be present in this database.
+				_ = tx.Exec("CREATE INDEX IF NOT EXISTS idx_provider_config_budget ON governance_virtual_key_provider_configs (budget_id)").Error
 
 				if !migrator.HasIndex(&tables.TableVirtualKeyProviderConfig{}, "idx_provider_config_rate_limit") {
 					if err := tx.Exec("CREATE INDEX IF NOT EXISTS idx_provider_config_rate_limit ON governance_virtual_key_provider_configs (rate_limit_id)").Error; err != nil {
@@ -2119,7 +2119,7 @@ func migrationMissingProviderColumnInKeyTable(ctx context.Context, db *gorm.DB, 
 				var provider tables.TableProvider
 				if err := tx.First(&provider, key.ProviderID).Error; err != nil {
 					// Skip keys with invalid provider_id
-					if err == gorm.ErrRecordNotFound {
+					if errors.Is(err, gorm.ErrRecordNotFound) {
 						continue
 					}
 					return fmt.Errorf("failed to fetch provider %d for key %s: %w", key.ProviderID, key.KeyID, err)
@@ -2445,7 +2445,7 @@ func migrationNormalizeMCPClientNames(ctx context.Context, db *gorm.DB, logger s
 					// Also check database for existing names (excluding current client)
 					var existing tables.TableMCPClient
 					err := tx.Where("name = ? AND id != ?", baseName, excludeID).First(&existing).Error
-					if err == gorm.ErrRecordNotFound {
+					if errors.Is(err, gorm.ErrRecordNotFound) {
 						// Name is available
 						assignedNames[baseName] = true
 						// Log normalization even when no collision
@@ -2472,7 +2472,7 @@ func migrationNormalizeMCPClientNames(ctx context.Context, db *gorm.DB, logger s
 					if !assignedNames[candidateName] {
 						var existing tables.TableMCPClient
 						err := tx.Where("name = ? AND id != ?", candidateName, excludeID).First(&existing).Error
-						if err == gorm.ErrRecordNotFound {
+						if errors.Is(err, gorm.ErrRecordNotFound) {
 							// Found available name - log the transformation
 							assignedNames[candidateName] = true
 							logger.Info("MCP Client Name Normalized: '%s' -> '%s'", originalName, candidateName)
@@ -2587,7 +2587,7 @@ func migrationMoveKeysToProviderConfig(ctx context.Context, db *gorm.DB, logger 
 						result := tx.Where("virtual_key_id = ? AND provider = ?", assoc.VirtualKeyID, keyData.Provider).First(&providerConfig)
 
 						if result.Error != nil {
-							if result.Error == gorm.ErrRecordNotFound {
+							if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 								// Create a new provider config for this provider
 								providerConfig = tables.TableVirtualKeyProviderConfig{
 									VirtualKeyID:  assoc.VirtualKeyID,
@@ -4128,7 +4128,7 @@ func migrationMigrateProviderGovernanceToModelConfigs(ctx context.Context, db *g
 					Select("id", "budget_id", "rate_limit_id").
 					First(&existing).Error
 				switch {
-				case err == gorm.ErrRecordNotFound:
+				case errors.Is(err, gorm.ErrRecordNotFound):
 					providerName := p.Name
 					// Insert via an explicit column map rather than the live TableModelConfig
 					// struct: GORM derives the INSERT column list from today's struct, so a
@@ -4258,8 +4258,7 @@ func migrationAddBudgetModelConfigIDColumn(ctx context.Context, db *gorm.DB, log
 			}
 			return nil
 		},
-		Rollback: func(tx *gorm.DB) error {
-			tx = tx.WithContext(ctx)
+		Rollback: func(_ *gorm.DB) error {
 			return fmt.Errorf("add_budget_model_config_id_column is non-rollbackable: dropping model_config_id would permanently lose multi-budget ownership data that cannot be recovered from the legacy single budget_id column")
 		},
 	}})
@@ -6698,7 +6697,7 @@ func migrationBackfillAllowedModelsWildcard(ctx context.Context, db *gorm.DB, lo
 					Preload("ProviderConfigs.Keys").
 					Preload("MCPConfigs").
 					First(&vk, "id = ?", vkID).Error; err != nil {
-					if err == gorm.ErrRecordNotFound {
+					if errors.Is(err, gorm.ErrRecordNotFound) {
 						// Orphaned provider config row — VK was deleted; skip.
 						continue
 					}
@@ -8555,7 +8554,7 @@ func migrationNormalizeOtelTraceType(ctx context.Context, db *gorm.DB, logger sc
 			var plugin tables.TablePlugin
 			err := tx.Where("name = ?", "otel").First(&plugin).Error
 			if err != nil {
-				if err == gorm.ErrRecordNotFound {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
 					return nil
 				}
 				return fmt.Errorf("failed to load otel plugin row: %w", err)

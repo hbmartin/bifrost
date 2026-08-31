@@ -18,7 +18,7 @@ const args = Object.fromEntries(
       acc.push([key, next && !next.startsWith("--") ? next : "true"]);
     }
     return acc;
-  }, [])
+  }, []),
 );
 
 const source = args.source;
@@ -92,8 +92,16 @@ const effortModels = [
   { label: "openai/o3-mini", model: "openai/o3-mini" },
   { label: "anthropic/claude-opus-4-7", model: "anthropic/claude-opus-4-7", maxTokens: 4096 },
   { label: "anthropic/claude-sonnet-4-6", model: "anthropic/claude-sonnet-4-6", maxTokens: 4096 },
-  { label: "bedrock/claude-opus-4-7", model: "bedrock/global.anthropic.claude-opus-4-7", maxTokens: 4096 },
-  { label: "bedrock/claude-sonnet-4-6", model: "bedrock/global.anthropic.claude-sonnet-4-6", maxTokens: 4096 },
+  {
+    label: "bedrock/claude-opus-4-7",
+    model: "bedrock/global.anthropic.claude-opus-4-7",
+    maxTokens: 4096,
+  },
+  {
+    label: "bedrock/claude-sonnet-4-6",
+    model: "bedrock/global.anthropic.claude-sonnet-4-6",
+    maxTokens: 4096,
+  },
   { label: "gemini/gemini-2.5-flash", model: "gemini/gemini-2.5-flash" },
   { label: "gemini/gemini-2.5-pro", model: "gemini/gemini-2.5-pro" },
   { label: "vertex/gemini-2.5-flash", model: "vertex/gemini-2.5-flash" },
@@ -120,8 +128,8 @@ const effortItems = effortModels.flatMap((model) =>
     item({
       name: `Cross-cut: ${model.label} thinking effort ${effort}`,
       body: bodyForEffort(model, effort, false),
-    })
-  )
+    }),
+  ),
 );
 
 const streamingEffortItems = effortModels.flatMap((model) =>
@@ -130,8 +138,8 @@ const streamingEffortItems = effortModels.flatMap((model) =>
       name: `Cross-cut: ${model.label} streaming + thinking effort ${effort}`,
       body: bodyForEffort(model, effort, true),
       stream: true,
-    })
-  )
+    }),
+  ),
 );
 
 const nativeThinkingItems = [
@@ -165,12 +173,18 @@ const nativeThinkingItems = [
   genaiItem({
     name: "Cross-cut: gemini/gemini-2.5-flash thinking budget lowest",
     model: "gemini-2.5-flash",
-    body: { contents: [{ parts: [{ text: "Solve 31 * 27." }] }], generationConfig: { thinkingConfig: { thinkingBudget: 1024 } } },
+    body: {
+      contents: [{ parts: [{ text: "Solve 31 * 27." }] }],
+      generationConfig: { thinkingConfig: { thinkingBudget: 1024 } },
+    },
   }),
   genaiItem({
     name: "Cross-cut: gemini/gemini-2.5-pro thinking budget highest",
     model: "gemini-2.5-pro",
-    body: { contents: [{ parts: [{ text: "Solve 31 * 27." }] }], generationConfig: { thinkingConfig: { thinkingBudget: 8192 } } },
+    body: {
+      contents: [{ parts: [{ text: "Solve 31 * 27." }] }],
+      generationConfig: { thinkingConfig: { thinkingBudget: 8192 } },
+    },
   }),
 ];
 
@@ -182,7 +196,19 @@ const streamingFeatureItems = [
       model: "openai/gpt-4o-mini",
       messages: [{ role: "user", content: "Weather in Lagos?" }],
       stream: true,
-      tools: [{ type: "function", function: { name: "get_weather", parameters: { type: "object", properties: { city: { type: "string" } }, required: ["city"] } } }],
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: "get_weather",
+            parameters: {
+              type: "object",
+              properties: { city: { type: "string" } },
+              required: ["city"],
+            },
+          },
+        },
+      ],
     },
   }),
   item({
@@ -193,7 +219,19 @@ const streamingFeatureItems = [
       max_tokens: 512,
       messages: [{ role: "user", content: "Weather in Lagos?" }],
       stream: true,
-      tools: [{ type: "function", function: { name: "get_weather", parameters: { type: "object", properties: { city: { type: "string" } }, required: ["city"] } } }],
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: "get_weather",
+            parameters: {
+              type: "object",
+              properties: { city: { type: "string" } },
+              required: ["city"],
+            },
+          },
+        },
+      ],
     },
   }),
   item({
@@ -203,7 +241,19 @@ const streamingFeatureItems = [
       model: "gemini/gemini-2.5-flash",
       messages: [{ role: "user", content: "Weather in Lagos?" }],
       stream: true,
-      tools: [{ type: "function", function: { name: "get_weather", parameters: { type: "object", properties: { city: { type: "string" } }, required: ["city"] } } }],
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: "get_weather",
+            parameters: {
+              type: "object",
+              properties: { city: { type: "string" } },
+              required: ["city"],
+            },
+          },
+        },
+      ],
     },
   }),
   item({
@@ -211,7 +261,20 @@ const streamingFeatureItems = [
     stream: true,
     body: {
       model: "openai/gpt-4o-mini",
-      messages: [{ role: "user", content: [{ type: "text", text: "Describe this image briefly." }, { type: "image_url", image_url: { url: "https://storage.googleapis.com/generativeai-downloads/images/scones.jpg" } }] }],
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Describe this image briefly." },
+            {
+              type: "image_url",
+              image_url: {
+                url: "https://storage.googleapis.com/generativeai-downloads/images/scones.jpg",
+              },
+            },
+          ],
+        },
+      ],
       stream: true,
     },
   }),
@@ -221,7 +284,21 @@ const streamingFeatureItems = [
     body: {
       model: "anthropic/claude-haiku-4-5",
       max_tokens: 512,
-      messages: [{ role: "user", content: [{ type: "image", source: { type: "url", url: "https://storage.googleapis.com/generativeai-downloads/images/scones.jpg" } }, { type: "text", text: "Describe this image briefly." }] }],
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "image",
+              source: {
+                type: "url",
+                url: "https://storage.googleapis.com/generativeai-downloads/images/scones.jpg",
+              },
+            },
+            { type: "text", text: "Describe this image briefly." },
+          ],
+        },
+      ],
       stream: true,
     },
   }),
@@ -230,7 +307,20 @@ const streamingFeatureItems = [
     stream: true,
     body: {
       model: "gemini/gemini-2.5-flash",
-      messages: [{ role: "user", content: [{ type: "text", text: "Describe this image briefly." }, { type: "image_url", image_url: { url: "https://storage.googleapis.com/generativeai-downloads/images/scones.jpg" } }] }],
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Describe this image briefly." },
+            {
+              type: "image_url",
+              image_url: {
+                url: "https://storage.googleapis.com/generativeai-downloads/images/scones.jpg",
+              },
+            },
+          ],
+        },
+      ],
       stream: true,
     },
   }),
@@ -241,7 +331,23 @@ const streamingFeatureItems = [
       model: "openai/gpt-4o-mini",
       messages: [{ role: "user", content: "Extract city/country/population for Paris." }],
       stream: true,
-      response_format: { type: "json_schema", json_schema: { name: "city", strict: true, schema: { type: "object", properties: { city: { type: "string" }, country: { type: "string" }, population: { type: "number" } }, required: ["city", "country", "population"], additionalProperties: false } } },
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "city",
+          strict: true,
+          schema: {
+            type: "object",
+            properties: {
+              city: { type: "string" },
+              country: { type: "string" },
+              population: { type: "number" },
+            },
+            required: ["city", "country", "population"],
+            additionalProperties: false,
+          },
+        },
+      },
     },
   }),
   item({
@@ -251,7 +357,23 @@ const streamingFeatureItems = [
       model: "gemini/gemini-2.5-flash",
       messages: [{ role: "user", content: "Extract city/country/population for Paris." }],
       stream: true,
-      response_format: { type: "json_schema", json_schema: { name: "city", strict: true, schema: { type: "object", properties: { city: { type: "string" }, country: { type: "string" }, population: { type: "number" } }, required: ["city", "country", "population"], additionalProperties: false } } },
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "city",
+          strict: true,
+          schema: {
+            type: "object",
+            properties: {
+              city: { type: "string" },
+              country: { type: "string" },
+              population: { type: "number" },
+            },
+            required: ["city", "country", "population"],
+            additionalProperties: false,
+          },
+        },
+      },
     },
   }),
   item({
@@ -260,7 +382,9 @@ const streamingFeatureItems = [
     body: {
       model: "anthropic/claude-opus-4-7",
       max_tokens: 1024,
-      messages: [{ role: "user", content: "Find one current headline and summarize it in one sentence." }],
+      messages: [
+        { role: "user", content: "Find one current headline and summarize it in one sentence." },
+      ],
       stream: true,
       tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 1 }],
     },
@@ -270,7 +394,9 @@ const streamingFeatureItems = [
     stream: true,
     body: {
       model: "gemini/gemini-2.5-flash",
-      messages: [{ role: "user", content: "Find one current headline and summarize it in one sentence." }],
+      messages: [
+        { role: "user", content: "Find one current headline and summarize it in one sentence." },
+      ],
       stream: true,
       tools: [{ type: "google_search" }],
     },
@@ -281,7 +407,13 @@ const streamingFeatureItems = [
     body: {
       model: "anthropic/claude-haiku-4-5",
       max_tokens: 512,
-      system: [{ type: "text", text: "Reusable cached context for streaming prompt caching coverage.", cache_control: { type: "ephemeral" } }],
+      system: [
+        {
+          type: "text",
+          text: "Reusable cached context for streaming prompt caching coverage.",
+          cache_control: { type: "ephemeral" },
+        },
+      ],
       messages: [{ role: "user", content: "Reply with a short acknowledgement." }],
       stream: true,
     },
@@ -312,22 +444,26 @@ const streamingFeatureItems = [
 const generatedFolders = [
   {
     name: "Cross-Cut Round 29: Thinking Effort Ladder (generated)",
-    description: "Generated at harness runtime. Covers low, medium, and high reasoning_effort across reasoning-capable OpenAI, Anthropic, Bedrock, Gemini, and Vertex model families.",
+    description:
+      "Generated at harness runtime. Covers low, medium, and high reasoning_effort across reasoning-capable OpenAI, Anthropic, Bedrock, Gemini, and Vertex model families.",
     item: effortItems,
   },
   {
     name: "Cross-Cut Round 30: Streaming + Thinking Matrix (generated)",
-    description: "Generated at harness runtime. Combines stream:true with low, medium, and high reasoning_effort across reasoning-capable model families.",
+    description:
+      "Generated at harness runtime. Combines stream:true with low, medium, and high reasoning_effort across reasoning-capable model families.",
     item: streamingEffortItems,
   },
   {
     name: "Cross-Cut Round 31: Native Thinking Modes (generated)",
-    description: "Generated at harness runtime. Covers native thinking controls where providers expose explicit budgets or adaptive modes.",
+    description:
+      "Generated at harness runtime. Covers native thinking controls where providers expose explicit budgets or adaptive modes.",
     item: nativeThinkingItems,
   },
   {
     name: "Cross-Cut Round 32: Streaming Feature Matrix (generated)",
-    description: "Generated at harness runtime. Ensures each interactive feature bucket has streaming coverage where the request shape supports stream:true.",
+    description:
+      "Generated at harness runtime. Ensures each interactive feature bucket has streaming coverage where the request shape supports stream:true.",
     item: streamingFeatureItems,
   },
   buildTokenParityMatrix(),
@@ -367,7 +503,9 @@ if (!cachingFolder) {
 }
 const cachingItems = buildPromptCachingHitVerificationItems();
 const CACHING_PREFIX = "Prompt caching hit-verification:";
-cachingFolder.item = (cachingFolder.item || []).filter((entry) => !(entry.name || "").startsWith(CACHING_PREFIX));
+cachingFolder.item = (cachingFolder.item || []).filter(
+  (entry) => !(entry.name || "").startsWith(CACHING_PREFIX),
+);
 cachingFolder.item.push(...cachingItems);
 
 // Last pass, over hand-written and generated items alike: any request whose raw body OR URL drops
@@ -379,5 +517,8 @@ cachingFolder.item.push(...cachingItems);
 const guardedCount = injectChainedVarGuards(collection);
 
 writeFileSync(out, `${JSON.stringify(collection, null, 2)}\n`);
-const generatedCount = generatedFolders.reduce((sum, folder) => sum + folder.item.length, 0) + cachingItems.length;
-console.error(`[augment-provider-harness] wrote ${out} with ${generatedCount} generated requests, ${guardedCount} chained-var guards`);
+const generatedCount =
+  generatedFolders.reduce((sum, folder) => sum + folder.item.length, 0) + cachingItems.length;
+console.error(
+  `[augment-provider-harness] wrote ${out} with ${generatedCount} generated requests, ${guardedCount} chained-var guards`,
+);

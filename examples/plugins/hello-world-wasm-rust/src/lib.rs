@@ -29,7 +29,7 @@ pub extern "C" fn get_name() -> u64 {
 #[no_mangle]
 pub extern "C" fn init(config_ptr: u32, config_len: u32) -> i32 {
     let config_str = read_string(config_ptr, config_len);
-    
+
     // Parse configuration
     let config: PluginConfig = if config_str.is_empty() {
         PluginConfig::default()
@@ -39,12 +39,12 @@ pub extern "C" fn init(config_ptr: u32, config_len: u32) -> i32 {
             Err(_) => return 1, // Config parse error
         }
     };
-    
+
     // Store configuration
     unsafe {
         PLUGIN_CONFIG = Some(config);
     }
-    
+
     0 // Success
 }
 
@@ -54,7 +54,7 @@ pub extern "C" fn init(config_ptr: u32, config_len: u32) -> i32 {
 #[no_mangle]
 pub extern "C" fn http_intercept(input_ptr: u32, input_len: u32) -> u64 {
     let input_str = read_string(input_ptr, input_len);
-    
+
     // Parse input
     let input: HTTPInterceptInput = match serde_json::from_str(&input_str) {
         Ok(i) => i,
@@ -74,25 +74,22 @@ pub extern "C" fn http_intercept(input_ptr: u32, input_len: u32) -> u64 {
             return write_string(&serde_json::to_string(&output).unwrap_or_default());
         }
     };
-    
 
-    // Add context value like Go plugin does
-    let mut context = input.context;
-    context.set_value("from-http", serde_json::json!("123"));
-    
-    // Create output with context and request preserved (pass-through)
-    // Serialize request to Value to ensure proper JSON structure
-    let request_value = serde_json::to_value(&input.request).ok();
-    
-    let output = HTTPInterceptOutput {
-        context: input.context,
-        request: input.request,
-        has_response: false,
-        ..Default::default()
-    };
-    
+    let output = pass_through_http_input(input);
+
     // Pass through
     write_string(&serde_json::to_string(&output).unwrap_or_default())
+}
+
+fn pass_through_http_input(input: HTTPInterceptInput) -> HTTPInterceptOutput {
+    let mut context = input.context;
+    context.set_value("from-http", serde_json::json!("123"));
+    HTTPInterceptOutput {
+        context,
+        request: serde_json::to_value(input.request).ok(),
+        has_response: false,
+        ..Default::default()
+    }
 }
 
 /// Pre-request hook
@@ -101,7 +98,7 @@ pub extern "C" fn http_intercept(input_ptr: u32, input_len: u32) -> u64 {
 #[no_mangle]
 pub extern "C" fn pre_hook(input_ptr: u32, input_len: u32) -> u64 {
     let input_str = read_string(input_ptr, input_len);
-    
+
     // Parse input
     let input: PreHookInput = match serde_json::from_str(&input_str) {
         Ok(i) => i,
@@ -113,24 +110,24 @@ pub extern "C" fn pre_hook(input_ptr: u32, input_len: u32) -> u64 {
             return write_string(&serde_json::to_string(&output).unwrap_or_default());
         }
     };
-    
+
     // Create output with context preserved
-    let mut output = PreHookOutput {
+    let output = PreHookOutput {
         context: input.context.clone(),
-        request: input.request.clone(),
+        request: Some(input.request.clone()),
         has_short_circuit: false,
         ..Default::default()
     };
-    
+
     // Get provider and model for potential modifications
     let (_provider, model) = input.get_provider_model();
-    
+
     // Example: Short-circuit with mock response for specific model
     // Uncomment to test:
     /*
     if model == "mock-model" {
         output.has_short_circuit = true;
-        
+
         let mock_response = BifrostResponse {
             chat_response: Some(BifrostChatResponse {
                 id: format!("mock-{}", input.context.request_id.unwrap_or_default()),
@@ -157,16 +154,16 @@ pub extern "C" fn pre_hook(input_ptr: u32, input_len: u32) -> u64 {
             }),
             ..Default::default()
         };
-        
+
         output.short_circuit = Some(LLMPluginShortCircuit {
             response: Some(mock_response),
             error: None,
         });
-        
+
         return write_string(&serde_json::to_string(&output).unwrap_or_default());
     }
     */
-    
+
     // Example: Short-circuit with rate limit error
     // Uncomment to test:
     /*
@@ -187,7 +184,7 @@ pub extern "C" fn pre_hook(input_ptr: u32, input_len: u32) -> u64 {
 
     // Silence unused variable warning in example code
     let _ = model;
-    
+
     // Pass through - empty request means use original
     write_string(&serde_json::to_string(&output).unwrap_or_default())
 }
@@ -198,7 +195,7 @@ pub extern "C" fn pre_hook(input_ptr: u32, input_len: u32) -> u64 {
 #[no_mangle]
 pub extern "C" fn post_hook(input_ptr: u32, input_len: u32) -> u64 {
     let input_str = read_string(input_ptr, input_len);
-    
+
     // Parse input
     let input: PostHookInput = match serde_json::from_str(&input_str) {
         Ok(i) => i,
@@ -210,11 +207,11 @@ pub extern "C" fn post_hook(input_ptr: u32, input_len: u32) -> u64 {
             return write_string(&serde_json::to_string(&output).unwrap_or_default());
         }
     };
-    
+
     // Add context value like Go plugin does
     let mut context = input.context.clone();
     context.set_value("from-post-hook", serde_json::json!("456"));
-    
+
     // Create output with context and response/error preserved (pass-through)
     // This matches Go plugin behavior exactly
     let output = PostHookOutput {
@@ -224,7 +221,7 @@ pub extern "C" fn post_hook(input_ptr: u32, input_len: u32) -> u64 {
         has_error: input.has_error,
         hook_error: String::new(),
     };
-    
+
     // Example: Modify error message when has_error is true
     // Uncomment to test:
     /*
@@ -237,7 +234,7 @@ pub extern "C" fn post_hook(input_ptr: u32, input_len: u32) -> u64 {
         }
     }
     */
-    
+
     // Example: Modify response
     // Uncomment to test:
     /*
@@ -252,7 +249,7 @@ pub extern "C" fn post_hook(input_ptr: u32, input_len: u32) -> u64 {
         return write_string(&serde_json::to_string(&output).unwrap_or_default());
     }
     */
-    
+
     write_string(&serde_json::to_string(&output).unwrap_or_default())
 }
 
@@ -262,7 +259,7 @@ pub extern "C" fn post_hook(input_ptr: u32, input_len: u32) -> u64 {
 #[no_mangle]
 pub extern "C" fn http_stream_chunk_hook(input_ptr: u32, input_len: u32) -> u64 {
     let input_str = read_string(input_ptr, input_len);
-    
+
     // Parse input
     let input: HTTPStreamChunkHookInput = match serde_json::from_str(&input_str) {
         Ok(i) => i,
@@ -274,11 +271,11 @@ pub extern "C" fn http_stream_chunk_hook(input_ptr: u32, input_len: u32) -> u64 
             return write_string(&serde_json::to_string(&output).unwrap_or_default());
         }
     };
-    
+
     // Add context value like Go plugin does
     let mut context = input.context.clone();
     context.set_value("from-stream-chunk", serde_json::json!("rust-wasm"));
-    
+
     // Pass through chunk unchanged
     let output = HTTPStreamChunkHookOutput {
         context,
@@ -287,7 +284,7 @@ pub extern "C" fn http_stream_chunk_hook(input_ptr: u32, input_len: u32) -> u64 
         skip: false,
         error: String::new(),
     };
-    
+
     write_string(&serde_json::to_string(&output).unwrap_or_default())
 }
 
@@ -300,8 +297,31 @@ pub extern "C" fn cleanup() -> i32 {
     unsafe {
         PLUGIN_CONFIG = None;
     }
-    
+
     0 // Success
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn http_pass_through_preserves_request_and_augments_context() {
+        let input = HTTPInterceptInput {
+            context: BifrostContext::default(),
+            request: HTTPRequest {
+                method: "POST".to_string(),
+                path: "/v1/chat/completions".to_string(),
+                ..Default::default()
+            },
+        };
+
+        let output = pass_through_http_input(input);
+        assert_eq!(output.context.get_string("from-http"), Some("123"));
+        let request = output.request.expect("request should be preserved");
+        assert_eq!(request["method"], "POST");
+        assert_eq!(request["path"], "/v1/chat/completions");
+    }
 }
 
 // =============================================================================

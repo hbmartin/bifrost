@@ -1,8 +1,5 @@
 import { expect, test } from "../../core/fixtures/base.fixture";
-import {
-  createCustomProviderData,
-  createProviderKeyData,
-} from "./providers.data";
+import { createCustomProviderData, createProviderKeyData } from "./providers.data";
 
 // Track created resources for cleanup
 const createdKeys: { provider: string; keyName: string }[] = [];
@@ -41,18 +38,14 @@ test.describe("Providers", () => {
         });
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
-        console.error(
-          `[CLEANUP ERROR] Failed to delete provider ${providerName}: ${errorMsg}`,
-        );
+        console.error(`[CLEANUP ERROR] Failed to delete provider ${providerName}: ${errorMsg}`);
       }
     }
     createdProviders.length = 0;
   });
 
   test.describe("Provider Navigation", () => {
-    test("should display standard providers in sidebar", async ({
-      providersPage,
-    }) => {
+    test("should display standard providers in sidebar", async ({ providersPage }) => {
       // Check that OpenAI provider is visible
       const openaiProvider = providersPage.getProviderItem("openai");
       await expect(openaiProvider).toBeVisible();
@@ -62,9 +55,7 @@ test.describe("Providers", () => {
       await expect(anthropicProvider).toBeVisible();
     });
 
-    test("should select a provider from the sidebar", async ({
-      providersPage,
-    }) => {
+    test("should select a provider from the sidebar", async ({ providersPage }) => {
       await providersPage.selectProvider("openai");
 
       // Verify URL contains provider param
@@ -83,9 +74,7 @@ test.describe("Providers", () => {
   });
 
   test.describe("Provider Keys", () => {
-    test("should add a new key to OpenAI provider", async ({
-      providersPage,
-    }) => {
+    test("should add a new key to OpenAI provider", async ({ providersPage }) => {
       // Select OpenAI provider
       await providersPage.selectProvider("openai");
 
@@ -125,9 +114,7 @@ test.describe("Providers", () => {
       expect(keyExists).toBe(true);
     });
 
-    test("should display empty state when no keys configured", async ({
-      providersPage,
-    }) => {
+    test("should display empty state when no keys configured", async ({ providersPage }) => {
       // Add Nebius from the dropdown if not already in sidebar (created with no keys)
       if (!(await providersPage.providerExists("nebius"))) {
         await providersPage.addKnownProviderFromDropdown("nebius");
@@ -146,9 +133,7 @@ test.describe("Providers", () => {
   });
 
   test.describe("Custom Providers", () => {
-    test("should open custom provider creation sheet", async ({
-      providersPage,
-    }) => {
+    test("should open custom provider creation sheet", async ({ providersPage }) => {
       await providersPage.openCustomProviderSheet();
 
       // Verify form fields are present
@@ -157,9 +142,7 @@ test.describe("Providers", () => {
       await expect(providersPage.baseUrlInput).toBeVisible();
     });
 
-    test("should create a custom OpenAI-compatible provider", async ({
-      providersPage,
-    }) => {
+    test("should create a custom OpenAI-compatible provider", async ({ providersPage }) => {
       const providerData = createCustomProviderData({
         name: `test-openai-${Date.now()}`,
         baseProviderType: "openai",
@@ -176,9 +159,7 @@ test.describe("Providers", () => {
       await expect(providerItem).toBeVisible({ timeout: 15000 });
     });
 
-    test("should create a custom Anthropic-compatible provider", async ({
-      providersPage,
-    }) => {
+    test("should create a custom Anthropic-compatible provider", async ({ providersPage }) => {
       const providerData = createCustomProviderData({
         name: `test-anthropic-${Date.now()}`,
         baseProviderType: "anthropic",
@@ -195,9 +176,7 @@ test.describe("Providers", () => {
       await expect(providerItem).toBeVisible({ timeout: 15000 });
     });
 
-    test("should cancel custom provider creation", async ({
-      providersPage,
-    }) => {
+    test("should cancel custom provider creation", async ({ providersPage }) => {
       await providersPage.openCustomProviderSheet();
 
       // Fill some data
@@ -210,14 +189,11 @@ test.describe("Providers", () => {
       await expect(providersPage.customProviderSheet).not.toBeVisible();
 
       // Provider should not exist
-      const providerExists =
-        await providersPage.providerExists("cancelled-provider");
+      const providerExists = await providersPage.providerExists("cancelled-provider");
       expect(providerExists).toBe(false);
     });
 
-    test("should delete custom provider and update UI", async ({
-      providersPage,
-    }) => {
+    test("should delete custom provider and update UI", async ({ providersPage }) => {
       const providerData = createCustomProviderData({
         name: `delete-test-${Date.now()}`,
         baseProviderType: "openai",
@@ -243,9 +219,7 @@ test.describe("Providers", () => {
   });
 
   test.describe("Form Validation", () => {
-    test("should require name for custom provider", async ({
-      providersPage,
-    }) => {
+    test("should require name for custom provider", async ({ providersPage }) => {
       await providersPage.openCustomProviderSheet();
 
       // Try to save without name
@@ -259,9 +233,7 @@ test.describe("Providers", () => {
       await expect(providersPage.customProviderSheet).toBeVisible();
     });
 
-    test("should require base URL for custom provider", async ({
-      providersPage,
-    }) => {
+    test("should require base URL for custom provider", async ({ providersPage }) => {
       await providersPage.openCustomProviderSheet();
 
       // Fill only name
@@ -313,9 +285,7 @@ test.describe("Provider Key Management", () => {
         }
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
-        console.error(
-          `[CLEANUP ERROR] Failed to delete provider key ${keyName}: ${errorMsg}`,
-        );
+        console.error(`[CLEANUP ERROR] Failed to delete provider key ${keyName}: ${errorMsg}`);
       }
     }
     managementKeys.length = 0;
@@ -387,23 +357,19 @@ test.describe("Provider Key Management", () => {
     // Toggle to disabled
     await providersPage.toggleKeyEnabled(keyData.name);
     await expect
-        .poll(async () => providersPage.getKeyEnabledState(keyData.name), {
-            timeout: 10000,
-        })
+      .poll(async () => providersPage.getKeyEnabledState(keyData.name), {
+        timeout: 10000,
+      })
       .toBe(false);
     isEnabled = await providersPage.getKeyEnabledState(keyData.name);
     expect(isEnabled).toBe(false);
   });
 
-  test("should display Allowed Models field when adding a key", async ({
-    providersPage,
-  }) => {
+  test("should display Allowed Models field when adding a key", async ({ providersPage }) => {
     await providersPage.addKeyBtn.click();
     await expect(providersPage.keyForm).toBeVisible();
 
-    const allowedModels = providersPage.page.getByTestId(
-      "api-keys-models-multiselect",
-    );
+    const allowedModels = providersPage.page.getByTestId("api-keys-models-multiselect");
     await expect(allowedModels).toBeVisible();
 
     // "All Models" should be selected by default
@@ -412,15 +378,11 @@ test.describe("Provider Key Management", () => {
     await providersPage.keyCancelBtn.click();
   });
 
-  test("should display Blocked Models field when adding a key", async ({
-    providersPage,
-  }) => {
+  test("should display Blocked Models field when adding a key", async ({ providersPage }) => {
     await providersPage.addKeyBtn.click();
     await expect(providersPage.keyForm).toBeVisible();
 
-    const blockedModelsField = providersPage.page.getByTestId(
-      "apikey-blacklisted-models-field",
-    );
+    const blockedModelsField = providersPage.page.getByTestId("apikey-blacklisted-models-field");
     await expect(blockedModelsField).toBeVisible();
 
     const blockedModelsMultiselect = providersPage.page.getByTestId(
@@ -472,18 +434,12 @@ test.describe("Performance Tuning", () => {
     await expect(providersPage.getBufferSizeInput()).toBeVisible();
   });
 
-  test("should display raw request/response toggles", async ({
-    providersPage,
-  }) => {
+  test("should display raw request/response toggles", async ({ providersPage }) => {
     await providersPage.selectConfigTab("debugging");
 
     // Should see raw request and response toggles (Debugging tab labels)
-    const rawRequestLabel = providersPage.page.getByText(
-      "Send Back Raw Request",
-    );
-    const rawResponseLabel = providersPage.page.getByText(
-      "Send Back Raw Response",
-    );
+    const rawRequestLabel = providersPage.page.getByText("Send Back Raw Request");
+    const rawResponseLabel = providersPage.page.getByText("Send Back Raw Response");
 
     await expect(rawRequestLabel).toBeVisible();
     await expect(rawResponseLabel).toBeVisible();
@@ -506,16 +462,12 @@ test.describe("Performance Tuning", () => {
     // Blur the input
     await concurrencyInput.blur();
     // No validation error should appear
-    await expect(
-      providersPage.page.getByText("Concurrency must be a number"),
-    ).not.toBeVisible();
+    await expect(providersPage.page.getByText("Concurrency must be a number")).not.toBeVisible();
     await expect(
       providersPage.page.getByText("Concurrency must be greater than 0"),
     ).not.toBeVisible();
     await expect(
-      providersPage.page.getByText(
-        "Concurrency must be less than or equal to buffer size",
-      ),
+      providersPage.page.getByText("Concurrency must be less than or equal to buffer size"),
     ).not.toBeVisible();
 
     // Save and verify success
@@ -553,16 +505,12 @@ test.describe("Performance Tuning", () => {
     await bufferSizeInput.blur();
 
     // No validation error should appear
-    await expect(
-      providersPage.page.getByText("Buffer size must be a number"),
-    ).not.toBeVisible();
+    await expect(providersPage.page.getByText("Buffer size must be a number")).not.toBeVisible();
     await expect(
       providersPage.page.getByText("Buffer size must be greater than 0"),
     ).not.toBeVisible();
     await expect(
-      providersPage.page.getByText(
-        "Concurrency must be less than or equal to buffer size",
-      ),
+      providersPage.page.getByText("Concurrency must be less than or equal to buffer size"),
     ).not.toBeVisible();
 
     // Save and verify success
@@ -577,19 +525,15 @@ test.describe("Performance Tuning", () => {
     await providersPage.savePerformanceConfig();
   });
 
-  test("should toggle and save raw request/response", async ({
-    providersPage,
-  }) => {
+  test("should toggle and save raw request/response", async ({ providersPage }) => {
     await providersPage.selectConfigTab("debugging");
 
     const rawRequestSwitch = providersPage.getRawRequestSwitch();
     const rawResponseSwitch = providersPage.getRawResponseSwitch();
 
     // Capture original states
-    const originalRawRequest =
-      (await rawRequestSwitch.getAttribute("data-state")) === "checked";
-    const originalRawResponse =
-      (await rawResponseSwitch.getAttribute("data-state")) === "checked";
+    const originalRawRequest = (await rawRequestSwitch.getAttribute("data-state")) === "checked";
+    const originalRawResponse = (await rawResponseSwitch.getAttribute("data-state")) === "checked";
 
     // Toggle both switches
     await rawRequestSwitch.click();
@@ -601,10 +545,8 @@ test.describe("Performance Tuning", () => {
     await providersPage.saveDebuggingConfig();
 
     // Restore original states
-    const currentRawRequest =
-      (await rawRequestSwitch.getAttribute("data-state")) === "checked";
-    const currentRawResponse =
-      (await rawResponseSwitch.getAttribute("data-state")) === "checked";
+    const currentRawRequest = (await rawRequestSwitch.getAttribute("data-state")) === "checked";
+    const currentRawResponse = (await rawResponseSwitch.getAttribute("data-state")) === "checked";
 
     if (currentRawRequest !== originalRawRequest) {
       await rawRequestSwitch.click();
@@ -639,23 +581,15 @@ test.describe("Proxy Configuration", () => {
     await proxySelect.click();
 
     // Should see HTTP, SOCKS5, Environment options
-    await expect(
-      providersPage.page.getByRole("option", { name: /HTTP/i }),
-    ).toBeVisible();
-    await expect(
-      providersPage.page.getByRole("option", { name: /SOCKS5/i }),
-    ).toBeVisible();
-    await expect(
-      providersPage.page.getByRole("option", { name: /Environment/i }),
-    ).toBeVisible();
+    await expect(providersPage.page.getByRole("option", { name: /HTTP/i })).toBeVisible();
+    await expect(providersPage.page.getByRole("option", { name: /SOCKS5/i })).toBeVisible();
+    await expect(providersPage.page.getByRole("option", { name: /Environment/i })).toBeVisible();
 
     // Close dropdown
     await providersPage.page.keyboard.press("Escape");
   });
 
-  test("should show URL fields when HTTP proxy selected", async ({
-    providersPage,
-  }) => {
+  test("should show URL fields when HTTP proxy selected", async ({ providersPage }) => {
     await providersPage.selectConfigTab("proxy");
 
     // Select HTTP proxy type
@@ -680,9 +614,7 @@ test.describe("Network Configuration", () => {
     await providersPage.selectConfigTab("network");
 
     // Should see timeout and retry settings
-    await expect(
-      providersPage.page.getByLabel("Timeout (seconds)", { exact: true }),
-    ).toBeVisible();
+    await expect(providersPage.page.getByLabel("Timeout (seconds)", { exact: true })).toBeVisible();
     await expect(providersPage.page.getByLabel(/Max Retries/i)).toBeVisible();
   });
 
@@ -690,9 +622,7 @@ test.describe("Network Configuration", () => {
     await providersPage.selectConfigTab("network");
 
     // Should see backoff configuration
-    await expect(
-      providersPage.page.getByLabel(/Initial Backoff/i),
-    ).toBeVisible();
+    await expect(providersPage.page.getByLabel(/Initial Backoff/i)).toBeVisible();
     await expect(providersPage.page.getByLabel(/Max Backoff/i)).toBeVisible();
   });
 
@@ -782,9 +712,7 @@ test.describe("Governance (Budget & Rate Limits)", () => {
       await providersPage.selectConfigTab("governance");
 
       // Should see budget configuration section
-      await expect(
-        providersPage.page.getByText("Budget Configuration"),
-      ).toBeVisible();
+      await expect(providersPage.page.getByText("Budget Configuration")).toBeVisible();
     }
   });
 
@@ -797,31 +725,23 @@ test.describe("Governance (Budget & Rate Limits)", () => {
       });
 
       // Should see budget limit input
-      const budgetInput = providersPage.page.getByTestId(
-        "provider-governance-budgets-amount-0",
-      );
+      const budgetInput = providersPage.page.getByTestId("provider-governance-budgets-amount-0");
       await expect(budgetInput).toBeVisible();
     }
   });
 
-  test("should display rate limiting configuration", async ({
-    providersPage,
-  }) => {
+  test("should display rate limiting configuration", async ({ providersPage }) => {
     const isVisible = await providersPage.isGovernanceTabVisible();
 
     if (isVisible) {
       await providersPage.selectConfigTab("governance");
 
       // Should see rate limiting section
-      await expect(
-        providersPage.page.getByText("Rate Limiting Configuration"),
-      ).toBeVisible();
+      await expect(providersPage.page.getByText("Rate Limiting Configuration")).toBeVisible();
 
       // Should see token and request limit inputs
       const tokenInput = providersPage.page.locator("#providerTokenMaxLimit");
-      const requestInput = providersPage.page.locator(
-        "#providerRequestMaxLimit",
-      );
+      const requestInput = providersPage.page.locator("#providerRequestMaxLimit");
 
       await expect(tokenInput).toBeVisible();
       await expect(requestInput).toBeVisible();
@@ -836,9 +756,7 @@ test.describe("Governance (Budget & Rate Limits)", () => {
         budgets: [{ amount: 100, resetPeriod: "1h" }],
       });
 
-      const budgetInput = providersPage.page.getByTestId(
-        "provider-governance-budgets-amount-0",
-      );
+      const budgetInput = providersPage.page.getByTestId("provider-governance-budgets-amount-0");
 
       // Verify value
       const value = await budgetInput.inputValue();
@@ -865,9 +783,7 @@ test.describe("Governance (Budget & Rate Limits)", () => {
       await tokenInput.pressSequentially("100000");
 
       // Set request limit
-      const requestInput = providersPage.page.locator(
-        "#providerRequestMaxLimit",
-      );
+      const requestInput = providersPage.page.locator("#providerRequestMaxLimit");
       await requestInput.click();
       await requestInput.fill("");
       await requestInput.pressSequentially("1000");
@@ -887,22 +803,16 @@ test.describe("Debugging Tab", () => {
 
   test("should display debugging tab", async ({ providersPage }) => {
     await providersPage.openConfigSheet();
-    const debuggingTab = providersPage.page.getByTestId(
-      "provider-tab-debugging",
-    );
+    const debuggingTab = providersPage.page.getByTestId("provider-tab-debugging");
     await expect(debuggingTab).toBeVisible();
   });
 
   test("should navigate to debugging tab", async ({ providersPage }) => {
     await providersPage.selectConfigTab("debugging");
 
-    const debuggingTab = providersPage.page.getByTestId(
-      "provider-tab-debugging",
-    );
+    const debuggingTab = providersPage.page.getByTestId("provider-tab-debugging");
     await expect(debuggingTab).toHaveAttribute("data-state", "active");
-    const debuggingContent = providersPage.page.getByTestId(
-      "provider-config-debugging-content",
-    );
+    const debuggingContent = providersPage.page.getByTestId("provider-config-debugging-content");
     await expect(debuggingContent).toBeVisible();
   });
 });
@@ -925,18 +835,13 @@ test.describe("Provider specific configuration", () => {
     await providersPage.addKeyBtn.click();
 
     const vllmUrlInput = providersPage.page.getByTestId("key-input-vllm-url");
-    const vllmModelInput = providersPage.page.getByTestId(
-      "key-input-vllm-model-name",
-    );
+    const vllmModelInput = providersPage.page.getByTestId("key-input-vllm-model-name");
 
     const urlVisible = await vllmUrlInput.isVisible().catch(() => false);
     const modelVisible = await vllmModelInput.isVisible().catch(() => false);
 
     if (!urlVisible && !modelVisible) {
-      test.skip(
-        true,
-        "vLLM key form fields not shown (provider may use standard key form)",
-      );
+      test.skip(true, "vLLM key form fields not shown (provider may use standard key form)");
       return;
     }
     await expect(vllmUrlInput).toBeVisible();
@@ -950,10 +855,7 @@ test.describe("Provider specific configuration", () => {
   }) => {
     const available = await providersPage.providerExists("ollama");
     if (!available) {
-      test.skip(
-        true,
-        "Ollama provider not in sidebar (add from dropdown first)",
-      );
+      test.skip(true, "Ollama provider not in sidebar (add from dropdown first)");
       return;
     }
 
@@ -976,10 +878,7 @@ test.describe("Provider specific configuration", () => {
   }) => {
     const available = await providersPage.providerExists("sgl");
     if (!available) {
-      test.skip(
-        true,
-        "SGLang provider not in sidebar (add from dropdown first)",
-      );
+      test.skip(true, "SGLang provider not in sidebar (add from dropdown first)");
       return;
     }
 

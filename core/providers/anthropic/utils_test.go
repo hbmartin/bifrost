@@ -959,8 +959,8 @@ func TestAddMissingBetaHeadersToContext_PerProvider(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := schemas.NewBifrostContext(nil, time.Time{})
-			AddMissingBetaHeadersToContext(ctx, tt.req, tt.provider)
+			ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
+			_ = AddMissingBetaHeadersToContext(ctx, tt.req, tt.provider)
 
 			var headers []string
 			if extraHeaders, ok := ctx.Value(schemas.BifrostContextKeyExtraHeaders).(map[string][]string); ok {
@@ -994,7 +994,7 @@ func TestAddMissingBetaHeadersToContext_PerProvider(t *testing.T) {
 func TestAddMissingBetaHeadersToContext_PassthroughWins(t *testing.T) {
 	// When a same-prefix header is already set from passthrough, auto-injection should NOT add a second version.
 	t.Run("passthrough_mcp_header_prevents_auto_inject", func(t *testing.T) {
-		ctx := schemas.NewBifrostContext(nil, time.Time{})
+		ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 		// Simulate passthrough setting an old MCP header
 		ctx.SetValue(schemas.BifrostContextKeyExtraHeaders, map[string][]string{
 			"anthropic-beta": {AnthropicMCPClientBetaHeaderDeprecated},
@@ -1003,7 +1003,7 @@ func TestAddMissingBetaHeadersToContext_PassthroughWins(t *testing.T) {
 		req := &AnthropicMessageRequest{
 			MCPServers: []AnthropicMCPServerV2{{URL: "http://example.com"}},
 		}
-		AddMissingBetaHeadersToContext(ctx, req, schemas.Anthropic)
+		_ = AddMissingBetaHeadersToContext(ctx, req, schemas.Anthropic)
 
 		extraHeaders := ctx.Value(schemas.BifrostContextKeyExtraHeaders).(map[string][]string)
 		betaHeaders := extraHeaders[AnthropicBetaHeader]
@@ -1028,7 +1028,7 @@ func TestAddMissingBetaHeadersToContext_PassthroughWins(t *testing.T) {
 				Name: string(AnthropicToolNameComputer),
 			}},
 		}
-		AddMissingBetaHeadersToContext(ctx, req, schemas.Anthropic)
+		_ = AddMissingBetaHeadersToContext(ctx, req, schemas.Anthropic)
 
 		extraHeaders := ctx.Value(schemas.BifrostContextKeyExtraHeaders).(map[string][]string)
 		betaHeaders := extraHeaders[AnthropicBetaHeader]
@@ -1045,7 +1045,7 @@ func TestAddMissingBetaHeadersToContext_PassthroughWins(t *testing.T) {
 		req := &AnthropicMessageRequest{
 			MCPServers: []AnthropicMCPServerV2{{URL: "http://example.com"}},
 		}
-		AddMissingBetaHeadersToContext(ctx, req, schemas.Anthropic)
+		_ = AddMissingBetaHeadersToContext(ctx, req, schemas.Anthropic)
 
 		extraHeaders := ctx.Value(schemas.BifrostContextKeyExtraHeaders).(map[string][]string)
 		betaHeaders := extraHeaders[AnthropicBetaHeader]
@@ -2343,7 +2343,7 @@ func TestAddMissingBetaHeadersToContext_ServerSideFallback(t *testing.T) {
 		req := &AnthropicMessageRequest{
 			Fallbacks: &AnthropicFallbacks{Entries: []AnthropicFallbackEntry{{Native: &AnthropicNativeFallback{Model: "claude-opus-4-8"}}}},
 		}
-		AddMissingBetaHeadersToContext(ctx, req, schemas.Anthropic)
+		_ = AddMissingBetaHeadersToContext(ctx, req, schemas.Anthropic)
 		extraHeaders, _ := ctx.Value(schemas.BifrostContextKeyExtraHeaders).(map[string][]string)
 		if !slices.Contains(extraHeaders[AnthropicBetaHeader], AnthropicServerSideFallbackBetaHeader) {
 			t.Errorf("expected %q, got %v", AnthropicServerSideFallbackBetaHeader, extraHeaders[AnthropicBetaHeader])
@@ -2355,7 +2355,7 @@ func TestAddMissingBetaHeadersToContext_ServerSideFallback(t *testing.T) {
 		req := &AnthropicMessageRequest{
 			Fallbacks: &AnthropicFallbacks{Entries: []AnthropicFallbackEntry{{Native: &AnthropicNativeFallback{Model: "claude-opus-4-8"}}}},
 		}
-		AddMissingBetaHeadersToContext(ctx, req, schemas.Vertex)
+		_ = AddMissingBetaHeadersToContext(ctx, req, schemas.Vertex)
 		extraHeaders, _ := ctx.Value(schemas.BifrostContextKeyExtraHeaders).(map[string][]string)
 		if slices.Contains(extraHeaders[AnthropicBetaHeader], AnthropicServerSideFallbackBetaHeader) {
 			t.Errorf("did not expect server-side-fallback header on Vertex, got %v", extraHeaders[AnthropicBetaHeader])
@@ -2367,7 +2367,7 @@ func TestAddMissingBetaHeadersToContext_ServerSideFallback(t *testing.T) {
 		req := &AnthropicMessageRequest{
 			Fallbacks: &AnthropicFallbacks{Entries: []AnthropicFallbackEntry{{BifrostModel: "openai/gpt-4o"}}},
 		}
-		AddMissingBetaHeadersToContext(ctx, req, schemas.Anthropic)
+		_ = AddMissingBetaHeadersToContext(ctx, req, schemas.Anthropic)
 		extraHeaders, _ := ctx.Value(schemas.BifrostContextKeyExtraHeaders).(map[string][]string)
 		if slices.Contains(extraHeaders[AnthropicBetaHeader], AnthropicServerSideFallbackBetaHeader) {
 			t.Errorf("did not expect server-side-fallback header for bifrost fallbacks, got %v", extraHeaders[AnthropicBetaHeader])
@@ -3113,7 +3113,7 @@ func TestAddMissingBetaHeadersToContext_TaskBudgets(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
-			AddMissingBetaHeadersToContext(ctx, tt.req, tt.provider)
+			_ = AddMissingBetaHeadersToContext(ctx, tt.req, tt.provider)
 
 			var headers []string
 			if extraHeaders, ok := ctx.Value(schemas.BifrostContextKeyExtraHeaders).(map[string][]string); ok {
@@ -3187,7 +3187,7 @@ func TestAddMissingBetaHeadersToContext_CacheDiagnostics(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
-			AddMissingBetaHeadersToContext(ctx, tt.req, tt.provider)
+			_ = AddMissingBetaHeadersToContext(ctx, tt.req, tt.provider)
 
 			var headers []string
 			if extraHeaders, ok := ctx.Value(schemas.BifrostContextKeyExtraHeaders).(map[string][]string); ok {
@@ -3803,7 +3803,7 @@ func TestStripEmptyThinkingBlocks(t *testing.T) {
 // message_delta — that end-to-end billing contract is covered by
 // TestResponsesStream_TerminalChunkCarriesServedModifiers.
 func TestFastMode_StreamingForwardsSpeed(t *testing.T) {
-	ctx := schemas.NewBifrostContext(nil, time.Time{})
+	ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
 	ctx.SetValue(schemas.BifrostContextKeyIntegrationType, "anthropic")
 	state := AcquireAnthropicResponsesStreamState()
 	defer ReleaseAnthropicResponsesStreamState(state)

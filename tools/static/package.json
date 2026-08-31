@@ -1,0 +1,14 @@
+{
+  "name": "bifrost-static-tools",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Pinned repository-wide JavaScript, TypeScript, and documentation checks",
+  "dependencies": {
+    "@mintlify/cli": "4.0.1438",
+    "oxfmt": "0.45.0",
+    "oxlint": "1.60.0",
+    "remark-cli": "12.0.1",
+    "remark-mdx": "3.1.1",
+    "remark-preset-lint-recommended": "7.0.1"
+  }
+}

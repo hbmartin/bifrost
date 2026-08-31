@@ -55,7 +55,7 @@ func http_intercept(inputPtr, inputLen uint32) uint64 {
 	output := HTTPInterceptOutput{
 		Context:     input.Context,
 		Request:     input.Request,
-		HasResponse: false,		
+		HasResponse: false,
 		Error:       "",
 	}
 
@@ -96,7 +96,7 @@ func pre_hook(inputPtr, inputLen uint32) uint64 {
 		Error:           "",
 	}
 
-	data, _ := json.Marshal(output)
+	data, _ := json.Marshal(output) //nolint:staticcheck // ShortCircuit is nil here; WASM plugins cannot return native stream channels.
 	return writeBytes(data)
 }
 
@@ -196,7 +196,7 @@ func writePreHookError(msg string) uint64 {
 		HasShortCircuit: false,
 		Error:           msg,
 	}
-	data, _ := json.Marshal(output)
+	data, _ := json.Marshal(output) //nolint:staticcheck // ShortCircuit is nil here; WASM plugins cannot return native stream channels.
 	return writeBytes(data)
 }
 

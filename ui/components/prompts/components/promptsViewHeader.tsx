@@ -11,7 +11,7 @@ import { ModelParams, PromptSession } from "@/lib/types/prompts";
 import { cn } from "@/lib/utils";
 import { Check, GitCommit, PencilIcon, Save, Trash2 } from "lucide-react";
 import { parseAsInteger, useQueryStates } from "nuqs";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import { toast } from "sonner";
 import { usePromptContext } from "../context";
@@ -29,7 +29,6 @@ export default function PromptsViewHeader() {
 		variables,
 		hasChanges,
 		hasVersionChanges,
-		hasSessionChanges,
 		isStreaming,
 		canUpdate,
 	} = usePromptContext();
@@ -52,15 +51,19 @@ export default function PromptsViewHeader() {
 	);
 
 	// Fetch versions and sessions for selected prompt
-	const { data: versionsData } = useGetVersionsQuery(selectedPrompt?.id ?? "", { skip: !selectedPrompt?.id });
-	const { data: sessionsData } = useGetSessionsQuery(selectedPrompt?.id ?? "", { skip: !selectedPrompt?.id });
+	const { data: versionsData } = useGetVersionsQuery(selectedPrompt?.id ?? "", {
+		skip: !selectedPrompt?.id,
+	});
+	const { data: sessionsData } = useGetSessionsQuery(selectedPrompt?.id ?? "", {
+		skip: !selectedPrompt?.id,
+	});
 
 	// Mutations
 	const [createSession, { isLoading: isCreatingSession }] = useCreateSessionMutation();
 	const [renameSession] = useRenameSessionMutation();
 
-	const versions = versionsData?.versions ?? [];
-	const sessions = sessionsData?.sessions ?? [];
+	const versions = useMemo(() => versionsData?.versions ?? [], [versionsData?.versions]);
+	const sessions = useMemo(() => sessionsData?.sessions ?? [], [sessionsData?.sessions]);
 
 	const handleSelectVersion = useCallback(
 		(versionId: number) => {
@@ -96,7 +99,7 @@ export default function PromptsViewHeader() {
 		} catch (err) {
 			toast.error("Failed to save session", { description: getErrorMessage(err) });
 		}
-	}, [selectedPrompt?.id, messages, buildSaveParams, provider, model, variables, createSession, setUrlState, hasChanges, isStreaming]);
+	}, [selectedPrompt, messages, buildSaveParams, provider, model, variables, createSession, setUrlState, hasChanges, isStreaming]);
 
 	// Cmd+S / Ctrl+S to save session
 	useHotkeys(
@@ -136,18 +139,35 @@ export default function PromptsViewHeader() {
 		} catch (err) {
 			toast.error("Failed to save session", { description: getErrorMessage(err) });
 		}
-	}, [selectedPrompt?.id, messages, buildSaveParams, provider, model, variables, createSession, setUrlState, onSessionSaved, hasChanges]);
+	}, [
+		selectedPrompt,
+		selectedSessionId,
+		sessions,
+		messages,
+		buildSaveParams,
+		provider,
+		model,
+		variables,
+		createSession,
+		setUrlState,
+		onSessionSaved,
+		hasChanges,
+	]);
 
 	const handleRenameSession = useCallback(
 		async (sessionId: number, name: string) => {
 			if (!selectedPrompt) return;
 			try {
-				await renameSession({ id: sessionId, promptId: selectedPrompt.id, data: { name } }).unwrap();
+				await renameSession({
+					id: sessionId,
+					promptId: selectedPrompt.id,
+					data: { name },
+				}).unwrap();
 			} catch (err) {
 				toast.error("Failed to rename session", { description: getErrorMessage(err) });
 			}
 		},
-		[selectedPrompt?.id, renameSession],
+		[selectedPrompt, renameSession],
 	);
 
 	const handleClearConversation = useCallback(() => {
@@ -157,7 +177,7 @@ export default function PromptsViewHeader() {
 		} else {
 			onMessagesChange([Message.system("")]);
 		}
-	}, [messages]);
+	}, [messages, onMessagesChange]);
 
 	const selectedVersion = versions.find((v) => v.id === selectedVersionId);
 	const latestVersion = versions.find((v) => v.is_latest);

@@ -66,7 +66,7 @@ func TestPasswordCommandOpensRealPostgresConnections(t *testing.T) {
 		require.NoError(t, err)
 		sqlDB, err := db.DB()
 		require.NoError(t, err)
-		defer sqlDB.Close()
+		defer func() { _ = sqlDB.Close() }()
 
 		// No idle connections: every query below opens a fresh physical connection.
 		sqlDB.SetMaxOpenConns(1)
@@ -91,7 +91,7 @@ func TestPasswordCommandOpensRealPostgresConnections(t *testing.T) {
 		require.NoError(t, err)
 		sqlDB, err := db.DB()
 		require.NoError(t, err)
-		defer sqlDB.Close()
+		defer func() { _ = sqlDB.Close() }()
 
 		sqlDB.SetMaxOpenConns(1)
 		sqlDB.SetMaxIdleConns(0)

@@ -318,7 +318,7 @@ func attemptProvider(extra schemas.BifrostResponseExtraFields) schemas.ModelProv
 	if extra.RoutingInfo.Provider != "" {
 		return extra.RoutingInfo.Provider
 	}
-	return extra.Provider //nolint:staticcheck // SA1019: deliberate fallback, see above
+	return extra.Provider
 }
 
 // markReasoningPayloadSent records that key's encrypted reasoning payload already
@@ -5226,7 +5226,7 @@ func ConvertBifrostMessagesToAnthropicMessages(ctx *schemas.BifrostContext, bifr
 			if len(pendingReasoningContentBlocks) > 0 {
 				copied := make([]AnthropicContentBlock, len(pendingReasoningContentBlocks))
 				copy(copied, pendingReasoningContentBlocks)
-				pendingToolCalls = append(copied, pendingToolCalls...)
+				pendingToolCalls = append(copied, pendingToolCalls...) //nolint:makezero // copied is an intentional reasoning-block prefix.
 				pendingReasoningContentBlocks = nil
 			}
 
@@ -5320,7 +5320,7 @@ func ConvertBifrostMessagesToAnthropicMessages(ctx *schemas.BifrostContext, bifr
 			if len(pendingReasoningContentBlocks) > 0 {
 				copied := make([]AnthropicContentBlock, len(pendingReasoningContentBlocks))
 				copy(copied, pendingReasoningContentBlocks)
-				pendingToolCalls = append(copied, pendingToolCalls...)
+				pendingToolCalls = append(copied, pendingToolCalls...) //nolint:makezero // copied is an intentional reasoning-block prefix.
 				pendingReasoningContentBlocks = nil
 			}
 
@@ -5355,7 +5355,7 @@ func ConvertBifrostMessagesToAnthropicMessages(ctx *schemas.BifrostContext, bifr
 					if len(pendingReasoningContentBlocks) > 0 {
 						copied := make([]AnthropicContentBlock, len(pendingReasoningContentBlocks))
 						copy(copied, pendingReasoningContentBlocks)
-						pendingToolCalls = append(copied, pendingToolCalls...)
+						pendingToolCalls = append(copied, pendingToolCalls...) //nolint:makezero // copied is an intentional reasoning-block prefix.
 						pendingReasoningContentBlocks = nil
 					}
 
@@ -5397,7 +5397,7 @@ func ConvertBifrostMessagesToAnthropicMessages(ctx *schemas.BifrostContext, bifr
 			if len(pendingReasoningContentBlocks) > 0 {
 				copied := make([]AnthropicContentBlock, len(pendingReasoningContentBlocks))
 				copy(copied, pendingReasoningContentBlocks)
-				pendingToolCalls = append(copied, pendingToolCalls...)
+				pendingToolCalls = append(copied, pendingToolCalls...) //nolint:makezero // copied is an intentional reasoning-block prefix.
 				pendingReasoningContentBlocks = nil
 			}
 
@@ -5433,7 +5433,7 @@ func ConvertBifrostMessagesToAnthropicMessages(ctx *schemas.BifrostContext, bifr
 				if len(pendingReasoningContentBlocks) > 0 {
 					copied := make([]AnthropicContentBlock, len(pendingReasoningContentBlocks))
 					copy(copied, pendingReasoningContentBlocks)
-					pendingToolCalls = append(copied, pendingToolCalls...)
+					pendingToolCalls = append(copied, pendingToolCalls...) //nolint:makezero // copied is an intentional reasoning-block prefix.
 					pendingReasoningContentBlocks = nil
 				}
 
@@ -5463,7 +5463,7 @@ func ConvertBifrostMessagesToAnthropicMessages(ctx *schemas.BifrostContext, bifr
 				if len(pendingReasoningContentBlocks) > 0 {
 					copied := make([]AnthropicContentBlock, len(pendingReasoningContentBlocks))
 					copy(copied, pendingReasoningContentBlocks)
-					pendingToolCalls = append(copied, pendingToolCalls...)
+					pendingToolCalls = append(copied, pendingToolCalls...) //nolint:makezero // copied is an intentional reasoning-block prefix.
 					pendingReasoningContentBlocks = nil
 				}
 				pendingToolCalls = append(pendingToolCalls, advisorBlocks...)
@@ -5490,7 +5490,7 @@ func ConvertBifrostMessagesToAnthropicMessages(ctx *schemas.BifrostContext, bifr
 				if len(pendingReasoningContentBlocks) > 0 {
 					copied := make([]AnthropicContentBlock, len(pendingReasoningContentBlocks))
 					copy(copied, pendingReasoningContentBlocks)
-					pendingToolCalls = append(copied, pendingToolCalls...)
+					pendingToolCalls = append(copied, pendingToolCalls...) //nolint:makezero // copied is an intentional reasoning-block prefix.
 					pendingReasoningContentBlocks = nil
 				}
 				pendingToolCalls = append(pendingToolCalls, toolSearchBlocks...)
@@ -5516,7 +5516,7 @@ func ConvertBifrostMessagesToAnthropicMessages(ctx *schemas.BifrostContext, bifr
 				if len(pendingReasoningContentBlocks) > 0 {
 					copied := make([]AnthropicContentBlock, len(pendingReasoningContentBlocks))
 					copy(copied, pendingReasoningContentBlocks)
-					pendingToolCalls = append(copied, pendingToolCalls...)
+					pendingToolCalls = append(copied, pendingToolCalls...) //nolint:makezero // copied is an intentional reasoning-block prefix.
 					pendingReasoningContentBlocks = nil
 				}
 				pendingToolCalls = append(pendingToolCalls, codeExecBlocks...)
@@ -5540,7 +5540,7 @@ func ConvertBifrostMessagesToAnthropicMessages(ctx *schemas.BifrostContext, bifr
 				if len(pendingReasoningContentBlocks) > 0 {
 					copied := make([]AnthropicContentBlock, len(pendingReasoningContentBlocks))
 					copy(copied, pendingReasoningContentBlocks)
-					pendingToolCalls = append(copied, pendingToolCalls...)
+					pendingToolCalls = append(copied, pendingToolCalls...) //nolint:makezero // copied is an intentional reasoning-block prefix.
 					pendingReasoningContentBlocks = nil
 				}
 				pendingToolCalls = append(pendingToolCalls, webFetchBlocks...)
@@ -7119,25 +7119,6 @@ func convertBifrostMCPCallToAnthropicToolUse(msg *schemas.ResponsesMessage) *Ant
 	return nil
 }
 
-// convertBifrostMCPCallOutputToAnthropicMessage converts a Bifrost MCP call output to Anthropic message
-func convertBifrostMCPCallOutputToAnthropicMessage(msg *schemas.ResponsesMessage) *AnthropicMessage {
-	toolResultBlock := AnthropicContentBlock{
-		Type: AnthropicContentBlockTypeMCPToolResult,
-		ID:   providerUtils.SanitizeAnthropicToolUseIDPtr(msg.ResponsesToolMessage.CallID),
-	}
-
-	if msg.ResponsesToolMessage.Output != nil {
-		toolResultBlock.Content = convertToolOutputToAnthropicContent(msg.ResponsesToolMessage.Output)
-	}
-
-	return &AnthropicMessage{
-		Role: AnthropicMessageRoleUser,
-		Content: AnthropicContent{
-			ContentBlocks: []AnthropicContentBlock{toolResultBlock},
-		},
-	}
-}
-
 // convertBifrostMCPApprovalToAnthropicToolUse converts a Bifrost MCP approval request to Anthropic tool use
 func convertBifrostMCPApprovalToAnthropicToolUse(msg *schemas.ResponsesMessage) *AnthropicContentBlock {
 	if msg.ResponsesToolMessage != nil && msg.ResponsesToolMessage.Name != nil {
@@ -7857,28 +7838,6 @@ func convertBifrostUnsupportedToolCallToAnthropicMessage(msg *schemas.ResponsesM
 	return nil
 }
 
-// convertBifrostComputerCallOutputToAnthropicMessage converts a Bifrost computer call output to Anthropic message
-func convertBifrostComputerCallOutputToAnthropicMessage(msg *schemas.ResponsesMessage) *AnthropicMessage {
-	if msg.ResponsesToolMessage != nil {
-		toolResultBlock := AnthropicContentBlock{
-			Type:      AnthropicContentBlockTypeToolResult,
-			ToolUseID: providerUtils.SanitizeAnthropicToolUseIDPtr(msg.ResponsesToolMessage.CallID),
-		}
-
-		if msg.ResponsesToolMessage.Output != nil {
-			toolResultBlock.Content = convertToolOutputToAnthropicContent(msg.ResponsesToolMessage.Output)
-		}
-
-		return &AnthropicMessage{
-			Role: AnthropicMessageRoleUser,
-			Content: AnthropicContent{
-				ContentBlocks: []AnthropicContentBlock{toolResultBlock},
-			},
-		}
-	}
-	return nil
-}
-
 // convertBifrostToolOutputToAnthropicMessage converts tool outputs to user messages
 func convertBifrostToolOutputToAnthropicMessage(msg *schemas.ResponsesMessage) *AnthropicMessage {
 	if msg.ResponsesToolMessage != nil {
@@ -8108,27 +8067,6 @@ func convertAnthropicToolChoiceToBifrost(toolChoice *AnthropicToolChoice) *schem
 	}
 
 	return bifrostToolChoice
-}
-
-// flushPendingContentBlocks is a helper that flushes accumulated content blocks into an assistant message
-func flushPendingContentBlocks(
-	pendingContentBlocks []AnthropicContentBlock,
-	currentAssistantMessage *AnthropicMessage,
-	anthropicMessages []AnthropicMessage,
-) ([]AnthropicContentBlock, *AnthropicMessage, []AnthropicMessage) {
-	if len(pendingContentBlocks) > 0 && currentAssistantMessage != nil {
-		// Copy the slice to avoid aliasing issues
-		copied := make([]AnthropicContentBlock, len(pendingContentBlocks))
-		copy(copied, pendingContentBlocks)
-		currentAssistantMessage.Content = AnthropicContent{
-			ContentBlocks: copied,
-		}
-		anthropicMessages = append(anthropicMessages, *currentAssistantMessage)
-		// Return nil values to indicate flushed state
-		return nil, nil, anthropicMessages
-	}
-	// Return unchanged values if no flush was needed
-	return pendingContentBlocks, currentAssistantMessage, anthropicMessages
 }
 
 // convertToolOutputToAnthropicContent converts tool output to Anthropic content format
@@ -8842,39 +8780,6 @@ func applyMCPToolsetConfigToBifrostTool(bifrostTool *schemas.ResponsesTool, tool
 	}
 }
 
-// convertAnthropicMCPServerToBifrostTool converts a deprecated-format Anthropic MCP server to a Bifrost ResponsesTool.
-func convertAnthropicMCPServerToBifrostTool(mcpServer *AnthropicMCPServer) *schemas.ResponsesTool {
-	if mcpServer == nil {
-		return nil
-	}
-
-	bifrostTool := &schemas.ResponsesTool{
-		Type: schemas.ResponsesToolTypeMCP,
-		ResponsesToolMCP: &schemas.ResponsesToolMCP{
-			ServerLabel: mcpServer.Name,
-		},
-	}
-
-	// Set server URL if present
-	if mcpServer.URL != "" {
-		bifrostTool.ResponsesToolMCP.ServerURL = schemas.Ptr(mcpServer.URL)
-	}
-
-	// Set authorization token if present
-	if mcpServer.AuthorizationToken != nil {
-		bifrostTool.ResponsesToolMCP.Authorization = mcpServer.AuthorizationToken
-	}
-
-	// Set allowed tools from tool configuration
-	if mcpServer.ToolConfiguration != nil && len(mcpServer.ToolConfiguration.AllowedTools) > 0 {
-		bifrostTool.ResponsesToolMCP.AllowedTools = &schemas.ResponsesToolMCPAllowedTools{
-			ToolNames: mcpServer.ToolConfiguration.AllowedTools,
-		}
-	}
-
-	return bifrostTool
-}
-
 // convertBifrostMCPToolToAnthropicNew converts a Bifrost MCP tool to the new mcp-client-2025-11-20 format.
 // Returns both a simplified server entry (for mcp_servers[]) and a toolset entry (for tools[]).
 func convertBifrostMCPToolToAnthropicNew(tool *schemas.ResponsesTool) (*AnthropicMCPServerV2, *AnthropicMCPToolsetTool) {
@@ -8914,39 +8819,6 @@ func convertBifrostMCPToolToAnthropicNew(tool *schemas.ResponsesTool) (*Anthropi
 	}
 
 	return server, toolset
-}
-
-// convertBifrostMCPToolToAnthropicServer converts a Bifrost MCP tool to the deprecated mcp-client-2025-04-04 format.
-// Kept for backward compatibility.
-func convertBifrostMCPToolToAnthropicServer(tool *schemas.ResponsesTool) *AnthropicMCPServer {
-	if tool == nil || tool.Type != schemas.ResponsesToolTypeMCP || tool.ResponsesToolMCP == nil {
-		return nil
-	}
-
-	mcpServer := &AnthropicMCPServer{
-		Type: "url",
-		Name: tool.ResponsesToolMCP.ServerLabel,
-		ToolConfiguration: &AnthropicMCPToolConfig{
-			Enabled: true,
-		},
-	}
-
-	// Set server URL if present
-	if tool.ResponsesToolMCP.ServerURL != nil {
-		mcpServer.URL = *tool.ResponsesToolMCP.ServerURL
-	}
-
-	// Set allowed tools if present
-	if tool.ResponsesToolMCP.AllowedTools != nil && len(tool.ResponsesToolMCP.AllowedTools.ToolNames) > 0 {
-		mcpServer.ToolConfiguration.AllowedTools = tool.ResponsesToolMCP.AllowedTools.ToolNames
-	}
-
-	// Set authorization token if present
-	if tool.ResponsesToolMCP.Authorization != nil {
-		mcpServer.AuthorizationToken = tool.ResponsesToolMCP.Authorization
-	}
-
-	return mcpServer
 }
 
 // convertAnthropicCitationToAnnotation converts an Anthropic citation to an OpenAI annotation

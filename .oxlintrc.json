@@ -1,0 +1,33 @@
+{
+  "$schema": "./tools/static/node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "import", "promise", "node"],
+  "categories": {
+    "correctness": "error"
+  },
+  "rules": {
+    "typescript/no-explicit-any": "warn",
+    "typescript/ban-ts-comment": "off",
+    "import/no-cycle": ["error", { "maxDepth": 1 }],
+    "no-unused-vars": [
+      "error",
+      {
+        "argsIgnorePattern": "^_",
+        "caughtErrorsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_"
+      }
+    ],
+    "no-unused-expressions": "error",
+    "no-unsafe-optional-chaining": "error"
+  },
+  "options": {
+    "reportUnusedDisableDirectives": "error"
+  },
+  "ignorePatterns": [
+    "ui/**",
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/build/**",
+    "ui/app/routeTree.gen.ts",
+    "docs/openapi/openapi.json"
+  ]
+}

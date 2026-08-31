@@ -2473,7 +2473,7 @@ func isDumpDeadlock(err error) bool {
 // UPDATE ... FROM (VALUES ...) form the batched writes use. Only PostgreSQL
 // does here; every other dialect takes the per-row fallback.
 func supportsBatchedDump(tx *gorm.DB) bool {
-	return tx.Dialector.Name() == "postgres"
+	return tx.Name() == "postgres"
 }
 
 // dumpRateLimitBatch persists one batch of rate-limit counters, as a single

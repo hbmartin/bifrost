@@ -11,6 +11,7 @@ import (
 
 // RunSimpleChatTest executes the simple chat test scenario using dual API testing framework
 func RunSimpleChatTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.SimpleChat {
 		t.Logf("Simple chat not supported for provider %s", testConfig.Provider)
 		return

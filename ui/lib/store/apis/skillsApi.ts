@@ -20,7 +20,13 @@ export const skillsApi = baseApi.injectEndpoints({
 		// List all skills (paginated)
 		listSkills: builder.query<
 			ListSkillsResponse,
-			{ limit?: number; offset?: number; search?: string; sort_by?: "name" | "updated_at" | "created_at"; order?: "asc" | "desc" } | void
+			{
+				limit?: number;
+				offset?: number;
+				search?: string;
+				sort_by?: "name" | "updated_at" | "created_at";
+				order?: "asc" | "desc";
+			} | void
 		>({
 			query: (params) => {
 				const searchParams = new URLSearchParams();
@@ -80,7 +86,14 @@ export const skillsApi = baseApi.injectEndpoints({
 		// List versions for a skill (paginated)
 		listSkillVersions: builder.query<
 			ListSkillVersionsResponse,
-			{ id: string; limit?: number; offset?: number; search?: string; sort_by?: "version" | "created_at"; order?: "asc" | "desc" }
+			{
+				id: string;
+				limit?: number;
+				offset?: number;
+				search?: string;
+				sort_by?: "version" | "created_at";
+				order?: "asc" | "desc";
+			}
 		>({
 			query: ({ id, ...params }) => {
 				const searchParams = new URLSearchParams();

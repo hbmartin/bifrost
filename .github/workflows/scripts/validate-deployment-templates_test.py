@@ -3,15 +3,14 @@
 
 from __future__ import annotations
 
-import json
 import importlib.util
+import json
 import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
 
 from jsonschema import Draft202012Validator
-
 
 SCRIPT_PATH = Path(__file__).with_name("validate-deployment-templates.py")
 SPEC = importlib.util.spec_from_file_location("deployment_template_validator", SCRIPT_PATH)
@@ -45,7 +44,7 @@ class DeployButtonURLTests(unittest.TestCase):
 
     def test_render_repo_empty_delimiters_are_rejected(self) -> None:
         for encoded_delimiter in ("%3F", "%23"):
-            with self.subTest(encoded_delimiter=encoded_delimiter):
+            with self.subTest(encoded_delimiter=encoded_delimiter):  # noqa: SIM117
                 with self.assertRaisesRegex(AssertionError, "unambiguous GitHub branch URL"):
                     validator.parse_deploy_button_url(
                         "https://render.com/deploy?repo="
@@ -67,7 +66,7 @@ class DeployButtonURLTests(unittest.TestCase):
             "https%3A%2F%2Fgithub.com%2Fmaximhq%2Fbifrost%2Ftree%2Fdev"
         )
         for url in (base + "&", base + "&&", base.replace("?", "?&", 1)):
-            with self.subTest(url=url):
+            with self.subTest(url=url):  # noqa: SIM117
                 with self.assertRaisesRegex(AssertionError, "exactly one"):
                     validator.parse_deploy_button_url(url, "test")
 
@@ -84,7 +83,7 @@ class DeployButtonURLTests(unittest.TestCase):
 
     def test_render_branch_must_be_safe_to_embed_verbatim(self) -> None:
         for branch in ("dev#unverified", "dev/../main", "dev//main", ".hidden"):
-            with self.subTest(branch=branch):
+            with self.subTest(branch=branch):  # noqa: SIM117
                 with self.assertRaisesRegex(AssertionError, "cannot be embedded safely"):
                     validator.validate_render_branch(branch, "test")
 
@@ -109,7 +108,7 @@ class DeployButtonURLTests(unittest.TestCase):
             "https://railway.com./new/template/blue-dark",
         )
         for url in urls:
-            with self.subTest(url=url):
+            with self.subTest(url=url):  # noqa: SIM117
                 with self.assertRaisesRegex(AssertionError, "canonical HTTPS"):
                     validator.parse_deploy_button_url(url, "test")
 
@@ -153,14 +152,12 @@ class DeployButtonURLTests(unittest.TestCase):
             "https://user@[railway.com/new/template/blue-dark",
         )
         for url in urls:
-            with self.subTest(url=url):
+            with self.subTest(url=url):  # noqa: SIM117
                 with self.assertRaisesRegex(AssertionError, "contains an invalid URL"):
                     validator.parse_deploy_button_url(url, "test")
 
     def test_malformed_unrelated_url_is_ignored(self) -> None:
-        self.assertIsNone(
-            validator.parse_deploy_button_url("https://[2001:db8::1", "test")
-        )
+        self.assertIsNone(validator.parse_deploy_button_url("https://[2001:db8::1", "test"))
 
     def test_bare_railway_template_path_is_navigation(self) -> None:
         self.assertIsNone(
@@ -179,14 +176,14 @@ class DeployButtonURLTests(unittest.TestCase):
 
     def test_bare_railway_template_path_with_empty_delimiter_is_rejected(self) -> None:
         for delimiter in ("?", "#"):
-            with self.subTest(delimiter=delimiter):
-                with self.assertRaisesRegex(
-                    AssertionError, "no credentials, port, query, or fragment"
-                ):
-                    validator.parse_deploy_button_url(
-                        f"https://railway.com/new/template{delimiter}",
-                        "test",
-                    )
+            with (
+                self.subTest(delimiter=delimiter),
+                self.assertRaisesRegex(AssertionError, "no credentials, port, query, or fragment"),
+            ):
+                validator.parse_deploy_button_url(
+                    f"https://railway.com/new/template{delimiter}",
+                    "test",
+                )
 
     def test_bare_railway_template_path_with_trailing_slash_is_rejected(self) -> None:
         with self.assertRaisesRegex(AssertionError, "must name exactly one template slug"):
@@ -251,7 +248,7 @@ class DeploymentDocumentationTests(unittest.TestCase):
                 "[Deploy](https://[render.com/deploy?repo=https://github.com/maximhq/bifrost/tree/dev)\n"
             )
 
-            with mock.patch.object(validator, "REPO_ROOT", root):
+            with mock.patch.object(validator, "REPO_ROOT", root):  # noqa: SIM117
                 with self.assertRaisesRegex(AssertionError, "contains an invalid URL"):
                     validator.document_deploy_buttons(guide)
 
@@ -260,9 +257,7 @@ class DeploymentDocumentationTests(unittest.TestCase):
             root = Path(directory)
             guide = root / "docs/deployment-guides/platforms/railway.mdx"
             guide.parent.mkdir(parents=True)
-            guide.write_text(
-                "Deploy from https://railway.com/new/template/blue-dark.\n"
-            )
+            guide.write_text("Deploy from https://railway.com/new/template/blue-dark.\n")
 
             with mock.patch.object(validator, "REPO_ROOT", root):
                 self.assertEqual(
@@ -315,16 +310,10 @@ class DeploymentDocumentationTests(unittest.TestCase):
             guide.parent.mkdir(parents=True)
             guide.write_text("# Future deployment guide\n")
             (root / "docs/docs.json").write_text(
-                json.dumps(
-                    {
-                        "navigation": {
-                            "tabs": [{"tab": "Deployment Guides", "pages": []}]
-                        }
-                    }
-                )
+                json.dumps({"navigation": {"tabs": [{"tab": "Deployment Guides", "pages": []}]}})
             )
 
-            with mock.patch.object(validator, "REPO_ROOT", root):
+            with mock.patch.object(validator, "REPO_ROOT", root):  # noqa: SIM117
                 with self.assertRaisesRegex(
                     AssertionError,
                     "docs/docs.json navigation is missing deployment guide docs/deployment-guides/platforms/future.mdx",
@@ -353,7 +342,7 @@ class DeploymentDocumentationTests(unittest.TestCase):
                 )
             )
 
-            with mock.patch.object(validator, "REPO_ROOT", root):
+            with mock.patch.object(validator, "REPO_ROOT", root):  # noqa: SIM117
                 with self.assertRaisesRegex(
                     AssertionError,
                     "navigation is missing deployment guide docs/deployment-guides/platforms/future.mdx",
@@ -384,7 +373,7 @@ class DeploymentDocumentationTests(unittest.TestCase):
                 )
             )
 
-            with mock.patch.object(validator, "REPO_ROOT", root):
+            with mock.patch.object(validator, "REPO_ROOT", root):  # noqa: SIM117
                 with self.assertRaisesRegex(
                     AssertionError,
                     "Deployment Guides navigation references missing page deployment-guides/platforms/missing",
@@ -404,7 +393,7 @@ class DeploymentDocumentationTests(unittest.TestCase):
                 "evidence": "deploy/render/blueprint-verification.json",
             }
 
-            with (
+            with (  # noqa: SIM117
                 mock.patch.object(validator, "REPO_ROOT", root),
                 mock.patch.object(validator, "one_click_targets", return_value=[target]),
                 mock.patch.object(validator, "deployment_document_paths", return_value=[]),

@@ -128,6 +128,9 @@ export function nextQuarterReset(startMonth?: number, now: Date = new Date()): D
 
 // Month choices for the fiscal quarter start select.
 export const quarterStartMonthOptions = MONTH_ABBREVIATIONS.map((_, index) => ({
-	label: new Date(Date.UTC(2026, index, 1)).toLocaleString("en-US", { month: "long", timeZone: "UTC" }),
+	label: new Date(Date.UTC(2026, index, 1)).toLocaleString("en-US", {
+		month: "long",
+		timeZone: "UTC",
+	}),
 	value: String(index + 1),
 }));

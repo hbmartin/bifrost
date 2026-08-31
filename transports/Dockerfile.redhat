@@ -21,6 +21,8 @@ FROM golang:1.27.0-alpine3.24@sha256:4c9fe60190a2a3350ddc51de80d0224b8a6698d12bd
 WORKDIR /app
 
 # Install dependencies including gcc for CGO and sqlite (with latest security patches)
+# Alpine packages intentionally follow the pinned base image's latest security repository.
+# hadolint ignore=DL3018
 RUN apk upgrade --no-cache && \
   apk add --no-cache gcc musl-dev sqlite-dev binutils binutils-gold
 
@@ -67,6 +69,8 @@ WORKDIR /app
 
 # The binary is fully static, so no C runtime libraries are needed.
 # Only ca-certificates (HTTPS to LLM providers) and curl (health check) are required.
+# UBI packages intentionally follow the pinned base image's latest security repository.
+# hadolint ignore=DL3041
 RUN microdnf install -y ca-certificates && \
     microdnf clean all
 
@@ -120,6 +124,8 @@ EXPOSE $APP_PORT
 # curl-minimal is pre-installed in ubi9-minimal and is a drop-in for curl.
 # start-period is raised to 15s to allow the Go service time to run migrations
 # before the first liveness probe fires.
+# Shell form is required for APP_PORT expansion and the explicit failure fallback.
+# hadolint ignore=DL3025
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
   CMD curl-minimal -f -s http://127.0.0.1:${APP_PORT}/health || exit 1
 

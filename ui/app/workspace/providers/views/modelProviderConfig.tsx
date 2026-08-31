@@ -24,7 +24,7 @@ export default function ModelProviderConfig({ provider, onRequestDelete }: Props
 			return !(provider.custom_provider_config?.is_key_less ?? false);
 		}
 		return true;
-	}, [provider.name, provider.custom_provider_config?.is_key_less]);
+	}, [provider.custom_provider_config]);
 
 	const editConfigButton = (
 		<div className="flex min-w-0 flex-wrap items-center gap-2">

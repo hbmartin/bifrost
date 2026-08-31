@@ -31,7 +31,7 @@ func TestUsageTracker_FailedRequestWithUsage_IsBilled(t *testing.T) {
 
 	resolver := NewBudgetResolver(store, nil, logger, nil)
 	tracker := NewUsageTracker(context.Background(), store, resolver, nil, logger)
-	defer tracker.Cleanup()
+	defer requireTrackerCleanup(t, tracker)
 
 	update := &UsageUpdate{
 		VirtualKey:   "sk-bf-test",
@@ -76,7 +76,7 @@ func TestUsageTracker_FailedRequestNoUsage_IsSkipped(t *testing.T) {
 
 	resolver := NewBudgetResolver(store, nil, logger, nil)
 	tracker := NewUsageTracker(context.Background(), store, resolver, nil, logger)
-	defer tracker.Cleanup()
+	defer requireTrackerCleanup(t, tracker)
 
 	update := &UsageUpdate{
 		VirtualKey: "sk-bf-test",
@@ -111,7 +111,7 @@ func TestUsageTracker_UpdateUsage_VirtualKeyNotFound(t *testing.T) {
 
 	resolver := NewBudgetResolver(store, nil, logger, nil)
 	tracker := NewUsageTracker(context.Background(), store, resolver, nil, logger)
-	defer tracker.Cleanup()
+	defer requireTrackerCleanup(t, tracker)
 
 	update := &UsageUpdate{
 		VirtualKey: "sk-bf-nonexistent",
@@ -145,7 +145,7 @@ func TestUsageTracker_UpdateUsage_StreamingOptimization(t *testing.T) {
 
 	resolver := NewBudgetResolver(store, nil, logger, nil)
 	tracker := NewUsageTracker(context.Background(), store, resolver, nil, logger)
-	defer tracker.Cleanup()
+	defer requireTrackerCleanup(t, tracker)
 
 	// First streaming chunk (not final, has usage data)
 	update1 := &UsageUpdate{
@@ -218,7 +218,7 @@ func TestUsageTracker_Idempotency_SameAttemptBilledOnce(t *testing.T) {
 
 	resolver := NewBudgetResolver(store, nil, logger, nil)
 	tracker := NewUsageTracker(context.Background(), store, resolver, nil, logger)
-	defer tracker.Cleanup()
+	defer requireTrackerCleanup(t, tracker)
 
 	mk := func() *UsageUpdate {
 		return &UsageUpdate{
@@ -264,7 +264,7 @@ func TestUsageTracker_Idempotency_DifferentAttemptsBothBilled(t *testing.T) {
 
 	resolver := NewBudgetResolver(store, nil, logger, nil)
 	tracker := NewUsageTracker(context.Background(), store, resolver, nil, logger)
-	defer tracker.Cleanup()
+	defer requireTrackerCleanup(t, tracker)
 
 	mk := func(attempt int, success bool, cost float64) *UsageUpdate {
 		return &UsageUpdate{

@@ -107,7 +107,10 @@ export function CustomDropdown<T = {}>({
 
 	useEffect(() => {
 		if (selectedIndex === flattenedOptions.length - 1) {
-			containerRef.current?.parentElement?.scrollTo({ top: containerRef.current.scrollHeight + 100, behavior: "smooth" });
+			containerRef.current?.parentElement?.scrollTo({
+				top: containerRef.current.scrollHeight + 100,
+				behavior: "smooth",
+			});
 		} else if (selectedIndex === 0) {
 			containerRef.current?.parentElement?.scrollTo({ top: 0, behavior: "smooth" });
 		}

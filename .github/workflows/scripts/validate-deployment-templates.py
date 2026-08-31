@@ -14,17 +14,20 @@ from urllib.parse import parse_qsl, urlsplit
 import yaml
 from jsonschema import Draft201909Validator, Draft202012Validator, FormatChecker
 
-
 REPO_ROOT = Path(__file__).resolve().parents[3]
 BIFROST_SCHEMA = json.loads((REPO_ROOT / "transports/config.schema.json").read_text())
-RAILWAY_SCHEMA = json.loads((REPO_ROOT / "deploy/railway/template-contract.schema.json").read_text())
+RAILWAY_SCHEMA = json.loads(
+    (REPO_ROOT / "deploy/railway/template-contract.schema.json").read_text()
+)
 RENDER_VERIFICATION_SCHEMA = json.loads(
     (REPO_ROOT / "deploy/render/blueprint-verification.schema.json").read_text()
 )
 # Shared with the release gate in verify-deployment-release.sh, which refuses to
 # qualify anything older. Read from one file so a bump cannot land in the gate
 # and leave the recorded verifications accepting the release it just retired.
-MINIMUM_RELEASE_TAG = json.loads((REPO_ROOT / "deploy/runtime-contract.json").read_text())["minimum_release_tag"]
+MINIMUM_RELEASE_TAG = json.loads((REPO_ROOT / "deploy/runtime-contract.json").read_text())[
+    "minimum_release_tag"
+]
 RELEASE_TAG_PATTERN = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
 HOSTED_ONE_CLICK_HEADING = "## Hosted one-click choices"
 HTTP_URL_PATTERN = re.compile(r"https?://[^\s)\"'<>\]`]+", re.IGNORECASE)
@@ -117,15 +120,21 @@ def parse_deploy_button_url(url: str, label: str) -> DeployButtonKey | None:
             or parsed.netloc.lower() != "render.com"
             or has_fragment_delimiter
         ):
-            fail(f"{label} Render deploy URL must use canonical HTTPS with no credentials, port, or fragment: {url}")
+            fail(
+                f"{label} Render deploy URL must use canonical HTTPS with no credentials, port, or fragment: {url}"
+            )
         # parse_qsl silently discards empty query components, so leading,
         # trailing, or repeated '&' delimiters would otherwise compare equal to
         # the canonical one-parameter form.
         if len(parsed.query.split("&")) != 1:
-            fail(f"{label} Render deploy URL must contain exactly one non-empty repo parameter: {url}")
+            fail(
+                f"{label} Render deploy URL must contain exactly one non-empty repo parameter: {url}"
+            )
         query = parse_qsl(parsed.query, keep_blank_values=True)
         if len(query) != 1 or query[0][0] != "repo" or not query[0][1]:
-            fail(f"{label} Render deploy URL must contain exactly one non-empty repo parameter: {url}")
+            fail(
+                f"{label} Render deploy URL must contain exactly one non-empty repo parameter: {url}"
+            )
 
         repo_url = query[0][1]
         try:
@@ -145,7 +154,9 @@ def parse_deploy_button_url(url: str, label: str) -> DeployButtonKey | None:
             or repo_has_fragment_delimiter
             or not re.fullmatch(r"/[^/]+/[^/]+/tree/.+", repo.path)
         ):
-            fail(f"{label} Render repo parameter must be an unambiguous GitHub branch URL: {repo_url}")
+            fail(
+                f"{label} Render repo parameter must be an unambiguous GitHub branch URL: {repo_url}"
+            )
         return ("render", repo.path)
 
     railway_template_candidate = path.startswith("/new/template/") or path == "/new/template"
@@ -176,10 +187,14 @@ def parse_deploy_button_url(url: str, label: str) -> DeployButtonKey | None:
             or has_query_delimiter
             or has_fragment_delimiter
         ):
-            fail(f"{label} Railway deploy URL must use canonical HTTPS with no credentials, port, query, or fragment: {url}")
+            fail(
+                f"{label} Railway deploy URL must use canonical HTTPS with no credentials, port, query, or fragment: {url}"
+            )
         slug = path.removeprefix("/new/template").removeprefix("/")
         if not slug or "/" in slug:
-            fail(f"{label} Railway deploy URL must name exactly one template slug in its path: {url}")
+            fail(
+                f"{label} Railway deploy URL must name exactly one template slug in its path: {url}"
+            )
         return ("railway", slug)
 
     return None
@@ -240,10 +255,7 @@ def deployment_document_paths() -> list[Path]:
         top_level_entries = navigation
     elif isinstance(navigation, dict):
         top_level_entries = [
-            entry
-            for value in navigation.values()
-            if isinstance(value, list)
-            for entry in value
+            entry for value in navigation.values() if isinstance(value, list) for entry in value
         ]
     deployment_groups = [
         entry
@@ -326,7 +338,9 @@ def verification_recorded(record: dict[str, Any], label: str) -> bool:
 
     version = release_tuple(verified_release)
     if version is None:
-        fail(f"{label} verified_release must be a release tag like {MINIMUM_RELEASE_TAG}, got {verified_release!r}")
+        fail(
+            f"{label} verified_release must be a release tag like {MINIMUM_RELEASE_TAG}, got {verified_release!r}"
+        )
     if version < release_tuple(MINIMUM_RELEASE_TAG):
         fail(
             f"{label} verified_release {verified_release} predates {MINIMUM_RELEASE_TAG}, the release "
@@ -391,7 +405,10 @@ def validate_render(path: Path, storage: str) -> None:
     service = services[0]
     label = str(path.relative_to(REPO_ROOT))
 
-    if service.get("runtime") != "image" or service.get("image", {}).get("url") != "docker.io/maximhq/bifrost:latest":
+    if (
+        service.get("runtime") != "image"
+        or service.get("image", {}).get("url") != "docker.io/maximhq/bifrost:latest"
+    ):
         fail(f"{label} must use the public latest image")
     if service.get("numInstances") != 1:
         fail(f"{label} must run one OSS replica")
@@ -448,10 +465,18 @@ def validate_railway(path: Path, storage: str) -> None:
     if contract["template"]["owner"] != "Maxim AI's Projects":
         fail(f"{label} must remain Maxim-owned")
 
-    if bifrost["image"] != "docker.io/maximhq/bifrost:latest" or bifrost.get("image_auto_update") != "daily":
+    if (
+        bifrost["image"] != "docker.io/maximhq/bifrost:latest"
+        or bifrost.get("image_auto_update") != "daily"
+    ):
         fail(f"{label} must track latest with daily image checks")
     deploy = bifrost["deploy"]
-    expected = {"replicas": 1, "healthcheck_path": "/health", "draining_seconds": 60, "public_port": 8080}
+    expected = {
+        "replicas": 1,
+        "healthcheck_path": "/health",
+        "draining_seconds": 60,
+        "public_port": 8080,
+    }
     for key, value in expected.items():
         if deploy.get(key) != value:
             fail(f"{label} has invalid Bifrost deploy setting {key}")
@@ -491,7 +516,11 @@ def validate_railway(path: Path, storage: str) -> None:
             if variable in variables:
                 fail(f"{label} PostgreSQL Bifrost service must not set {variable}")
     else:
-        expected_variables = {"RAILWAY_RUN_UID": "0", "BIFROST_RUN_AS_UID": "1000", "BIFROST_RUN_AS_GID": "0"}
+        expected_variables = {
+            "RAILWAY_RUN_UID": "0",
+            "BIFROST_RUN_AS_UID": "1000",
+            "BIFROST_RUN_AS_GID": "0",
+        }
         for name, value in expected_variables.items():
             if variables.get(name, {}).get("value") != value:
                 fail(f"{label} must set {name}={value}")
@@ -529,11 +558,11 @@ def one_click_targets() -> list[dict[str, Any]]:
         # button: each slot is bound to its exact canonical Blueprint, and the
         # button must deploy this repository at the branch the record claims
         # was verified.
-        validate_render_blueprint_reference(name, entry["blueprint"], f"{label} in {render_evidence}")
-        validate_render_branch(entry["branch"], f"{label} in {render_evidence}")
-        expected_button_url = (
-            f"https://render.com/deploy?repo=https://github.com/maximhq/bifrost/tree/{entry['branch']}"
+        validate_render_blueprint_reference(
+            name, entry["blueprint"], f"{label} in {render_evidence}"
         )
+        validate_render_branch(entry["branch"], f"{label} in {render_evidence}")
+        expected_button_url = f"https://render.com/deploy?repo=https://github.com/maximhq/bifrost/tree/{entry['branch']}"
         expected_button_key = parse_deploy_button_url(expected_button_url, label)
         button_key = (
             parse_deploy_button_url(entry["button_url"], f"{label} in {render_evidence}")
@@ -572,7 +601,9 @@ def one_click_targets() -> list[dict[str, Any]]:
                 "label": f"Railway {name}",
                 "doc": railway_docs,
                 "url": url,
-                "key": parse_deploy_button_url(url, f"Railway {name} in {evidence}") if url else None,
+                "key": parse_deploy_button_url(url, f"Railway {name} in {evidence}")
+                if url
+                else None,
                 # An unassigned slug means the template is not published at all,
                 # so it can never be verified regardless of what is recorded.
                 "verified": bool(slug) and recorded,
@@ -592,7 +623,9 @@ def validate_documentation_links() -> None:
         doc_button_keys = {key for _, key in buttons_by_doc[target["doc"]]}
         if target["verified"]:
             if target["key"] not in doc_button_keys:
-                fail(f"{target['label']} is verified in {target['evidence']} but {doc_label} does not link {target['url']}")
+                fail(
+                    f"{target['label']} is verified in {target['evidence']} but {doc_label} does not link {target['url']}"
+                )
         elif target["key"] is not None and target["key"] in doc_button_keys:
             fail(
                 f"{doc_label} publishes the {target['label']} one-click button while "
@@ -622,7 +655,9 @@ def validate_documentation_links() -> None:
     overview = overview_path.read_text()
     verified = [target["label"] for target in targets if target["verified"]]
     if verified and HOSTED_ONE_CLICK_HEADING not in overview:
-        fail(f"docs/deployment-guides/overview.mdx must list the published one-click choices ({', '.join(verified)})")
+        fail(
+            f"docs/deployment-guides/overview.mdx must list the published one-click choices ({', '.join(verified)})"
+        )
     if not verified and HOSTED_ONE_CLICK_HEADING in overview:
         fail(
             "docs/deployment-guides/overview.mdx advertises hosted one-click choices while no template "

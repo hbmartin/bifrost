@@ -206,6 +206,7 @@ func decodeBase64ImageToBytes(base64Str string) ([]byte, error) {
 
 // RunImageEditTest executes the end-to-end image edit test (non-streaming)
 func RunImageEditTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if testConfig.ImageEditModel == "" {
 		t.Logf("Image edit not configured for provider %s", testConfig.Provider)
 		return
@@ -380,6 +381,7 @@ func RunImageEditTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context
 
 // RunImageEditStreamTest executes the end-to-end streaming image edit test
 func RunImageEditStreamTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, testConfig ComprehensiveTestConfig) {
+	t.Helper()
 	if !testConfig.Scenarios.ImageEditStream {
 		t.Logf("Image edit streaming not supported for provider %s", testConfig.Provider)
 		return

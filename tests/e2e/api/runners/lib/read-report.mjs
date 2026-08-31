@@ -11,7 +11,15 @@
 // reads it BEFORE newman runs (for --rerun-failed), so no write-time fix can help there.
 // Every reader goes through readReport() to stay safe either way.
 
-import { readFileSync, statSync, existsSync, openSync, closeSync, renameSync, unlinkSync } from "node:fs";
+import {
+  readFileSync,
+  statSync,
+  existsSync,
+  openSync,
+  closeSync,
+  renameSync,
+  unlinkSync,
+} from "node:fs";
 import { execFileSync } from "node:child_process";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -46,7 +54,11 @@ const sanitizeTo = (src, dest) => {
     execFileSync("jq", ["-s", "-f", MERGE_PROGRAM, src], { stdio: ["ignore", fd, "inherit"] });
   } catch (err) {
     closeSync(fd);
-    try { unlinkSync(partial); } catch { /* best effort */ }
+    try {
+      unlinkSync(partial);
+    } catch {
+      /* best effort */
+    }
     throw err;
   }
   closeSync(fd);
@@ -73,7 +85,12 @@ const synthesizeSkippedExecutions = (report) => {
       item: { id: failure.source?.id, name },
       request: failure.source?.request,
       response: null,
-      assertions: [{ assertion: failure.error?.test || name, error: { message: failure.error?.message, name: failure.error?.name } }],
+      assertions: [
+        {
+          assertion: failure.error?.test || name,
+          error: { message: failure.error?.message, name: failure.error?.name },
+        },
+      ],
       skipped: true,
     });
   }
@@ -85,7 +102,8 @@ const synthesizeSkippedExecutions = (report) => {
 // an ERR_STRING_TOO_LONG stack trace escape.
 export const readReport = (path) => {
   const size = statSync(path).size;
-  if (size <= MAX_STRING) return synthesizeSkippedExecutions(JSON.parse(readFileSync(path, "utf8")));
+  if (size <= MAX_STRING)
+    return synthesizeSkippedExecutions(JSON.parse(readFileSync(path, "utf8")));
 
   // Dot-prefixed on purpose: the Makefile merges per-provider reports with the glob
   // tmp/newman-report-*.json, and a sidecar named newman-report-slim.json would be swept
@@ -101,10 +119,14 @@ export const readReport = (path) => {
     if (slimSize <= MAX_STRING) {
       try {
         const parsed = JSON.parse(readFileSync(slim, "utf8"));
-        console.error(`[read-report] ${path} is ${mb(size)} (over Node's ~512MB string limit) - reusing ${slim}`);
+        console.error(
+          `[read-report] ${path} is ${mb(size)} (over Node's ~512MB string limit) - reusing ${slim}`,
+        );
         return synthesizeSkippedExecutions(parsed);
       } catch {
-        console.error(`[read-report] ${slim} is unreadable (truncated or mid-write) - regenerating`);
+        console.error(
+          `[read-report] ${slim} is unreadable (truncated or mid-write) - regenerating`,
+        );
       }
     }
   }
@@ -112,18 +134,20 @@ export const readReport = (path) => {
   if (!hasJq()) {
     throw new Error(
       `[read-report] ${path} is ${mb(size)}, past Node's ~512MB max string length, and jq is not installed to slim it.\n` +
-      `  Install jq (brew install jq) and re-run, or delete the stale report:  rm ${path}`
+        `  Install jq (brew install jq) and re-run, or delete the stale report:  rm ${path}`,
     );
   }
 
-  console.error(`[read-report] ${path} is ${mb(size)} (over Node's ~512MB string limit) - slimming via jq into ${slim}...`);
+  console.error(
+    `[read-report] ${path} is ${mb(size)} (over Node's ~512MB string limit) - slimming via jq into ${slim}...`,
+  );
   sanitizeTo(path, slim);
 
   const slimSize = statSync(slim).size;
   if (slimSize > MAX_STRING) {
     throw new Error(
       `[read-report] ${path} is still ${mb(slimSize)} after slimming - too large to parse.\n` +
-      `  Re-run the harness with a narrower PROVIDER= or FOLDER= scope, or delete it:  rm ${path}`
+        `  Re-run the harness with a narrower PROVIDER= or FOLDER= scope, or delete it:  rm ${path}`,
     );
   }
   console.error(`[read-report] slimmed ${mb(size)} -> ${mb(slimSize)}`);

@@ -24,6 +24,7 @@ func TestExtractAzurePassthroughUsage(t *testing.T) {
 			body:   `{"usage":{"input_tokens":66,"output_tokens":26}}`,
 			model:  "claude-sonnet-4-5",
 			check: func(t *testing.T, u *schemas.BifrostPassthroughUsage) {
+				t.Helper()
 				if u == nil || u.LLMUsage == nil || u.LLMUsage.PromptTokens != 66 ||
 					u.LLMUsage.CompletionTokens != 26 || u.LLMUsage.TotalTokens != 92 {
 					t.Fatalf("anthropic dispatch usage = %+v", u)
@@ -37,6 +38,7 @@ func TestExtractAzurePassthroughUsage(t *testing.T) {
 			body:   `{"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}`,
 			model:  "gpt-4o",
 			check: func(t *testing.T, u *schemas.BifrostPassthroughUsage) {
+				t.Helper()
 				if u == nil || u.LLMUsage == nil || u.LLMUsage.PromptTokens != 10 ||
 					u.LLMUsage.CompletionTokens != 5 || u.LLMUsage.TotalTokens != 15 {
 					t.Fatalf("openai dispatch usage = %+v", u)

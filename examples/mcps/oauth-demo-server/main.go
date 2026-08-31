@@ -754,7 +754,8 @@ func main() {
 	log.Printf("")
 	log.Printf("To exercise refresh: call a tool, wait >%s, call again. Watch [token] log lines.", accessTokenTTL)
 
-	if err := http.ListenAndServe(listenAddr, handler); err != nil {
+	httpSrv := &http.Server{Addr: listenAddr, Handler: handler, ReadHeaderTimeout: 5 * time.Second}
+	if err := httpSrv.ListenAndServe(); err != nil {
 		log.Fatalf("server error: %v", err)
 	}
 }

@@ -263,7 +263,7 @@ func TestConcurrent_AddClientDuringExecution(t *testing.T) {
 				GetSampleEchoTool(), // Use sample schema
 			)
 			if err != nil {
-				errors <- fmt.Errorf("failed to add client %d: %v", i, err)
+				errors <- fmt.Errorf("failed to add client %d: %w", i, err)
 			}
 			time.Sleep(20 * time.Millisecond) // Small delay between adds
 		}
@@ -339,7 +339,7 @@ func TestConcurrent_RemoveClientDuringExecution(t *testing.T) {
 		// Remove client
 		err := manager.RemoveClient(clientID)
 		if err != nil {
-			errors <- fmt.Errorf("failed to remove client: %v", err)
+			errors <- fmt.Errorf("failed to remove client: %w", err)
 		} else {
 			t.Logf("Client removed during execution")
 		}
@@ -439,7 +439,7 @@ func TestConcurrent_EditClientDuringExecution(t *testing.T) {
 		updatedConfig.Name = "UpdatedClientName"
 		err := manager.UpdateClient(clientConfig.ID, &updatedConfig)
 		if err != nil {
-			errors <- fmt.Errorf("failed to edit client: %v", err)
+			errors <- fmt.Errorf("failed to edit client: %w", err)
 		} else {
 			t.Logf("Client edited during execution")
 		}
@@ -750,7 +750,7 @@ func TestConcurrent_GetClientsWhileModifying(t *testing.T) {
 					GetSampleEchoTool(),
 				)
 				if err != nil {
-					errors <- fmt.Errorf("failed to register tool %d: %v", i, err)
+					errors <- fmt.Errorf("failed to register tool %d: %w", i, err)
 				}
 
 				time.Sleep(5 * time.Millisecond)

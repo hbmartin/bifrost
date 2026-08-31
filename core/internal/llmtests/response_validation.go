@@ -70,6 +70,7 @@ type ValidationResult struct {
 
 // ValidateChatResponse performs comprehensive validation for chat completion responses
 func ValidateChatResponse(t *testing.T, response *schemas.BifrostChatResponse, err *schemas.BifrostError, expectations ResponseExpectations, scenarioName string) ValidationResult {
+	t.Helper()
 	result := ValidationResult{
 		Passed:           true,
 		Errors:           make([]string, 0),
@@ -116,6 +117,7 @@ func ValidateChatResponse(t *testing.T, response *schemas.BifrostChatResponse, e
 
 // ValidateTextCompletionResponse performs comprehensive validation for text completion responses
 func ValidateTextCompletionResponse(t *testing.T, response *schemas.BifrostTextCompletionResponse, err *schemas.BifrostError, expectations ResponseExpectations, scenarioName string) ValidationResult {
+	t.Helper()
 	result := ValidationResult{
 		Passed:           true,
 		Errors:           make([]string, 0),
@@ -159,6 +161,7 @@ func ValidateTextCompletionResponse(t *testing.T, response *schemas.BifrostTextC
 
 // ValidateResponsesResponse performs comprehensive validation for Responses API responses
 func ValidateResponsesResponse(t *testing.T, response *schemas.BifrostResponsesResponse, err *schemas.BifrostError, expectations ResponseExpectations, scenarioName string) ValidationResult {
+	t.Helper()
 	result := ValidationResult{
 		Passed:           true,
 		Errors:           make([]string, 0),
@@ -205,6 +208,7 @@ func ValidateResponsesResponse(t *testing.T, response *schemas.BifrostResponsesR
 
 // ValidateSpeechResponse performs comprehensive validation for speech synthesis responses
 func ValidateSpeechResponse(t *testing.T, response *schemas.BifrostSpeechResponse, err *schemas.BifrostError, expectations ResponseExpectations, scenarioName string) ValidationResult {
+	t.Helper()
 	result := ValidationResult{
 		Passed:           true,
 		Errors:           make([]string, 0),
@@ -246,6 +250,7 @@ func ValidateSpeechResponse(t *testing.T, response *schemas.BifrostSpeechRespons
 
 // ValidateImageGenerationResponse performs comprehensive validation for image generation responses
 func ValidateImageGenerationResponse(t *testing.T, response *schemas.BifrostImageGenerationResponse, err *schemas.BifrostError, expectations ResponseExpectations, scenarioName string) ValidationResult {
+	t.Helper()
 	result := ValidationResult{
 		Passed:           true,
 		Errors:           make([]string, 0),
@@ -286,6 +291,7 @@ func ValidateImageGenerationResponse(t *testing.T, response *schemas.BifrostImag
 
 // ValidateTranscriptionResponse performs comprehensive validation for transcription responses
 func ValidateTranscriptionResponse(t *testing.T, response *schemas.BifrostTranscriptionResponse, err *schemas.BifrostError, expectations ResponseExpectations, scenarioName string) ValidationResult {
+	t.Helper()
 	result := ValidationResult{
 		Passed:           true,
 		Errors:           make([]string, 0),
@@ -326,6 +332,7 @@ func ValidateTranscriptionResponse(t *testing.T, response *schemas.BifrostTransc
 
 // ValidateListModelsResponse performs comprehensive validation for list models responses
 func ValidateListModelsResponse(t *testing.T, response *schemas.BifrostListModelsResponse, err *schemas.BifrostError, expectations ResponseExpectations, scenarioName string) ValidationResult {
+	t.Helper()
 	result := ValidationResult{
 		Passed:           true,
 		Errors:           make([]string, 0),
@@ -366,6 +373,7 @@ func ValidateListModelsResponse(t *testing.T, response *schemas.BifrostListModel
 
 // ValidateEmbeddingResponse performs comprehensive validation for embedding responses
 func ValidateEmbeddingResponse(t *testing.T, response *schemas.BifrostEmbeddingResponse, err *schemas.BifrostError, expectations ResponseExpectations, scenarioName string) ValidationResult {
+	t.Helper()
 	result := ValidationResult{
 		Passed:           true,
 		Errors:           make([]string, 0),
@@ -406,6 +414,7 @@ func ValidateEmbeddingResponse(t *testing.T, response *schemas.BifrostEmbeddingR
 
 // ValidateCountTokensResponse performs comprehensive validation for count tokens responses
 func ValidateCountTokensResponse(t *testing.T, response *schemas.BifrostCountTokensResponse, err *schemas.BifrostError, expectations ResponseExpectations, scenarioName string) ValidationResult {
+	t.Helper()
 	result := ValidationResult{
 		Passed:           true,
 		Errors:           make([]string, 0),
@@ -446,6 +455,7 @@ func ValidateCountTokensResponse(t *testing.T, response *schemas.BifrostCountTok
 
 // validateChatBasicStructure checks the basic structure of the chat response
 func validateChatBasicStructure(t *testing.T, response *schemas.BifrostChatResponse, expectations ResponseExpectations, result *ValidationResult, scenarioName string) {
+	t.Helper()
 	// Object is a constant bifrost schema marker ("chat.completion" / "chat.completion.chunk").
 	// For streaming scenarios, per-chunk validation in chat_completion_stream.go covers this —
 	// the aggregated/consolidated response built by the harness is a synthetic construct and
@@ -488,6 +498,7 @@ func validateChatBasicStructure(t *testing.T, response *schemas.BifrostChatRespo
 
 // validateChatContent checks the content of the chat response
 func validateChatContent(t *testing.T, response *schemas.BifrostChatResponse, expectations ResponseExpectations, result *ValidationResult) {
+	t.Helper()
 	// Skip content validation for responses that don't have text content
 	if !expectations.ShouldHaveContent {
 		return
@@ -555,6 +566,7 @@ func validateChatContent(t *testing.T, response *schemas.BifrostChatResponse, ex
 
 // validateChatToolCalls checks tool calling aspects of chat response
 func validateChatToolCalls(t *testing.T, response *schemas.BifrostChatResponse, expectations ResponseExpectations, result *ValidationResult) {
+	t.Helper()
 	totalToolCalls := 0
 
 	// Count tool calls from Chat Completions API
@@ -584,6 +596,7 @@ func validateChatToolCalls(t *testing.T, response *schemas.BifrostChatResponse, 
 
 // validateChatTechnicalFields checks technical aspects of the chat response
 func validateChatTechnicalFields(t *testing.T, response *schemas.BifrostChatResponse, expectations ResponseExpectations, result *ValidationResult) {
+	t.Helper()
 	// Strict checks: these fields must always be populated
 	if response.ExtraFields.RequestType == "" {
 		result.Passed = false
@@ -700,6 +713,7 @@ func collectChatResponseMetrics(response *schemas.BifrostChatResponse, result *V
 
 // validateTextCompletionBasicStructure checks the basic structure of the text completion response
 func validateTextCompletionBasicStructure(t *testing.T, response *schemas.BifrostTextCompletionResponse, expectations ResponseExpectations, result *ValidationResult) {
+	t.Helper()
 	// Check choice count
 	if expectations.ExpectedChoiceCount > 0 {
 		actualCount := 0
@@ -730,6 +744,7 @@ func validateTextCompletionBasicStructure(t *testing.T, response *schemas.Bifros
 
 // validateTextCompletionContent checks the content of the text completion response
 func validateTextCompletionContent(t *testing.T, response *schemas.BifrostTextCompletionResponse, expectations ResponseExpectations, result *ValidationResult) {
+	t.Helper()
 	// Skip content validation for responses that don't have text content
 	if !expectations.ShouldHaveContent {
 		return
@@ -798,6 +813,7 @@ func validateTextCompletionContent(t *testing.T, response *schemas.BifrostTextCo
 
 // validateTextCompletionTechnicalFields checks technical aspects of the text completion response
 func validateTextCompletionTechnicalFields(t *testing.T, response *schemas.BifrostTextCompletionResponse, expectations ResponseExpectations, result *ValidationResult) {
+	t.Helper()
 	// Check usage stats
 	if expectations.ShouldHaveUsageStats {
 		if response.Usage == nil {
@@ -896,6 +912,7 @@ func validateResponsesBasicStructure(response *schemas.BifrostResponsesResponse,
 
 // validateResponsesContent checks the content of the Responses API response
 func validateResponsesContent(t *testing.T, response *schemas.BifrostResponsesResponse, expectations ResponseExpectations, result *ValidationResult) {
+	t.Helper()
 	// Skip content validation for responses that don't have text content
 	if !expectations.ShouldHaveContent {
 		return
@@ -964,6 +981,7 @@ func validateResponsesContent(t *testing.T, response *schemas.BifrostResponsesRe
 
 // validateResponsesToolCalls checks tool calling aspects of Responses API response
 func validateResponsesToolCalls(t *testing.T, response *schemas.BifrostResponsesResponse, expectations ResponseExpectations, result *ValidationResult) {
+	t.Helper()
 	totalToolCalls := 0
 
 	// Count tool calls from Responses API
@@ -994,6 +1012,7 @@ func validateResponsesToolCalls(t *testing.T, response *schemas.BifrostResponses
 
 // validateResponsesTechnicalFields checks technical aspects of the Responses API response
 func validateResponsesTechnicalFields(t *testing.T, response *schemas.BifrostResponsesResponse, expectations ResponseExpectations, result *ValidationResult) {
+	t.Helper()
 	// Strict checks: these fields must always be populated
 	if response.ExtraFields.RequestType == "" {
 		result.Passed = false
@@ -1070,6 +1089,7 @@ func collectResponsesResponseMetrics(response *schemas.BifrostResponsesResponse,
 
 // validateSpeechSynthesisResponse validates speech synthesis responses
 func validateSpeechSynthesisResponse(t *testing.T, response *schemas.BifrostSpeechResponse, expectations ResponseExpectations, result *ValidationResult) {
+	t.Helper()
 	// Check if response has speech data
 	if response.Audio == nil {
 		result.Passed = false
@@ -1132,6 +1152,7 @@ func collectSpeechResponseMetrics(response *schemas.BifrostSpeechResponse, resul
 
 // validateTranscriptionFields validates transcription responses
 func validateTranscriptionFields(t *testing.T, response *schemas.BifrostTranscriptionResponse, expectations ResponseExpectations, result *ValidationResult) {
+	t.Helper()
 	// Check if transcribed text exists
 	shouldHaveTranscription, _ := expectations.ProviderSpecific["should_have_transcription"].(bool)
 	if shouldHaveTranscription && response.Text == "" {
@@ -1196,6 +1217,7 @@ func collectTranscriptionResponseMetrics(response *schemas.BifrostTranscriptionR
 // =============================================================================
 
 func validateImageGenerationFields(t *testing.T, response *schemas.BifrostImageGenerationResponse, expectations ResponseExpectations, result *ValidationResult) {
+	t.Helper()
 	// Check if response has image data
 	if len(response.Data) == 0 {
 		result.Passed = false
@@ -1352,6 +1374,7 @@ func intFromProviderSpecific(v any) (int, bool) {
 
 // validateEmbeddingFields validates embedding responses
 func validateEmbeddingFields(t *testing.T, response *schemas.BifrostEmbeddingResponse, expectations ResponseExpectations, result *ValidationResult) {
+	t.Helper()
 	// Check if response has embedding data
 	if len(response.Data) == 0 {
 		result.Passed = false
@@ -1429,6 +1452,7 @@ func validateEmbeddingFields(t *testing.T, response *schemas.BifrostEmbeddingRes
 // =============================================================================
 
 func validateCountTokensFields(t *testing.T, response *schemas.BifrostCountTokensResponse, expectations ResponseExpectations, result *ValidationResult) {
+	t.Helper()
 	_ = t
 
 	if strings.TrimSpace(response.Model) == "" && expectations.ShouldHaveModel {
@@ -1487,6 +1511,7 @@ func validateCountTokensFields(t *testing.T, response *schemas.BifrostCountToken
 
 // validateListModelsFields validates list models responses
 func validateListModelsFields(t *testing.T, response *schemas.BifrostListModelsResponse, expectations ResponseExpectations, result *ValidationResult) {
+	t.Helper()
 	// Check that we have models in the response
 	if len(response.Data) == 0 {
 		result.Passed = false
@@ -1591,6 +1616,7 @@ func collectCountTokensResponseMetrics(response *schemas.BifrostCountTokensRespo
 
 // ValidateBatchCreateResponse performs comprehensive validation for batch create responses
 func ValidateBatchCreateResponse(t *testing.T, response *schemas.BifrostBatchCreateResponse, err *schemas.BifrostError, expectations ResponseExpectations, scenarioName string) ValidationResult {
+	t.Helper()
 	result := ValidationResult{
 		Passed:           true,
 		Errors:           make([]string, 0),
@@ -1642,6 +1668,7 @@ func ValidateBatchCreateResponse(t *testing.T, response *schemas.BifrostBatchCre
 
 // ValidateBatchListResponse performs comprehensive validation for batch list responses
 func ValidateBatchListResponse(t *testing.T, response *schemas.BifrostBatchListResponse, err *schemas.BifrostError, expectations ResponseExpectations, scenarioName string) ValidationResult {
+	t.Helper()
 	result := ValidationResult{
 		Passed:           true,
 		Errors:           make([]string, 0),
@@ -1686,6 +1713,7 @@ func ValidateBatchListResponse(t *testing.T, response *schemas.BifrostBatchListR
 
 // ValidateBatchRetrieveResponse performs comprehensive validation for batch retrieve responses
 func ValidateBatchRetrieveResponse(t *testing.T, response *schemas.BifrostBatchRetrieveResponse, err *schemas.BifrostError, expectations ResponseExpectations, scenarioName string) ValidationResult {
+	t.Helper()
 	result := ValidationResult{
 		Passed:           true,
 		Errors:           make([]string, 0),
@@ -1737,6 +1765,7 @@ func ValidateBatchRetrieveResponse(t *testing.T, response *schemas.BifrostBatchR
 
 // ValidateBatchCancelResponse performs comprehensive validation for batch cancel responses
 func ValidateBatchCancelResponse(t *testing.T, response *schemas.BifrostBatchCancelResponse, err *schemas.BifrostError, expectations ResponseExpectations, scenarioName string) ValidationResult {
+	t.Helper()
 	result := ValidationResult{
 		Passed:           true,
 		Errors:           make([]string, 0),
@@ -1787,6 +1816,7 @@ func ValidateBatchCancelResponse(t *testing.T, response *schemas.BifrostBatchCan
 
 // ValidateBatchResultsResponse performs comprehensive validation for batch results responses
 func ValidateBatchResultsResponse(t *testing.T, response *schemas.BifrostBatchResultsResponse, err *schemas.BifrostError, expectations ResponseExpectations, scenarioName string) ValidationResult {
+	t.Helper()
 	result := ValidationResult{
 		Passed:           true,
 		Errors:           make([]string, 0),
@@ -1842,6 +1872,7 @@ func ValidateBatchResultsResponse(t *testing.T, response *schemas.BifrostBatchRe
 
 // ValidateFileUploadResponse performs comprehensive validation for file upload responses
 func ValidateFileUploadResponse(t *testing.T, response *schemas.BifrostFileUploadResponse, err *schemas.BifrostError, expectations ResponseExpectations, scenarioName string) ValidationResult {
+	t.Helper()
 	result := ValidationResult{
 		Passed:           true,
 		Errors:           make([]string, 0),
@@ -1894,6 +1925,7 @@ func ValidateFileUploadResponse(t *testing.T, response *schemas.BifrostFileUploa
 
 // ValidateFileListResponse performs comprehensive validation for file list responses
 func ValidateFileListResponse(t *testing.T, response *schemas.BifrostFileListResponse, err *schemas.BifrostError, expectations ResponseExpectations, scenarioName string) ValidationResult {
+	t.Helper()
 	result := ValidationResult{
 		Passed:           true,
 		Errors:           make([]string, 0),
@@ -1938,6 +1970,7 @@ func ValidateFileListResponse(t *testing.T, response *schemas.BifrostFileListRes
 
 // ValidateFileRetrieveResponse performs comprehensive validation for file retrieve responses
 func ValidateFileRetrieveResponse(t *testing.T, response *schemas.BifrostFileRetrieveResponse, err *schemas.BifrostError, expectations ResponseExpectations, scenarioName string) ValidationResult {
+	t.Helper()
 	result := ValidationResult{
 		Passed:           true,
 		Errors:           make([]string, 0),
@@ -1990,6 +2023,7 @@ func ValidateFileRetrieveResponse(t *testing.T, response *schemas.BifrostFileRet
 
 // ValidateFileDeleteResponse performs comprehensive validation for file delete responses
 func ValidateFileDeleteResponse(t *testing.T, response *schemas.BifrostFileDeleteResponse, err *schemas.BifrostError, expectations ResponseExpectations, scenarioName string) ValidationResult {
+	t.Helper()
 	result := ValidationResult{
 		Passed:           true,
 		Errors:           make([]string, 0),
@@ -2046,6 +2080,7 @@ func ValidateFileDeleteResponse(t *testing.T, response *schemas.BifrostFileDelet
 
 // ValidateFileContentResponse performs comprehensive validation for file content responses
 func ValidateFileContentResponse(t *testing.T, response *schemas.BifrostFileContentResponse, err *schemas.BifrostError, expectations ResponseExpectations, scenarioName string) ValidationResult {
+	t.Helper()
 	result := ValidationResult{
 		Passed:           true,
 		Errors:           make([]string, 0),
@@ -2330,6 +2365,7 @@ func validateSingleToolCall(arguments interface{}, expected ToolCallExpectation,
 
 // logValidationResults logs the validation results
 func logValidationResults(t *testing.T, result ValidationResult, scenarioName string) {
+	t.Helper()
 	if result.Passed {
 		t.Logf("✅ Validation passed for %s", scenarioName)
 	} else {

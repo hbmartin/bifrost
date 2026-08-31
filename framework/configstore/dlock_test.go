@@ -74,6 +74,7 @@ func (l *mockLogger) LogHTTPRequest(level schemas.LogLevel, msg string) schemas.
 
 // setupLockTestStore creates a test RDBConfigStore with SQLite in-memory database
 func setupLockTestStore(t *testing.T) *RDBConfigStore {
+	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),
 	})

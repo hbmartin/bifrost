@@ -85,5 +85,5 @@ func readInput(ptr, length uint32) []byte {
 	if length == 0 {
 		return nil
 	}
-	return unsafe.Slice((*byte)(unsafe.Pointer(uintptr(ptr))), length)
+	return unsafe.Slice((*byte)(unsafe.Pointer(uintptr(ptr))), length) //nolint:govet // The WASM ABI supplies a 32-bit linear-memory address.
 }

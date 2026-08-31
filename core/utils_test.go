@@ -332,9 +332,9 @@ func TestIsPrivateIP(t *testing.T) {
 		// Public IPv6
 		{"2606:4700::1", false},
 		// Unspecified addresses (fail-closed)
-		{"0.0.0.0", true},                   // IPv4 unspecified
-		{"0:0:0:0:0:0:0:0", true},           // IPv6 unspecified long form
-		{"::", true},                         // IPv6 unspecified short form
+		{"0.0.0.0", true},         // IPv4 unspecified
+		{"0:0:0:0:0:0:0:0", true}, // IPv6 unspecified long form
+		{"::", true},              // IPv6 unspecified short form
 	}
 
 	for _, tt := range tests {
@@ -349,4 +349,3 @@ func TestIsPrivateIP(t *testing.T) {
 		})
 	}
 }
-

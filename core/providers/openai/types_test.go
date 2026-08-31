@@ -31,6 +31,7 @@ func TestOpenAIChatRequest_UnmarshalJSON_BaseFieldsPreserved(t *testing.T) {
 				"top_p": 0.9
 			}`,
 			validate: func(t *testing.T, req *OpenAIChatRequest) {
+				t.Helper()
 				// Assert base fields are preserved
 				if req.Model != "gpt-4o" {
 					t.Errorf("Expected Model to be 'gpt-4o', got %q", req.Model)
@@ -100,6 +101,7 @@ func TestOpenAIChatRequest_UnmarshalJSON_BaseFieldsPreserved(t *testing.T) {
 				"stop": ["STOP", "END"]
 			}`,
 			validate: func(t *testing.T, req *OpenAIChatRequest) {
+				t.Helper()
 				// Assert base fields
 				if req.Model != "gpt-3.5-turbo" {
 					t.Errorf("Expected Model to be 'gpt-3.5-turbo', got %q", req.Model)
@@ -161,6 +163,7 @@ func TestOpenAIChatRequest_UnmarshalJSON_BaseFieldsPreserved(t *testing.T) {
 				"top_p": 1.0
 			}`,
 			validate: func(t *testing.T, req *OpenAIChatRequest) {
+				t.Helper()
 				if req.Model != "gpt-4" {
 					t.Errorf("Expected Model to be 'gpt-4', got %q", req.Model)
 				}
@@ -227,6 +230,7 @@ func TestOpenAIChatRequest_UnmarshalJSON_ChatParametersCustomLogic(t *testing.T)
 				"temperature": 0.8
 			}`,
 			validate: func(t *testing.T, req *OpenAIChatRequest) {
+				t.Helper()
 				// Assert base fields are preserved
 				if req.Model != "gpt-4o" {
 					t.Errorf("Expected Model to be 'gpt-4o', got %q", req.Model)
@@ -266,6 +270,7 @@ func TestOpenAIChatRequest_UnmarshalJSON_ChatParametersCustomLogic(t *testing.T)
 				"reasoning_effort": "high"
 			}`,
 			validate: func(t *testing.T, req *OpenAIChatRequest) {
+				t.Helper()
 				// This should have failed during unmarshaling
 			},
 			expectError: true,
@@ -286,6 +291,7 @@ func TestOpenAIChatRequest_UnmarshalJSON_ChatParametersCustomLogic(t *testing.T)
 				"max_completion_tokens": 2000
 			}`,
 			validate: func(t *testing.T, req *OpenAIChatRequest) {
+				t.Helper()
 				// Assert base fields
 				if req.Model != "gpt-4o" {
 					t.Errorf("Expected Model to be 'gpt-4o', got %q", req.Model)
@@ -465,4 +471,3 @@ func TestOpenAIChatRequest_UnmarshalJSON_ValueAssertions(t *testing.T) {
 		t.Errorf("Expected Stop value ['END', 'STOP'], got %v", req.Stop)
 	}
 }
-

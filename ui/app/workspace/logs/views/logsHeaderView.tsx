@@ -137,7 +137,10 @@ export function LogsHeaderView({
 				setRecalcCancelRequested(false);
 				setActiveRecalcJobId(status.id);
 			} catch (err) {
-				toast.error("Cost recalculation failed", { id: RECALC_TOAST_ID, description: getErrorMessage(err) });
+				toast.error("Cost recalculation failed", {
+					id: RECALC_TOAST_ID,
+					description: getErrorMessage(err),
+				});
 			}
 		},
 		[filters],

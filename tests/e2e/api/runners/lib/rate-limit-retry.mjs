@@ -23,7 +23,7 @@
 export const headerValue = (execution, name) => {
   const wanted = name.toLowerCase();
   const found = (execution?.response?.header || []).find(
-    (h) => String(h?.key || "").toLowerCase() === wanted
+    (h) => String(h?.key || "").toLowerCase() === wanted,
   );
   return found ? String(found.value) : null;
 };

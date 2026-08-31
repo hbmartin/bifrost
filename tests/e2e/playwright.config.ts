@@ -1,46 +1,61 @@
-import { defineConfig, devices, type PlaywrightTestConfig } from '@playwright/test'
-import { existsSync } from 'fs'
-import { resolve } from 'path'
+import { defineConfig, devices, type PlaywrightTestConfig } from "@playwright/test";
+import { existsSync } from "fs";
+import { resolve } from "path";
 
-const enterpriseFeaturesDir = resolve(__dirname, '../../../bifrost-enterprise/tests/e2e/features')
-const includeEnterprise = process.env.BIFROST_E2E_INCLUDE_ENTERPRISE === '1' && existsSync(enterpriseFeaturesDir)
+const enterpriseFeaturesDir = resolve(__dirname, "../../../bifrost-enterprise/tests/e2e/features");
+const includeEnterprise =
+  process.env.BIFROST_E2E_INCLUDE_ENTERPRISE === "1" && existsSync(enterpriseFeaturesDir);
 
-const projects: NonNullable<PlaywrightTestConfig['projects']> = [
+const projects: NonNullable<PlaywrightTestConfig["projects"]> = [
   {
-    name: 'chromium',
-    testDir: './features',
-    use: { ...devices['Desktop Chrome'] },
-    testIgnore: ['**/config/**', '**/mobile/**', '**/plugins/**', '**/virtual-keys/**', '**/mcp-registry/**', '**/model-limits/**', '**/providers/**'],
+    name: "chromium",
+    testDir: "./features",
+    use: { ...devices["Desktop Chrome"] },
+    testIgnore: [
+      "**/config/**",
+      "**/mobile/**",
+      "**/plugins/**",
+      "**/virtual-keys/**",
+      "**/mcp-registry/**",
+      "**/model-limits/**",
+      "**/providers/**",
+    ],
   },
   {
-    name: 'chromium-serial',
-    testDir: './features',
-    use: { ...devices['Desktop Chrome'] },
-    testMatch: ['**/plugins/**/*.spec.ts', '**/virtual-keys/**/*.spec.ts', '**/mcp-registry/**/*.spec.ts', '**/model-limits/**/*.spec.ts', '**/providers/**/*.spec.ts'],
+    name: "chromium-serial",
+    testDir: "./features",
+    use: { ...devices["Desktop Chrome"] },
+    testMatch: [
+      "**/plugins/**/*.spec.ts",
+      "**/virtual-keys/**/*.spec.ts",
+      "**/mcp-registry/**/*.spec.ts",
+      "**/model-limits/**/*.spec.ts",
+      "**/providers/**/*.spec.ts",
+    ],
     fullyParallel: false,
   },
   {
-    name: 'chromium-config',
-    testDir: './features',
-    use: { ...devices['Desktop Chrome'] },
-    testMatch: ['**/config/**/*.spec.ts'],
-    dependencies: ['chromium', 'chromium-serial'],
+    name: "chromium-config",
+    testDir: "./features",
+    use: { ...devices["Desktop Chrome"] },
+    testMatch: ["**/config/**/*.spec.ts"],
+    dependencies: ["chromium", "chromium-serial"],
   },
   {
-    name: 'mobile-chrome',
-    testDir: './features',
-    use: { ...devices['Pixel 7'] },
-    testMatch: ['**/mobile/**/*.spec.ts'],
+    name: "mobile-chrome",
+    testDir: "./features",
+    use: { ...devices["Pixel 7"] },
+    testMatch: ["**/mobile/**/*.spec.ts"],
   },
-]
+];
 
 if (includeEnterprise) {
   projects.push({
-    name: 'chromium-enterprise',
+    name: "chromium-enterprise",
     testDir: enterpriseFeaturesDir,
-    use: { ...devices['Desktop Chrome'] },
-    testMatch: ['**/*.spec.ts'],
-  })
+    use: { ...devices["Desktop Chrome"] },
+    testMatch: ["**/*.spec.ts"],
+  });
 }
 
 /**
@@ -48,7 +63,7 @@ if (includeEnterprise) {
  * @see https://playwright.dev/docs/test-configuration
  */
 export default defineConfig({
-  testDir: '.',
+  testDir: ".",
 
   // Run tests in files in parallel
   fullyParallel: true,
@@ -65,30 +80,30 @@ export default defineConfig({
   // Reporter to use
   reporter: [
     [
-      'html',
+      "html",
       {
         // Report in tests/e2e/playwright-report so `npx playwright show-report`
         // (run from tests/e2e) finds it. CI uploads tests/e2e/playwright-report/.
-        outputFolder: 'playwright-report',
-        open: 'never',
+        outputFolder: "playwright-report",
+        open: "never",
       },
     ],
-    ['list'],
+    ["list"],
   ],
 
   // Shared settings for all the projects below
   use: {
     // Base URL for the application
-    baseURL: process.env.BASE_URL || 'http://localhost:3000',
+    baseURL: process.env.BASE_URL || "http://localhost:3000",
 
     // Collect trace when retrying the failed test
-    trace: 'on-first-retry',
+    trace: "on-first-retry",
 
     // Take screenshot only on failure
-    screenshot: 'only-on-failure',
+    screenshot: "only-on-failure",
 
     // Record video only on failure
-    video: 'retain-on-failure',
+    video: "retain-on-failure",
 
     // Timeout for each action
     actionTimeout: 10000,
@@ -97,7 +112,7 @@ export default defineConfig({
     navigationTimeout: 30000,
 
     // Grant clipboard permissions so copy-to-clipboard tests work on localhost
-    permissions: ['clipboard-read', 'clipboard-write'],
+    permissions: ["clipboard-read", "clipboard-write"],
   },
 
   // Global timeout for each test
@@ -111,20 +126,22 @@ export default defineConfig({
   // Configure projects: run all tests first, then config last (via dependency order).
   projects,
 
-  // Run local dev server before starting tests 
+  // Run local dev server before starting tests
   // Set SKIP_WEB_SERVER=1 to skip auto-starting the dev server
-  webServer: process.env.SKIP_WEB_SERVER ? undefined : {
-    command: 'npm run dev',
-    url: 'http://localhost:3000',
-    reuseExistingServer: true,
-    cwd: '../../ui',
-    timeout: 120000,
-    env: {
-      ...process.env,
-      BIFROST_DISABLE_PROFILER: '1',
-    },
-  },
+  webServer: process.env.SKIP_WEB_SERVER
+    ? undefined
+    : {
+        command: "npm run dev",
+        url: "http://localhost:3000",
+        reuseExistingServer: true,
+        cwd: "../../ui",
+        timeout: 120000,
+        env: {
+          ...process.env,
+          BIFROST_DISABLE_PROFILER: "1",
+        },
+      },
 
   // Global setup: Build test plugin and start MCP servers; returns teardown to stop MCP servers
-  globalSetup: require.resolve('./global-setup'),
-})
+  globalSetup: require.resolve("./global-setup"),
+});

@@ -1402,7 +1402,7 @@ func getProviderFromCtx(ctx *fasthttp.RequestCtx) (schemas.ModelProvider, error)
 
 	decoded, err := url.PathUnescape(providerStr)
 	if err != nil {
-		return "", fmt.Errorf("invalid provider parameter encoding: %v", err)
+		return "", fmt.Errorf("invalid provider parameter encoding: %w", err)
 	}
 
 	return schemas.ModelProvider(decoded), nil

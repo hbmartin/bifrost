@@ -325,12 +325,12 @@ func Init(config *Config, pricingManager *modelcatalog.ModelCatalog, logger sche
 	systemRegistry := prometheus.NewRegistry()
 	goCollector := collectors.NewGoCollector()
 	if err := systemRegistry.Register(goCollector); err != nil {
-		return nil, fmt.Errorf("failed to register Go collector: %v", err)
+		return nil, fmt.Errorf("failed to register Go collector: %w", err)
 	}
 
 	processCollector := collectors.NewProcessCollector(collectors.ProcessCollectorOpts{})
 	if err := systemRegistry.Register(processCollector); err != nil {
-		return nil, fmt.Errorf("failed to register process collector: %v", err)
+		return nil, fmt.Errorf("failed to register process collector: %w", err)
 	}
 
 	defaultHTTPLabels := []string{"path", "method", "status"}

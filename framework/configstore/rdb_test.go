@@ -21,6 +21,7 @@ import (
 
 // setupRDBTestStore creates an in-memory SQLite database and returns an RDBConfigStore for testing
 func setupRDBTestStore(t *testing.T) *RDBConfigStore {
+	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),
 	})

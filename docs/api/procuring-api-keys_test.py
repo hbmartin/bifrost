@@ -22,7 +22,7 @@ HERE = Path(__file__).resolve().parent
 DOC = HERE / "procuring-api-keys.mdx"
 SPEC = HERE.parent / "openapi" / "openapi.yaml"
 
-spec_paths = set((yaml.safe_load(SPEC.read_text(encoding="utf-8")).get("paths") or {}))
+spec_paths = set(yaml.safe_load(SPEC.read_text(encoding="utf-8")).get("paths") or {})
 
 # Every `/api/...` in a backtick span inside the table, keyed by the Area cell.
 rows: dict[str, set[str]] = {}
@@ -89,9 +89,7 @@ def test_every_listed_path_is_documented():
 
 def test_canonical_governance_routes_are_listed():
     missing = sorted(
-        canonical
-        for canonical in set(LEGACY_TO_CANONICAL.values())
-        if canonical not in listed
+        canonical for canonical in set(LEGACY_TO_CANONICAL.values()) if canonical not in listed
     )
     assert not missing, f"canonical governance routes missing from the table: {missing}"
 
@@ -109,8 +107,7 @@ def test_legacy_rows_are_labelled_as_deprecated():
         if legacy_here and "deprecated" not in area.lower():
             unlabelled.add(area)
     assert not unlabelled, (
-        "areas list legacy aliases without saying so in the Area cell: "
-        f"{sorted(unlabelled)}"
+        f"areas list legacy aliases without saying so in the Area cell: {sorted(unlabelled)}"
     )
 
 

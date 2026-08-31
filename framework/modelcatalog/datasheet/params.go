@@ -141,7 +141,7 @@ func (s *Store) loadModelParametersFromURL(ctx context.Context) (map[string]json
 		if err != nil {
 			return nil, fmt.Errorf("failed to download model parameters data: %w", err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		if resp.StatusCode != http.StatusOK {
 			return nil, fmt.Errorf("failed to download model parameters data: HTTP %d", resp.StatusCode)
 		}

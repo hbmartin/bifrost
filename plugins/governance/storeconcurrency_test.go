@@ -179,13 +179,17 @@ func TestAdoptCalendarAlignmentInMemoryPreservesConcurrentSpend(t *testing.T) {
 	// it just as well without dragging real time into the fixture.
 	const bumps = 50
 	var wg sync.WaitGroup
+	var loadFailed atomic.Bool
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		for i := 0; i < bumps; i++ {
 			for {
 				raw, ok := store.budgets.Load(budget.ID)
-				require.True(t, ok)
+				if !ok {
+					loadFailed.Store(true)
+					return
+				}
 				current := raw.(*configstoreTables.TableBudget)
 				clone := *current
 				clone.CurrentUsage++
@@ -197,6 +201,7 @@ func TestAdoptCalendarAlignmentInMemoryPreservesConcurrentSpend(t *testing.T) {
 	}()
 	adopted := store.AdoptCalendarAlignmentInMemory(ctx, budget.ID, now)
 	wg.Wait()
+	require.False(t, loadFailed.Load(), "budget disappeared during concurrent adoption")
 
 	assert.True(t, adopted, "a window opened before the boundary must be adopted")
 

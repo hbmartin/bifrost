@@ -38,7 +38,7 @@ export default function PluginsPage() {
 		if (plugin) {
 			dispatch(setSelectedPlugin(plugin));
 		}
-	}, [selectedPluginId, customPlugins]);
+	}, [customPlugins, dispatch, selectedPluginId]);
 
 	useEffect(() => {
 		if (selectedPluginId) return;
@@ -47,7 +47,7 @@ export default function PluginsPage() {
 			return;
 		}
 		setSelectedPluginId(selectedPlugin?.name ?? "");
-	}, [customPlugins]);
+	}, [customPlugins, selectedPlugin, selectedPluginId, setSelectedPluginId]);
 
 	if (customPlugins?.length === 0 && !isLoading) {
 		return (

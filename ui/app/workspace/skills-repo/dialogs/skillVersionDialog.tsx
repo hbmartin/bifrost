@@ -22,58 +22,6 @@ export function SkillVersionsPopover({
 	onSelectVersion: (version: SkillVersionSummary) => void;
 }) {
 	const [open, setOpen] = useState(false);
-	const [search, setSearch] = useState("");
-	const debouncedSearch = useDebouncedValue(search, 300);
-	const [offset, setOffset] = useState(0);
-	const [accumulated, setAccumulated] = useState<SkillVersionSummary[]>([]);
-
-	const { data, isFetching, isError } = useListSkillVersionsQuery(
-		{
-			id: skillId,
-			limit: PAGE_SIZE,
-			offset,
-			search: debouncedSearch || undefined,
-		},
-		{ skip: !open },
-	);
-
-	// Reset the accumulator whenever the search term changes so a new query
-	// starts from page 0 instead of appending onto stale results.
-	useEffect(() => {
-		setOffset(0);
-		setAccumulated([]);
-	}, [debouncedSearch, skillId]);
-
-	// Append each fetched page. RTK Query replaces `data` per arg combo, so we
-	// accumulate here; dedupe by id guards against effect re-runs on the same page.
-	useEffect(() => {
-		if (!data) return;
-		setAccumulated((prev) => {
-			if (offset === 0) return data.versions;
-			const seen = new Set(prev.map((v) => v.id));
-			return [...prev, ...data.versions.filter((v) => !seen.has(v.id))];
-		});
-	}, [data, offset]);
-
-	const total = data?.total ?? 0;
-	const hasMore = accumulated.length < total;
-
-	// Infinite scroll: bump the offset when the bottom sentinel scrolls into view.
-	const sentinelRef = useRef<HTMLDivElement | null>(null);
-	useEffect(() => {
-		const node = sentinelRef.current;
-		if (!node || !open || !hasMore || isFetching) return;
-		const observer = new IntersectionObserver(
-			(entries) => {
-				if (entries[0]?.isIntersecting) {
-					setOffset((o) => o + PAGE_SIZE);
-				}
-			},
-			{ threshold: 1 },
-		);
-		observer.observe(node);
-		return () => observer.disconnect();
-	}, [open, hasMore, isFetching]);
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>

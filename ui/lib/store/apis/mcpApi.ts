@@ -42,7 +42,9 @@ export const mcpApi = baseApi.injectEndpoints({
 					...(params?.virtual_keys && { virtual_keys: params.virtual_keys }),
 					...(params?.code_mode !== undefined && { code_mode: params.code_mode }),
 					...(params?.disabled !== undefined && { disabled: params.disabled }),
-					...(params?.all_virtual_keys !== undefined && { all_virtual_keys: params.all_virtual_keys }),
+					...(params?.all_virtual_keys !== undefined && {
+						all_virtual_keys: params.all_virtual_keys,
+					}),
 				},
 			}),
 			providesTags: ["MCPClients"],

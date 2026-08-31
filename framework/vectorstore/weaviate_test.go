@@ -34,6 +34,7 @@ type TestSetup struct {
 
 // NewTestSetup creates a test setup with environment-driven configuration
 func NewTestSetup(t *testing.T) *TestSetup {
+	t.Helper()
 	// Get configuration from environment variables
 	scheme := getEnvWithDefault("WEAVIATE_SCHEME", DefaultTestScheme)
 	host := schemas.NewSecretVar(getEnvWithDefault("WEAVIATE_HOST", DefaultTestHost))
@@ -78,6 +79,7 @@ func NewTestSetup(t *testing.T) *TestSetup {
 
 // Cleanup cleans up test resources
 func (ts *TestSetup) Cleanup(t *testing.T) {
+	t.Helper()
 	defer ts.cancel()
 
 	if !testing.Short() {
@@ -92,6 +94,7 @@ func (ts *TestSetup) Cleanup(t *testing.T) {
 
 // ensureClassExists creates the test class in Weaviate
 func (ts *TestSetup) ensureClassExists(t *testing.T) {
+	t.Helper()
 	// Try to get class schema first
 	exists, err := ts.Store.client.Schema().ClassGetter().
 		WithClassName(TestClassName).
@@ -142,6 +145,7 @@ func (ts *TestSetup) ensureClassExists(t *testing.T) {
 
 // cleanupTestData removes all test objects from the class
 func (ts *TestSetup) cleanupTestData(t *testing.T) {
+	t.Helper()
 	// Delete all objects in the test class
 	allTestKeys, _, err := ts.Store.GetAll(ts.ctx, TestClassName, []Query{}, []string{}, nil, 1000)
 	if err != nil {
@@ -729,7 +733,7 @@ func TestVectorStoreFactory_Weaviate(t *testing.T) {
 	if err != nil {
 		t.Skipf("Could not create Weaviate store: %v", err)
 	}
-	defer store.Close(context.Background(), TestClassName)
+	defer func() { _ = store.Close(context.Background(), TestClassName) }()
 
 	// Verify it's actually a WeaviateStore
 	weaviateStore, ok := store.(*WeaviateStore)

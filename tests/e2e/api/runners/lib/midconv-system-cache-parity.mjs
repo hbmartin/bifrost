@@ -195,7 +195,10 @@ function anthropicBody(kase, cellId) {
       break;
     case "system_last":
       messages.push({ role: "user", content: [{ type: "text", text: QUESTION }] });
-      messages.push({ role: "system", content: [{ type: "text", text: REMINDER, cache_control: cc }] });
+      messages.push({
+        role: "system",
+        content: [{ type: "text", text: REMINDER, cache_control: cc }],
+      });
       break;
     case "system_str":
       // Deliberately the string form: no content blocks, therefore no place to hang
@@ -204,9 +207,15 @@ function anthropicBody(kase, cellId) {
       messages.push({ role: "user", content: [{ type: "text", text: QUESTION }] });
       break;
     case "system_double":
-      messages.push({ role: "system", content: [{ type: "text", text: `${REMINDER} (first)`, cache_control: cc }] });
+      messages.push({
+        role: "system",
+        content: [{ type: "text", text: `${REMINDER} (first)`, cache_control: cc }],
+      });
       messages.push({ role: "user", content: [{ type: "text", text: "Understood." }] });
-      messages.push({ role: "system", content: [{ type: "text", text: `${REMINDER} (second)`, cache_control: cc }] });
+      messages.push({
+        role: "system",
+        content: [{ type: "text", text: `${REMINDER} (second)`, cache_control: cc }],
+      });
       messages.push({ role: "user", content: [{ type: "text", text: QUESTION }] });
       break;
     default:
@@ -360,7 +369,8 @@ function legRequest(leg, body) {
     };
   }
 
-  const path = leg === "bifrost_messages" ? ["anthropic", "v1", "messages"] : ["openai", "v1", "responses"];
+  const path =
+    leg === "bifrost_messages" ? ["anthropic", "v1", "messages"] : ["openai", "v1", "responses"];
   return {
     ...common,
     header: [{ key: "Content-Type", value: "application/json" }],
@@ -476,7 +486,10 @@ export function buildMidConvSystemCacheParityItems() {
         event: [
           {
             listen: "test",
-            script: { type: "text/javascript", exec: writeRoundScript(kase, leg, cellId).split("\n") },
+            script: {
+              type: "text/javascript",
+              exec: writeRoundScript(kase, leg, cellId).split("\n"),
+            },
           },
         ],
         request,
@@ -488,7 +501,10 @@ export function buildMidConvSystemCacheParityItems() {
           { listen: "prerequest", script: { type: "text/javascript", exec: [SETTLE] } },
           {
             listen: "test",
-            script: { type: "text/javascript", exec: readRoundScript(kase, leg, cellId).split("\n") },
+            script: {
+              type: "text/javascript",
+              exec: readRoundScript(kase, leg, cellId).split("\n"),
+            },
           },
         ],
         // Byte-identical to round 1 - the point is that nothing about the request changed, so any
@@ -507,7 +523,7 @@ export function buildMidConvSystemCacheParityFolder() {
     name: "Cross-Cut Round 34: Mid-Conversation System Cache-Anchor Parity (generated)",
     description:
       "Generated at harness runtime. Multi-turn (~24K prompt: ~12K system, ~12K conversation body) Claude-Code-shaped conversations carrying three cache_control breakpoints - two in `system`, one on the tail - run twice each (round 1 warms, round 2 measures). " +
-      "The only variable between the control and midconv arms is whether the third breakpoint rides a role:\"user\" block or a mid-conversation role:\"system\" turn. " +
+      'The only variable between the control and midconv arms is whether the third breakpoint rides a role:"user" block or a mid-conversation role:"system" turn. ' +
       "Each arm runs three legs: direct Bedrock Converse over SigV4 with all three cachePoint elements placed by hand (ground truth for what Bifrost should emit), Bifrost /anthropic/v1/messages, and Bifrost /openai/v1/responses. " +
       `Asserts read / (read + write + uncached) >= ${HIT_RATE_FLOOR} - deliberately NOT read / prompt_tokens, which counts a cache write as a miss and is the metric artifact that masked this defect in production dashboards. ` +
       `Model: bedrock/${BEDROCK_MODEL} (the Bedrock inlining branch is gated on IsAnthropicModelFamily, not on Opus 4.8+, so the cheapest Claude reproduces it). ` +

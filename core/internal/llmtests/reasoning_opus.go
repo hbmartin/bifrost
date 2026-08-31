@@ -11,13 +11,13 @@ import (
 
 // OpusReasoningTestConfig holds configuration for Opus-specific reasoning tests
 type OpusReasoningTestConfig struct {
-	Provider   schemas.ModelProvider
+	Provider    schemas.ModelProvider
 	Opus45Model string // Opus 4.5 model identifier
 	Opus46Model string // Opus 4.6 model identifier
-	Fallbacks  []schemas.Fallback
-	SkipOpus45 bool   // Skip Opus 4.5 tests
-	SkipOpus46 bool   // Skip Opus 4.6 tests
-	SkipReason string // Reason for skipping
+	Fallbacks   []schemas.Fallback
+	SkipOpus45  bool   // Skip Opus 4.5 tests
+	SkipOpus46  bool   // Skip Opus 4.6 tests
+	SkipReason  string // Reason for skipping
 }
 
 // GetOpusReasoningTestConfigs returns test configurations for Opus reasoning across providers
@@ -52,6 +52,7 @@ func GetOpusReasoningTestConfigs() []OpusReasoningTestConfig {
 
 // RunOpus45ReasoningTest tests extended thinking with Opus 4.5 (budget_tokens mode)
 func RunOpus45ReasoningTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, config OpusReasoningTestConfig) {
+	t.Helper()
 	if config.SkipOpus45 {
 		t.Skipf("Skipping Opus 4.5 test: %s", config.SkipReason)
 		return
@@ -256,6 +257,7 @@ func RunOpus45ReasoningTest(t *testing.T, client *bifrost.Bifrost, ctx context.C
 
 // RunOpus46ReasoningTest tests adaptive thinking with Opus 4.6 (adaptive mode + effort)
 func RunOpus46ReasoningTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, config OpusReasoningTestConfig) {
+	t.Helper()
 	if config.SkipOpus46 {
 		t.Skipf("Skipping Opus 4.6 test: %s", config.SkipReason)
 		return
@@ -469,6 +471,7 @@ func RunOpus46ReasoningTest(t *testing.T, client *bifrost.Bifrost, ctx context.C
 // This verifies that reasoning details (text + signature) from assistant messages are correctly
 // passed back to the model in follow-up turns.
 func RunOpus46MultiTurnReasoningTest(t *testing.T, client *bifrost.Bifrost, ctx context.Context, config OpusReasoningTestConfig) {
+	t.Helper()
 	if config.SkipOpus46 {
 		t.Skipf("Skipping Opus 4.6 multi-turn test: %s", config.SkipReason)
 		return
@@ -629,6 +632,7 @@ func RunOpus46MultiTurnReasoningTest(t *testing.T, client *bifrost.Bifrost, ctx 
 
 // RunAllOpusReasoningTests runs Opus 4.5 and 4.6 reasoning tests for a given provider
 func RunAllOpusReasoningTests(t *testing.T, client *bifrost.Bifrost, ctx context.Context, config OpusReasoningTestConfig) {
+	t.Helper()
 	t.Run(string(config.Provider)+"_OpusReasoning", func(t *testing.T) {
 		t.Run("Opus45", func(t *testing.T) {
 			RunOpus45ReasoningTest(t, client, ctx, config)

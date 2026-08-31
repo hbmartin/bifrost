@@ -62,6 +62,7 @@ func TestInlineChatFileURLs_LeavesResolvedBlocksUntouched(t *testing.T) {
 			name: "already has file_id",
 			file: schemas.ChatInputFile{FileID: schemas.Ptr("file-abc"), FileURL: schemas.Ptr("https://x.test/a.pdf")},
 			check: func(t *testing.T, f *schemas.ChatInputFile) {
+				t.Helper()
 				require.NotNil(t, f.FileID)
 				assert.Equal(t, "file-abc", *f.FileID)
 				assert.Nil(t, f.FileData, "must not fetch when a file_id is already present")
@@ -71,6 +72,7 @@ func TestInlineChatFileURLs_LeavesResolvedBlocksUntouched(t *testing.T) {
 			name: "already has file_data",
 			file: schemas.ChatInputFile{FileData: schemas.Ptr("data:application/pdf;base64,QUJD")},
 			check: func(t *testing.T, f *schemas.ChatInputFile) {
+				t.Helper()
 				require.NotNil(t, f.FileData)
 				assert.Equal(t, "data:application/pdf;base64,QUJD", *f.FileData)
 			},

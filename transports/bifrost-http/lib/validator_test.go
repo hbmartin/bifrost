@@ -62,7 +62,7 @@ func TestValidateConfigSchema_EmptyObject(t *testing.T) {
 func TestValidateConfigSchema_CustomSchemaURL(t *testing.T) {
 	schema := loadLocalSchema(t)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write(schema)
+		_, _ = w.Write(schema)
 	}))
 	t.Cleanup(server.Close)
 	t.Setenv(ConfigSchemaURLEnv, "")

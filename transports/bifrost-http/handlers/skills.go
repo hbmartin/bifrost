@@ -182,7 +182,7 @@ func (h *SkillsHandler) uploadFile(ctx *fasthttp.RequestCtx) {
 		SendError(ctx, fasthttp.StatusInternalServerError, "failed to read uploaded file")
 		return
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	data, err := io.ReadAll(io.LimitReader(f, configstore.MaxSkillFileContentSize+1))
 	if err != nil {
@@ -771,7 +771,7 @@ func inferMimeTypeFromURL(ctx context.Context, rawURL string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		return "", fmt.Errorf("HEAD returned status %d", resp.StatusCode)
 	}

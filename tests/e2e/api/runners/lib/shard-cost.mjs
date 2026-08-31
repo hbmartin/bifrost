@@ -123,7 +123,11 @@ export const cellCost = (items, timings) => {
 // point each extra shard is a node process that adds startup cost and takes zero work off the
 // critical path. The measured sweep's slowest row is 170s against a 150s target, which is exactly
 // the case that would otherwise over-split.
-export const subshardCount = (costMs, targetSeconds = DEFAULT_TARGET_SECONDS, { rowCount } = {}) => {
+export const subshardCount = (
+  costMs,
+  targetSeconds = DEFAULT_TARGET_SECONDS,
+  { rowCount } = {},
+) => {
   const target = Math.max(1, Number(targetSeconds) || DEFAULT_TARGET_SECONDS) * 1000;
   const n = Math.ceil((Number(costMs) || 0) / target);
   const capped = rowCount ? Math.min(n, rowCount) : n;

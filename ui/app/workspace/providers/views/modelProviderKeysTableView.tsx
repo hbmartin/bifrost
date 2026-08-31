@@ -370,7 +370,9 @@ export default function ModelProviderKeysTableView({ provider, className, header
 															toast.success(`${EntityLabel} ${checked ? "enabled" : "disabled"} successfully`);
 														})
 														.catch((err) => {
-															toast.error(`Failed to update ${entityLabel}`, { description: getErrorMessage(err) });
+															toast.error(`Failed to update ${entityLabel}`, {
+																description: getErrorMessage(err),
+															});
 														})
 														.finally(() => {
 															setTogglingKeyIds((prev) => {

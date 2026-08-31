@@ -60,7 +60,7 @@ export default function GovernanceVirtualKeysPage() {
 		setUrlState({
 			offset: vkTotal === 0 ? 0 : Math.floor((vkTotal - 1) / PAGE_SIZE) * PAGE_SIZE,
 		});
-	}, [vkTotal, urlState.offset]);
+	}, [setUrlState, urlState.offset, virtualKeysData, vkTotal]);
 
 	const isLoading = vkLoading;
 

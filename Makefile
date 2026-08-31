@@ -68,7 +68,7 @@ define EXPOSE_ENV
 	fi
 endef
 
-.PHONY: all help dev dev-pulse build-ui build build-cli run run-cli install-air install-pulse clean test test-cli install-ui setup-workspace work-init work-clean docs docker-image docker-run cleanup-enterprise mod-tidy test-integrations-py test-integrations-ts install-playwright run-e2e run-e2e-ui run-e2e-headed run-e2e-api format ui install-newman run-provider-harness-test smoke-provider-harness-test run-cli-harness-test cli-harness-report test-harness-runner-lib test-semantic-cache test-semantic-cache-complete _test-semantic-cache-complete-inner helm-index install-microsocks socks5-proxy install-tinyproxy http-proxy
+.PHONY: all help dev dev-pulse build-ui build build-cli run run-cli install-air install-pulse clean test test-cli install-ui setup-workspace work-init work-clean docs docker-image docker-run cleanup-enterprise mod-tidy test-integrations-py test-integrations-ts install-playwright run-e2e run-e2e-ui run-e2e-headed run-e2e-api static-tools check check-go check-web check-python check-repo check-infra check-security check-unit fix fix-go fix-web fix-python fix-repo fix-infra fix-security fix-unit lint fmt format ui install-newman run-provider-harness-test smoke-provider-harness-test run-cli-harness-test cli-harness-report test-harness-runner-lib test-semantic-cache test-semantic-cache-complete _test-semantic-cache-complete-inner helm-index install-microsocks socks5-proxy install-tinyproxy http-proxy
 
 all: help
 
@@ -1678,22 +1678,54 @@ quick-start: ## Quick start with example config and maxim plugin
 	@$(ECHO) "$(GREEN)Quick starting Bifrost with example configuration...$(NC)"
 	@$(MAKE) dev
 
-# Linting and formatting
-lint: ## Run linter for Go code
-	@$(ECHO) "$(GREEN)Running golangci-lint...$(NC)"
-	@golangci-lint run ./...
+# Repository-wide static checks. Orchestration lives under scripts/static-checks
+# so local, pre-commit, and CI execution share one implementation.
+static-tools: ## Install exact static-analysis tools into the gitignored cache
+	@scripts/static-checks/bootstrap.sh all
 
-fmt: ## Format Go code
-	@$(ECHO) "$(GREEN)Formatting Go code...$(NC)"
-	@gofmt -s -w .
-	@goimports -w .
+check: ## Run every blocking repository check without modifying files
+	@scripts/static-checks/check.sh all
+check-go:
+	@scripts/static-checks/check.sh go
+check-web:
+	@scripts/static-checks/check.sh web
+check-python:
+	@scripts/static-checks/check.sh python-rust
+check-repo:
+	@scripts/static-checks/check.sh repo
+check-infra:
+	@scripts/static-checks/check.sh infra
+check-security:
+	@scripts/static-checks/check.sh security
+check-unit:
+	@scripts/static-checks/check.sh unit
 
-format: ## Format code (Usage: make format ui)
+fix: ## Apply every safe formatter and mechanical static fix
+	@scripts/static-checks/fix.sh all
+fix-go:
+	@scripts/static-checks/fix.sh go
+fix-web:
+	@scripts/static-checks/fix.sh web
+fix-python:
+	@scripts/static-checks/fix.sh python-rust
+fix-repo:
+	@scripts/static-checks/fix.sh repo
+fix-infra:
+	@scripts/static-checks/fix.sh infra
+fix-security:
+	@scripts/static-checks/fix.sh security
+fix-unit:
+	@scripts/static-checks/fix.sh unit
+
+# Compatibility aliases retained for existing developer muscle memory.
+lint: check
+fmt: fix-go
+
+format:
 ifeq (ui,$(filter ui,$(MAKECMDGOALS)))
-	@$(ECHO) "$(GREEN)Formatting UI code...$(NC)"
-	@cd ui && $(USE_NODE); npm run format
+	@scripts/static-checks/fix.sh web
 else
-	@$(ECHO) "$(YELLOW)Usage: make format ui$(NC)"
+	@scripts/static-checks/fix.sh all
 endif
 
 ui:

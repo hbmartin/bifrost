@@ -81,7 +81,7 @@ func trySetupPreMergePostgresDB(t *testing.T) *gorm.DB {
 	ok := false
 	defer func() {
 		if !ok {
-			sqlDB.Close()
+			_ = sqlDB.Close()
 		}
 	}()
 	if err := sqlDB.Ping(); err != nil {
@@ -112,7 +112,7 @@ func trySetupPreMergePostgresDB(t *testing.T) *gorm.DB {
 	// both.
 	t.Cleanup(func() {
 		db.Exec("DROP SCHEMA IF EXISTS " + pgPerfTestSchema + " CASCADE")
-		sqlDB.Close()
+		_ = sqlDB.Close()
 	})
 	ok = true
 
@@ -198,7 +198,7 @@ func seedSyntheticMCPClients(t *testing.T, db *gorm.DB, count int) {
 // migrationMergeOauthTokenTables walks to derive
 // mcp_oauth_tokens.oauth_config_id/mcp_client_id for shared tokens. Without
 // these linked rows every seeded token would only exercise that join's
-// COALESCE(...,'') miss branch, never a real hit.
+// COALESCE(...,”) miss branch, never a real hit.
 //
 // The join reads oauth_configs.token_id — a column TableOauthConfig no
 // longer maps a Go field to (see its doc comment: the FK shortcut is
@@ -474,7 +474,7 @@ func trySetupPreCreateFlowsPostgresDB(t *testing.T) *gorm.DB {
 	ok := false
 	defer func() {
 		if !ok {
-			sqlDB.Close()
+			_ = sqlDB.Close()
 		}
 	}()
 	if err := sqlDB.Ping(); err != nil {
@@ -499,7 +499,7 @@ func trySetupPreCreateFlowsPostgresDB(t *testing.T) *gorm.DB {
 
 	t.Cleanup(func() {
 		db.Exec("DROP SCHEMA IF EXISTS " + pgPerfTestSchema + " CASCADE")
-		sqlDB.Close()
+		_ = sqlDB.Close()
 	})
 	ok = true
 

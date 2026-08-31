@@ -38,7 +38,7 @@ func TestWithQueryScope_StashesScope(t *testing.T) {
 }
 
 func TestFromContext_NilCtxReturnsNil(t *testing.T) {
-	assert.Nil(t, FromContext(nil))
+	assert.Nil(t, FromContext(nil)) //nolint:staticcheck // This is the explicit nil-context compatibility test.
 }
 
 func TestFromContext_MissingKeyReturnsNil(t *testing.T) {
@@ -65,7 +65,7 @@ func TestWithQueryScope_NilCtxIsSafe(t *testing.T) {
 	// Defensive: callers should pass a real ctx, but nil ctx must
 	// not panic. Go's context.WithValue panics on nil parent so
 	// WithQueryScope short-circuits via the nil-scope guard.
-	out := WithQueryScope(nil, nil)
+	out := WithQueryScope(nil, nil) //nolint:staticcheck // This is the explicit nil-context compatibility test.
 	assert.Nil(t, out, "nil ctx + nil scope must propagate nil cleanly")
 }
 
