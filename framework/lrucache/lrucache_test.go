@@ -7,6 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -247,36 +248,39 @@ func TestCache_Flush(t *testing.T) {
 }
 
 func TestCache_InflightDedup(t *testing.T) {
-	c := New[string](4)
-	var calls atomic.Int32
-	release := make(chan struct{})
-	loader := func() (string, string, error) {
-		calls.Add(1)
-		<-release
-		return "v1", "id1", nil
-	}
+	synctest.Test(t, func(t *testing.T) {
+		c := New[string](4)
+		var calls atomic.Int32
+		release := make(chan struct{})
+		loader := func() (string, string, error) {
+			calls.Add(1)
+			<-release
+			return "v1", "id1", nil
+		}
 
-	var wg sync.WaitGroup
-	results := make([]string, 2)
-	for i := range 2 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			v, err := c.Fill(context.Background(), "k1", loader)
-			// assert, not require: require.NoError calls t.FailNow(), which
-			// per the testing package's own contract must only be called
-			// from the goroutine running the test.
-			assert.NoError(t, err)
-			results[i] = v
-		}()
-	}
-	// Let both goroutines reach the fill before releasing the leader.
-	assert.Eventually(t, func() bool { return calls.Load() == 1 }, time.Second, time.Millisecond)
-	close(release)
-	wg.Wait()
+		var wg sync.WaitGroup
+		results := make([]string, 2)
+		errs := make([]error, 2)
+		for i := range 2 {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				results[i], errs[i] = c.Fill(context.Background(), "k1", loader)
+			}()
+		}
 
-	assert.Equal(t, int32(1), calls.Load(), "loader must run exactly once")
-	assert.Equal(t, []string{"v1", "v1"}, results)
+		// Wait until the leader is blocked in loader and the follower is
+		// blocked on the shared inflight result before releasing either.
+		synctest.Wait()
+		assert.Equal(t, int32(1), calls.Load(), "loader must run exactly once")
+
+		close(release)
+		wg.Wait()
+
+		assert.NoError(t, errs[0])
+		assert.NoError(t, errs[1])
+		assert.Equal(t, []string{"v1", "v1"}, results)
+	})
 }
 
 func TestCache_FillFollowerReturnsOnOwnContextCancellation(t *testing.T) {
