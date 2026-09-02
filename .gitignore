@@ -201,12 +201,21 @@ examples/mcps/oauth-demo-server/oauth-demo-server
 # Same story as the MCP servers above: `go build` in a module directory drops
 # the executable beside main.go, named after the directory.
 .github/workflows/scripts/schemasync/schema-sync
+cli/cli
+cmd/e2eseed/e2eseed
+examples/plugins/hello-world/hello-world
 examples/plugins/hello-world-wasm-go/hello-world-wasm
+examples/plugins/http-transport-only/http-transport-only
+examples/plugins/llm-only/llm-only
+examples/plugins/mcp-only/mcp-only
+examples/plugins/multi-interface/multi-interface
+examples/plugins/virtual-key-from-config/virtual-key-from-config
 examples/webhooks/webhooks
 scripts/realtime-test/realtime-test
 tests/cmd/e2eseed/e2eseed
 tests/cmd/seedvks/seedvks
 tests/e2e/api/webhook-receiver/webhook-receiver
+tests/scripts/1millogs/1millogs
 tests/scripts/migration-checker/migration-checker
 
 # routing harness ledgers (local run journals, never committed)
