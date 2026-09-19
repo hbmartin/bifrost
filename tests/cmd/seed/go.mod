@@ -10,7 +10,7 @@ replace (
 require (
 	github.com/maximhq/bifrost/core v1.8.3
 	github.com/maximhq/bifrost/framework v1.3.16
-	gorm.io/driver/postgres v1.6.2
+	gorm.io/driver/postgres v1.6.3
 	gorm.io/driver/sqlite v1.6.0
 	gorm.io/gorm v1.31.2
 )
